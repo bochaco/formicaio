@@ -1,0 +1,13 @@
+[package]
+name = "formicaio"
+version = "0.0.1"
+edition = "2021"
+
+[dependencies]
+bs58 = "0.5.1"
+console_error_panic_hook = "0.1.7"
+leptos = { version = "0.6.13", features = ["csr"] }
+hex = "0.4.3"
+rand = "0.8.5"
+serde = "1.0.207"
+gloo-timers = { version = "0.3.0", features = ["futures"] }
