@@ -63,7 +63,7 @@ pub fn NodeInstanceView(
             <div class="card-compact">
                 <div class="card-actions justify-end">
                     <ButtonStopStart info nodes />
-                    <ButtonRemove peer_id = info.get().peer_id nodes />
+                    <ButtonRemove peer_id=info.get().peer_id nodes />
                 </div>
                 <p>"Name: " {info.get().name}</p>
                 <p>"Peer Id: " {peer_id}</p>
@@ -82,36 +82,45 @@ fn ButtonStopStart(
     view! {
         <button
             class="btn btn-square btn-sm"
-            on:click=move |_| nodes.with(|nodes| {
-                nodes.iter()
-                    .find(|node| node.get().peer_id == info.get().peer_id)
-                    .map(|node| if node.get().status.is_inactive() {
-                        node.update(|info| info.status = NodeStatus::Active);
-                    } else {
-                        node.update(|info| info.status = NodeStatus::Inactive);
-                    });
-            })
+            on:click=move |_| {
+                nodes
+                    .with(|nodes| {
+                        nodes
+                            .iter()
+                            .find(|node| node.get().peer_id == info.get().peer_id)
+                            .map(|node| {
+                                if node.get().status.is_inactive() {
+                                    node.update(|info| info.status = NodeStatus::Active);
+                                } else {
+                                    node.update(|info| info.status = NodeStatus::Inactive);
+                                }
+                            });
+                    })
+            }
         >
             <svg
                 xmlns="http://www.w3.org/2000/svg"
                 class="h-6 w-6"
                 fill="none"
                 viewBox="0 0 24 24"
-                stroke="currentColor">
+                stroke="currentColor"
+            >
                 <Show
                     when=move || info.get().status.is_inactive()
-                    fallback=|| view! {
-                        <rect
-                            width="13"
-                            height="13"
-                            x="5" y="5"
-                            fill="currentColor"
-                            stroke-width="2" />
-                    }>
-                    <polygon
-                        points="6,6 18,12 6,18"
-                        fill="currentColor"
-                        stroke-width="2" />
+                    fallback=|| {
+                        view! {
+                            <rect
+                                width="13"
+                                height="13"
+                                x="5"
+                                y="5"
+                                fill="currentColor"
+                                stroke-width="2"
+                            />
+                        }
+                    }
+                >
+                    <polygon points="6,6 18,12 6,18" fill="currentColor" stroke-width="2" />
                 </Show>
             </svg>
         </button>
@@ -126,22 +135,27 @@ fn ButtonRemove(
     view! {
         <button
             class="btn btn-square btn-sm"
-            on:click=move |_| nodes.update(|nodes| {
-                nodes.retain(|node| node.get().peer_id != peer_id);
-            })
+            on:click=move |_| {
+                nodes
+                    .update(|nodes| {
+                        nodes.retain(|node| node.get().peer_id != peer_id);
+                    })
+            }
         >
-        <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-6 w-6"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor">
-            <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M6 18L18 6M6 6l12 12" />
-        </svg>
-      </button>
+            <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-6 w-6"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+            >
+                <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M6 18L18 6M6 6l12 12"
+                />
+            </svg>
+        </button>
     }
 }

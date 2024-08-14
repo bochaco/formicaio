@@ -32,9 +32,9 @@ pub fn AggregatedStatsView(nodes: RwSignal<Vec<RwSignal<NodeInstanceInfo>>>) -> 
 
     view! {
         <div class="stat place-items-center">
-          <div class="stat-title">Total rewards</div>
-          <div class="stat-value text-primary">{rewards}</div>
-          <div class="stat-desc">21% more than last month</div>
+            <div class="stat-title">Total rewards</div>
+            <div class="stat-value text-primary">{rewards}</div>
+            <div class="stat-desc">21% more than last month</div>
         </div>
 
         <div class="stat place-items-center">
@@ -43,15 +43,17 @@ pub fn AggregatedStatsView(nodes: RwSignal<Vec<RwSignal<NodeInstanceInfo>>>) -> 
         </div>
 
         <div class="stat place-items-center">
-          <div class="stat-title">Stored chunks</div>
-          <div class="stat-value text-secondary">{chunks}</div>
-          <div class="stat-desc">10% more than last month</div>
+            <div class="stat-title">Stored chunks</div>
+            <div class="stat-value text-secondary">{chunks}</div>
+            <div class="stat-desc">10% more than last month</div>
         </div>
 
         <div class="stat place-items-center">
-          <div class="stat-title">Active nodes</div>
-          <div class="stat-value">{active_nodes} " / " {total_nodes}</div>
-          <div class="stat-desc text-secondary">{shunned_nodes} " shunned | " {inactive_nodes} " inactive"</div>
+            <div class="stat-title">Active nodes</div>
+            <div class="stat-value">{active_nodes} " / " {total_nodes}</div>
+            <div class="stat-desc text-secondary">
+                {shunned_nodes} " shunned | " {inactive_nodes} " inactive"
+            </div>
         </div>
     }
 }

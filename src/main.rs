@@ -1,60 +1,38 @@
-mod node_instance;
-mod stats;
-mod tools;
+#[cfg(feature = "ssr")]
+#[tokio::main]
+async fn main() {
+    use axum::Router;
+    use formicaio::app::*;
+    use formicaio::fileserv::file_and_error_handler;
+    use leptos::*;
+    use leptos_axum::{generate_route_list, LeptosRoutes};
 
-use leptos::*;
+    // Setting get_configuration(None) means we'll be using cargo-leptos's env values
+    // For deployment these variables are:
+    // <https://github.com/leptos-rs/start-axum#executing-a-server-on-a-remote-machine-without-the-toolchain>
+    // Alternately a file can be specified such as Some("Cargo.toml")
+    // The file would need to be included with the executable when moved to deployment
+    let conf = get_configuration(None).await.unwrap();
+    let leptos_options = conf.leptos_options;
+    let addr = leptos_options.site_addr;
+    let routes = generate_route_list(App);
 
-use node_instance::NodeInstanceView;
-use stats::AggregatedStatsView;
-use tools::{add_node_instance, read_nodes_instances_info};
+    // build our application with a route
+    let app = Router::new()
+        .leptos_routes(&leptos_options, routes, App)
+        .fallback(file_and_error_handler)
+        .with_state(leptos_options);
 
-fn main() {
-    console_error_panic_hook::set_once();
-
-    mount_to_body(|| view! { <App/> })
+    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+    logging::log!("listening on http://{}", &addr);
+    axum::serve(listener, app.into_make_service())
+        .await
+        .unwrap();
 }
 
-#[component]
-fn App() -> impl IntoView {
-    // we first read (async) the list of nodes instances that currently exist
-    let nodes = create_resource(|| (), |_| async move { read_nodes_instances_info().await });
-
-    view! {
-      <Suspense
-          fallback=move || view! { <p>"Loading..."</p> }
-      >
-        {nodes.get().map(|nodes| view! {
-            // show general stats on top
-            <div class="stats shadow flex">
-              <AggregatedStatsView nodes />
-            </div>
-
-            // when we click we create a new node instance and add it to the list
-            <button
-                class="btn btn-square btn-outline btn-wide"
-                on:click=move |_| add_node_instance(nodes)
-            >
-                "Add node"
-                <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="h-6 w-6"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="green">
-                      <path stroke-width="3" d="M12 3 L12 20 M3 12 L20 12 Z" />
-                </svg>
-            </button>
-
-            <div class="flex flex-wrap">
-              <For
-                  each=move || nodes.get()
-                  key=|node| node.get().peer_id.clone()
-                  let:child
-              >
-                <NodeInstanceView info = child nodes />
-              </For>
-            </div>
-        })}
-      </Suspense>
-    }
+#[cfg(not(feature = "ssr"))]
+pub fn main() {
+    // no client-side main function
+    // unless we want this to work with e.g., Trunk for a purely client-side app
+    // see lib.rs for hydration function instead
 }

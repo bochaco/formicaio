@@ -4,7 +4,8 @@ use leptos::*;
 
 // Obtain the list of existing nodes instances with their info
 // TODO: replace with actual implementation of it
-pub async fn read_nodes_instances_info() -> RwSignal<Vec<RwSignal<NodeInstanceInfo>>> {
+#[server(NodeInstances, "/api", "Url", "/nodes")]
+pub async fn nodes_instances() -> Result<RwSignal<Vec<RwSignal<NodeInstanceInfo>>>, ServerFnError> {
     let nodes = vec![
         NodeInstanceInfo {
             name: "safenode1".to_string(),
@@ -25,13 +26,13 @@ pub async fn read_nodes_instances_info() -> RwSignal<Vec<RwSignal<NodeInstanceIn
     ];
 
     // TODO: this is just to mimic an async call
-    gloo_timers::future::TimeoutFuture::new(1_000).await;
+    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
 
     // start with a set of three rows
-    create_rw_signal(vec![
+    Ok(create_rw_signal(vec![
         create_rw_signal(nodes[0].clone()),
         create_rw_signal(nodes[1].clone()),
-    ])
+    ]))
 }
 
 // Create and add a new node instance returning its info
