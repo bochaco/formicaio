@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 
 // Length of nodes PeerIds' prefix and suffix to be displayed
 const PEER_ID_PREFIX_SUFFIX_LEN: usize = 10;
+// Length of nodes Docker container ids' prefix to be displayed
+const CONTAINER_ID_PREFIX_LEN: usize = 12;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum NodeStatus {
@@ -61,34 +63,33 @@ pub fn NodeInstanceView(
         &peer_id_str[..PEER_ID_PREFIX_SUFFIX_LEN],
         &peer_id_str[peer_id_str.len() - PEER_ID_PREFIX_SUFFIX_LEN..]
     );
+    let container_id = info.get_untracked().container_id[..CONTAINER_ID_PREFIX_LEN].to_string();
 
     view! {
-        <div class="card-normal bg-base-100 w-96 shadow-xl">
-            <div class="card-compact">
-                <div class="card-actions justify-end">
-                    <Show
-                        when=move || info.get().status.is_changing()
-                        fallback=move || view! { <ButtonStopStart info /> }.into_view()
-                    >
-                        <button class="btn btn-square btn-sm">
-                            <span class="loading loading-spinner" />
-                        </button>
-                    </Show>
-                    <ButtonRemove info nodes />
-                </div>
-                <p>"Node Id: " {info.get_untracked().container_id}</p>
-                <p>"Peer Id: " {peer_id_base58}</p>
-                <p>"Status: " {move || format!("{:?}", info.get().status)}</p>
-                <p>"Balance: " {move || info.get().balance}</p>
-                <p>
-                    "Created: "
-                    {move || {
-                        DateTime::<Utc>::from_timestamp(info.get().created as i64, 0)
-                            .unwrap()
-                            .to_string()
-                    }}
-                </p>
+        <div class="m-2 p-4 card card-normal bg-neutral text-neutral-content card-bordered shadow-2xl">
+            <div class="card-actions justify-end">
+                <Show
+                    when=move || info.get().status.is_changing()
+                    fallback=move || view! { <ButtonStopStart info /> }.into_view()
+                >
+                    <button class="btn btn-square btn-sm">
+                        <span class="loading loading-spinner" />
+                    </button>
+                </Show>
+                <ButtonRemove info nodes />
             </div>
+            <p>"Node Id: " {container_id}</p>
+            <p>"Peer Id: " {peer_id_base58}</p>
+            <p>"Status: " {move || format!("{:?}", info.get().status)}</p>
+            <p>"Balance: " {move || info.get().balance}</p>
+            <p>
+                "Created: "
+                {move || {
+                    DateTime::<Utc>::from_timestamp(info.get().created as i64, 0)
+                        .unwrap()
+                        .to_string()
+                }}
+            </p>
         </div>
     }
 }

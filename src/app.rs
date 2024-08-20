@@ -3,7 +3,7 @@ use leptos::*;
 use leptos_meta::*;
 use leptos_router::*;
 
-use crate::{
+use super::{
     node_instance::NodeInstanceView,
     server_api::{add_node_instance, nodes_instances},
     stats::AggregatedStatsView,
@@ -55,33 +55,33 @@ fn HomePage() -> impl IntoView {
                         Ok(nodes) => {
                             view! {
                                 // show general stats on top
-                                <div class="stats shadow flex">
-                                    <AggregatedStatsView nodes />
-                                </div>
+                                <AggregatedStatsView nodes />
 
-                                // when we click we create a new node instance and add it to the list
-                                <button
-                                    class="btn btn-square btn-outline btn-wide"
-                                    on:click=move |_| spawn_local(async move {
-                                        let _ = add_node_instance(nodes).await;
-                                    })
-                                >
-                                    "Add node"
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        class="h-6 w-6"
-                                        fill="none"
-                                        viewBox="0 0 24 24"
-                                        stroke="green"
+                                <div class="divider divider-center">
+                                    // when we click we create a new node instance and add it to the list
+                                    <button
+                                        class="btn"
+                                        on:click=move |_| spawn_local(async move {
+                                            let _ = add_node_instance(nodes).await;
+                                        })
                                     >
-                                        <path stroke-width="3" d="M12 3 L12 20 M3 12 L20 12 Z" />
-                                    </svg>
-                                </button>
+                                        "Add node"
+                                        <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            class="h-6 w-6"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="green"
+                                        >
+                                            <path stroke-width="3" d="M12 3 L12 20 M3 12 L20 12 Z" />
+                                        </svg>
+                                    </button>
+                                </div>
 
                                 <div class="flex flex-wrap">
                                     <For
                                         each=move || nodes.get()
-                                        key=|node| node.get().peer_id.clone()
+                                        key=|node| node.get().container_id.clone()
                                         let:child
                                     >
                                         <NodeInstanceView info=child nodes />

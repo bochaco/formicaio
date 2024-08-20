@@ -9,7 +9,7 @@ const PORTAINER_API_BASE_PATH: &str = "/docker/containers";
 
 // FIXME: this has to be set once at start time of the app, once it logs into Portainer server
 const ENV_ID: u64 = 4;
-const TOKEN: &str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOjEsInNjb3BlIjoiZGVmYXVsdCIsImZvcmNlQ2hhbmdlUGFzc3dvcmQiOmZhbHNlLCJleHAiOjE3MjQxNDI4NTcsImlhdCI6MTcyNDExNDA1N30.mu2NFaWZvpBsGyDK9t7vEzz5UOba0F5cmJ6BHbE9QdM";
+const TOKEN: &str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOjEsInNjb3BlIjoiZGVmYXVsdCIsImZvcmNlQ2hhbmdlUGFzc3dvcmQiOmZhbHNlLCJleHAiOjE3MjQxOTA3NTIsImlhdCI6MTcyNDE2MTk1Mn0.IrzLV8CAargtSshd3xNPnzJPiP_l6e682WElUagWfeM";
 
 // Name of the Docker image to use for each node instance
 const NODE_CONTAINER_IMAGE_NAME: &str = "nginx:latest";
@@ -94,6 +94,11 @@ pub enum PortainerError {
     SerdeJson(#[from] serde_json::Error),
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct ServerErrorMessage {
+    message: String,
+}
+
 // Query the Portainer server to return the info of the contianer matching the given id
 pub async fn get_container_info(id: &ContainerId) -> Result<Container, PortainerError> {
     let mut filters = HashMap::default();
@@ -141,8 +146,9 @@ async fn list_containers(
             Ok(containers)
         }
         other => {
-            logging::log!(">> ERROR: {other:?}");
-            Err(PortainerError::PortainerServerError(other.to_string()))
+            let msg = resp.json::<ServerErrorMessage>().await?;
+            logging::log!(">> ERROR: {other:?} - {}", msg.message);
+            Err(PortainerError::PortainerServerError(msg.message))
         }
     }
 }
@@ -164,8 +170,9 @@ pub async fn delete_container_with(id: &ContainerId) -> Result<(), PortainerErro
     match resp.status() {
         StatusCode::NO_CONTENT => Ok(()),
         other => {
-            logging::log!(">> ERROR: {other:?}");
-            Err(PortainerError::PortainerServerError(other.to_string()))
+            let msg = resp.json::<ServerErrorMessage>().await?;
+            logging::log!(">> ERROR: {other:?} - {}", msg.message);
+            Err(PortainerError::PortainerServerError(msg.message))
         }
     }
 }
@@ -181,8 +188,9 @@ pub async fn start_container_with(id: &ContainerId) -> Result<(), PortainerError
     match resp.status() {
         StatusCode::NO_CONTENT => Ok(()),
         other => {
-            logging::log!(">> ERROR: {other:?}");
-            Err(PortainerError::PortainerServerError(other.to_string()))
+            let msg = resp.json::<ServerErrorMessage>().await?;
+            logging::log!(">> ERROR: {other:?} - {}", msg.message);
+            Err(PortainerError::PortainerServerError(msg.message))
         }
     }
 }
@@ -198,8 +206,9 @@ pub async fn stop_container_with(id: &ContainerId) -> Result<(), PortainerError>
     match resp.status() {
         StatusCode::NO_CONTENT => Ok(()),
         other => {
-            logging::log!(">> ERROR: {other:?}");
-            Err(PortainerError::PortainerServerError(other.to_string()))
+            let msg = resp.json::<ServerErrorMessage>().await?;
+            logging::log!(">> ERROR: {other:?} - {}", msg.message);
+            Err(PortainerError::PortainerServerError(msg.message))
         }
     }
 }
@@ -253,8 +262,9 @@ pub async fn create_new_container() -> Result<ContainerId, PortainerError> {
             Ok(container.Id)
         }
         other => {
-            logging::log!(">> ERROR: {other:?}");
-            Err(PortainerError::PortainerServerError(other.to_string()))
+            let msg = resp.json::<ServerErrorMessage>().await?;
+            logging::log!(">> ERROR: {other:?} - {}", msg.message);
+            Err(PortainerError::PortainerServerError(msg.message))
         }
     }
 }
