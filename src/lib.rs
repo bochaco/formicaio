@@ -2,8 +2,9 @@ pub mod app;
 pub mod error_template;
 #[cfg(feature = "ssr")]
 pub mod fileserv;
-
 mod node_instance;
+#[cfg(feature = "ssr")]
+mod portainer_client;
 mod server_api;
 mod stats;
 

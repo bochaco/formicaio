@@ -62,7 +62,9 @@ fn HomePage() -> impl IntoView {
                                 // when we click we create a new node instance and add it to the list
                                 <button
                                     class="btn btn-square btn-outline btn-wide"
-                                    on:click=move |_| add_node_instance(nodes)
+                                    on:click=move |_| spawn_local(async move {
+                                        let _ = add_node_instance(nodes).await;
+                                    })
                                 >
                                     "Add node"
                                     <svg

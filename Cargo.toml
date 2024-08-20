@@ -9,6 +9,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 axum = { version = "0.7", optional = true }
 bs58 = "0.5.1"
+chrono = "0.4.38"
 console_error_panic_hook = "0.1"
 hex = "0.4.3"
 leptos = { version = "0.6" }
@@ -16,7 +17,9 @@ leptos_axum = { version = "0.6", optional = true }
 leptos_meta = { version = "0.6" }
 leptos_router = { version = "0.6" }
 rand = "0.8.5"
+reqwest = { version = "0.12", features = ["json","native-tls-vendored"] }
 serde = "1.0.207"
+serde_json = "1.0"
 tokio = { version = "1", features = ["rt-multi-thread"], optional = true }
 tower = { version = "0.4", optional = true }
 tower-http = { version = "0.5", features = ["fs"], optional = true }

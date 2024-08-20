@@ -1,3 +1,6 @@
+use super::server_api::{remove_node_instance, start_node_instance, stop_node_instance};
+
+use chrono::{DateTime, Utc};
 use leptos::*;
 use serde::{Deserialize, Serialize};
 
@@ -8,37 +11,31 @@ const PEER_ID_PREFIX_SUFFIX_LEN: usize = 10;
 pub enum NodeStatus {
     // A running node connected to peers on the network is considered Active.
     Active,
+    Restarting,
     // A node not connected to any peer on the network is considered Inactive.
     Inactive,
     // When a node is running and connected to peers on the network but it's
     // being considered a bad node by them, then this node is considered Shunned.
     Shunned, // TODO: include suspected reason as to why others shunned it ...??
+    Removing,
 }
 
 impl NodeStatus {
     pub fn is_active(&self) -> bool {
-        match self {
-            Self::Active => true,
-            Self::Inactive | Self::Shunned => false,
-        }
+        matches!(self, Self::Active)
     }
     pub fn is_inactive(&self) -> bool {
-        match self {
-            Self::Inactive => true,
-            Self::Active | Self::Shunned => false,
-        }
+        matches!(self, Self::Inactive)
     }
     pub fn is_shunned(&self) -> bool {
-        match self {
-            Self::Shunned => true,
-            Self::Active | Self::Inactive => false,
-        }
+        matches!(self, Self::Shunned)
     }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct NodeInstanceInfo {
-    pub name: String,
+    pub container_id: String,
+    pub created: u64,
     pub peer_id: Vec<u8>,
     pub status: NodeStatus,
     pub rewards: u64,
@@ -51,8 +48,8 @@ pub fn NodeInstanceView(
     info: RwSignal<NodeInstanceInfo>,
     nodes: RwSignal<Vec<RwSignal<NodeInstanceInfo>>>,
 ) -> impl IntoView {
-    let peer_id_str = bs58::encode(info.get().peer_id).into_string();
-    let peer_id = format!(
+    let peer_id_str = bs58::encode(info.get_untracked().peer_id).into_string();
+    let peer_id_base58 = format!(
         "{}...{}",
         &peer_id_str[..PEER_ID_PREFIX_SUFFIX_LEN],
         &peer_id_str[peer_id_str.len() - PEER_ID_PREFIX_SUFFIX_LEN..]
@@ -63,12 +60,20 @@ pub fn NodeInstanceView(
             <div class="card-compact">
                 <div class="card-actions justify-end">
                     <ButtonStopStart info nodes />
-                    <ButtonRemove peer_id=info.get().peer_id nodes />
+                    <ButtonRemove container_id=info.get_untracked().container_id nodes />
                 </div>
-                <p>"Name: " {info.get().name}</p>
-                <p>"Peer Id: " {peer_id}</p>
+                <p>"Node Id: " {info.get_untracked().container_id}</p>
+                <p>"Peer Id: " {peer_id_base58}</p>
                 <p>"Status: " {move || format!("{:?}", info.get().status)}</p>
                 <p>"Balance: " {move || info.get().balance}</p>
+                <p>
+                    "Created: "
+                    {move || {
+                        DateTime::<Utc>::from_timestamp(info.get().created as i64, 0)
+                            .unwrap()
+                            .to_string()
+                    }}
+                </p>
             </div>
         </div>
     }
@@ -87,11 +92,22 @@ fn ButtonStopStart(
                     .with(|nodes| {
                         nodes
                             .iter()
-                            .find(|node| node.get().peer_id == info.get().peer_id)
+                            .find(|node| node.get().container_id == info.get().container_id)
                             .map(|node| {
+                                let container_id = node.get().container_id.clone();
                                 if node.get().status.is_inactive() {
+                                    spawn_local(async move {
+                                        if let Err(err) = start_node_instance(container_id).await {
+                                            logging::log!("Failed to start node: {err:?}");
+                                        }
+                                    });
                                     node.update(|info| info.status = NodeStatus::Active);
                                 } else {
+                                    spawn_local(async move {
+                                        if let Err(err) = stop_node_instance(container_id).await {
+                                            logging::log!("Failed to stop node: {err:?}");
+                                        }
+                                    });
                                     node.update(|info| info.status = NodeStatus::Inactive);
                                 }
                             });
@@ -129,18 +145,18 @@ fn ButtonStopStart(
 
 #[component]
 fn ButtonRemove(
-    peer_id: Vec<u8>,
+    container_id: String,
     nodes: RwSignal<Vec<RwSignal<NodeInstanceInfo>>>,
 ) -> impl IntoView {
     view! {
         <button
             class="btn btn-square btn-sm"
-            on:click=move |_| {
-                nodes
-                    .update(|nodes| {
-                        nodes.retain(|node| node.get().peer_id != peer_id);
-                    })
-            }
+            on:click=move |_| spawn_local({
+                let container_id = container_id.clone();
+                async move {
+                    let _ = remove_node_instance(container_id, nodes).await;
+                }
+            })
         >
             <svg
                 xmlns="http://www.w3.org/2000/svg"
