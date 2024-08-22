@@ -9,10 +9,10 @@ const PORTAINER_API_BASE_PATH: &str = "/docker/containers";
 
 // FIXME: this has to be set once at start time of the app, once it logs into Portainer server
 const ENV_ID: u64 = 4;
-const TOKEN: &str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOjEsInNjb3BlIjoiZGVmYXVsdCIsImZvcmNlQ2hhbmdlUGFzc3dvcmQiOmZhbHNlLCJleHAiOjE3MjQxOTA3NTIsImlhdCI6MTcyNDE2MTk1Mn0.IrzLV8CAargtSshd3xNPnzJPiP_l6e682WElUagWfeM";
+const TOKEN: &str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOjEsInNjb3BlIjoiZGVmYXVsdCIsImZvcmNlQ2hhbmdlUGFzc3dvcmQiOmZhbHNlLCJleHAiOjE3MjQzMjAxNDEsImlhdCI6MTcyNDI5MTM0MX0.PdIaMsv3ZhU9D_t13X2vCzoxoWRk4kKGmFTvG70dxjU";
 
 // Name of the Docker image to use for each node instance
-const NODE_CONTAINER_IMAGE_NAME: &str = "nginx:latest";
+const NODE_CONTAINER_IMAGE_NAME: &str = "formica";
 
 // Hex-encoded container id
 pub type ContainerId = String;
@@ -126,7 +126,7 @@ async fn list_containers(
 ) -> Result<Vec<Container>, PortainerError> {
     let url = format!("{PORTAINER_API_BASE_URL}{ENV_ID}{PORTAINER_API_BASE_PATH}/json");
 
-    logging::log!("Sending Portainer query to get LIST of containers: {url}");
+    logging::log!("Sending Portainer query to get LIST of containers: {url} ...");
     let query = &[
         ("all", "true"),
         ("filters", &serde_json::to_string(filters)?),
@@ -138,7 +138,6 @@ async fn list_containers(
         .send()
         .await?;
 
-    // return error is status code is not 200 OK
     match resp.status() {
         StatusCode::OK => {
             let containers = resp.json::<Vec<Container>>().await?;
@@ -147,7 +146,7 @@ async fn list_containers(
         }
         other => {
             let msg = resp.json::<ServerErrorMessage>().await?;
-            logging::log!(">> ERROR: {other:?} - {}", msg.message);
+            logging::log!("ERROR: {other:?} - {}", msg.message);
             Err(PortainerError::PortainerServerError(msg.message))
         }
     }
@@ -157,7 +156,7 @@ async fn list_containers(
 pub async fn delete_container_with(id: &ContainerId) -> Result<(), PortainerError> {
     let url = format!("{PORTAINER_API_BASE_URL}{ENV_ID}{PORTAINER_API_BASE_PATH}/{id}");
 
-    logging::log!("Sending Portainer request to DELETE containers: {url}");
+    logging::log!("Sending Portainer request to DELETE containers: {url} ...");
     let query = &[("force", "true")];
     let resp = Client::new()
         .delete(&url)
@@ -166,12 +165,11 @@ pub async fn delete_container_with(id: &ContainerId) -> Result<(), PortainerErro
         .send()
         .await?;
 
-    // return error is status code is not 204 NO CONTENT
     match resp.status() {
         StatusCode::NO_CONTENT => Ok(()),
         other => {
             let msg = resp.json::<ServerErrorMessage>().await?;
-            logging::log!(">> ERROR: {other:?} - {}", msg.message);
+            logging::log!("ERROR: {other:?} - {}", msg.message);
             Err(PortainerError::PortainerServerError(msg.message))
         }
     }
@@ -181,15 +179,14 @@ pub async fn delete_container_with(id: &ContainerId) -> Result<(), PortainerErro
 pub async fn start_container_with(id: &ContainerId) -> Result<(), PortainerError> {
     let url = format!("{PORTAINER_API_BASE_URL}{ENV_ID}{PORTAINER_API_BASE_PATH}/{id}/start");
 
-    logging::log!("Sending Portainer request to START a container: {url}");
+    logging::log!("Sending Portainer request to START a container: {url} ...");
     let resp = Client::new().post(&url).bearer_auth(TOKEN).send().await?;
 
-    // return error is status code is not 204 NO CONTENT
     match resp.status() {
         StatusCode::NO_CONTENT => Ok(()),
         other => {
             let msg = resp.json::<ServerErrorMessage>().await?;
-            logging::log!(">> ERROR: {other:?} - {}", msg.message);
+            logging::log!("ERROR: {other:?} - {}", msg.message);
             Err(PortainerError::PortainerServerError(msg.message))
         }
     }
@@ -199,52 +196,62 @@ pub async fn start_container_with(id: &ContainerId) -> Result<(), PortainerError
 pub async fn stop_container_with(id: &ContainerId) -> Result<(), PortainerError> {
     let url = format!("{PORTAINER_API_BASE_URL}{ENV_ID}{PORTAINER_API_BASE_PATH}/{id}/stop");
 
-    logging::log!("Sending Portainer request to STOP a container: {url}");
+    logging::log!("Sending Portainer request to STOP a container: {url} ...");
     let resp = Client::new().post(&url).bearer_auth(TOKEN).send().await?;
 
-    // return error is status code is not 204 NO CONTENT
     match resp.status() {
         StatusCode::NO_CONTENT => Ok(()),
         other => {
             let msg = resp.json::<ServerErrorMessage>().await?;
-            logging::log!(">> ERROR: {other:?} - {}", msg.message);
+            logging::log!("ERROR: {other:?} - {}", msg.message);
             Err(PortainerError::PortainerServerError(msg.message))
         }
     }
 }
 
-// Request the Portainer server to create a new node container, returning the container info.
+// Request the Portainer server to CREATE a new node container, returning the container info.
 pub async fn create_new_container() -> Result<ContainerId, PortainerError> {
+    let url = format!("{PORTAINER_API_BASE_URL}{ENV_ID}{PORTAINER_API_BASE_PATH}/create");
     let container_create_req = ContainerCreate {
-        Image: "nginx:latest".to_string(),
+        Image: NODE_CONTAINER_IMAGE_NAME.to_string(),
         Labels: None,
         ExposedPorts: Some(
-            vec![("80/tcp".to_string(), HashMap::default())]
-                .into_iter()
-                .collect::<ExposedPorts>(),
+            vec![
+                ("12500/tcp".to_string(), HashMap::default()),
+                ("13000/tcp".to_string(), HashMap::default()),
+            ]
+            .into_iter()
+            .collect::<ExposedPorts>(),
         ),
         HostConfig: Some(HostConfigCreate {
             NetworkMode: None,
             PublishAllPorts: Some(false),
             PortBindings: Some(
-                vec![(
-                    "80/tcp".to_string(),
-                    vec![PortBinding {
-                        HostIp: None,
-                        HostPort: "8080".to_string(),
-                    }],
-                )]
+                vec![
+                    (
+                        "12500/tcp".to_string(),
+                        vec![PortBinding {
+                            HostIp: None,
+                            HostPort: "12500".to_string(),
+                        }],
+                    ),
+                    (
+                        "13000/tcp".to_string(),
+                        vec![PortBinding {
+                            HostIp: None,
+                            HostPort: "13000".to_string(),
+                        }],
+                    ),
+                ]
                 .into_iter()
                 .collect::<PortBindings>(),
             ),
         }),
     };
 
-    let url = format!("{PORTAINER_API_BASE_URL}{ENV_ID}{PORTAINER_API_BASE_PATH}/create");
-
     let random_name = hex::encode(rand::random::<[u8; 10]>().to_vec());
     logging::log!(
-        "Sending Portainer request to CREATE a new container (named: {random_name}): {url}"
+        "Sending Portainer request to CREATE a new container (named: {random_name}): {url} ..."
     );
     let resp = Client::new()
         .post(&url)
@@ -254,16 +261,15 @@ pub async fn create_new_container() -> Result<ContainerId, PortainerError> {
         .send()
         .await?;
 
-    // return error is status code is not 200 OK
     match resp.status() {
         StatusCode::OK => {
             let container = resp.json::<ContainerCreateSuccess>().await?;
-            logging::log!("{container:#?}");
+            logging::log!("Container created successfully: {container:#?}");
             Ok(container.Id)
         }
         other => {
             let msg = resp.json::<ServerErrorMessage>().await?;
-            logging::log!(">> ERROR: {other:?} - {}", msg.message);
+            logging::log!("ERROR: {other:?} - {}", msg.message);
             Err(PortainerError::PortainerServerError(msg.message))
         }
     }
