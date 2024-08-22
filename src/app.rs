@@ -4,8 +4,7 @@ use leptos_meta::*;
 use leptos_router::*;
 
 use super::{
-    node_instance::NodeInstanceView,
-    server_api::{add_node_instance, nodes_instances},
+    helpers::add_node_instance, node_instance::NodeInstanceView, server_api::nodes_instances,
     stats::AggregatedStatsView,
 };
 
@@ -13,6 +12,10 @@ use super::{
 pub fn App() -> impl IntoView {
     // Provides context that manages stylesheets, titles, meta tags, etc.
     provide_meta_context();
+
+    // Provide context to manage flag to enblable/disable nodes' logs stream
+    let logs_stream_is_on = create_rw_signal(false);
+    provide_context(logs_stream_is_on);
 
     view! {
         <Stylesheet id="leptos" href="/pkg/formicaio.css" />

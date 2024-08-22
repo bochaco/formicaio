@@ -1,4 +1,7 @@
-use super::server_api::{remove_node_instance, start_node_instance, stop_node_instance};
+use super::{
+    helpers::{node_logs_stream, remove_node_instance},
+    server_api::{start_node_instance, stop_node_instance},
+};
 
 use chrono::{DateTime, Utc};
 use leptos::*;
@@ -47,6 +50,7 @@ pub struct NodeInstanceInfo {
     pub created: u64,
     pub peer_id: Vec<u8>,
     pub status: NodeStatus,
+    pub status_info: String,
     pub rewards: u64,
     pub balance: u64,
     pub chunks: u64,
@@ -68,6 +72,7 @@ pub fn NodeInstanceView(
     view! {
         <div class="m-2 p-4 card card-normal bg-neutral text-neutral-content card-bordered shadow-2xl">
             <div class="card-actions justify-end">
+                <NodeLogs container_id=info.get_untracked().container_id />
                 <Show
                     when=move || info.get().status.is_changing()
                     fallback=move || view! { <ButtonStopStart info /> }.into_view()
@@ -78,9 +83,11 @@ pub fn NodeInstanceView(
                 </Show>
                 <ButtonRemove info nodes />
             </div>
-            <p>"Node Id: " {container_id}</p>
+            <p>"Node Id: " {container_id.clone()}</p>
             <p>"Peer Id: " {peer_id_base58}</p>
-            <p>"Status: " {move || format!("{:?}", info.get().status)}</p>
+            <p>
+                "Status: " {move || format!("{:?} - {}", info.get().status, info.get().status_info)}
+            </p>
             <p>"Balance: " {move || info.get().balance}</p>
             <p>
                 "Created: "
@@ -90,6 +97,76 @@ pub fn NodeInstanceView(
                         .to_string()
                 }}
             </p>
+        </div>
+    }
+}
+
+#[component]
+fn NodeLogs(container_id: String) -> impl IntoView {
+    // we use the context to switch on/off the streaming of logs
+    let logs_stream_is_on = expect_context::<RwSignal<bool>>();
+    // this signal keeps the reactive list of log entries
+    let (logs, set_logs) = create_signal(Vec::new());
+
+    // action to trigger the streaming of logs from the node to the 'set_logs' signal
+    let start_logs_stream =
+        create_action(move |(id, signal): &(String, WriteSignal<Vec<String>>)| {
+            logs_stream_is_on.set(true);
+            let id = id.clone();
+            let signal = signal.clone();
+            async move {
+                let _ = node_logs_stream(id, signal).await;
+            }
+        });
+
+    view! {
+        <label
+            for="logs_stream_modal"
+            class="btn btn-square btn-sm"
+            on:click=move |_| start_logs_stream.dispatch((container_id.clone(), set_logs))
+        >
+            <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-6 w-6"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+            >
+                <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M2 2 L15 2 L22 9 L15 9 L15 2 M22 9 L22 22 L2 22 L2 2 M6 9 L11 9 M6 13 L17 13 M6 17 L17 17"
+                />
+            </svg>
+        </label>
+
+        <input type="checkbox" id="logs_stream_modal" class="modal-toggle" />
+        <div class="modal" role="dialog">
+            <div class="modal-box border border-solid border-slate-50 max-w-full h-full overflow-hidden">
+                <h3 class="text-lg font-bold">Node logs</h3>
+                <div class="p-2.5 border-transparent overflow-y-auto h-full">
+                    <ul>
+                        <For
+                            each=move || logs.get().into_iter().enumerate()
+                            key=|(i, _)| *i
+                            let:child
+                        >
+                            <li>">> " {child.1}</li>
+                        </For>
+                    </ul>
+                </div>
+
+                <div class="modal-action">
+                    <label
+                        for="logs_stream_modal"
+                        class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
+                        on:click=move |_| logs_stream_is_on.set(false)
+                    >
+                        X
+                    </label>
+                </div>
+            </div>
         </div>
     }
 }

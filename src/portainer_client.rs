@@ -1,3 +1,5 @@
+use bytes::Bytes;
+use futures_util::Stream;
 use leptos::*;
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
@@ -9,7 +11,7 @@ const PORTAINER_API_BASE_PATH: &str = "/docker/containers";
 
 // FIXME: this has to be set once at start time of the app, once it logs into Portainer server
 const ENV_ID: u64 = 4;
-const TOKEN: &str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOjEsInNjb3BlIjoiZGVmYXVsdCIsImZvcmNlQ2hhbmdlUGFzc3dvcmQiOmZhbHNlLCJleHAiOjE3MjQzMjAxNDEsImlhdCI6MTcyNDI5MTM0MX0.PdIaMsv3ZhU9D_t13X2vCzoxoWRk4kKGmFTvG70dxjU";
+const TOKEN: &str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOjEsInNjb3BlIjoiZGVmYXVsdCIsImZvcmNlQ2hhbmdlUGFzc3dvcmQiOmZhbHNlLCJleHAiOjE3MjQzNjAxNDAsImlhdCI6MTcyNDMzMTM0MH0.lql6x8HRJ_wO7G_UKEX_5Rtdzm5mU2I6VhmEqmNX9ZU";
 
 // Name of the Docker image to use for each node instance
 const NODE_CONTAINER_IMAGE_NAME: &str = "formica";
@@ -267,6 +269,38 @@ pub async fn create_new_container() -> Result<ContainerId, PortainerError> {
             logging::log!("Container created successfully: {container:#?}");
             Ok(container.Id)
         }
+        other => {
+            let msg = resp.json::<ServerErrorMessage>().await?;
+            logging::log!("ERROR: {other:?} - {}", msg.message);
+            Err(PortainerError::PortainerServerError(msg.message))
+        }
+    }
+}
+
+// Request the Portainer server to return a node container logs stream.
+pub async fn get_container_logs_stream(
+    container_id: &ContainerId,
+) -> Result<impl Stream<Item = reqwest::Result<Bytes>>, PortainerError> {
+    let url =
+        format!("{PORTAINER_API_BASE_URL}{ENV_ID}{PORTAINER_API_BASE_PATH}/{container_id}/logs");
+
+    logging::log!("Sending Portainer query to get container LOGS stream: {url} ...");
+    let query = &[
+        ("stdout", "true"),
+        ("stderr", "true"),
+        ("follow", "true"),
+        ("tail", "20"),
+    ];
+    let resp = reqwest::Client::new()
+        .get(&url)
+        .bearer_auth(TOKEN.to_string())
+        .query(query)
+        .send()
+        .await
+        .unwrap();
+
+    match resp.status() {
+        StatusCode::OK => Ok(resp.bytes_stream()),
         other => {
             let msg = resp.json::<ServerErrorMessage>().await?;
             logging::log!("ERROR: {other:?} - {}", msg.message);
