@@ -1,6 +1,6 @@
-use leptos::*;
-
 use super::node_instance::NodeInstanceInfo;
+
+use leptos::*;
 
 #[component]
 pub fn AggregatedStatsView(nodes: RwSignal<Vec<RwSignal<NodeInstanceInfo>>>) -> impl IntoView {
@@ -26,9 +26,27 @@ pub fn AggregatedStatsView(nodes: RwSignal<Vec<RwSignal<NodeInstanceInfo>>>) -> 
             .filter(|n| n.get().status.is_shunned())
             .count()
     };
-    let rewards = move || nodes.get().iter().map(|n| n.get().rewards).sum::<u64>();
-    let balance = move || nodes.get().iter().map(|n| n.get().balance).sum::<u64>();
-    let chunks = move || nodes.get().iter().map(|n| n.get().chunks).sum::<u64>();
+    let rewards = move || {
+        nodes
+            .get()
+            .iter()
+            .map(|n| n.get().rewards.unwrap_or_default())
+            .sum::<u64>()
+    };
+    let balance = move || {
+        nodes
+            .get()
+            .iter()
+            .map(|n| n.get().balance.unwrap_or_default())
+            .sum::<u64>()
+    };
+    let chunks = move || {
+        nodes
+            .get()
+            .iter()
+            .map(|n| n.get().chunks.unwrap_or_default())
+            .sum::<u64>()
+    };
 
     view! {
         <div class="stats flex">

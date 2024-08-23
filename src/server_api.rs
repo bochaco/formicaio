@@ -1,16 +1,17 @@
 use super::node_instance::NodeInstanceInfo;
-use leptos::*;
-
 #[cfg(feature = "ssr")]
 use super::{
     node_instance::NodeStatus,
+    node_rpc_client::{rpc_network_info, rpc_node_info},
     portainer_client::{
         create_new_container, delete_container_with, get_container_info, get_container_logs_stream,
         get_containers_list, start_container_with, stop_container_with, ContainerState,
     },
 };
+
 #[cfg(feature = "ssr")]
 use futures_util::StreamExt;
+use leptos::*;
 use server_fn::codec::{ByteStream, Streaming};
 
 #[cfg(feature = "ssr")]
@@ -29,26 +30,35 @@ impl From<ContainerState> for NodeStatus {
 }
 
 // Obtain the list of existing nodes instances with their info
-// TODO: read node instances metadata form a database
 #[server(ListNodeInstances, "/api", "Url", "/list_nodes")]
 pub async fn nodes_instances() -> Result<RwSignal<Vec<RwSignal<NodeInstanceInfo>>>, ServerFnError> {
     let containers = get_containers_list().await?;
 
-    let nodes = containers
-        .into_iter()
-        .map(|container| {
-            create_rw_signal(NodeInstanceInfo {
-                container_id: container.Id,
-                created: container.Created,
-                peer_id: rand::random::<[u8; 10]>().to_vec(),
-                status: NodeStatus::from(container.State),
-                status_info: container.Status,
-                rewards: 4321u64,
-                balance: 1234u64,
-                chunks: 100,
-            })
-        })
-        .collect();
+    let mut nodes = vec![];
+    for container in containers {
+        let mut node_instance_info = NodeInstanceInfo {
+            container_id: container.Id,
+            created: container.Created,
+            peer_id: vec![],
+            status: NodeStatus::from(container.State),
+            status_info: container.Status,
+            bin_version: None,
+            rewards: None,
+            balance: None,
+            chunks: None,
+            connected_peers: None,
+        };
+
+        // fetch node internal info using RPC if node is Active
+        if node_instance_info.status.is_active() {
+            rpc_node_info("127.0.0.1:12500".parse()?, &mut node_instance_info).await?;
+            rpc_network_info("127.0.0.1:12500".parse()?, &mut node_instance_info).await?;
+
+            // TODO: read node metadata from a database cache
+        }
+
+        nodes.push(create_rw_signal(node_instance_info))
+    }
 
     Ok(create_rw_signal(nodes))
 }
@@ -70,9 +80,11 @@ pub async fn create_node_instance() -> Result<NodeInstanceInfo, ServerFnError> {
         peer_id: rand::random::<[u8; 10]>().to_vec(),
         status: NodeStatus::from(container.State),
         status_info: container.Status,
-        rewards: 2109u64,
-        balance: 9012u64,
-        chunks: 300,
+        bin_version: None,
+        rewards: Some(2109u64),
+        balance: Some(9012u64),
+        chunks: Some(300),
+        connected_peers: None,
     })
 }
 
@@ -100,6 +112,7 @@ pub async fn stop_node_instance(container_id: String) -> Result<(), ServerFnErro
     Ok(())
 }
 
+// Start streaming logs from a node instance with given id
 #[server(output = Streaming)]
 pub async fn start_node_logs_stream(container_id: String) -> Result<ByteStream, ServerFnError> {
     logging::log!("Starting logs stream from container with Id: {container_id} ...");

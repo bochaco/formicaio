@@ -51,9 +51,11 @@ pub struct NodeInstanceInfo {
     pub peer_id: Vec<u8>,
     pub status: NodeStatus,
     pub status_info: String,
-    pub rewards: u64,
-    pub balance: u64,
-    pub chunks: u64,
+    pub bin_version: Option<String>,
+    pub rewards: Option<u64>,
+    pub balance: Option<u64>,
+    pub chunks: Option<u64>,
+    pub connected_peers: Option<usize>,
 }
 
 #[component]
@@ -61,12 +63,17 @@ pub fn NodeInstanceView(
     info: RwSignal<NodeInstanceInfo>,
     nodes: RwSignal<Vec<RwSignal<NodeInstanceInfo>>>,
 ) -> impl IntoView {
-    let peer_id_str = bs58::encode(info.get_untracked().peer_id).into_string();
-    let peer_id_base58 = format!(
-        "{}...{}",
-        &peer_id_str[..PEER_ID_PREFIX_SUFFIX_LEN],
-        &peer_id_str[peer_id_str.len() - PEER_ID_PREFIX_SUFFIX_LEN..]
-    );
+    let peer_id = info.get_untracked().peer_id;
+    let peer_id_base58 = if peer_id.is_empty() {
+        "unknown".to_string()
+    } else {
+        let peer_id_str = bs58::encode(peer_id).into_string();
+        format!(
+            "{}...{}",
+            &peer_id_str[..PEER_ID_PREFIX_SUFFIX_LEN],
+            &peer_id_str[peer_id_str.len() - PEER_ID_PREFIX_SUFFIX_LEN..]
+        )
+    };
     let container_id = info.get_untracked().container_id[..CONTAINER_ID_PREFIX_LEN].to_string();
 
     view! {
@@ -88,7 +95,20 @@ pub fn NodeInstanceView(
             <p>
                 "Status: " {move || format!("{:?} - {}", info.get().status, info.get().status_info)}
             </p>
-            <p>"Balance: " {move || info.get().balance}</p>
+            <p>
+                "Version: "
+                {move || info.get().bin_version.unwrap_or_else(|| "unknown".to_string())}
+            </p>
+            <p>
+                "Balance: "
+                {move || info.get().balance.map_or("unknown".to_string(), |v| v.to_string())}
+            </p>
+            <p>
+                "Connected peers: "
+                {move || {
+                    info.get().connected_peers.map_or("unknown".to_string(), |v| v.to_string())
+                }}
+            </p>
             <p>
                 "Created: "
                 {move || {

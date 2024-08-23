@@ -1,9 +1,9 @@
-use leptos::*;
-
 use super::{
     node_instance::NodeInstanceInfo,
     server_api::{create_node_instance, delete_node_instance, start_node_logs_stream},
 };
+
+use leptos::*;
 
 // Creates and add a new node instance updating the given signal
 pub async fn add_node_instance(
@@ -26,7 +26,7 @@ pub async fn remove_node_instance(
     delete_node_instance(container_id.clone()).await?;
 
     set_nodes.update(|nodes| {
-        nodes.retain(|node| node.get().container_id != container_id);
+        nodes.retain(|node| node.get_untracked().container_id != container_id);
     });
 
     Ok(())

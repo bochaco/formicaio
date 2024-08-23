@@ -5,6 +5,8 @@ pub mod fileserv;
 mod helpers;
 mod node_instance;
 #[cfg(feature = "ssr")]
+mod node_rpc_client;
+#[cfg(feature = "ssr")]
 mod portainer_client;
 mod server_api;
 mod stats;

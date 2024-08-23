@@ -23,6 +23,8 @@ reqwest = { version = "0.12", features = ["json","native-tls-vendored", "stream"
 serde = "1.0.207"
 serde_json = "1.0"
 server_fn = { version = "0.6" }
+sn_protocol = { version = "0.17.6", features = ["rpc"], optional = true }
+tonic = { version = "0.6.2", optional = true }
 tokio = { version = "1", features = ["rt-multi-thread"], optional = true }
 tower = { version = "0.4", optional = true }
 tower-http = { version = "0.5", features = ["fs"], optional = true }
@@ -35,6 +37,8 @@ http = "1"
 hydrate = ["leptos/hydrate", "leptos_meta/hydrate", "leptos_router/hydrate"]
 ssr = [
     "dep:axum",
+    "dep:sn_protocol",
+    "dep:tonic",
     "dep:tokio",
     "dep:tower",
     "dep:tower-http",
