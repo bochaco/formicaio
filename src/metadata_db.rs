@@ -2,7 +2,12 @@ use super::node_instance::NodeInstanceInfo;
 
 use leptos::*;
 use serde::{Deserialize, Serialize};
-use sqlx::{migrate::MigrateDatabase, sqlite::SqlitePool, FromRow, Sqlite};
+use sqlx::{
+    migrate::{MigrateDatabase, Migrator},
+    sqlite::SqlitePool,
+    FromRow, Sqlite,
+};
+use std::env::current_dir;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -62,19 +67,11 @@ async fn db_conn() -> Result<SqlitePool, sqlx::Error> {
             Ok(()) => {
                 logging::log!("Created database successfully!");
                 let db = SqlitePool::connect(SQLITE_DB_URL).await?;
-                let _ = sqlx::query(
-                    "CREATE TABLE IF NOT EXISTS nodes (\
-                        container_id TEXT PRIMARY KEY NOT NULL, \
-                        peer_id TEXT,
-                        bin_version TEXT,
-                        rewards TEXT,
-                        balance TEXT,
-                        chunks TEXT,
-                        connected_peers TEXT
-                    );",
-                )
-                .execute(&db)
-                .await?;
+
+                let migrations = current_dir()?.join("migrations");
+                logging::log!("Applying database migration scripts from: {migrations:?} ...");
+                Migrator::new(migrations).await?.run(&db).await?;
+
                 logging::log!("Created 'nodes' table successfully!");
                 Ok(db)
             }
@@ -92,10 +89,14 @@ async fn db_conn() -> Result<SqlitePool, sqlx::Error> {
 // Retrieve node metadata from local cache DB
 pub async fn db_get_node_metadata(info: &mut NodeInstanceInfo) -> Result<(), DbError> {
     let db = db_conn().await?;
-    match sqlx::query_as::<_, CachedNodeMetadata>("SELECT * FROM nodes WHERE container_id=(?)")
-        .bind(info.container_id.clone())
-        .fetch_all(&db)
-        .await
+    match sqlx::query_as::<_, CachedNodeMetadata>(
+        "SELECT container_id, peer_id, bin_version, \
+                rewards, balance, chunks, connected_peers \
+            FROM nodes WHERE container_id=?",
+    )
+    .bind(info.container_id.clone())
+    .fetch_all(&db)
+    .await
     {
         Ok(nodes) => {
             for node in nodes {

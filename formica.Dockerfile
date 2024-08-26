@@ -10,18 +10,17 @@ WORKDIR /app
 RUN curl -sSL https://raw.githubusercontent.com/maidsafe/safeup/main/install.sh | bash
 RUN /usr/local/bin/safeup node -p /app
 
+FROM debian:bookworm-slim AS runtime
+WORKDIR /app
+
 RUN apt-get update -y \
   && apt-get install -y --no-install-recommends openssl ca-certificates \
   && apt-get autoremove -y \
   && apt-get clean -y \
   && rm -rf /var/lib/apt/lists/*
 
-FROM debian:bookworm-slim AS runtime
-WORKDIR /app
-
 # Copy the node binary to the /app directory
 COPY --from=builder /app/safenode /app/
-
 RUN /app/safenode --version
 
 # Set any required env variables

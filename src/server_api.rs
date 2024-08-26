@@ -56,10 +56,15 @@ pub async fn nodes_instances() -> Result<RwSignal<Vec<RwSignal<NodeInstanceInfo>
 
         // if the node is Active, we can also fetch up to date info using its RPC API
         if node_instance_info.status.is_active() {
+            let node_rpc_addr = "127.0.0.1:12500".parse()?;
             // TODO: don't bail if we receive an error from using RPC client, but send some info back.
-            rpc_node_info("127.0.0.1:12500".parse()?, &mut node_instance_info).await?;
-            rpc_network_info("127.0.0.1:12500".parse()?, &mut node_instance_info).await?;
-            // update DB with this new info
+            if let Err(err) = rpc_node_info(node_rpc_addr, &mut node_instance_info).await {
+                logging::log!("Failed to get basic info from running node using RPC endpoint {node_rpc_addr}: {err}");
+            }
+            if let Err(err) = rpc_network_info(node_rpc_addr, &mut node_instance_info).await {
+                logging::log!("Failed to peers info from running node using RPC endpoint {node_rpc_addr}: {err}");
+            }
+            // update DB with this new info we just obtained
             db_store_node_metadata(&node_instance_info).await?;
         }
 
