@@ -25,6 +25,8 @@ pub struct CachedNodeMetadata {
     pub container_id: String,
     pub peer_id: String,
     pub bin_version: String,
+    pub port: u16,
+    pub rpc_api_port: u16,
     pub rewards: String,
     pub balance: String,
     pub chunks: String,
@@ -33,13 +35,19 @@ pub struct CachedNodeMetadata {
 
 impl CachedNodeMetadata {
     // Update the node info with data obtained from DB, but only those
-    // fields with non empty values; an empty value means it was unknown when stored.
+    // fields with non zero/empty values; zero/empty value means it was unknown when stored.
     pub fn merge_onto(&self, info: &mut NodeInstanceInfo) {
         if !self.peer_id.is_empty() {
             info.peer_id = Some(self.peer_id.clone());
         }
         if !self.bin_version.is_empty() {
             info.bin_version = Some(self.bin_version.clone());
+        }
+        if self.port > 0 {
+            info.port = Some(self.port);
+        }
+        if self.rpc_api_port > 0 {
+            info.rpc_api_port = Some(self.rpc_api_port);
         }
         if let Ok(v) = self.rewards.parse::<u64>() {
             info.rewards = Some(v);
@@ -90,8 +98,8 @@ async fn db_conn() -> Result<SqlitePool, sqlx::Error> {
 pub async fn db_get_node_metadata(info: &mut NodeInstanceInfo) -> Result<(), DbError> {
     let db = db_conn().await?;
     match sqlx::query_as::<_, CachedNodeMetadata>(
-        "SELECT container_id, peer_id, bin_version, \
-                rewards, balance, chunks, connected_peers \
+        "SELECT container_id, peer_id, bin_version, port, \
+                rpc_api_port, rewards, balance, chunks, connected_peers \
             FROM nodes WHERE container_id=?",
     )
     .bind(info.container_id.clone())
@@ -116,13 +124,15 @@ pub async fn db_store_node_metadata(info: &NodeInstanceInfo) -> Result<(), DbErr
     let db = db_conn().await?;
     match sqlx::query(
         "INSERT OR REPLACE INTO nodes (\
-                container_id, peer_id, bin_version, \
-                rewards, balance, chunks, connected_peers \
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                container_id, peer_id, bin_version, port, \
+                rpc_api_port, rewards, balance, chunks, connected_peers \
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(info.container_id.clone())
     .bind(info.peer_id.clone())
     .bind(info.bin_version.clone().unwrap_or_default())
+    .bind(info.port.clone())
+    .bind(info.rpc_api_port.clone())
     .bind(info.rewards.map_or("".to_string(), |v| v.to_string()))
     .bind(info.balance.map_or("".to_string(), |v| v.to_string()))
     .bind(info.chunks.map_or("".to_string(), |v| v.to_string()))

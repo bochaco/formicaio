@@ -1,4 +1,5 @@
 use super::node_instance::NodeInstanceInfo;
+
 #[cfg(feature = "ssr")]
 use super::{
     metadata_db::{db_delete_node_metadata, db_get_node_metadata, db_store_node_metadata},
@@ -14,6 +15,8 @@ use super::{
 use futures_util::StreamExt;
 use leptos::*;
 use server_fn::codec::{ByteStream, Streaming};
+#[cfg(feature = "ssr")]
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 #[cfg(feature = "ssr")]
 impl From<ContainerState> for NodeStatus {
@@ -44,6 +47,8 @@ pub async fn nodes_instances() -> Result<RwSignal<Vec<RwSignal<NodeInstanceInfo>
             status: NodeStatus::from(container.State),
             status_info: container.Status,
             bin_version: None,
+            port: None,
+            rpc_api_port: None,
             rewards: None,
             balance: None,
             chunks: None,
@@ -55,18 +60,7 @@ pub async fn nodes_instances() -> Result<RwSignal<Vec<RwSignal<NodeInstanceInfo>
         db_get_node_metadata(&mut node_instance_info).await?;
 
         // if the node is Active, we can also fetch up to date info using its RPC API
-        if node_instance_info.status.is_active() {
-            let node_rpc_addr = "127.0.0.1:12500".parse()?;
-            // TODO: don't bail if we receive an error from using RPC client, but send some info back.
-            if let Err(err) = rpc_node_info(node_rpc_addr, &mut node_instance_info).await {
-                logging::log!("Failed to get basic info from running node using RPC endpoint {node_rpc_addr}: {err}");
-            }
-            if let Err(err) = rpc_network_info(node_rpc_addr, &mut node_instance_info).await {
-                logging::log!("Failed to peers info from running node using RPC endpoint {node_rpc_addr}: {err}");
-            }
-            // update DB with this new info we just obtained
-            db_store_node_metadata(&node_instance_info).await?;
-        }
+        retrive_and_cache_updated_metadata(&mut node_instance_info).await?;
 
         nodes.push(create_rw_signal(node_instance_info))
     }
@@ -92,6 +86,8 @@ pub async fn create_node_instance() -> Result<NodeInstanceInfo, ServerFnError> {
         status: NodeStatus::from(container.State),
         status_info: container.Status,
         bin_version: None,
+        port: Some(13000),
+        rpc_api_port: Some(12500),
         rewards: Some(2109u64),
         balance: Some(9012u64),
         chunks: Some(300),
@@ -117,6 +113,7 @@ pub async fn delete_node_instance(container_id: String) -> Result<(), ServerFnEr
 pub async fn start_node_instance(container_id: String) -> Result<(), ServerFnError> {
     logging::log!("Starting node container with Id: {container_id} ...");
     start_container_with(&container_id).await?;
+    // TODO: retrive and cache up to date node's metadata
     Ok(())
 }
 
@@ -125,6 +122,7 @@ pub async fn start_node_instance(container_id: String) -> Result<(), ServerFnErr
 pub async fn stop_node_instance(container_id: String) -> Result<(), ServerFnError> {
     logging::log!("Stopping node container with Id: {container_id} ...");
     stop_container_with(&container_id).await?;
+    // TODO: retrive and cache up to date node's metadata
     Ok(())
 }
 
@@ -134,7 +132,34 @@ pub async fn start_node_logs_stream(container_id: String) -> Result<ByteStream, 
     logging::log!("Starting logs stream from container with Id: {container_id} ...");
     let container_logs_stream = get_container_logs_stream(&container_id).await?;
     let converted_stream = container_logs_stream.map(|item| {
-        item.map_err(ServerFnError::from) // Convert the error type
+        item.map_err(ServerFnError::from) // convert the error type
     });
     Ok(ByteStream::new(converted_stream))
+}
+
+// If the node is active, retrieve up to date node's metadata through
+// its RPC API and update its cache in local database.
+#[cfg(feature = "ssr")]
+async fn retrive_and_cache_updated_metadata(
+    node_instance_info: &mut NodeInstanceInfo,
+) -> Result<(), ServerFnError> {
+    if node_instance_info.status.is_active() {
+        if let Some(port) = node_instance_info.rpc_api_port {
+            let rpc_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), port);
+
+            // TODO: send info back to the user if we receive an error from using RPC client.
+            if let Err(err) = rpc_node_info(rpc_addr, node_instance_info).await {
+                logging::log!("Failed to get basic info from running node using RPC endpoint {rpc_addr}: {err}");
+            }
+            if let Err(err) = rpc_network_info(rpc_addr, node_instance_info).await {
+                logging::log!(
+                    "Failed to peers info from running node using RPC endpoint {rpc_addr}: {err}"
+                );
+            }
+            // update DB with this new info we just obtained
+            db_store_node_metadata(&node_instance_info).await?;
+        }
+    }
+
+    Ok(())
 }

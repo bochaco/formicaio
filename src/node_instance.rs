@@ -52,6 +52,8 @@ pub struct NodeInstanceInfo {
     pub status: NodeStatus,
     pub status_info: String,
     pub bin_version: Option<String>,
+    pub port: Option<u16>,
+    pub rpc_api_port: Option<u16>,
     pub rewards: Option<u64>,
     pub balance: Option<u64>,
     pub chunks: Option<u64>,
@@ -97,6 +99,13 @@ pub fn NodeInstanceView(
             <p>
                 "Version: "
                 {move || info.get().bin_version.unwrap_or_else(|| "unknown".to_string())}
+            </p>
+            <p>
+                "Port: " {move || info.get().port.map_or("unknown".to_string(), |v| v.to_string())}
+            </p>
+            <p>
+                "RPC API Port: "
+                {move || info.get().rpc_api_port.map_or("unknown".to_string(), |v| v.to_string())}
             </p>
             <p>
                 "Balance: "
