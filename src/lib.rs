@@ -3,6 +3,8 @@ pub mod error_template;
 #[cfg(feature = "ssr")]
 pub mod fileserv;
 mod helpers;
+#[cfg(feature = "ssr")]
+mod metadata_db;
 mod node_instance;
 #[cfg(feature = "ssr")]
 mod node_rpc_client;

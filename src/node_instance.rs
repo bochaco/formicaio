@@ -48,7 +48,7 @@ impl NodeStatus {
 pub struct NodeInstanceInfo {
     pub container_id: String,
     pub created: u64,
-    pub peer_id: Vec<u8>,
+    pub peer_id: Option<String>, // base58-encoded Peer Id bytes
     pub status: NodeStatus,
     pub status_info: String,
     pub bin_version: Option<String>,
@@ -63,17 +63,16 @@ pub fn NodeInstanceView(
     info: RwSignal<NodeInstanceInfo>,
     nodes: RwSignal<Vec<RwSignal<NodeInstanceInfo>>>,
 ) -> impl IntoView {
-    let peer_id = info.get_untracked().peer_id;
-    let peer_id_base58 = if peer_id.is_empty() {
-        "unknown".to_string()
-    } else {
-        let peer_id_str = bs58::encode(peer_id).into_string();
-        format!(
-            "{}...{}",
-            &peer_id_str[..PEER_ID_PREFIX_SUFFIX_LEN],
-            &peer_id_str[peer_id_str.len() - PEER_ID_PREFIX_SUFFIX_LEN..]
-        )
-    };
+    let peer_id = info
+        .get_untracked()
+        .peer_id
+        .map_or("unknown".to_string(), |id| {
+            format!(
+                "{}...{}",
+                &id[..PEER_ID_PREFIX_SUFFIX_LEN],
+                &id[id.len() - PEER_ID_PREFIX_SUFFIX_LEN..]
+            )
+        });
     let container_id = info.get_untracked().container_id[..CONTAINER_ID_PREFIX_LEN].to_string();
 
     view! {
@@ -91,7 +90,7 @@ pub fn NodeInstanceView(
                 <ButtonRemove info nodes />
             </div>
             <p>"Node Id: " {container_id.clone()}</p>
-            <p>"Peer Id: " {peer_id_base58}</p>
+            <p>"Peer Id: " {peer_id}</p>
             <p>
                 "Status: " {move || format!("{:?} - {}", info.get().status, info.get().status_info)}
             </p>

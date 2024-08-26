@@ -27,7 +27,7 @@ pub async fn rpc_node_info(
     let response = client.node_info(Request::new(NodeInfoRequest {})).await?;
     let node_info = response.get_ref();
 
-    info.peer_id = node_info.peer_id.to_vec();
+    info.peer_id = Some(bs58::encode(&node_info.peer_id).into_string());
     info.bin_version = Some(node_info.bin_version.clone());
     info.balance = Some(node_info.wallet_balance);
 

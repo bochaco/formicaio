@@ -1,6 +1,7 @@
 use super::node_instance::NodeInstanceInfo;
 #[cfg(feature = "ssr")]
 use super::{
+    metadata_db::{db_delete_node_metadata, db_get_node_metadata, db_store_node_metadata},
     node_instance::NodeStatus,
     node_rpc_client::{rpc_network_info, rpc_node_info},
     portainer_client::{
@@ -39,7 +40,7 @@ pub async fn nodes_instances() -> Result<RwSignal<Vec<RwSignal<NodeInstanceInfo>
         let mut node_instance_info = NodeInstanceInfo {
             container_id: container.Id,
             created: container.Created,
-            peer_id: vec![],
+            peer_id: None,
             status: NodeStatus::from(container.State),
             status_info: container.Status,
             bin_version: None,
@@ -49,12 +50,17 @@ pub async fn nodes_instances() -> Result<RwSignal<Vec<RwSignal<NodeInstanceInfo>
             connected_peers: None,
         };
 
-        // fetch node internal info using RPC if node is Active
+        // we first read node metadata cached in the database
+        // TODO: fetch metadata of all containers from DB with a single DB call
+        db_get_node_metadata(&mut node_instance_info).await?;
+
+        // if the node is Active, we can also fetch up to date info using its RPC API
         if node_instance_info.status.is_active() {
+            // TODO: don't bail if we receive an error from using RPC client, but send some info back.
             rpc_node_info("127.0.0.1:12500".parse()?, &mut node_instance_info).await?;
             rpc_network_info("127.0.0.1:12500".parse()?, &mut node_instance_info).await?;
-
-            // TODO: read node metadata from a database cache
+            // update DB with this new info
+            db_store_node_metadata(&node_instance_info).await?;
         }
 
         nodes.push(create_rw_signal(node_instance_info))
@@ -74,10 +80,10 @@ pub async fn create_node_instance() -> Result<NodeInstanceInfo, ServerFnError> {
     let container = get_container_info(&container_id).await?;
     logging::log!("New node container created: {container:?}");
 
-    Ok(NodeInstanceInfo {
+    let node_instance_info = NodeInstanceInfo {
         container_id: container.Id,
         created: container.Created,
-        peer_id: rand::random::<[u8; 10]>().to_vec(),
+        peer_id: Some(bs58::encode(rand::random::<[u8; 10]>().to_vec()).into_string()),
         status: NodeStatus::from(container.State),
         status_info: container.Status,
         bin_version: None,
@@ -85,7 +91,11 @@ pub async fn create_node_instance() -> Result<NodeInstanceInfo, ServerFnError> {
         balance: Some(9012u64),
         chunks: Some(300),
         connected_peers: None,
-    })
+    };
+
+    db_store_node_metadata(&node_instance_info).await?;
+
+    Ok(node_instance_info)
 }
 
 // Delete a node instance with given id
@@ -93,6 +103,7 @@ pub async fn create_node_instance() -> Result<NodeInstanceInfo, ServerFnError> {
 pub async fn delete_node_instance(container_id: String) -> Result<(), ServerFnError> {
     logging::log!("Deleting node container with Id: {container_id} ...");
     delete_container_with(&container_id).await?;
+    db_delete_node_metadata(&container_id).await?;
     Ok(())
 }
 
