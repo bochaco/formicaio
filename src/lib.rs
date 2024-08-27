@@ -4,6 +4,7 @@ pub mod error_template;
 #[cfg(feature = "ssr")]
 pub mod fileserv;
 mod helpers;
+mod icons;
 #[cfg(feature = "ssr")]
 mod metadata_db;
 mod node_instance;

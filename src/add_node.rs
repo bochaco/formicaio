@@ -1,4 +1,4 @@
-use super::{helpers::add_node_instance, node_instance::NodeInstanceInfo};
+use super::{helpers::add_node_instance, icons::IconAddNode, node_instance::NodeInstanceInfo};
 
 use leptos::*;
 use std::num::ParseIntError;
@@ -24,15 +24,7 @@ pub fn AddNodeView(nodes: RwSignal<Vec<RwSignal<NodeInstanceInfo>>>) -> impl Int
         <div class="divider divider-center">
             <button class="btn" onclick="add_node_modal.showModal()">
                 "Add node"
-                <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="h-6 w-6"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="green"
-                >
-                    <path stroke-width="3" d="M12 3 L12 20 M3 12 L20 12 Z" />
-                </svg>
+                <IconAddNode />
             </button>
             <dialog id="add_node_modal" class="modal">
                 <div class="modal-box">

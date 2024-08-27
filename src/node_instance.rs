@@ -1,5 +1,6 @@
 use super::{
     helpers::{node_logs_stream, remove_node_instance},
+    icons::{IconRemoveNode, IconShowLogs, IconStartNode, IconStopNode},
     server_api::{start_node_instance, stop_node_instance},
 };
 
@@ -8,7 +9,7 @@ use leptos::*;
 use serde::{Deserialize, Serialize};
 
 // Length of nodes PeerIds' prefix and suffix to be displayed
-const PEER_ID_PREFIX_SUFFIX_LEN: usize = 10;
+const PEER_ID_PREFIX_SUFFIX_LEN: usize = 12;
 // Length of nodes Docker container ids' prefix to be displayed
 const CONTAINER_ID_PREFIX_LEN: usize = 12;
 
@@ -78,7 +79,7 @@ pub fn NodeInstanceView(
     let container_id = info.get_untracked().container_id[..CONTAINER_ID_PREFIX_LEN].to_string();
 
     view! {
-        <div class="m-2 p-4 card card-normal bg-neutral text-neutral-content card-bordered shadow-2xl">
+        <div class="w-1/4 m-2 p-4 card card-normal bg-neutral text-neutral-content card-bordered shadow-2xl">
             <div class="card-actions justify-end">
                 <NodeLogs container_id=info.get_untracked().container_id />
                 <Show
@@ -152,20 +153,7 @@ fn NodeLogs(container_id: String) -> impl IntoView {
             class="btn btn-square btn-sm"
             on:click=move |_| start_logs_stream.dispatch(container_id.clone())
         >
-            <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-6 w-6"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-            >
-                <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M2 2 L15 2 L22 9 L15 9 L15 2 M22 9 L22 22 L2 22 L2 2 M6 9 L11 9 M6 13 L17 13 M6 17 L17 17"
-                />
-            </svg>
+            <IconShowLogs />
         </label>
 
         <input type="checkbox" id="logs_stream_modal" class="modal-toggle" />
@@ -231,31 +219,14 @@ fn ButtonStopStart(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                 }
             }
         >
-            <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-6 w-6"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+            <Show
+                when=move || info.get().status.is_inactive()
+                fallback=|| {
+                    view! { <IconStopNode /> }
+                }
             >
-                <Show
-                    when=move || info.get().status.is_inactive()
-                    fallback=|| {
-                        view! {
-                            <rect
-                                width="13"
-                                height="13"
-                                x="5"
-                                y="5"
-                                fill="currentColor"
-                                stroke-width="2"
-                            />
-                        }
-                    }
-                >
-                    <polygon points="6,6 18,12 6,18" fill="currentColor" stroke-width="2" />
-                </Show>
-            </svg>
+                <IconStartNode />
+            </Show>
         </button>
     }
 }
@@ -282,20 +253,7 @@ fn ButtonRemove(
                 }
             })
         >
-            <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-6 w-6"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-            >
-                <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M6 18L18 6M6 6l12 12"
-                />
-            </svg>
+            <IconRemoveNode />
         </button>
     }
 }
