@@ -11,7 +11,7 @@ const PORTAINER_API_BASE_PATH: &str = "/docker/containers";
 
 // FIXME: this has to be set once at start time of the app, once it logs into Portainer server
 const ENV_ID: u64 = 4;
-const TOKEN: &str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOjEsInNjb3BlIjoiZGVmYXVsdCIsImZvcmNlQ2hhbmdlUGFzc3dvcmQiOmZhbHNlLCJleHAiOjE3MjQ3ODYwNzMsImlhdCI6MTcyNDc1NzI3M30.3wQsM7QTh6cPpKq4iFIaY_fOU8jzYrd8FIMqd8B8gOA";
+const TOKEN: &str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOjEsInNjb3BlIjoiZGVmYXVsdCIsImZvcmNlQ2hhbmdlUGFzc3dvcmQiOmZhbHNlLCJleHAiOjE3MjQ4MTUzNjcsImlhdCI6MTcyNDc4NjU2N30.9z9SEJBG5ryabA-r2ZwwAqfemfcRAzWTw3_H_y0UVws";
 
 // Name of the Docker image to use for each node instance
 const NODE_CONTAINER_IMAGE_NAME: &str = "formica";
@@ -144,7 +144,7 @@ async fn list_containers(
     match resp.status() {
         StatusCode::OK => {
             let containers = resp.json::<Vec<Container>>().await?;
-            logging::log!("{containers:#?}");
+            //logging::log!("{containers:#?}");
             Ok(containers)
         }
         other => {

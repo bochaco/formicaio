@@ -13,6 +13,7 @@ bytes = "1.7"
 chrono = "0.4.38"
 console_error_panic_hook = "0.1"
 futures-util = "0.3.30"
+gloo-timers = { version = "0.3.0", features = ["futures"] }
 hex = "0.4.3"
 leptos = { version = "0.6" }
 leptos_axum = { version = "0.6", optional = true }

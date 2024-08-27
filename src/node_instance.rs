@@ -1,4 +1,5 @@
 use super::{
+    app::ClientGlobalState,
     helpers::{node_logs_stream, remove_node_instance},
     icons::{IconRemoveNode, IconShowLogs, IconStartNode, IconStopNode},
     server_api::{start_node_instance, stop_node_instance},
@@ -13,7 +14,7 @@ const PEER_ID_PREFIX_SUFFIX_LEN: usize = 12;
 // Length of nodes Docker container ids' prefix to be displayed
 const CONTAINER_ID_PREFIX_LEN: usize = 12;
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub enum NodeStatus {
     // A running node connected to peers on the network is considered Active.
     Active,
@@ -45,7 +46,7 @@ impl NodeStatus {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct NodeInstanceInfo {
     pub container_id: String,
     pub created: u64,
@@ -62,10 +63,7 @@ pub struct NodeInstanceInfo {
 }
 
 #[component]
-pub fn NodeInstanceView(
-    info: RwSignal<NodeInstanceInfo>,
-    nodes: RwSignal<Vec<RwSignal<NodeInstanceInfo>>>,
-) -> impl IntoView {
+pub fn NodeInstanceView(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
     let peer_id = info
         .get_untracked()
         .peer_id
@@ -79,7 +77,7 @@ pub fn NodeInstanceView(
     let container_id = info.get_untracked().container_id[..CONTAINER_ID_PREFIX_LEN].to_string();
 
     view! {
-        <div class="w-1/4 m-2 p-4 card card-normal bg-neutral text-neutral-content card-bordered shadow-2xl">
+        <div class="w-1/4 m-2 p-4 overflow-x-auto card card-normal bg-neutral text-neutral-content card-bordered shadow-2xl">
             <div class="card-actions justify-end">
                 <NodeLogs container_id=info.get_untracked().container_id />
                 <Show
@@ -90,7 +88,7 @@ pub fn NodeInstanceView(
                         <span class="loading loading-spinner" />
                     </button>
                 </Show>
-                <ButtonRemove info nodes />
+                <ButtonRemove info />
             </div>
             <p>"Node Id: " {container_id.clone()}</p>
             <p>"Peer Id: " {peer_id}</p>
@@ -133,13 +131,13 @@ pub fn NodeInstanceView(
 #[component]
 fn NodeLogs(container_id: String) -> impl IntoView {
     // we use the context to switch on/off the streaming of logs
-    let logs_stream_is_on = expect_context::<RwSignal<bool>>();
+    let context = expect_context::<ClientGlobalState>();
     // this signal keeps the reactive list of log entries
     let (logs, set_logs) = create_signal(Vec::new());
 
     // action to trigger the streaming of logs from the node to the 'set_logs' signal
     let start_logs_stream = create_action(move |id: &String| {
-        logs_stream_is_on.set(true);
+        context.logs_stream_is_on.set(true);
         let id = id.clone();
         let signal = set_logs.clone();
         async move {
@@ -176,7 +174,7 @@ fn NodeLogs(container_id: String) -> impl IntoView {
                     <label
                         for="logs_stream_modal"
                         class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
-                        on:click=move |_| logs_stream_is_on.set(false)
+                        on:click=move |_| context.logs_stream_is_on.set(false)
                     >
                         X
                     </label>
@@ -209,7 +207,12 @@ fn ButtonStopStart(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                     info.update(|node| node.status = NodeStatus::Stopping);
                     spawn_local(async move {
                         match stop_node_instance(container_id).await {
-                            Ok(()) => info.update(|node| node.status = NodeStatus::Inactive),
+                            Ok(()) => {
+                                info.update(|node| {
+                                    node.connected_peers = Some(0);
+                                    node.status = NodeStatus::Inactive;
+                                })
+                            }
                             Err(err) => {
                                 logging::log!("Failed to stop node: {err:?}");
                                 info.update(|node| node.status = previous_status);
@@ -232,10 +235,7 @@ fn ButtonStopStart(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
 }
 
 #[component]
-fn ButtonRemove(
-    info: RwSignal<NodeInstanceInfo>,
-    nodes: RwSignal<Vec<RwSignal<NodeInstanceInfo>>>,
-) -> impl IntoView {
+fn ButtonRemove(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
     view! {
         <button
             class=move || {
@@ -249,7 +249,7 @@ fn ButtonRemove(
                 info.update(|info| info.status = NodeStatus::Removing);
                 let container_id = info.get().container_id.clone();
                 async move {
-                    let _ = remove_node_instance(container_id, nodes).await;
+                    let _ = remove_node_instance(container_id).await;
                 }
             })
         >

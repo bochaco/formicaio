@@ -1,34 +1,31 @@
 use super::{
-    node_instance::NodeInstanceInfo,
+    app::ClientGlobalState,
     server_api::{create_node_instance, delete_node_instance, start_node_logs_stream},
 };
 
 use leptos::*;
 
 // Creates and add a new node instance updating the given signal
-pub async fn add_node_instance(
-    port: u16,
-    rpc_api_port: u16,
-    set_nodes: RwSignal<Vec<RwSignal<NodeInstanceInfo>>>,
-) -> Result<(), ServerFnError> {
+pub async fn add_node_instance(port: u16, rpc_api_port: u16) -> Result<(), ServerFnError> {
+    let context = expect_context::<ClientGlobalState>();
+
     let container = create_node_instance(port, rpc_api_port).await?;
 
-    set_nodes.update(|items| {
-        items.insert(0, create_rw_signal(container));
+    context.nodes.update(|items| {
+        items.insert(container.container_id.clone(), create_rw_signal(container));
     });
 
     Ok(())
 }
 
 // Removes a node instance with given id and updates given signal
-pub async fn remove_node_instance(
-    container_id: String,
-    set_nodes: RwSignal<Vec<RwSignal<NodeInstanceInfo>>>,
-) -> Result<(), ServerFnError> {
+pub async fn remove_node_instance(container_id: String) -> Result<(), ServerFnError> {
+    let context = expect_context::<ClientGlobalState>();
+
     delete_node_instance(container_id.clone()).await?;
 
-    set_nodes.update(|nodes| {
-        nodes.retain(|node| node.get_untracked().container_id != container_id);
+    context.nodes.update(|nodes| {
+        nodes.remove(&container_id);
     });
 
     Ok(())
@@ -45,7 +42,7 @@ pub async fn node_logs_stream(
         .await?
         .into_inner();
 
-    let logs_stream_is_on = expect_context::<RwSignal<bool>>();
+    let context = expect_context::<ClientGlobalState>();
     // TODO: check 'logs_stream_is_on' signal simultaneously to stop as soon as it's set to 'false'
     while let Some(item) = logs_stream.next().await {
         match item {
@@ -59,7 +56,8 @@ pub async fn node_logs_stream(
             }
         }
 
-        let stop = move || !logs_stream_is_on.get_untracked();
+        // use context to check if we should stop listening the logs stream
+        let stop = move || !context.logs_stream_is_on.get_untracked();
         if stop() {
             break;
         }

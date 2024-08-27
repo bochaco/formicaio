@@ -151,10 +151,30 @@ pub async fn db_store_node_metadata(info: &NodeInstanceInfo) -> Result<(), DbErr
 }
 
 // Remove node metadata from local cache DB
-pub async fn db_delete_node_metadata(container_id: &String) -> Result<(), DbError> {
+pub async fn db_delete_node_metadata(container_id: &str) -> Result<(), DbError> {
     let db = db_conn().await?;
     match sqlx::query("DELETE FROM nodes WHERE container_id = ?")
-        .bind(container_id.clone())
+        .bind(container_id)
+        .execute(&db)
+        .await
+    {
+        Ok(_) => {}
+        Err(err) => logging::log!("Sqlite query error: {err}"),
+    }
+
+    Ok(())
+}
+
+// Update node metadata onto local cache DB by specifying specific field and new value
+pub async fn db_update_node_metadata_field(
+    container_id: &str,
+    field: &str,
+    value: &str,
+) -> Result<(), DbError> {
+    let db = db_conn().await?;
+    match sqlx::query(&format!("UPDATE nodes SET {field}=? WHERE container_id=?"))
+        .bind(value)
+        .bind(container_id)
         .execute(&db)
         .await
     {

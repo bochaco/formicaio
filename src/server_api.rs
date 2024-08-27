@@ -2,7 +2,10 @@ use super::node_instance::NodeInstanceInfo;
 
 #[cfg(feature = "ssr")]
 use super::{
-    metadata_db::{db_delete_node_metadata, db_get_node_metadata, db_store_node_metadata},
+    metadata_db::{
+        db_delete_node_metadata, db_get_node_metadata, db_store_node_metadata,
+        db_update_node_metadata_field,
+    },
     node_instance::NodeStatus,
     node_rpc_client::{rpc_network_info, rpc_node_info},
     portainer_client::{
@@ -15,6 +18,7 @@ use super::{
 use futures_util::StreamExt;
 use leptos::*;
 use server_fn::codec::{ByteStream, Streaming};
+use std::collections::BTreeMap;
 #[cfg(feature = "ssr")]
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
@@ -35,13 +39,13 @@ impl From<ContainerState> for NodeStatus {
 
 // Obtain the list of existing nodes instances with their info
 #[server(ListNodeInstances, "/api", "Url", "/list_nodes")]
-pub async fn nodes_instances() -> Result<RwSignal<Vec<RwSignal<NodeInstanceInfo>>>, ServerFnError> {
+pub async fn nodes_instances() -> Result<BTreeMap<String, NodeInstanceInfo>, ServerFnError> {
     let containers = get_containers_list().await?;
 
-    let mut nodes = vec![];
+    let mut nodes = BTreeMap::new();
     for container in containers {
         let mut node_instance_info = NodeInstanceInfo {
-            container_id: container.Id,
+            container_id: container.Id.clone(),
             created: container.Created,
             peer_id: None,
             status: NodeStatus::from(container.State),
@@ -62,10 +66,10 @@ pub async fn nodes_instances() -> Result<RwSignal<Vec<RwSignal<NodeInstanceInfo>
         // if the node is Active, we can also fetch up to date info using its RPC API
         retrive_and_cache_updated_metadata(&mut node_instance_info).await?;
 
-        nodes.push(create_rw_signal(node_instance_info))
+        nodes.insert(container.Id, node_instance_info);
     }
 
-    Ok(create_rw_signal(nodes))
+    Ok(nodes)
 }
 
 // Create and add a new node instance returning its info
@@ -116,7 +120,6 @@ pub async fn delete_node_instance(container_id: String) -> Result<(), ServerFnEr
 pub async fn start_node_instance(container_id: String) -> Result<(), ServerFnError> {
     logging::log!("Starting node container with Id: {container_id} ...");
     start_container_with(&container_id).await?;
-    // TODO: retrive and cache up to date node's metadata
     Ok(())
 }
 
@@ -125,7 +128,9 @@ pub async fn start_node_instance(container_id: String) -> Result<(), ServerFnErr
 pub async fn stop_node_instance(container_id: String) -> Result<(), ServerFnError> {
     logging::log!("Stopping node container with Id: {container_id} ...");
     stop_container_with(&container_id).await?;
-    // TODO: retrive and cache up to date node's metadata
+    // set connect_peers back to 0 and update cache
+    db_update_node_metadata_field(&container_id, "connected_peers", "0").await?;
+
     Ok(())
 }
 

@@ -1,50 +1,58 @@
-use super::node_instance::NodeInstanceInfo;
+use super::app::ClientGlobalState;
 
 use leptos::*;
 
 #[component]
-pub fn AggregatedStatsView(nodes: RwSignal<Vec<RwSignal<NodeInstanceInfo>>>) -> impl IntoView {
-    let total_nodes = move || nodes.get().len();
+pub fn AggregatedStatsView() -> impl IntoView {
+    let context = expect_context::<ClientGlobalState>();
+
+    let total_nodes = move || context.nodes.get().len();
     let active_nodes = move || {
-        nodes
+        context
+            .nodes
             .get()
             .iter()
-            .filter(|n| n.get().status.is_active())
+            .filter(|(_, n)| n.get().status.is_active())
             .count()
     };
     let inactive_nodes = move || {
-        nodes
+        context
+            .nodes
             .get()
             .iter()
-            .filter(|n| n.get().status.is_inactive())
+            .filter(|(_, n)| n.get().status.is_inactive())
             .count()
     };
     let shunned_nodes = move || {
-        nodes
+        context
+            .nodes
             .get()
             .iter()
-            .filter(|n| n.get().status.is_shunned())
+            .filter(|(_, n)| n.get().status.is_shunned())
             .count()
     };
     let rewards = move || {
-        nodes
+        context
+            .nodes
             .get()
             .iter()
-            .map(|n| n.get().rewards.unwrap_or_default())
+            .map(|(_, n)| n.get().rewards.unwrap_or_default())
             .sum::<u64>()
     };
     let balance = move || {
-        nodes
+        context
+            .nodes
             .get()
             .iter()
-            .map(|n| n.get().balance.unwrap_or_default())
+            .map(|(_, n)| n.get().balance.unwrap_or_default())
             .sum::<u64>()
     };
     let chunks = move || {
-        nodes
+        context
+            .nodes
             .get()
             .iter()
-            .map(|n| n.get().chunks.unwrap_or_default())
+            .map(|(_, n)| n.get().chunks.unwrap_or_default())
             .sum::<u64>()
     };
 

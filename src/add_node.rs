@@ -1,4 +1,4 @@
-use super::{helpers::add_node_instance, icons::IconAddNode, node_instance::NodeInstanceInfo};
+use super::{helpers::add_node_instance, icons::IconAddNode};
 
 use leptos::*;
 use std::num::ParseIntError;
@@ -8,15 +8,14 @@ const DEFAULT_NODE_PORT: u16 = 12000;
 const DEFAULT_RPC_API_PORT: u16 = 13000;
 
 #[component]
-pub fn AddNodeView(nodes: RwSignal<Vec<RwSignal<NodeInstanceInfo>>>) -> impl IntoView {
+pub fn AddNodeView() -> impl IntoView {
     let port = create_rw_signal(Ok(DEFAULT_NODE_PORT));
     let rpc_port = create_rw_signal(Ok(DEFAULT_RPC_API_PORT));
     let add_node = create_action(move |(port, rpc_port): &(u16, u16)| {
         let port = *port;
         let rpc_port = *rpc_port;
-        let nodes = nodes.clone();
         async move {
-            let _ = add_node_instance(port, rpc_port, nodes).await;
+            let _ = add_node_instance(port, rpc_port).await;
         }
     });
 
