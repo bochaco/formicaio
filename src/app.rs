@@ -5,7 +5,7 @@ use leptos_meta::*;
 use leptos_router::*;
 
 use super::{
-    helpers::add_node_instance, node_instance::NodeInstanceView, server_api::nodes_instances,
+    add_node::AddNodeView, node_instance::NodeInstanceView, server_api::nodes_instances,
     stats::AggregatedStatsView,
 };
 
@@ -61,26 +61,7 @@ fn HomePage() -> impl IntoView {
                                 // show general stats on top
                                 <AggregatedStatsView nodes />
 
-                                <div class="divider divider-center">
-                                    // when we click we create a new node instance and add it to the list
-                                    <button
-                                        class="btn"
-                                        on:click=move |_| spawn_local(async move {
-                                            let _ = add_node_instance(nodes).await;
-                                        })
-                                    >
-                                        "Add node"
-                                        <svg
-                                            xmlns="http://www.w3.org/2000/svg"
-                                            class="h-6 w-6"
-                                            fill="none"
-                                            viewBox="0 0 24 24"
-                                            stroke="green"
-                                        >
-                                            <path stroke-width="3" d="M12 3 L12 20 M3 12 L20 12 Z" />
-                                        </svg>
-                                    </button>
-                                </div>
+                                <AddNodeView nodes />
 
                                 <div class="flex flex-wrap">
                                     <For

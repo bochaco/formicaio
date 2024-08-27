@@ -1,3 +1,4 @@
+mod add_node;
 pub mod app;
 pub mod error_template;
 #[cfg(feature = "ssr")]

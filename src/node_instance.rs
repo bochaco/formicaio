@@ -137,21 +137,20 @@ fn NodeLogs(container_id: String) -> impl IntoView {
     let (logs, set_logs) = create_signal(Vec::new());
 
     // action to trigger the streaming of logs from the node to the 'set_logs' signal
-    let start_logs_stream =
-        create_action(move |(id, signal): &(String, WriteSignal<Vec<String>>)| {
-            logs_stream_is_on.set(true);
-            let id = id.clone();
-            let signal = signal.clone();
-            async move {
-                let _ = node_logs_stream(id, signal).await;
-            }
-        });
+    let start_logs_stream = create_action(move |id: &String| {
+        logs_stream_is_on.set(true);
+        let id = id.clone();
+        let signal = set_logs.clone();
+        async move {
+            let _ = node_logs_stream(id, signal).await;
+        }
+    });
 
     view! {
         <label
             for="logs_stream_modal"
             class="btn btn-square btn-sm"
-            on:click=move |_| start_logs_stream.dispatch((container_id.clone(), set_logs))
+            on:click=move |_| start_logs_stream.dispatch(container_id.clone())
         >
             <svg
                 xmlns="http://www.w3.org/2000/svg"

@@ -11,7 +11,7 @@ const PORTAINER_API_BASE_PATH: &str = "/docker/containers";
 
 // FIXME: this has to be set once at start time of the app, once it logs into Portainer server
 const ENV_ID: u64 = 4;
-const TOKEN: &str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOjEsInNjb3BlIjoiZGVmYXVsdCIsImZvcmNlQ2hhbmdlUGFzc3dvcmQiOmZhbHNlLCJleHAiOjE3MjQ3MDg0NjEsImlhdCI6MTcyNDY3OTY2MX0.IOBZ7oNeJtTlh4uRzh8-qak96F5g-k3ThvpVIUes0u4";
+const TOKEN: &str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOjEsInNjb3BlIjoiZGVmYXVsdCIsImZvcmNlQ2hhbmdlUGFzc3dvcmQiOmZhbHNlLCJleHAiOjE3MjQ3ODYwNzMsImlhdCI6MTcyNDc1NzI3M30.3wQsM7QTh6cPpKq4iFIaY_fOU8jzYrd8FIMqd8B8gOA";
 
 // Name of the Docker image to use for each node instance
 const NODE_CONTAINER_IMAGE_NAME: &str = "formica";
@@ -74,6 +74,7 @@ pub type ExposedPorts = HashMap<String, HashMap<i32, i32>>;
 pub struct ContainerCreate {
     pub Image: String,
     pub Labels: Option<HashMap<String, String>>,
+    pub Env: Option<Vec<String>>,
     pub ExposedPorts: Option<ExposedPorts>,
     pub HostConfig: Option<HostConfigCreate>,
 }
@@ -212,41 +213,42 @@ pub async fn stop_container_with(id: &ContainerId) -> Result<(), PortainerError>
 }
 
 // Request the Portainer server to CREATE a new node container, returning the container info.
-pub async fn create_new_container() -> Result<ContainerId, PortainerError> {
+pub async fn create_new_container(
+    port: u16,
+    rpc_api_port: u16,
+) -> Result<ContainerId, PortainerError> {
     let url = format!("{PORTAINER_API_BASE_URL}{ENV_ID}{PORTAINER_API_BASE_PATH}/create");
+    let mapped_ports = vec![port, rpc_api_port];
     let container_create_req = ContainerCreate {
         Image: NODE_CONTAINER_IMAGE_NAME.to_string(),
         Labels: None,
+        Env: Some(vec![
+            format!("NODE_PORT={port}"),
+            format!("RPC_PORT={rpc_api_port}"),
+        ]),
         ExposedPorts: Some(
-            vec![
-                ("12500/tcp".to_string(), HashMap::default()),
-                ("13000/tcp".to_string(), HashMap::default()),
-            ]
-            .into_iter()
-            .collect::<ExposedPorts>(),
+            mapped_ports
+                .iter()
+                .map(|p| (format!("{p}/tcp"), HashMap::default()))
+                .collect::<ExposedPorts>(),
         ),
         HostConfig: Some(HostConfigCreate {
             NetworkMode: None,
             PublishAllPorts: Some(false),
             PortBindings: Some(
-                vec![
-                    (
-                        "12500/tcp".to_string(),
-                        vec![PortBinding {
-                            HostIp: None,
-                            HostPort: "12500".to_string(),
-                        }],
-                    ),
-                    (
-                        "13000/tcp".to_string(),
-                        vec![PortBinding {
-                            HostIp: None,
-                            HostPort: "13000".to_string(),
-                        }],
-                    ),
-                ]
-                .into_iter()
-                .collect::<PortBindings>(),
+                mapped_ports
+                    .iter()
+                    .map(|p| {
+                        (
+                            format!("{p}/tcp"),
+                            vec![PortBinding {
+                                HostIp: None,
+                                HostPort: p.to_string(),
+                            }],
+                        )
+                    })
+                    .into_iter()
+                    .collect::<PortBindings>(),
             ),
         }),
     };

@@ -7,9 +7,11 @@ use leptos::*;
 
 // Creates and add a new node instance updating the given signal
 pub async fn add_node_instance(
+    port: u16,
+    rpc_api_port: u16,
     set_nodes: RwSignal<Vec<RwSignal<NodeInstanceInfo>>>,
 ) -> Result<(), ServerFnError> {
-    let container = create_node_instance().await?;
+    let container = create_node_instance(port, rpc_api_port).await?;
 
     set_nodes.update(|items| {
         items.insert(0, create_rw_signal(container));
@@ -44,6 +46,7 @@ pub async fn node_logs_stream(
         .into_inner();
 
     let logs_stream_is_on = expect_context::<RwSignal<bool>>();
+    // TODO: check 'logs_stream_is_on' signal simultaneously to stop as soon as it's set to 'false'
     while let Some(item) = logs_stream.next().await {
         match item {
             Ok(bytes) => {

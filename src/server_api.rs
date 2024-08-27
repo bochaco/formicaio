@@ -71,9 +71,12 @@ pub async fn nodes_instances() -> Result<RwSignal<Vec<RwSignal<NodeInstanceInfo>
 // Create and add a new node instance returning its info
 // TODO: read node instances metadata form a database
 #[server(CreateNodeInstance, "/api", "Url", "/create_node")]
-pub async fn create_node_instance() -> Result<NodeInstanceInfo, ServerFnError> {
-    logging::log!("Creating new node container...");
-    let container_id = create_new_container().await?;
+pub async fn create_node_instance(
+    port: u16,
+    rpc_api_port: u16,
+) -> Result<NodeInstanceInfo, ServerFnError> {
+    logging::log!("Creating new node container with port {port}, RPC API port {rpc_api_port} ...");
+    let container_id = create_new_container(port, rpc_api_port).await?;
     logging::log!("New node container Id: {container_id} ...");
 
     let container = get_container_info(&container_id).await?;
@@ -86,11 +89,11 @@ pub async fn create_node_instance() -> Result<NodeInstanceInfo, ServerFnError> {
         status: NodeStatus::from(container.State),
         status_info: container.Status,
         bin_version: None,
-        port: Some(13000),
-        rpc_api_port: Some(12500),
-        rewards: Some(2109u64),
-        balance: Some(9012u64),
-        chunks: Some(300),
+        port: Some(port),
+        rpc_api_port: Some(rpc_api_port),
+        rewards: None,
+        balance: None,
+        chunks: None,
         connected_peers: None,
     };
 
