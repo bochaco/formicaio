@@ -10,7 +10,8 @@ use super::{
     node_rpc_client::{rpc_network_info, rpc_node_info},
     portainer_client::{
         create_new_container, delete_container_with, get_container_info, get_container_logs_stream,
-        get_containers_list, start_container_with, stop_container_with, ContainerState,
+        get_containers_list, start_container_with, stop_container_with,
+        upgrade_node_in_container_with, ContainerState,
     },
 };
 
@@ -134,6 +135,14 @@ pub async fn stop_node_instance(container_id: String) -> Result<(), ServerFnErro
     Ok(())
 }
 
+// Upgrade a node instance with given id
+#[server(UpgradeNodeInstance, "/api", "Url", "/upgrade_node")]
+pub async fn upgrade_node_instance(container_id: String) -> Result<(), ServerFnError> {
+    logging::log!("Upgrading node container with Id: {container_id} ...");
+    upgrade_node_in_container_with(&container_id).await?;
+    Ok(())
+}
+
 // Start streaming logs from a node instance with given id
 #[server(output = Streaming)]
 pub async fn start_node_logs_stream(container_id: String) -> Result<ByteStream, ServerFnError> {
@@ -161,7 +170,7 @@ async fn retrive_and_cache_updated_metadata(
             }
             if let Err(err) = rpc_network_info(rpc_addr, node_instance_info).await {
                 logging::log!(
-                    "Failed to peers info from running node using RPC endpoint {rpc_addr}: {err}"
+                    "Failed to get peers info from running node using RPC endpoint {rpc_addr}: {err}"
                 );
             }
             // update DB with this new info we just obtained

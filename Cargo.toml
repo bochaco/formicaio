@@ -21,6 +21,7 @@ leptos_meta = { version = "0.6" }
 leptos_router = { version = "0.6" }
 rand = "0.8.5"
 reqwest = { version = "0.12", features = ["json","native-tls-vendored", "stream"] }
+semver = "1.0.20"
 serde = "1.0.207"
 serde_json = "1.0"
 server_fn = { version = "0.6" }

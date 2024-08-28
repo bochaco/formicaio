@@ -1,8 +1,8 @@
 use super::{
     app::ClientGlobalState,
     helpers::{node_logs_stream, remove_node_instance},
-    icons::{IconRemoveNode, IconShowLogs, IconStartNode, IconStopNode},
-    server_api::{start_node_instance, stop_node_instance},
+    icons::{IconRemoveNode, IconShowLogs, IconStartNode, IconStopNode, IconUpgradeNode},
+    server_api::{start_node_instance, stop_node_instance, upgrade_node_instance},
 };
 
 use chrono::{DateTime, Utc};
@@ -26,6 +26,7 @@ pub enum NodeStatus {
     // being considered a bad node by them, then this node is considered Shunned.
     Shunned, // TODO: include suspected reason as to why others shunned it ...??
     Removing,
+    Upgrading,
 }
 
 impl NodeStatus {
@@ -40,7 +41,7 @@ impl NodeStatus {
     }
     pub fn is_changing(&self) -> bool {
         match self {
-            Self::Restarting | Self::Stopping | Self::Removing => true,
+            Self::Restarting | Self::Stopping | Self::Removing | Self::Upgrading => true,
             _ => false,
         }
     }
@@ -60,6 +61,16 @@ pub struct NodeInstanceInfo {
     pub balance: Option<u64>,
     pub chunks: Option<u64>,
     pub connected_peers: Option<usize>,
+}
+
+impl NodeInstanceInfo {
+    pub fn upgrade_available(&self) -> bool {
+        let context = expect_context::<ClientGlobalState>();
+        self.status.is_active()
+            && context.latest_bin_version.get().is_some()
+            && self.bin_version.is_some()
+            && context.latest_bin_version.get() != self.bin_version
+    }
 }
 
 #[component]
@@ -88,7 +99,14 @@ pub fn NodeInstanceView(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                         <span class="loading loading-spinner" />
                     </button>
                 </Show>
+                // TODO: get logic to detect new version available
                 <ButtonRemove info />
+                <Show
+                    when=move || info.get().upgrade_available()
+                    fallback=move || view! { "" }.into_view()
+                >
+                    <ButtonUpgrade info />
+                </Show>
             </div>
             <p>"Node Id: " {container_id.clone()}</p>
             <p>"Peer Id: " {peer_id}</p>
@@ -146,13 +164,16 @@ fn NodeLogs(container_id: String) -> impl IntoView {
     });
 
     view! {
-        <label
-            for="logs_stream_modal"
-            class="btn btn-square btn-sm"
-            on:click=move |_| start_logs_stream.dispatch(container_id.clone())
-        >
-            <IconShowLogs />
-        </label>
+        <div class="tooltip tooltip-bottom tooltip-info" data-tip="view logs">
+
+            <label
+                for="logs_stream_modal"
+                class="btn btn-square btn-sm"
+                on:click=move |_| start_logs_stream.dispatch(container_id.clone())
+            >
+                <IconShowLogs />
+            </label>
+        </div>
 
         <input type="checkbox" id="logs_stream_modal" class="modal-toggle" />
         <div class="modal" role="dialog">
@@ -225,35 +246,86 @@ fn ButtonStopStart(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
             <Show
                 when=move || info.get().status.is_inactive()
                 fallback=|| {
-                    view! { <IconStopNode /> }
+                    view! {
+                        <div class="tooltip tooltip-bottom tooltip-info" data-tip="stop">
+                            <IconStopNode />
+                        </div>
+                    }
                 }
             >
-                <IconStartNode />
+                <div class="tooltip tooltip-bottom tooltip-info" data-tip="start">
+
+                    <IconStartNode />
+                </div>
             </Show>
         </button>
     }
 }
 
 #[component]
+fn ButtonUpgrade(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
+    let context = expect_context::<ClientGlobalState>();
+    let tip = move || {
+        if let Some(v) = context.latest_bin_version.get() {
+            format!("upgrade to v{v} and restart")
+        } else {
+            "upgrade".to_string()
+        }
+    };
+    view! {
+        <div class="tooltip tooltip-left tooltip-info" data-tip=tip>
+            <button
+                class=move || {
+                    if info.get().status.is_changing() {
+                        "btn btn-square btn-sm btn-disabled"
+                    } else {
+                        "btn btn-square btn-sm"
+                    }
+                }
+                on:click=move |_| spawn_local({
+                    let previous_status = info.get().status;
+                    info.update(|info| info.status = NodeStatus::Upgrading);
+                    let container_id = info.get().container_id.clone();
+                    async move {
+                        match upgrade_node_instance(container_id).await {
+                            Ok(()) => info.update(|node| node.status = NodeStatus::Active),
+                            Err(err) => {
+                                logging::log!("Failed to upgrade node: {err:?}");
+                                info.update(|node| node.status = previous_status);
+                            }
+                        }
+                    }
+                })
+            >
+                <IconUpgradeNode />
+            </button>
+        </div>
+    }
+}
+
+#[component]
 fn ButtonRemove(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
     view! {
-        <button
-            class=move || {
-                if info.get().status.is_changing() {
-                    "btn btn-square btn-sm btn-disabled"
-                } else {
-                    "btn btn-square btn-sm"
+        <div class="tooltip tooltip-bottom tooltip-info" data-tip="remove">
+
+            <button
+                class=move || {
+                    if info.get().status.is_changing() {
+                        "btn btn-square btn-sm btn-disabled"
+                    } else {
+                        "btn btn-square btn-sm"
+                    }
                 }
-            }
-            on:click=move |_| spawn_local({
-                info.update(|info| info.status = NodeStatus::Removing);
-                let container_id = info.get().container_id.clone();
-                async move {
-                    let _ = remove_node_instance(container_id).await;
-                }
-            })
-        >
-            <IconRemoveNode />
-        </button>
+                on:click=move |_| spawn_local({
+                    info.update(|info| info.status = NodeStatus::Removing);
+                    let container_id = info.get().container_id.clone();
+                    async move {
+                        let _ = remove_node_instance(container_id).await;
+                    }
+                })
+            >
+                <IconRemoveNode />
+            </button>
+        </div>
     }
 }

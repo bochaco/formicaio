@@ -1123,6 +1123,7 @@ dependencies = [
  "leptos_router",
  "rand",
  "reqwest",
+ "semver",
  "serde",
  "serde_json",
  "server_fn",

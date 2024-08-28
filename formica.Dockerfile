@@ -19,6 +19,9 @@ RUN apt-get update -y \
   && apt-get clean -y \
   && rm -rf /var/lib/apt/lists/*
 
+# Copy safeup binary to the /app directory
+COPY --from=builder /usr/local/bin/safeup /app/
+
 # Copy the node binary to the /app directory
 COPY --from=builder /app/safenode /app/
 RUN /app/safenode --version

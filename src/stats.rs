@@ -61,18 +61,16 @@ pub fn AggregatedStatsView() -> impl IntoView {
             <div class="stat place-items-center">
                 <div class="stat-title">Total rewards</div>
                 <div class="stat-value text-primary">{rewards}</div>
-                <div class="stat-desc">21% more than last month</div>
             </div>
 
             <div class="stat place-items-center">
-                <div class="stat-title">Total current balance</div>
+                <div class="stat-title">Current total balance</div>
                 <div class="stat-value text-primary">{balance}</div>
             </div>
 
             <div class="stat place-items-center">
                 <div class="stat-title">Stored chunks</div>
                 <div class="stat-value text-secondary">{chunks}</div>
-                <div class="stat-desc">10% more than last month</div>
             </div>
 
             <div class="stat place-items-center">

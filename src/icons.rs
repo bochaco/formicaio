@@ -84,3 +84,25 @@ pub fn IconStopNode() -> impl IntoView {
         </svg>
     }
 }
+
+#[component]
+pub fn IconUpgradeNode() -> impl IntoView {
+    view! {
+        <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-6 w-6"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="green"
+        >
+            <circle cx="12" cy="12" r="10" stroke="green" stroke-width="2" />
+            <path
+                stroke="green"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M8 11 L12 7 L16 11 M12 7 L12 17"
+            />
+        </svg>
+    }
+}
