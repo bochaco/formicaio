@@ -6,6 +6,6 @@ CREATE TABLE IF NOT EXISTS nodes (
     rpc_api_port INTEGER,
     rewards TEXT,
     balance TEXT,
-    chunks TEXT,
+    records TEXT,
     connected_peers TEXT
 );

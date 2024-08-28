@@ -29,7 +29,7 @@ pub struct CachedNodeMetadata {
     pub rpc_api_port: u16,
     pub rewards: String,
     pub balance: String,
-    pub chunks: String,
+    pub records: String,
     pub connected_peers: String,
 }
 
@@ -55,8 +55,8 @@ impl CachedNodeMetadata {
         if let Ok(v) = self.balance.parse::<u64>() {
             info.balance = Some(v);
         }
-        if let Ok(v) = self.chunks.parse::<u64>() {
-            info.chunks = Some(v);
+        if let Ok(v) = self.records.parse::<usize>() {
+            info.records = Some(v);
         }
         if let Ok(v) = self.connected_peers.parse::<usize>() {
             info.connected_peers = Some(v);
@@ -99,7 +99,7 @@ pub async fn db_get_node_metadata(info: &mut NodeInstanceInfo) -> Result<(), DbE
     let db = db_conn().await?;
     match sqlx::query_as::<_, CachedNodeMetadata>(
         "SELECT container_id, peer_id, bin_version, port, \
-                rpc_api_port, rewards, balance, chunks, connected_peers \
+                rpc_api_port, rewards, balance, records, connected_peers \
             FROM nodes WHERE container_id=?",
     )
     .bind(info.container_id.clone())
@@ -125,7 +125,7 @@ pub async fn db_store_node_metadata(info: &NodeInstanceInfo) -> Result<(), DbErr
     match sqlx::query(
         "INSERT OR REPLACE INTO nodes (\
                 container_id, peer_id, bin_version, port, \
-                rpc_api_port, rewards, balance, chunks, connected_peers \
+                rpc_api_port, rewards, balance, records, connected_peers \
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(info.container_id.clone())
@@ -135,7 +135,7 @@ pub async fn db_store_node_metadata(info: &NodeInstanceInfo) -> Result<(), DbErr
     .bind(info.rpc_api_port.clone())
     .bind(info.rewards.map_or("".to_string(), |v| v.to_string()))
     .bind(info.balance.map_or("".to_string(), |v| v.to_string()))
-    .bind(info.chunks.map_or("".to_string(), |v| v.to_string()))
+    .bind(info.records.map_or("".to_string(), |v| v.to_string()))
     .bind(
         info.connected_peers
             .map_or("".to_string(), |v| v.to_string()),

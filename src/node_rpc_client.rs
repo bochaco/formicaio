@@ -2,7 +2,7 @@ use super::node_instance::NodeInstanceInfo;
 
 use leptos::*;
 use sn_protocol::safenode_proto::{
-    safe_node_client::SafeNodeClient, NetworkInfoRequest, NodeInfoRequest,
+    safe_node_client::SafeNodeClient, NetworkInfoRequest, NodeInfoRequest, RecordAddressesRequest,
 };
 use std::net::SocketAddr;
 use thiserror::Error;
@@ -48,6 +48,24 @@ pub async fn rpc_network_info(
     let network_info = response.get_ref();
 
     info.connected_peers = Some(network_info.connected_peers.len());
+
+    Ok(())
+}
+
+pub async fn rpc_record_addresses(
+    addr: SocketAddr,
+    info: &mut NodeInstanceInfo,
+) -> Result<(), RpcClientError> {
+    let endpoint = format!("https://{addr}");
+    logging::log!("Sending RPC query to get node's record addresses info: {endpoint} ...");
+
+    let mut client = SafeNodeClient::connect(endpoint.clone()).await?;
+    let response = client
+        .record_addresses(Request::new(RecordAddressesRequest {}))
+        .await?;
+    let record_addresses = response.get_ref();
+
+    info.records = Some(record_addresses.addresses.len());
 
     Ok(())
 }

@@ -7,7 +7,7 @@ use super::{
         db_update_node_metadata_field,
     },
     node_instance::NodeStatus,
-    node_rpc_client::{rpc_network_info, rpc_node_info},
+    node_rpc_client::{rpc_network_info, rpc_node_info, rpc_record_addresses},
     portainer_client::{
         create_new_container, delete_container_with, get_container_info, get_container_logs_stream,
         get_containers_list, start_container_with, stop_container_with,
@@ -56,7 +56,7 @@ pub async fn nodes_instances() -> Result<BTreeMap<String, NodeInstanceInfo>, Ser
             rpc_api_port: None,
             rewards: None,
             balance: None,
-            chunks: None,
+            records: None,
             connected_peers: None,
         };
 
@@ -90,7 +90,7 @@ pub async fn create_node_instance(
     let node_instance_info = NodeInstanceInfo {
         container_id: container.Id,
         created: container.Created,
-        peer_id: Some(bs58::encode(rand::random::<[u8; 10]>().to_vec()).into_string()),
+        peer_id: None,
         status: NodeStatus::from(container.State),
         status_info: container.Status,
         bin_version: None,
@@ -98,7 +98,7 @@ pub async fn create_node_instance(
         rpc_api_port: Some(rpc_api_port),
         rewards: None,
         balance: None,
-        chunks: None,
+        records: None,
         connected_peers: None,
     };
 
@@ -171,6 +171,11 @@ async fn retrive_and_cache_updated_metadata(
             if let Err(err) = rpc_network_info(rpc_addr, node_instance_info).await {
                 logging::log!(
                     "Failed to get peers info from running node using RPC endpoint {rpc_addr}: {err}"
+                );
+            }
+            if let Err(err) = rpc_record_addresses(rpc_addr, node_instance_info).await {
+                logging::log!(
+                    "Failed to get record addresses from running node using RPC endpoint {rpc_addr}: {err}"
                 );
             }
             // update DB with this new info we just obtained

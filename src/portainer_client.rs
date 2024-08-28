@@ -12,7 +12,7 @@ const PORTAINER_EXEC_API: &str = "/docker/exec";
 
 // FIXME: this has to be set once at start time of the app, once it logs into Portainer server
 const ENV_ID: u64 = 4;
-const TOKEN: &str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOjEsInNjb3BlIjoiZGVmYXVsdCIsImZvcmNlQ2hhbmdlUGFzc3dvcmQiOmZhbHNlLCJleHAiOjE3MjQ4Nzg4ODQsImlhdCI6MTcyNDg1MDA4NH0.KJi5vLUaW78Xh8-OTp1vju0oXBNB9N7JuLDHGFflUl4";
+const TOKEN: &str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOjEsInNjb3BlIjoiZGVmYXVsdCIsImZvcmNlQ2hhbmdlUGFzc3dvcmQiOmZhbHNlLCJleHAiOjE3MjQ5MDk2NjcsImlhdCI6MTcyNDg4MDg2N30.Lqg8-cVMx_mU9H3tH0kWLKlD2EVehGkaL973k7xdSyY";
 
 // Name of the Docker image to use for each node instance
 const NODE_CONTAINER_IMAGE_NAME: &str = "formica";

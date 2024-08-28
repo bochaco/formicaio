@@ -58,8 +58,8 @@ pub struct NodeInstanceInfo {
     pub port: Option<u16>,
     pub rpc_api_port: Option<u16>,
     pub rewards: Option<u64>,
-    pub balance: Option<u64>,
-    pub chunks: Option<u64>,
+    pub balance: Option<u64>, // nanos
+    pub records: Option<usize>,
     pub connected_peers: Option<usize>,
 }
 
@@ -75,17 +75,25 @@ impl NodeInstanceInfo {
 
 #[component]
 pub fn NodeInstanceView(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
-    let peer_id = info
-        .get_untracked()
-        .peer_id
-        .map_or("unknown".to_string(), |id| {
+    let peer_id = move || {
+        info.get().peer_id.map_or("unknown".to_string(), |id| {
             format!(
                 "{}...{}",
                 &id[..PEER_ID_PREFIX_SUFFIX_LEN],
                 &id[id.len() - PEER_ID_PREFIX_SUFFIX_LEN..]
             )
-        });
+        })
+    };
     let container_id = info.get_untracked().container_id[..CONTAINER_ID_PREFIX_LEN].to_string();
+
+    let tip = move || {
+        let status = info.get().status;
+        if status.is_changing() {
+            format!("{status:?}")
+        } else {
+            "".to_string()
+        }
+    };
 
     view! {
         <div class="w-1/4 m-2 p-4 overflow-x-auto card card-normal bg-neutral text-neutral-content card-bordered shadow-2xl">
@@ -95,9 +103,11 @@ pub fn NodeInstanceView(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                     when=move || info.get().status.is_changing()
                     fallback=move || view! { <ButtonStopStart info /> }.into_view()
                 >
-                    <button class="btn btn-square btn-sm">
-                        <span class="loading loading-spinner" />
-                    </button>
+                    <div class="tooltip tooltip-bottom tooltip-info" data-tip=tip>
+                        <button class="btn btn-square btn-sm">
+                            <span class="loading loading-spinner" />
+                        </button>
+                    </div>
                 </Show>
                 // TODO: get logic to detect new version available
                 <ButtonRemove info />
@@ -108,34 +118,46 @@ pub fn NodeInstanceView(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                     <ButtonUpgrade info />
                 </Show>
             </div>
-            <p>"Node Id: " {container_id.clone()}</p>
-            <p>"Peer Id: " {peer_id}</p>
             <p>
-                "Status: " {move || format!("{:?} - {}", info.get().status, info.get().status_info)}
+                <span class="text-info">"Node Id: "</span>
+                {container_id.clone()}
             </p>
             <p>
-                "Version: "
+                <span class="text-info">"Peer Id: "</span>
+                {peer_id}
+            </p>
+            <p>
+                <span class="text-info">"Status: "</span>
+                {move || format!("{:?} - {}", info.get().status, info.get().status_info)}
+            </p>
+            <p>
+                <span class="text-info">"Version: "</span>
                 {move || info.get().bin_version.unwrap_or_else(|| "unknown".to_string())}
             </p>
             <p>
-                "Port: " {move || info.get().port.map_or("unknown".to_string(), |v| v.to_string())}
+                <span class="text-info">"Port: "</span>
+                {move || info.get().port.map_or("unknown".to_string(), |v| v.to_string())}
             </p>
             <p>
-                "RPC API Port: "
+                <span class="text-info">"RPC API Port: "</span>
                 {move || info.get().rpc_api_port.map_or("unknown".to_string(), |v| v.to_string())}
             </p>
             <p>
-                "Balance: "
+                <span class="text-info">"Balance: "</span>
                 {move || info.get().balance.map_or("unknown".to_string(), |v| v.to_string())}
             </p>
             <p>
-                "Connected peers: "
+                <span class="text-info">"Records: "</span>
+                {move || info.get().records.map_or("unknown".to_string(), |v| v.to_string())}
+            </p>
+            <p>
+                <span class="text-info">"Connected peers: "</span>
                 {move || {
                     info.get().connected_peers.map_or("unknown".to_string(), |v| v.to_string())
                 }}
             </p>
             <p>
-                "Created: "
+                <span class="text-info">"Created: "</span>
                 {move || {
                     DateTime::<Utc>::from_timestamp(info.get().created as i64, 0)
                         .unwrap()
@@ -269,7 +291,7 @@ fn ButtonUpgrade(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
         if let Some(v) = context.latest_bin_version.get() {
             format!("upgrade to v{v} and restart")
         } else {
-            "upgrade".to_string()
+            "upgrade and restart".to_string()
         }
     };
     view! {

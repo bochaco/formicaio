@@ -8,7 +8,7 @@ pub fn IconAddNode() -> impl IntoView {
             class="h-6 w-6"
             fill="none"
             viewBox="0 0 24 24"
-            stroke="green"
+            stroke="currentColor"
         >
             <path stroke-width="3" d="M12 3 L12 20 M3 12 L20 12 Z" />
         </svg>

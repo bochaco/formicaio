@@ -47,14 +47,35 @@ pub fn AggregatedStatsView() -> impl IntoView {
             .map(|(_, n)| n.get().balance.unwrap_or_default())
             .sum::<u64>()
     };
-    let chunks = move || {
+    let active_records = move || {
         context
             .nodes
             .get()
             .iter()
-            .map(|(_, n)| n.get().chunks.unwrap_or_default())
-            .sum::<u64>()
+            .map(|(_, n)| {
+                if n.get().status.is_active() {
+                    n.get().records.unwrap_or_default()
+                } else {
+                    0
+                }
+            })
+            .sum::<usize>()
     };
+    let inactive_records = move || {
+        context
+            .nodes
+            .get()
+            .iter()
+            .map(|(_, n)| {
+                if n.get().status.is_inactive() {
+                    n.get().records.unwrap_or_default()
+                } else {
+                    0
+                }
+            })
+            .sum::<usize>()
+    };
+    let total_records = move || active_records() + inactive_records();
 
     view! {
         <div class="stats flex">
@@ -69,8 +90,11 @@ pub fn AggregatedStatsView() -> impl IntoView {
             </div>
 
             <div class="stat place-items-center">
-                <div class="stat-title">Stored chunks</div>
-                <div class="stat-value text-secondary">{chunks}</div>
+                <div class="stat-title">Stored records</div>
+                <div class="stat-value">{active_records} " / " {total_records}</div>
+                <div class="stat-desc text-secondary">
+                    {inactive_records} " records are in inactive nodes"
+                </div>
             </div>
 
             <div class="stat place-items-center">
