@@ -47,6 +47,14 @@ pub fn AggregatedStatsView() -> impl IntoView {
             .map(|(_, n)| n.get().balance.unwrap_or_default())
             .sum::<u64>()
     };
+    let connected_peers = move || {
+        context
+            .nodes
+            .get()
+            .iter()
+            .map(|(_, n)| n.get().connected_peers.unwrap_or_default())
+            .sum::<usize>()
+    };
     let active_records = move || {
         context
             .nodes
@@ -75,7 +83,6 @@ pub fn AggregatedStatsView() -> impl IntoView {
             })
             .sum::<usize>()
     };
-    let total_records = move || active_records() + inactive_records();
 
     view! {
         <div class="stats flex">
@@ -90,11 +97,8 @@ pub fn AggregatedStatsView() -> impl IntoView {
             </div>
 
             <div class="stat place-items-center">
-                <div class="stat-title">Stored records</div>
-                <div class="stat-value">{active_records} " / " {total_records}</div>
-                <div class="stat-desc text-secondary">
-                    {inactive_records} " records are in inactive nodes"
-                </div>
+                <div class="stat-title">Total connected peers</div>
+                <div class="stat-value text-primary">{connected_peers}</div>
             </div>
 
             <div class="stat place-items-center">
@@ -102,6 +106,14 @@ pub fn AggregatedStatsView() -> impl IntoView {
                 <div class="stat-value">{active_nodes} " / " {total_nodes}</div>
                 <div class="stat-desc text-secondary">
                     {shunned_nodes} " shunned | " {inactive_nodes} " inactive"
+                </div>
+            </div>
+
+            <div class="stat place-items-center">
+                <div class="stat-title">Stored records</div>
+                <div class="stat-value">{active_records}</div>
+                <div class="stat-desc text-secondary">
+                    {inactive_records} " records are in inactive nodes"
                 </div>
             </div>
         </div>
