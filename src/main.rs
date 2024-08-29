@@ -2,8 +2,8 @@
 #[tokio::main]
 async fn main() {
     use axum::Router;
-    use formicaio::app::*;
     use formicaio::fileserv::file_and_error_handler;
+    use formicaio::{app::*, metadata_db::DbClient, portainer_client::PortainerClient};
     use leptos::*;
     use leptos_axum::{generate_route_list, LeptosRoutes};
 
@@ -17,11 +17,20 @@ async fn main() {
     let addr = leptos_options.site_addr;
     let routes = generate_route_list(App);
 
-    // build our application with a route
+    // We'll keep the database and Portainer clients instances in server global state.
+    let portainer_client = PortainerClient::login().await.unwrap();
+    let db_client = DbClient::connect().await.unwrap();
+
+    let app_state = formicaio::app::ServerGlobalState {
+        leptos_options,
+        db_client,
+        portainer_client,
+    };
+
     let app = Router::new()
-        .leptos_routes(&leptos_options, routes, App)
+        .leptos_routes(&app_state, routes, App)
         .fallback(file_and_error_handler)
-        .with_state(leptos_options);
+        .with_state(app_state);
 
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
     logging::log!("listening on http://{}", &addr);

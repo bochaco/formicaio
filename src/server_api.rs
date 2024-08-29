@@ -2,17 +2,10 @@ use super::node_instance::NodeInstanceInfo;
 
 #[cfg(feature = "ssr")]
 use super::{
-    metadata_db::{
-        db_delete_node_metadata, db_get_node_metadata, db_store_node_metadata,
-        db_update_node_metadata_field,
-    },
+    app::ServerGlobalState,
     node_instance::NodeStatus,
     node_rpc_client::{rpc_network_info, rpc_node_info, rpc_record_addresses},
-    portainer_client::{
-        create_new_container, delete_container_with, get_container_info, get_container_logs_stream,
-        get_containers_list, start_container_with, stop_container_with,
-        upgrade_node_in_container_with, ContainerState,
-    },
+    portainer_client::ContainerState,
 };
 
 #[cfg(feature = "ssr")]
@@ -41,7 +34,8 @@ impl From<ContainerState> for NodeStatus {
 // Obtain the list of existing nodes instances with their info
 #[server(ListNodeInstances, "/api", "Url", "/list_nodes")]
 pub async fn nodes_instances() -> Result<BTreeMap<String, NodeInstanceInfo>, ServerFnError> {
-    let containers = get_containers_list().await?;
+    let context = expect_context::<ServerGlobalState>();
+    let containers = context.portainer_client.get_containers_list().await?;
 
     let mut nodes = BTreeMap::new();
     for container in containers {
@@ -62,7 +56,10 @@ pub async fn nodes_instances() -> Result<BTreeMap<String, NodeInstanceInfo>, Ser
 
         // we first read node metadata cached in the database
         // TODO: fetch metadata of all containers from DB with a single DB call
-        db_get_node_metadata(&mut node_instance_info).await?;
+        context
+            .db_client
+            .db_get_node_metadata(&mut node_instance_info)
+            .await?;
 
         // if the node is Active, we can also fetch up to date info using its RPC API
         retrive_and_cache_updated_metadata(&mut node_instance_info).await?;
@@ -80,11 +77,18 @@ pub async fn create_node_instance(
     port: u16,
     rpc_api_port: u16,
 ) -> Result<NodeInstanceInfo, ServerFnError> {
+    let context = expect_context::<ServerGlobalState>();
     logging::log!("Creating new node container with port {port}, RPC API port {rpc_api_port} ...");
-    let container_id = create_new_container(port, rpc_api_port).await?;
+    let container_id = context
+        .portainer_client
+        .create_new_container(port, rpc_api_port)
+        .await?;
     logging::log!("New node container Id: {container_id} ...");
 
-    let container = get_container_info(&container_id).await?;
+    let container = context
+        .portainer_client
+        .get_container_info(&container_id)
+        .await?;
     logging::log!("New node container created: {container:?}");
 
     let node_instance_info = NodeInstanceInfo {
@@ -102,7 +106,10 @@ pub async fn create_node_instance(
         connected_peers: None,
     };
 
-    db_store_node_metadata(&node_instance_info).await?;
+    context
+        .db_client
+        .db_store_node_metadata(&node_instance_info)
+        .await?;
 
     Ok(node_instance_info)
 }
@@ -111,8 +118,15 @@ pub async fn create_node_instance(
 #[server(DeleteNodeInstance, "/api", "Url", "/delete_node")]
 pub async fn delete_node_instance(container_id: String) -> Result<(), ServerFnError> {
     logging::log!("Deleting node container with Id: {container_id} ...");
-    delete_container_with(&container_id).await?;
-    db_delete_node_metadata(&container_id).await?;
+    let context = expect_context::<ServerGlobalState>();
+    context
+        .portainer_client
+        .delete_container_with(&container_id)
+        .await?;
+    context
+        .db_client
+        .db_delete_node_metadata(&container_id)
+        .await?;
     Ok(())
 }
 
@@ -120,7 +134,11 @@ pub async fn delete_node_instance(container_id: String) -> Result<(), ServerFnEr
 #[server(StartNodeInstance, "/api", "Url", "/start_node")]
 pub async fn start_node_instance(container_id: String) -> Result<(), ServerFnError> {
     logging::log!("Starting node container with Id: {container_id} ...");
-    start_container_with(&container_id).await?;
+    let context = expect_context::<ServerGlobalState>();
+    context
+        .portainer_client
+        .start_container_with(&container_id)
+        .await?;
     Ok(())
 }
 
@@ -128,9 +146,16 @@ pub async fn start_node_instance(container_id: String) -> Result<(), ServerFnErr
 #[server(StopNodeInstance, "/api", "Url", "/stop_node")]
 pub async fn stop_node_instance(container_id: String) -> Result<(), ServerFnError> {
     logging::log!("Stopping node container with Id: {container_id} ...");
-    stop_container_with(&container_id).await?;
+    let context = expect_context::<ServerGlobalState>();
+    context
+        .portainer_client
+        .stop_container_with(&container_id)
+        .await?;
     // set connect_peers back to 0 and update cache
-    db_update_node_metadata_field(&container_id, "connected_peers", "0").await?;
+    context
+        .db_client
+        .db_update_node_metadata_field(&container_id, "connected_peers", "0")
+        .await?;
 
     Ok(())
 }
@@ -139,7 +164,11 @@ pub async fn stop_node_instance(container_id: String) -> Result<(), ServerFnErro
 #[server(UpgradeNodeInstance, "/api", "Url", "/upgrade_node")]
 pub async fn upgrade_node_instance(container_id: String) -> Result<(), ServerFnError> {
     logging::log!("Upgrading node container with Id: {container_id} ...");
-    upgrade_node_in_container_with(&container_id).await?;
+    let context = expect_context::<ServerGlobalState>();
+    context
+        .portainer_client
+        .upgrade_node_in_container_with(&container_id)
+        .await?;
     Ok(())
 }
 
@@ -147,7 +176,11 @@ pub async fn upgrade_node_instance(container_id: String) -> Result<(), ServerFnE
 #[server(output = Streaming)]
 pub async fn start_node_logs_stream(container_id: String) -> Result<ByteStream, ServerFnError> {
     logging::log!("Starting logs stream from container with Id: {container_id} ...");
-    let container_logs_stream = get_container_logs_stream(&container_id).await?;
+    let context = expect_context::<ServerGlobalState>();
+    let container_logs_stream = context
+        .portainer_client
+        .get_container_logs_stream(&container_id)
+        .await?;
     let converted_stream = container_logs_stream.map(|item| {
         item.map_err(ServerFnError::from) // convert the error type
     });
@@ -179,7 +212,11 @@ async fn retrive_and_cache_updated_metadata(
                 );
             }
             // update DB with this new info we just obtained
-            db_store_node_metadata(&node_instance_info).await?;
+            let context = expect_context::<ServerGlobalState>();
+            context
+                .db_client
+                .db_store_node_metadata(&node_instance_info)
+                .await?;
         }
     }
 

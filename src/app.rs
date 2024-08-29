@@ -6,6 +6,8 @@ use super::{
     stats::AggregatedStatsView,
 };
 
+#[cfg(feature = "ssr")]
+use axum::extract::FromRef;
 use gloo_timers::future::TimeoutFuture;
 use leptos::*;
 use leptos_meta::*;
@@ -13,6 +15,14 @@ use leptos_router::*;
 use std::collections::BTreeMap;
 
 const POLLING_FREQ_MILLIS: u32 = 5000;
+
+#[cfg(feature = "ssr")]
+#[derive(Clone, FromRef, Debug)]
+pub struct ServerGlobalState {
+    pub leptos_options: LeptosOptions,
+    pub db_client: super::metadata_db::DbClient,
+    pub portainer_client: super::portainer_client::PortainerClient,
+}
 
 // Struct to use client side as a global context/state
 #[derive(Clone, Copy, Debug)]

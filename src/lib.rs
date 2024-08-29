@@ -6,12 +6,12 @@ pub mod fileserv;
 mod helpers;
 mod icons;
 #[cfg(feature = "ssr")]
-mod metadata_db;
+pub mod metadata_db;
 mod node_instance;
 #[cfg(feature = "ssr")]
 mod node_rpc_client;
 #[cfg(feature = "ssr")]
-mod portainer_client;
+pub mod portainer_client;
 mod server_api;
 mod stats;
 

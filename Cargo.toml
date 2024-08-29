@@ -7,7 +7,7 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-axum = { version = "0.7", optional = true }
+axum = { version = "0.7", optional = true, features = ["macros"] }
 bs58 = "0.5.1"
 bytes = "1.7"
 chrono = "0.4.38"
