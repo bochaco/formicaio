@@ -155,7 +155,9 @@ fn spawn_nodes_list_polling() {
                             nodes.get(id).map(|updated| {
                                 if cn.get_untracked() != *updated {
                                     cn.update(|cn| {
-                                        if !cn.status.is_changing() {
+                                        if !cn.status.is_transitioning()
+                                            || cn.status.is_transitioned()
+                                        {
                                             cn.status = updated.status.clone();
                                         }
                                         cn.peer_id = updated.peer_id.clone();

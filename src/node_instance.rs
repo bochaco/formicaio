@@ -8,6 +8,7 @@ use super::{
 use chrono::{DateTime, Utc};
 use leptos::*;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 // Length of nodes PeerIds' prefix and suffix to be displayed
 const PEER_ID_PREFIX_SUFFIX_LEN: usize = 12;
@@ -27,6 +28,10 @@ pub enum NodeStatus {
     Shunned, // TODO: include suspected reason as to why others shunned it ...??
     Removing,
     Upgrading,
+    // This is a special state just to provide a good UX, after going thru some status
+    // change, e.g. Restarting, Upgrading, we set to this state till we get actual state
+    // from the server during our polling cycle. The string describes the type of transition.
+    Transitioned(String),
 }
 
 impl NodeStatus {
@@ -39,10 +44,29 @@ impl NodeStatus {
     pub fn is_shunned(&self) -> bool {
         matches!(self, Self::Shunned)
     }
-    pub fn is_changing(&self) -> bool {
+    pub fn is_upgrading(&self) -> bool {
+        matches!(self, Self::Upgrading)
+    }
+    pub fn is_transitioning(&self) -> bool {
         match self {
-            Self::Restarting | Self::Stopping | Self::Removing | Self::Upgrading => true,
+            Self::Restarting
+            | Self::Stopping
+            | Self::Removing
+            | Self::Upgrading
+            | Self::Transitioned(_) => true,
             _ => false,
+        }
+    }
+    pub fn is_transitioned(&self) -> bool {
+        matches!(self, Self::Transitioned(_))
+    }
+}
+
+impl fmt::Display for NodeStatus {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Transitioned(s) => write!(f, "{s}"),
+            other => write!(f, "{other:?}"),
         }
     }
 }
@@ -66,10 +90,13 @@ pub struct NodeInstanceInfo {
 impl NodeInstanceInfo {
     pub fn upgrade_available(&self) -> bool {
         let context = expect_context::<ClientGlobalState>();
-        self.status.is_active()
-            && context.latest_bin_version.get().is_some()
+        context.latest_bin_version.get().is_some()
             && self.bin_version.is_some()
             && context.latest_bin_version.get() != self.bin_version
+    }
+
+    pub fn upgradeable(&self) -> bool {
+        self.status.is_active() && self.upgrade_available()
     }
 }
 
@@ -86,10 +113,10 @@ pub fn NodeInstanceView(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
     };
     let container_id = info.get_untracked().container_id[..CONTAINER_ID_PREFIX_LEN].to_string();
 
-    let tip = move || {
+    let spinner_msg = move || {
         let status = info.get().status;
-        if status.is_changing() {
-            format!("{status:?}")
+        if status.is_transitioning() {
+            format!("{status}")
         } else {
             "".to_string()
         }
@@ -98,25 +125,22 @@ pub fn NodeInstanceView(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
     view! {
         <div class="w-1/4 m-2 p-4 overflow-x-auto card card-normal bg-neutral text-neutral-content card-bordered shadow-2xl">
             <div class="card-actions justify-end">
-                <NodeLogs container_id=info.get_untracked().container_id />
                 <Show
-                    when=move || info.get().status.is_changing()
-                    fallback=move || view! { <ButtonStopStart info /> }.into_view()
+                    when=move || info.get().status.is_transitioning()
+                    fallback=move || view! { "" }.into_view()
                 >
-                    <div class="tooltip tooltip-bottom tooltip-info" data-tip=tip>
-                        <button class="btn btn-square btn-sm">
-                            <span class="loading loading-spinner" />
-                        </button>
-                    </div>
+                    <span class="loading loading-spinner mr-2"></span>
+                    <div class="mr-10">{spinner_msg}</div>
                 </Show>
-                // TODO: get logic to detect new version available
-                <ButtonRemove info />
                 <Show
-                    when=move || info.get().upgrade_available()
+                    when=move || info.get().upgradeable()
                     fallback=move || view! { "" }.into_view()
                 >
                     <ButtonUpgrade info />
                 </Show>
+                <NodeLogs container_id=info.get_untracked().container_id />
+                <ButtonStopStart info />
+                <ButtonRemove info />
             </div>
             <p>
                 <span class="text-info">"Node Id: "</span>
@@ -128,7 +152,7 @@ pub fn NodeInstanceView(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
             </p>
             <p>
                 <span class="text-info">"Status: "</span>
-                {move || format!("{:?} - {}", info.get().status, info.get().status_info)}
+                {move || format!("{} - {}", info.get().status, info.get().status_info)}
             </p>
             <p>
                 <span class="text-info">"Version: "</span>
@@ -208,7 +232,7 @@ fn NodeLogs(container_id: String) -> impl IntoView {
                             key=|(i, _)| *i
                             let:child
                         >
-                            <li>">> " {child.1}</li>
+                            <li>{child.1}</li>
                         </For>
                     </ul>
                 </div>
@@ -217,7 +241,10 @@ fn NodeLogs(container_id: String) -> impl IntoView {
                     <label
                         for="logs_stream_modal"
                         class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
-                        on:click=move |_| context.logs_stream_is_on.set(false)
+                        on:click=move |_| {
+                            context.logs_stream_is_on.set(false);
+                            set_logs.update(|l| l.clear());
+                        }
                     >
                         X
                     </label>
@@ -231,7 +258,13 @@ fn NodeLogs(container_id: String) -> impl IntoView {
 fn ButtonStopStart(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
     view! {
         <button
-            class="btn btn-square btn-sm"
+            class=move || {
+                if info.get().status.is_transitioning() {
+                    "btn btn-square btn-sm btn-disabled"
+                } else {
+                    "btn btn-square btn-sm"
+                }
+            }
             on:click=move |_| {
                 let container_id = info.get().container_id.clone();
                 let previous_status = info.get().status;
@@ -239,7 +272,11 @@ fn ButtonStopStart(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                     info.update(|node| node.status = NodeStatus::Restarting);
                     spawn_local(async move {
                         match start_node_instance(container_id).await {
-                            Ok(()) => info.update(|node| node.status = NodeStatus::Active),
+                            Ok(()) => {
+                                info.update(|node| {
+                                    node.status = NodeStatus::Transitioned("Restarted".to_string());
+                                })
+                            }
                             Err(err) => {
                                 logging::log!("Failed to start node: {err:?}");
                                 info.update(|node| node.status = previous_status);
@@ -253,7 +290,7 @@ fn ButtonStopStart(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                             Ok(()) => {
                                 info.update(|node| {
                                     node.connected_peers = Some(0);
-                                    node.status = NodeStatus::Inactive;
+                                    node.status = NodeStatus::Transitioned("Stopped".to_string());
                                 })
                             }
                             Err(err) => {
@@ -295,10 +332,10 @@ fn ButtonUpgrade(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
         }
     };
     view! {
-        <div class="tooltip tooltip-left tooltip-info" data-tip=tip>
+        <div class="tooltip tooltip-bottom tooltip-info" data-tip=tip>
             <button
                 class=move || {
-                    if info.get().status.is_changing() {
+                    if info.get().status.is_transitioning() {
                         "btn btn-square btn-sm btn-disabled"
                     } else {
                         "btn btn-square btn-sm"
@@ -310,7 +347,11 @@ fn ButtonUpgrade(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                     let container_id = info.get().container_id.clone();
                     async move {
                         match upgrade_node_instance(container_id).await {
-                            Ok(()) => info.update(|node| node.status = NodeStatus::Active),
+                            Ok(()) => {
+                                info.update(|node| {
+                                    node.status = NodeStatus::Transitioned("Upgraded".to_string());
+                                })
+                            }
                             Err(err) => {
                                 logging::log!("Failed to upgrade node: {err:?}");
                                 info.update(|node| node.status = previous_status);
@@ -332,7 +373,7 @@ fn ButtonRemove(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
 
             <button
                 class=move || {
-                    if info.get().status.is_changing() {
+                    if info.get().status.is_transitioning() {
                         "btn btn-square btn-sm btn-disabled"
                     } else {
                         "btn btn-square btn-sm"
