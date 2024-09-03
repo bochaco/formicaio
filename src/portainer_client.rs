@@ -1,12 +1,16 @@
+use super::metadata_db::DbClient;
+
 use bytes::Bytes;
+use dyn_fmt::AsStrFormatExt;
 use futures_util::Stream;
 use leptos::*;
 use reqwest::{Client, Response, StatusCode};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 use thiserror::Error;
+use tokio::sync::Mutex;
 
-const PORTAINER_API_BASE_URL: &str = "http://127.0.0.1:9000/api/endpoints/";
+const PORTAINER_API_BASE_URL: &str = "http://127.0.0.1:9000/api/endpoints";
 const PORTAINER_CONTAINER_API: &str = "/docker/containers";
 const PORTAINER_EXEC_API: &str = "/docker/exec";
 
@@ -101,6 +105,12 @@ pub struct ContainerCreateExecSuccess {
 
 #[derive(Serialize, Deserialize, Debug)]
 #[allow(non_snake_case)]
+pub struct ContainerCreateEnvSuccess {
+    pub Id: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[allow(non_snake_case)]
 pub struct ContainerExecJson {
     pub Running: bool,
     pub ExitCode: u8,
@@ -125,6 +135,10 @@ struct PortainerAuthResponse {
 
 #[derive(Debug, Error)]
 pub enum PortainerError {
+    #[error("Unauthorised access to Portainer server")]
+    PortainerUnauthorised,
+    #[error("Portainer environment id invalid: {0}")]
+    PortainerEnvInvalid(String),
     #[error("Container not found with id: {0}")]
     CointainerNotFound(ContainerId),
     #[error("Portainer server error: {0}")]
@@ -139,21 +153,21 @@ pub enum PortainerError {
 #[derive(Clone, Debug)]
 pub struct PortainerClient {
     token: String,
-    portainer_env_id: u64,
+    portainer_env_id: Arc<Mutex<String>>,
     client: Client,
+    db_client: DbClient,
 }
 
 // TODO: read these values from env vars
 const PORTAINER_USERNAME: &str = "admin";
 const PORTAINER_PASSWORD: &str = "adminpassword";
-const PORTAINER_ENV_ID: u64 = 4;
 
 impl PortainerClient {
     // Instantiate a Portainer client,
     // automatically authorising itself to the server.
     // TODO: if the server is not initialised yet with an admin account,
-    // and/or a Portainer environment, we need to create them here.
-    pub async fn login() -> Result<Self, PortainerError> {
+    // we need to create it here.
+    pub async fn login(db_client: DbClient) -> Result<Self, PortainerError> {
         let url = "http://127.0.0.1:9000/api/auth";
         let body = PortainerAuthRequest {
             Username: Some(PORTAINER_USERNAME.to_string()),
@@ -164,10 +178,12 @@ impl PortainerClient {
         match resp.status() {
             StatusCode::OK => {
                 let auth = resp.json::<PortainerAuthResponse>().await?;
+                let portainer_env_id = Arc::new(Mutex::new(db_client.get_portainer_env_id().await));
                 Ok(Self {
                     token: auth.jwt,
-                    portainer_env_id: PORTAINER_ENV_ID,
+                    portainer_env_id,
                     client,
+                    db_client,
                 })
             }
             other => {
@@ -176,6 +192,11 @@ impl PortainerClient {
                 Err(PortainerError::PortainerServerError(msg.message))
             }
         }
+    }
+
+    // Get the currently used Portainer environment Id.
+    async fn portainer_env_id(&self) -> String {
+        self.portainer_env_id.lock().await.clone()
     }
 
     // Query the Portainer server to return the info of the container matching the given id
@@ -204,10 +225,7 @@ impl PortainerClient {
         &self,
         filters: &HashMap<String, Vec<String>>,
     ) -> Result<Vec<Container>, PortainerError> {
-        let url = format!(
-            "{PORTAINER_API_BASE_URL}{}{PORTAINER_CONTAINER_API}/json",
-            self.portainer_env_id
-        );
+        let url = format!("{PORTAINER_API_BASE_URL}/{{}}{PORTAINER_CONTAINER_API}/json",);
         logging::log!("Sending Portainer query to get LIST of containers: {url} ...");
         let query = &[
             ("all", "true"),
@@ -232,8 +250,8 @@ impl PortainerClient {
     // Request the Portainer server to DELETE a container matching the given id
     pub async fn delete_container_with(&self, id: &ContainerId) -> Result<(), PortainerError> {
         let url = format!(
-            "{PORTAINER_API_BASE_URL}{}{PORTAINER_CONTAINER_API}/{id}",
-            self.portainer_env_id
+            "{PORTAINER_API_BASE_URL}/{}{PORTAINER_CONTAINER_API}/{id}",
+            self.portainer_env_id().await
         );
         logging::log!("Sending Portainer request to DELETE containers: {url} ...");
         let query = &[("force", "true")];
@@ -257,8 +275,8 @@ impl PortainerClient {
     // Request the Portainer server to START a container matching the given id
     pub async fn start_container_with(&self, id: &ContainerId) -> Result<(), PortainerError> {
         let url = format!(
-            "{PORTAINER_API_BASE_URL}{}{PORTAINER_CONTAINER_API}/{id}/start",
-            self.portainer_env_id
+            "{PORTAINER_API_BASE_URL}/{}{PORTAINER_CONTAINER_API}/{id}/start",
+            self.portainer_env_id().await
         );
         logging::log!("Sending Portainer request to START a container: {url} ...");
         let resp = self.post_request(&url, &[], &()).await?;
@@ -276,8 +294,8 @@ impl PortainerClient {
     // Request the Portainer server to STOP a container matching the given id
     pub async fn stop_container_with(&self, id: &ContainerId) -> Result<(), PortainerError> {
         let url = format!(
-            "{PORTAINER_API_BASE_URL}{}{PORTAINER_CONTAINER_API}/{id}/stop",
-            self.portainer_env_id
+            "{PORTAINER_API_BASE_URL}/{}{PORTAINER_CONTAINER_API}/{id}/stop",
+            self.portainer_env_id().await
         );
         logging::log!("Sending Portainer request to STOP a container: {url} ...");
         let resp = self.post_request(&url, &[], &()).await?;
@@ -299,8 +317,8 @@ impl PortainerClient {
         rpc_api_port: u16,
     ) -> Result<ContainerId, PortainerError> {
         let url = format!(
-            "{PORTAINER_API_BASE_URL}{}{PORTAINER_CONTAINER_API}/create",
-            self.portainer_env_id
+            "{PORTAINER_API_BASE_URL}/{}{PORTAINER_CONTAINER_API}/create",
+            self.portainer_env_id().await
         );
         let mapped_ports = vec![port, rpc_api_port];
         let container_create_req = ContainerCreate {
@@ -365,8 +383,8 @@ impl PortainerClient {
         container_id: &ContainerId,
     ) -> Result<impl Stream<Item = reqwest::Result<Bytes>>, PortainerError> {
         let url = format!(
-            "{PORTAINER_API_BASE_URL}{}{PORTAINER_CONTAINER_API}/{container_id}/logs",
-            self.portainer_env_id
+            "{PORTAINER_API_BASE_URL}/{}{PORTAINER_CONTAINER_API}/{container_id}/logs",
+            self.portainer_env_id().await
         );
         logging::log!("Sending Portainer query to get container LOGS stream: {url} ...");
         let query = &[
@@ -393,8 +411,8 @@ impl PortainerClient {
         id: &ContainerId,
     ) -> Result<(), PortainerError> {
         let url = format!(
-            "{PORTAINER_API_BASE_URL}{}{PORTAINER_CONTAINER_API}/{id}/exec",
-            self.portainer_env_id
+            "{PORTAINER_API_BASE_URL}/{}{PORTAINER_CONTAINER_API}/{id}/exec",
+            self.portainer_env_id().await
         );
         logging::log!("Sending Portainer request to UPGRADE node within a container: {url} ...");
         let exec_cmd = ContainerExec {
@@ -424,8 +442,8 @@ impl PortainerClient {
 
         // let's now start the exec cmd created
         let url = format!(
-            "{PORTAINER_API_BASE_URL}{}{PORTAINER_EXEC_API}/{exec_id}/start",
-            self.portainer_env_id
+            "{PORTAINER_API_BASE_URL}/{}{PORTAINER_EXEC_API}/{exec_id}/start",
+            self.portainer_env_id().await
         );
         let opts = ContainerExecStart {
             Detach: Some(false),
@@ -445,8 +463,8 @@ impl PortainerClient {
 
         // let's check its exit code
         let url = format!(
-            "{PORTAINER_API_BASE_URL}{}{PORTAINER_EXEC_API}/{exec_id}/json",
-            self.portainer_env_id
+            "{PORTAINER_API_BASE_URL}/{}{PORTAINER_EXEC_API}/{exec_id}/json",
+            self.portainer_env_id().await
         );
         let resp = self.get_request(&url, &[]).await?;
         match resp.status() {
@@ -468,8 +486,8 @@ impl PortainerClient {
 
         // restart container to run with new node version
         let url = format!(
-            "{PORTAINER_API_BASE_URL}{}{PORTAINER_CONTAINER_API}/{id}/restart",
-            self.portainer_env_id
+            "{PORTAINER_API_BASE_URL}/{}{PORTAINER_CONTAINER_API}/{id}/restart",
+            self.portainer_env_id().await
         );
         logging::log!("Sending Portainer request to RESTART a container: {url} ...");
         let resp = self.post_request(&url, &[], &()).await?;
@@ -483,40 +501,112 @@ impl PortainerClient {
         }
     }
 
-    // Send GET request to Portainer server
+    // Send GET request to Portainer server, creating a new env if necessary
     async fn get_request(
         &self,
         url: &str,
         query: &[(&str, &str)],
     ) -> Result<Response, PortainerError> {
-        let resp = self
-            .client
-            .get(url)
-            .bearer_auth(&self.token)
-            .query(query)
-            .send()
-            .await?;
-
-        match resp.status() {
-            StatusCode::UNAUTHORIZED => {
+        match self.try_get_request(url, query).await {
+            Err(PortainerError::PortainerUnauthorised) => {
                 logging::log!("We need to log in to Portainer server.");
-                // TODO: log into server
-                Ok(resp)
+                Err(PortainerError::PortainerUnauthorised)
             }
-            _other => Ok(resp),
+            Err(PortainerError::PortainerEnvInvalid(id)) => {
+                logging::log!("We need to create a new Portainer environment since current it's invalid: {id}.");
+                // let's create a new env before retrying
+                self.new_environment().await?;
+                self.try_get_request(url, query).await
+            }
+            other => other,
         }
     }
 
-    // Send POST request to Portainer server
+    // Send POST request to Portainer server, creating a new env if necessary
     async fn post_request<T: Serialize + ?Sized>(
         &self,
         url: &str,
         query: &[(&str, &str)],
         body: &T,
     ) -> Result<Response, PortainerError> {
+        match self.try_post_request(url, query, body).await {
+            Err(PortainerError::PortainerUnauthorised) => {
+                logging::log!("We need to log in to Portainer server.");
+                Err(PortainerError::PortainerUnauthorised)
+            }
+            Err(PortainerError::PortainerEnvInvalid(id)) => {
+                logging::log!("We need to create a new Portainer environment since current it's invalid: {id}.");
+                // let's create a new env before retrying
+                self.new_environment().await?;
+                self.try_post_request(url, query, body).await
+            }
+            other => other,
+        }
+    }
+
+    // Creates a new Portainer environment and set the new env id.
+    async fn new_environment(&self) -> Result<(), PortainerError> {
+        logging::log!(
+            "Sending Portainer request to CREATE ENVIRONMENT: {PORTAINER_API_BASE_URL} ..."
+        );
+        let env_name = format!("env-name-{}", hex::encode(rand::random::<[u8; 10]>()));
+        let query = &[("Name", env_name.as_str()), ("EndpointCreationType", "1")];
+        let resp = self
+            .try_post_request(PORTAINER_API_BASE_URL, query, &())
+            .await?;
+
+        match resp.status() {
+            StatusCode::OK => {
+                let env = resp.json::<ContainerCreateEnvSuccess>().await?;
+                let id = env.Id.to_string();
+                logging::log!("New Portainer env ID: {id}");
+                self.db_client.update_portainer_env_id(id.clone()).await;
+                *self.portainer_env_id.lock().await = id.clone();
+                Ok(())
+            }
+            other => {
+                let msg = resp.json::<ServerErrorMessage>().await?;
+                logging::log!("ERROR: {other:?} - {}", msg.message);
+                Err(PortainerError::PortainerServerError(msg.message))
+            }
+        }
+    }
+
+    // Send GET request to Portainer server
+    async fn try_get_request(
+        &self,
+        url: &str,
+        query: &[(&str, &str)],
+    ) -> Result<Response, PortainerError> {
+        let env_id = self.portainer_env_id().await;
+        let url_with_curr_env_id = url.format(&[env_id.clone()]);
         let resp = self
             .client
-            .post(url)
+            .get(url_with_curr_env_id)
+            .bearer_auth(&self.token)
+            .query(query)
+            .send()
+            .await?;
+
+        match resp.status() {
+            StatusCode::UNAUTHORIZED => Err(PortainerError::PortainerUnauthorised),
+            StatusCode::NOT_FOUND => Err(PortainerError::PortainerEnvInvalid(env_id)),
+            _other => Ok(resp),
+        }
+    }
+
+    // Send POST request to Portainer server
+    async fn try_post_request<T: Serialize + ?Sized>(
+        &self,
+        url: &str,
+        query: &[(&str, &str)],
+        body: &T,
+    ) -> Result<Response, PortainerError> {
+        let env_id = self.portainer_env_id().await;
+        let url_with_curr_env_id = url.format(&[env_id.clone()]);
+        let resp = self
+            .client
+            .post(url_with_curr_env_id)
             .bearer_auth(&self.token)
             .query(query)
             .json(body)
@@ -524,11 +614,8 @@ impl PortainerClient {
             .await?;
 
         match resp.status() {
-            StatusCode::UNAUTHORIZED => {
-                logging::log!("We need to log in to Portainer server.");
-                // TODO: log into server
-                Ok(resp)
-            }
+            StatusCode::UNAUTHORIZED => Err(PortainerError::PortainerUnauthorised),
+            StatusCode::NOT_FOUND => Err(PortainerError::PortainerEnvInvalid(env_id)),
             _other => Ok(resp),
         }
     }

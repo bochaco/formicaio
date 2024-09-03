@@ -58,7 +58,7 @@ pub async fn nodes_instances() -> Result<BTreeMap<String, NodeInstanceInfo>, Ser
         // TODO: fetch metadata of all containers from DB with a single DB call
         context
             .db_client
-            .db_get_node_metadata(&mut node_instance_info)
+            .get_node_metadata(&mut node_instance_info)
             .await?;
 
         // if the node is Active, we can also fetch up to date info using its RPC API
@@ -108,7 +108,7 @@ pub async fn create_node_instance(
 
     context
         .db_client
-        .db_store_node_metadata(&node_instance_info)
+        .store_node_metadata(&node_instance_info)
         .await?;
 
     Ok(node_instance_info)
@@ -125,7 +125,7 @@ pub async fn delete_node_instance(container_id: String) -> Result<(), ServerFnEr
         .await?;
     context
         .db_client
-        .db_delete_node_metadata(&container_id)
+        .delete_node_metadata(&container_id)
         .await?;
     Ok(())
 }
@@ -154,7 +154,7 @@ pub async fn stop_node_instance(container_id: String) -> Result<(), ServerFnErro
     // set connect_peers back to 0 and update cache
     context
         .db_client
-        .db_update_node_metadata_field(&container_id, "connected_peers", "0")
+        .update_node_metadata_field(&container_id, "connected_peers", "0")
         .await?;
 
     Ok(())
@@ -215,7 +215,7 @@ async fn retrive_and_cache_updated_metadata(
             let context = expect_context::<ServerGlobalState>();
             context
                 .db_client
-                .db_store_node_metadata(&node_instance_info)
+                .store_node_metadata(&node_instance_info)
                 .await?;
         }
     }

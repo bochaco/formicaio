@@ -33,6 +33,12 @@ pub struct CachedNodeMetadata {
     pub connected_peers: String,
 }
 
+// Struct stored on the DB caching nodes metadata.
+#[derive(Clone, Debug, Deserialize, FromRow, Serialize)]
+pub struct CachedPortainerInfo {
+    pub env_id: String,
+}
+
 impl CachedNodeMetadata {
     // Update the node info with data obtained from DB, but only those
     // fields with non zero/empty values; zero/empty value means it was unknown when stored.
@@ -95,12 +101,40 @@ impl DbClient {
         logging::log!("Applying database migration scripts from: {migrations:?} ...");
         Migrator::new(migrations).await?.run(&db).await?;
 
-        logging::log!("Created 'nodes' table successfully!");
+        logging::log!("Database migrations applied successfully!");
         Ok(Self { db })
     }
 
+    // Retrieve Portainer environment id from local cache DB
+    pub async fn get_portainer_env_id(&self) -> String {
+        match sqlx::query_as::<_, CachedPortainerInfo>("SELECT env_id FROM portainer_info")
+            .fetch_all(&self.db)
+            .await
+        {
+            Ok(infos) => infos
+                .first()
+                .map_or_else(|| "0".to_string(), |i| i.env_id.clone()),
+            Err(err) => {
+                logging::log!("Sqlite query error: {err}");
+                "0".to_string()
+            }
+        }
+    }
+
+    // Update cached Portainer environment id in local cache DB
+    pub async fn update_portainer_env_id(&self, id: String) {
+        match sqlx::query("INSERT OR REPLACE INTO portainer_info (env_id) VALUES (?)")
+            .bind(id)
+            .execute(&self.db)
+            .await
+        {
+            Ok(_) => {}
+            Err(err) => logging::log!("Sqlite query error: {err}"),
+        }
+    }
+
     // Retrieve node metadata from local cache DB
-    pub async fn db_get_node_metadata(&self, info: &mut NodeInstanceInfo) -> Result<(), DbError> {
+    pub async fn get_node_metadata(&self, info: &mut NodeInstanceInfo) -> Result<(), DbError> {
         match sqlx::query_as::<_, CachedNodeMetadata>(
             "SELECT container_id, peer_id, bin_version, port, \
                 rpc_api_port, rewards, balance, records, connected_peers \
@@ -124,7 +158,7 @@ impl DbClient {
     }
 
     // Store node metadata (insert, or update if it exists) onto local cache DB
-    pub async fn db_store_node_metadata(&self, info: &NodeInstanceInfo) -> Result<(), DbError> {
+    pub async fn store_node_metadata(&self, info: &NodeInstanceInfo) -> Result<(), DbError> {
         match sqlx::query(
             "INSERT OR REPLACE INTO nodes (\
                 container_id, peer_id, bin_version, port, \
@@ -154,7 +188,7 @@ impl DbClient {
     }
 
     // Remove node metadata from local cache DB
-    pub async fn db_delete_node_metadata(&self, container_id: &str) -> Result<(), DbError> {
+    pub async fn delete_node_metadata(&self, container_id: &str) -> Result<(), DbError> {
         match sqlx::query("DELETE FROM nodes WHERE container_id = ?")
             .bind(container_id)
             .execute(&self.db)
@@ -168,7 +202,7 @@ impl DbClient {
     }
 
     // Update node metadata onto local cache DB by specifying specific field and new value
-    pub async fn db_update_node_metadata_field(
+    pub async fn update_node_metadata_field(
         &self,
         container_id: &str,
         field: &str,

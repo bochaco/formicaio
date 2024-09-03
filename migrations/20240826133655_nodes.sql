@@ -9,3 +9,7 @@ CREATE TABLE IF NOT EXISTS nodes (
     records TEXT,
     connected_peers TEXT
 );
+
+CREATE TABLE IF NOT EXISTS portainer_info (
+    env_id TEXT PRIMARY KEY NOT NULL
+);
