@@ -16,6 +16,7 @@ RUN cargo binstall cargo-leptos -y
 
 # Add the WASM target
 RUN rustup target add wasm32-unknown-unknown
+RUN rustup component add rustfmt
 
 # Make an /app dir, which everything will eventually live in
 RUN mkdir -p /app
@@ -35,6 +36,9 @@ RUN apt-get update -y \
 
 # Copy the server binary to the /app directory
 COPY --from=builder /app/target/release/formicaio /app/
+
+# Copy Sqlite migrations files
+COPY --from=builder /app/migrations /app/migrations
 
 # /target/site contains our JS/WASM/CSS, etc.
 COPY --from=builder /app/target/site /app/site
