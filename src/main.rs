@@ -19,7 +19,7 @@ async fn main() {
 
     // We'll keep the database and Portainer clients instances in server global state.
     let db_client = DbClient::connect().await.unwrap();
-    let portainer_client = PortainerClient::login(db_client.clone()).await.unwrap();
+    let portainer_client = PortainerClient::new(db_client.clone()).await.unwrap();
 
     let app_state = formicaio::app::ServerGlobalState {
         leptos_options,

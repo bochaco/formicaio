@@ -152,9 +152,9 @@ pub enum PortainerError {
 // Client to send requests to a Portainer server's API
 #[derive(Clone, Debug)]
 pub struct PortainerClient {
-    token: String,
+    token: Arc<Mutex<String>>,
     portainer_env_id: Arc<Mutex<String>>,
-    client: Client,
+    reqwest_client: Client,
     db_client: DbClient,
 }
 
@@ -167,24 +167,34 @@ impl PortainerClient {
     // automatically authorising itself to the server.
     // TODO: if the server is not initialised yet with an admin account,
     // we need to create it here.
-    pub async fn login(db_client: DbClient) -> Result<Self, PortainerError> {
+    pub async fn new(db_client: DbClient) -> Result<Self, PortainerError> {
+        let reqwest_client = Client::new();
+        let portainer_env_id = Arc::new(Mutex::new(db_client.get_portainer_env_id().await));
+        let client = Self {
+            token: Arc::new(Mutex::new("".to_string())),
+            portainer_env_id,
+            reqwest_client,
+            db_client,
+        };
+        client.login().await?;
+
+        Ok(client)
+    }
+
+    // Log into Portainer server, caching the new token obtained on the local DB.
+    async fn login(&self) -> Result<(), PortainerError> {
+        logging::log!("Logging into Portainer server...");
         let url = "http://127.0.0.1:9000/api/auth";
         let body = PortainerAuthRequest {
             Username: Some(PORTAINER_USERNAME.to_string()),
             Password: Some(PORTAINER_PASSWORD.to_string()),
         };
-        let client = Client::new();
-        let resp = client.post(url).json(&body).send().await?;
+        let resp = self.reqwest_client.post(url).json(&body).send().await?;
         match resp.status() {
             StatusCode::OK => {
                 let auth = resp.json::<PortainerAuthResponse>().await?;
-                let portainer_env_id = Arc::new(Mutex::new(db_client.get_portainer_env_id().await));
-                Ok(Self {
-                    token: auth.jwt,
-                    portainer_env_id,
-                    client,
-                    db_client,
-                })
+                *self.token.lock().await = auth.jwt;
+                Ok(())
             }
             other => {
                 let msg = resp.json::<ServerErrorMessage>().await?;
@@ -236,7 +246,6 @@ impl PortainerClient {
         match resp.status() {
             StatusCode::OK => {
                 let containers = resp.json::<Vec<Container>>().await?;
-                //logging::log!("{containers:#?}");
                 Ok(containers)
             }
             other => {
@@ -255,9 +264,10 @@ impl PortainerClient {
         );
         logging::log!("Sending Portainer request to DELETE containers: {url} ...");
         let query = &[("force", "true")];
+        let token = self.token.lock().await;
         let resp = Client::new()
             .delete(&url)
-            .bearer_auth(&self.token)
+            .bearer_auth(&token)
             .query(query)
             .send()
             .await?;
@@ -510,7 +520,9 @@ impl PortainerClient {
         match self.try_get_request(url, query).await {
             Err(PortainerError::PortainerUnauthorised) => {
                 logging::log!("We need to log in to Portainer server.");
-                Err(PortainerError::PortainerUnauthorised)
+                // let's log in and obtain a new token before retrying
+                self.login().await?;
+                self.try_get_request(url, query).await
             }
             Err(PortainerError::PortainerEnvInvalid(id)) => {
                 logging::log!("We need to create a new Portainer environment since current it's invalid: {id}.");
@@ -532,7 +544,8 @@ impl PortainerClient {
         match self.try_post_request(url, query, body).await {
             Err(PortainerError::PortainerUnauthorised) => {
                 logging::log!("We need to log in to Portainer server.");
-                Err(PortainerError::PortainerUnauthorised)
+                self.login().await?;
+                self.try_post_request(url, query, body).await
             }
             Err(PortainerError::PortainerEnvInvalid(id)) => {
                 logging::log!("We need to create a new Portainer environment since current it's invalid: {id}.");
@@ -579,11 +592,12 @@ impl PortainerClient {
         query: &[(&str, &str)],
     ) -> Result<Response, PortainerError> {
         let env_id = self.portainer_env_id().await;
-        let url_with_curr_env_id = url.format(&[env_id.clone()]);
+        let url_with_env_id = url.format(&[env_id.clone()]);
+        let token = self.token.lock().await.clone();
         let resp = self
-            .client
-            .get(url_with_curr_env_id)
-            .bearer_auth(&self.token)
+            .reqwest_client
+            .get(url_with_env_id)
+            .bearer_auth(&token)
             .query(query)
             .send()
             .await?;
@@ -603,11 +617,12 @@ impl PortainerClient {
         body: &T,
     ) -> Result<Response, PortainerError> {
         let env_id = self.portainer_env_id().await;
-        let url_with_curr_env_id = url.format(&[env_id.clone()]);
+        let url_with_env_id = url.format(&[env_id.clone()]);
+        let token = self.token.lock().await.clone();
         let resp = self
-            .client
-            .post(url_with_curr_env_id)
-            .bearer_auth(&self.token)
+            .reqwest_client
+            .post(url_with_env_id)
+            .bearer_auth(&token)
             .query(query)
             .json(body)
             .send()
