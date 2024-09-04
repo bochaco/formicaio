@@ -1,7 +1,7 @@
 use super::{
     add_node::AddNodeView,
     error_template::{AppError, ErrorTemplate},
-    node_instance::{NodeInstanceInfo, NodeInstanceView},
+    node_instance::{NodeInstanceInfo, NodesListView},
     server_api::nodes_instances,
     stats::AggregatedStatsView,
 };
@@ -106,15 +106,7 @@ fn HomePage() -> impl IntoView {
 
                                 <AddNodeView />
 
-                                <div class="flex flex-wrap">
-                                    <For
-                                        each=move || context.nodes.get()
-                                        key=|(container_id, _)| container_id.clone()
-                                        let:child
-                                    >
-                                        <NodeInstanceView info=child.1 />
-                                    </For>
-                                </div>
+                                <NodesListView />
                             }
                                 .into_view()
                         }

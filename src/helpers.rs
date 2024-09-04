@@ -63,7 +63,6 @@ pub async fn node_logs_stream(
         }
     }
 
-    received_logs.set(vec![]);
     logging::log!("Node logs stream dropped from container {container_id}.");
     Ok(())
 }

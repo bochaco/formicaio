@@ -101,7 +101,58 @@ impl NodeInstanceInfo {
 }
 
 #[component]
-pub fn NodeInstanceView(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
+pub fn NodesListView() -> impl IntoView {
+    // we use the context to switch on/off the streaming of logs
+    let context = expect_context::<ClientGlobalState>();
+    // this signal keeps the reactive list of log entries
+    let (logs, set_logs) = create_signal(Vec::new());
+
+    view! {
+        <div class="flex flex-wrap">
+            <For
+                each=move || context.nodes.get()
+                key=|(container_id, _)| container_id.clone()
+                let:child
+            >
+                <NodeInstanceView info=child.1 set_logs />
+            </For>
+        </div>
+
+        <input type="checkbox" id="logs_stream_modal" class="modal-toggle" />
+        <div class="modal" role="dialog">
+            <div class="modal-box border border-solid border-slate-50 max-w-full h-full overflow-hidden">
+                <h3 class="text-lg font-bold">Node logs</h3>
+                <div class="p-2.5 border-transparent overflow-y-auto h-full">
+                    <ul>
+                        <For
+                            each=move || logs.get().into_iter().enumerate()
+                            key=|(i, _)| *i
+                            let:child
+                        >
+                            <li>{child.1}</li>
+                        </For>
+                    </ul>
+                </div>
+
+                <div class="modal-action">
+                    <label
+                        for="logs_stream_modal"
+                        class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
+                        on:click=move |_| context.logs_stream_is_on.set(false)
+                    >
+                        X
+                    </label>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+#[component]
+fn NodeInstanceView(
+    info: RwSignal<NodeInstanceInfo>,
+    set_logs: WriteSignal<Vec<String>>,
+) -> impl IntoView {
     let peer_id = move || {
         info.get().peer_id.map_or("unknown".to_string(), |id| {
             format!(
@@ -138,7 +189,7 @@ pub fn NodeInstanceView(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                 >
                     <ButtonUpgrade info />
                 </Show>
-                <NodeLogs container_id=info.get_untracked().container_id />
+                <NodeLogs container_id=info.get_untracked().container_id set_logs />
                 <ButtonStopStart info />
                 <ButtonRemove info />
             </div>
@@ -193,11 +244,9 @@ pub fn NodeInstanceView(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
 }
 
 #[component]
-fn NodeLogs(container_id: String) -> impl IntoView {
+fn NodeLogs(container_id: String, set_logs: WriteSignal<Vec<String>>) -> impl IntoView {
     // we use the context to switch on/off the streaming of logs
     let context = expect_context::<ClientGlobalState>();
-    // this signal keeps the reactive list of log entries
-    let (logs, set_logs) = create_signal(Vec::new());
 
     // action to trigger the streaming of logs from the node to the 'set_logs' signal
     let start_logs_stream = create_action(move |id: &String| {
@@ -211,42 +260,16 @@ fn NodeLogs(container_id: String) -> impl IntoView {
 
     view! {
         <div class="tooltip tooltip-bottom tooltip-info" data-tip="view logs">
-
             <label
                 for="logs_stream_modal"
                 class="btn btn-square btn-sm"
-                on:click=move |_| start_logs_stream.dispatch(container_id.clone())
+                on:click=move |_| {
+                    set_logs.set(vec![]);
+                    start_logs_stream.dispatch(container_id.clone());
+                }
             >
                 <IconShowLogs />
             </label>
-        </div>
-
-        <input type="checkbox" id="logs_stream_modal" class="modal-toggle" />
-        <div class="modal" role="dialog">
-            <div class="modal-box border border-solid border-slate-50 max-w-full h-full overflow-hidden">
-                <h3 class="text-lg font-bold">Node logs</h3>
-                <div class="p-2.5 border-transparent overflow-y-auto h-full">
-                    <ul>
-                        <For
-                            each=move || logs.get().into_iter().enumerate()
-                            key=|(i, _)| *i
-                            let:child
-                        >
-                            <li>{child.1}</li>
-                        </For>
-                    </ul>
-                </div>
-
-                <div class="modal-action">
-                    <label
-                        for="logs_stream_modal"
-                        class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
-                        on:click=move |_| context.logs_stream_is_on.set(false)
-                    >
-                        X
-                    </label>
-                </div>
-            </div>
         </div>
     }
 }
