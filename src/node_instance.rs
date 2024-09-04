@@ -241,10 +241,7 @@ fn NodeLogs(container_id: String) -> impl IntoView {
                     <label
                         for="logs_stream_modal"
                         class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
-                        on:click=move |_| {
-                            context.logs_stream_is_on.set(false);
-                            set_logs.update(|l| l.clear());
-                        }
+                        on:click=move |_| context.logs_stream_is_on.set(false)
                     >
                         X
                     </label>
