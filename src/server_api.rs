@@ -4,7 +4,7 @@ use super::node_instance::NodeInstanceInfo;
 use super::{
     app::ServerGlobalState,
     node_instance::NodeStatus,
-    node_rpc_client::{rpc_network_info, rpc_node_info, rpc_record_addresses},
+    node_rpc_client::{rpc_kbuckets, rpc_network_info, rpc_node_info, rpc_record_addresses},
     portainer_client::ContainerState,
 };
 
@@ -52,6 +52,7 @@ pub async fn nodes_instances() -> Result<BTreeMap<String, NodeInstanceInfo>, Ser
             balance: None,
             records: None,
             connected_peers: None,
+            kbuckets_peers: None,
         };
 
         // we first read node metadata cached in the database
@@ -104,6 +105,7 @@ pub async fn create_node_instance(
         balance: None,
         records: None,
         connected_peers: None,
+        kbuckets_peers: None,
     };
 
     context
@@ -196,7 +198,6 @@ async fn retrive_and_cache_updated_metadata(
     if node_instance_info.status.is_active() {
         if let Some(port) = node_instance_info.rpc_api_port {
             let rpc_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), port);
-
             // TODO: send info back to the user if we receive an error from using RPC client.
             if let Err(err) = rpc_node_info(rpc_addr, node_instance_info).await {
                 logging::log!("Failed to get basic info from running node using RPC endpoint {rpc_addr}: {err}");
@@ -209,6 +210,11 @@ async fn retrive_and_cache_updated_metadata(
             if let Err(err) = rpc_record_addresses(rpc_addr, node_instance_info).await {
                 logging::log!(
                     "Failed to get record addresses from running node using RPC endpoint {rpc_addr}: {err}"
+                );
+            }
+            if let Err(err) = rpc_kbuckets(rpc_addr, node_instance_info).await {
+                logging::log!(
+                    "Failed to get kbuckets peers info from running node using RPC endpoint {rpc_addr}: {err}"
                 );
             }
             // update DB with this new info we just obtained

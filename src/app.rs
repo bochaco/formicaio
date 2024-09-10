@@ -159,6 +159,7 @@ fn spawn_nodes_list_polling() {
                                         cn.rewards = updated.rewards;
                                         cn.records = updated.records;
                                         cn.connected_peers = updated.connected_peers;
+                                        cn.kbuckets_peers = updated.kbuckets_peers;
                                     });
                                 }
                             });

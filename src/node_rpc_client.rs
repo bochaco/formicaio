@@ -2,7 +2,8 @@ use super::node_instance::NodeInstanceInfo;
 
 use leptos::*;
 use sn_protocol::safenode_proto::{
-    safe_node_client::SafeNodeClient, NetworkInfoRequest, NodeInfoRequest, RecordAddressesRequest,
+    safe_node_client::SafeNodeClient, KBucketsRequest, NetworkInfoRequest, NodeInfoRequest,
+    RecordAddressesRequest,
 };
 use std::net::SocketAddr;
 use thiserror::Error;
@@ -66,6 +67,28 @@ pub async fn rpc_record_addresses(
     let record_addresses = response.get_ref();
 
     info.records = Some(record_addresses.addresses.len());
+
+    Ok(())
+}
+
+pub async fn rpc_kbuckets(
+    addr: SocketAddr,
+    info: &mut NodeInstanceInfo,
+) -> Result<(), RpcClientError> {
+    let endpoint = format!("https://{addr}");
+    logging::log!("Sending RPC query to get node's kbuckets peers info: {endpoint} ...");
+
+    let mut client = SafeNodeClient::connect(endpoint.clone()).await?;
+    let response = client.k_buckets(Request::new(KBucketsRequest {})).await?;
+    let kbuckets_response = response.get_ref();
+
+    let peers_count = kbuckets_response
+        .kbuckets
+        .iter()
+        .map(|(_ilog2_distance, peers)| peers.peers.len())
+        .sum();
+
+    info.kbuckets_peers = Some(peers_count);
 
     Ok(())
 }

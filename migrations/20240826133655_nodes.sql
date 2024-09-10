@@ -7,7 +7,8 @@ CREATE TABLE IF NOT EXISTS nodes (
     rewards TEXT,
     balance TEXT,
     records TEXT,
-    connected_peers TEXT
+    connected_peers TEXT,
+    kbuckets_peers TEXT
 );
 
 CREATE TABLE IF NOT EXISTS portainer_info (

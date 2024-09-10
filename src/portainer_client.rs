@@ -15,7 +15,7 @@ const PORTAINER_CONTAINER_API: &str = "/docker/containers";
 const PORTAINER_EXEC_API: &str = "/docker/exec";
 
 // Name of the Docker image to use for each node instance
-const NODE_CONTAINER_IMAGE_NAME: &str = "formica";
+const NODE_CONTAINER_IMAGE_NAME: &str = "bochaco/formica";
 
 // Hex-encoded container id
 pub type ContainerId = String;

@@ -85,6 +85,7 @@ pub struct NodeInstanceInfo {
     pub balance: Option<u64>, // nanos
     pub records: Option<usize>,
     pub connected_peers: Option<usize>,
+    pub kbuckets_peers: Option<usize>,
 }
 
 impl NodeInstanceInfo {
@@ -232,6 +233,12 @@ fn NodeInstanceView(
                 }}
             </p>
             <p>
+                <span class="text-info">"kBuckets peers: "</span>
+                {move || {
+                    info.get().kbuckets_peers.map_or("unknown".to_string(), |v| v.to_string())
+                }}
+            </p>
+            <p>
                 <span class="text-info">"Created: "</span>
                 {move || {
                     DateTime::<Utc>::from_timestamp(info.get().created as i64, 0)
@@ -310,6 +317,7 @@ fn ButtonStopStart(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                             Ok(()) => {
                                 info.update(|node| {
                                     node.connected_peers = Some(0);
+                                    node.kbuckets_peers = Some(0);
                                     node.status = NodeStatus::Transitioned("Stopped".to_string());
                                 })
                             }

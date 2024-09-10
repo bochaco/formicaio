@@ -31,6 +31,7 @@ pub struct CachedNodeMetadata {
     pub balance: String,
     pub records: String,
     pub connected_peers: String,
+    pub kbuckets_peers: String,
 }
 
 // Struct stored on the DB caching nodes metadata.
@@ -66,6 +67,9 @@ impl CachedNodeMetadata {
         }
         if let Ok(v) = self.connected_peers.parse::<usize>() {
             info.connected_peers = Some(v);
+        }
+        if let Ok(v) = self.kbuckets_peers.parse::<usize>() {
+            info.kbuckets_peers = Some(v);
         }
     }
 }
@@ -137,7 +141,8 @@ impl DbClient {
     pub async fn get_node_metadata(&self, info: &mut NodeInstanceInfo) -> Result<(), DbError> {
         match sqlx::query_as::<_, CachedNodeMetadata>(
             "SELECT container_id, peer_id, bin_version, port, \
-                rpc_api_port, rewards, balance, records, connected_peers \
+                rpc_api_port, rewards, balance, records, \
+                connected_peers, kbuckets_peers \
             FROM nodes WHERE container_id=?",
         )
         .bind(info.container_id.clone())
@@ -162,8 +167,9 @@ impl DbClient {
         match sqlx::query(
             "INSERT OR REPLACE INTO nodes (\
                 container_id, peer_id, bin_version, port, \
-                rpc_api_port, rewards, balance, records, connected_peers \
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                rpc_api_port, rewards, balance, records, \
+                connected_peers, kbuckets_peers \
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(info.container_id.clone())
         .bind(info.peer_id.clone())
@@ -175,6 +181,10 @@ impl DbClient {
         .bind(info.records.map_or("".to_string(), |v| v.to_string()))
         .bind(
             info.connected_peers
+                .map_or("".to_string(), |v| v.to_string()),
+        )
+        .bind(
+            info.kbuckets_peers
                 .map_or("".to_string(), |v| v.to_string()),
         )
         .execute(&self.db)
