@@ -82,7 +82,8 @@ pub struct NodeInstanceInfo {
     pub port: Option<u16>,
     pub rpc_api_port: Option<u16>,
     pub rewards: Option<u64>,
-    pub balance: Option<u64>, // nanos
+    pub balance: Option<u64>,           // nanos
+    pub forwarded_balance: Option<u64>, // nanos, only during beta
     pub records: Option<usize>,
     pub connected_peers: Option<usize>,
     pub kbuckets_peers: Option<usize>,
@@ -221,6 +222,12 @@ fn NodeInstanceView(
             <p>
                 <span class="text-info">"Balance: "</span>
                 {move || info.get().balance.map_or("unknown".to_string(), |v| v.to_string())}
+            </p>
+            <p>
+                <span class="text-info">"Forwarded balance (Beta): "</span>
+                {move || {
+                    info.get().forwarded_balance.map_or("unknown".to_string(), |v| v.to_string())
+                }}
             </p>
             <p>
                 <span class="text-info">"Records: "</span>

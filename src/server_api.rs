@@ -50,6 +50,7 @@ pub async fn nodes_instances() -> Result<BTreeMap<String, NodeInstanceInfo>, Ser
             rpc_api_port: None,
             rewards: None,
             balance: None,
+            forwarded_balance: None,
             records: None,
             connected_peers: None,
             kbuckets_peers: None,
@@ -103,6 +104,7 @@ pub async fn create_node_instance(
         rpc_api_port: Some(rpc_api_port),
         rewards: None,
         balance: None,
+        forwarded_balance: None,
         records: None,
         connected_peers: None,
         kbuckets_peers: None,
@@ -196,6 +198,7 @@ async fn retrive_and_cache_updated_metadata(
     node_instance_info: &mut NodeInstanceInfo,
 ) -> Result<(), ServerFnError> {
     if node_instance_info.status.is_active() {
+        let context = expect_context::<ServerGlobalState>();
         if let Some(port) = node_instance_info.rpc_api_port {
             let rpc_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), port);
             // TODO: send info back to the user if we receive an error from using RPC client.
@@ -218,11 +221,22 @@ async fn retrive_and_cache_updated_metadata(
                 );
             }
             // update DB with this new info we just obtained
-            let context = expect_context::<ServerGlobalState>();
             context
                 .db_client
                 .store_node_metadata(&node_instance_info)
                 .await?;
+        }
+
+        if let Some(peer_id) = &node_instance_info.peer_id {
+            // try to get node's forwarded balance amount
+            match context
+                .portainer_client
+                .get_node_forwarded_balance(&node_instance_info.container_id, peer_id)
+                .await
+            {
+                Ok(balance) => node_instance_info.forwarded_balance = Some(balance),
+                Err(err) => logging::log!("Failed to get node's forwarded balance: {err}"),
+            }
         }
     }
 

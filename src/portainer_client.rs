@@ -147,6 +147,8 @@ pub enum PortainerError {
     Reqwest(#[from] reqwest::Error),
     #[error(transparent)]
     SerdeJson(#[from] serde_json::Error),
+    #[error("Value received couldn't be parsed as integer: {0}")]
+    InvalidValue(String),
 }
 
 // Type of request supported by internal helpers herein.
@@ -518,6 +520,74 @@ impl PortainerClient {
                 let msg = resp.json::<ServerErrorMessage>().await?;
                 logging::log!("ERROR: {other:?} - {}", msg.message);
                 Err(PortainerError::PortainerServerError(msg.message))
+            }
+        }
+    }
+
+    // Request the Portainer server to UPGRADE the node binary within a container matching the given id
+    pub async fn get_node_forwarded_balance(
+        &self,
+        id: &ContainerId,
+        peer_id: &String,
+    ) -> Result<u64, PortainerError> {
+        let url = format!(
+            "{PORTAINER_API_BASE_URL}/{}{PORTAINER_CONTAINER_API}/{id}/exec",
+            self.portainer_env_id().await
+        );
+        //logging::log!("Sending Portainer request to get node forwarded balance: {url} ...");
+        let exec_cmd = ContainerExec {
+            AttachStdin: Some(false),
+            AttachStdout: Some(true),
+            AttachStderr: Some(true),
+            Cmd: Some(vec![
+                "sh".to_string(),
+                "-c".to_string(),
+                format!(
+                    "cat /root/.local/share/safe/node/{}/forwarded_balance",
+                    peer_id
+                ),
+            ]),
+            Tty: Some(false),
+        };
+        let resp = self
+            .send_request(ReqMethod::Post, &url, &[], &exec_cmd)
+            .await?;
+        let exec_id = match resp.status() {
+            StatusCode::CREATED => {
+                let exec_result = resp.json::<ContainerCreateExecSuccess>().await?;
+                //logging::log!("Cmd to get rewarded balance created successfully: {exec_result:#?}");
+                exec_result.Id
+            }
+            other => {
+                let msg = resp.json::<ServerErrorMessage>().await?;
+                logging::log!("ERROR: {other:?} - {}", msg.message);
+                return Err(PortainerError::PortainerServerError(msg.message));
+            }
+        };
+
+        // let's now start the exec cmd created
+        let url = format!(
+            "{PORTAINER_API_BASE_URL}/{}{PORTAINER_EXEC_API}/{exec_id}/start",
+            self.portainer_env_id().await
+        );
+        let opts = ContainerExecStart {
+            Detach: Some(false),
+            Tty: Some(true),
+        };
+        let resp = self.send_request(ReqMethod::Post, &url, &[], &opts).await?;
+        match resp.status() {
+            StatusCode::OK => {
+                let balance_str = resp.text().await?;
+                let balance = balance_str
+                    .parse::<u64>()
+                    .map_err(|_| PortainerError::InvalidValue(balance_str))?;
+                logging::log!("Forwarded balance in container {id}: {balance}");
+                Ok(balance)
+            }
+            other => {
+                let msg = resp.json::<ServerErrorMessage>().await?;
+                logging::log!("ERROR: {other:?} - {}", msg.message);
+                return Err(PortainerError::PortainerServerError(msg.message));
             }
         }
     }
