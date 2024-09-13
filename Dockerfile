@@ -50,6 +50,11 @@ COPY --from=builder /app/Cargo.toml /app/
 ENV RUST_LOG="info"
 ENV LEPTOS_SITE_ADDR="0.0.0.0:8080"
 ENV LEPTOS_SITE_ROOT="site"
+# Host where nodes RPC API can be reached on
+ENV NODES_RPC_HOST="127.0.0.1"
+# Host where Portainer server API can be reached on
+ENV PORTAINER_HOST="127.0.0.1"
+
 EXPOSE 8080
 
 # Run the server
