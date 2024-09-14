@@ -31,12 +31,14 @@ pub fn AggregatedStatsView() -> impl IntoView {
             .filter(|(_, n)| n.get().status.is_shunned())
             .count()
     };
+    // TODO: only during beta testing we report the forwarded_balance, after that it
+    // shall report the total balance this node has ever received, regardless current balance.
     let rewards = move || {
         context
             .nodes
             .get()
             .iter()
-            .map(|(_, n)| n.get().rewards.unwrap_or_default())
+            .map(|(_, n)| n.get().forwarded_balance.unwrap_or_default())
             .sum::<u64>()
     };
     let balance = move || {
@@ -89,6 +91,9 @@ pub fn AggregatedStatsView() -> impl IntoView {
             <div class="stat place-items-center">
                 <div class="stat-title">Total rewards</div>
                 <div class="stat-value text-primary">{rewards}</div>
+                <div class="stat-desc text-secondary">
+                    "Currently shows Beta-test forwarded balance"
+                </div>
             </div>
 
             <div class="stat place-items-center">
