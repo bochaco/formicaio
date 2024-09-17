@@ -2,8 +2,10 @@ use super::node_instance::NodeInstanceInfo;
 
 #[cfg(feature = "ssr")]
 use super::{
-    app::ServerGlobalState, node_instance::NodeStatus, node_rpc_client::NodeRpcClient,
-    portainer_client::ContainerState,
+    app::ServerGlobalState,
+    node_instance::NodeStatus,
+    node_rpc_client::NodeRpcClient,
+    portainer_client::{ContainerState, LABEL_KEY_NODE_PORT, LABEL_KEY_RPC_PORT},
 };
 
 #[cfg(feature = "ssr")]
@@ -42,8 +44,14 @@ pub async fn nodes_instances() -> Result<BTreeMap<String, NodeInstanceInfo>, Ser
             status: NodeStatus::from(container.State),
             status_info: container.Status,
             bin_version: None,
-            port: None,
-            rpc_api_port: None,
+            port: container
+                .Labels
+                .get(LABEL_KEY_NODE_PORT)
+                .map(|v| v.parse::<u16>().unwrap_or_default()),
+            rpc_api_port: container
+                .Labels
+                .get(LABEL_KEY_RPC_PORT)
+                .map(|v| v.parse::<u16>().unwrap_or_default()),
             rewards: None,
             balance: None,
             forwarded_balance: None,

@@ -31,6 +31,10 @@ const NODE_CONTAINER_IMAGE_NAME: &str = "bochaco/formica";
 // Label's key to set to each container created, so we can then use as
 // filter when fetching the list of them.
 const LABEL_KEY_VERSION: &str = "formica_version";
+// Label's key to cache node's RPC API port number
+pub const LABEL_KEY_RPC_PORT: &str = "rpc_api_port";
+// Label's key to cache node's port number
+pub const LABEL_KEY_NODE_PORT: &str = "node_port";
 
 // Hex-encoded container id
 pub type ContainerId = String;
@@ -365,9 +369,13 @@ impl PortainerClient {
             // we use a label so we can then filter them when fetching a list of containers
             // TODO: set the value to the current version of the image used
             Labels: Some(
-                [(LABEL_KEY_VERSION.to_string(), "TODO!".to_string())]
-                    .into_iter()
-                    .collect(),
+                [
+                    (LABEL_KEY_VERSION.to_string(), "TODO!".to_string()),
+                    (LABEL_KEY_RPC_PORT.to_string(), rpc_api_port.to_string()),
+                    (LABEL_KEY_NODE_PORT.to_string(), port.to_string()),
+                ]
+                .into_iter()
+                .collect(),
             ),
             Env: Some(vec![
                 format!("NODE_PORT={port}"),
