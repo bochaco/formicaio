@@ -570,7 +570,6 @@ impl PortainerClient {
     pub async fn get_node_forwarded_balance(
         &self,
         id: &ContainerId,
-        peer_id: &String,
     ) -> Result<u64, PortainerError> {
         let url = format!(
             "{}{PORTAINER_API_BASE_URL}/{}{PORTAINER_CONTAINER_API}/{id}/exec",
@@ -585,10 +584,7 @@ impl PortainerClient {
             Cmd: Some(vec![
                 "sh".to_string(),
                 "-c".to_string(),
-                format!(
-                    "cat /root/.local/share/safe/node/{}/forwarded_balance",
-                    peer_id
-                ),
+                "cat /app/node_data/forwarded_balance".to_string(),
             ]),
             Tty: Some(false),
         };

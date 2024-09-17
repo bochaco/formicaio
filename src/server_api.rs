@@ -212,23 +212,21 @@ async fn retrive_and_cache_updated_metadata(
                 Err(err) => logging::log!("Failed to connect to RPC API endpoint: {err}"),
             }
 
-            // update DB with this new info we just obtained
-            context
-                .db_client
-                .store_node_metadata(&node_instance_info)
-                .await?;
-        }
-
-        if let Some(peer_id) = &node_instance_info.peer_id {
             // try to get node's forwarded balance amount
             match context
                 .portainer_client
-                .get_node_forwarded_balance(&node_instance_info.container_id, peer_id)
+                .get_node_forwarded_balance(&node_instance_info.container_id)
                 .await
             {
                 Ok(balance) => node_instance_info.forwarded_balance = Some(balance),
                 Err(err) => logging::log!("Failed to get node's forwarded balance: {err}"),
             }
+
+            // update DB with this new info we just obtained
+            context
+                .db_client
+                .store_node_metadata(&node_instance_info)
+                .await?;
         }
     }
 

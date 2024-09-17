@@ -39,7 +39,8 @@ CMD ["sh", "-c", \
       "/app/safenode --home-network \
       --port ${NODE_PORT} \
       --rpc 0.0.0.0:${RPC_PORT} \
-      --root-dir /app/node_data" \
+      --root-dir /app/node_data \
+      --log-output-dest /app/node_data/logs" \
       #--log-format json \
       #--log-output-dest stdout \
     ]
