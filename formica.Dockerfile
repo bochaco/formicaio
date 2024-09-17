@@ -27,7 +27,6 @@ COPY --from=builder /app/safenode /app/
 RUN /app/safenode --version
 
 # Set any required env variables
-#ENV RUST_LOG="info"
 # Set default port numbers for node and its RPC API
 ENV NODE_PORT=12000
 ENV RPC_PORT=13000
@@ -40,6 +39,7 @@ CMD ["sh", "-c", \
       "/app/safenode --home-network \
       --port ${NODE_PORT} \
       --rpc 0.0.0.0:${RPC_PORT} \
-      --log-output-dest stdout" \
-      #--log-format json" \
+      --root-dir /app/node_data" \
+      #--log-format json \
+      #--log-output-dest stdout \
     ]

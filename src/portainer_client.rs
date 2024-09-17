@@ -28,6 +28,9 @@ const DEFAULT_PORTAINER_HOST: &str = "127.0.0.1";
 
 // Name of the Docker image to use for each node instance
 const NODE_CONTAINER_IMAGE_NAME: &str = "bochaco/formica";
+// Label's key to set to each container created, so we can then use as
+// filter when fetching the list of them.
+const LABEL_KEY_VERSION: &str = "formica_version";
 
 // Hex-encoded container id
 pub type ContainerId = String;
@@ -40,6 +43,7 @@ pub struct Container {
     pub Ports: Vec<Port>,
     pub State: ContainerState,
     pub Status: String,
+    pub Labels: HashMap<String, String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -159,7 +163,7 @@ pub enum PortainerError {
     Reqwest(#[from] reqwest::Error),
     #[error(transparent)]
     SerdeJson(#[from] serde_json::Error),
-    #[error("Value received couldn't be parsed as integer: {0}")]
+    #[error("Value received couldn't be parsed as integer: '{0}'")]
     InvalidValue(String),
 }
 
@@ -248,10 +252,7 @@ impl PortainerClient {
     // Query the Portainer server to return the list of ALL existing containers.
     pub async fn get_containers_list(&self) -> Result<Vec<Container>, PortainerError> {
         let mut filters = HashMap::default();
-        filters.insert(
-            "ancestor".to_string(),
-            vec![NODE_CONTAINER_IMAGE_NAME.to_string()],
-        );
+        filters.insert("label".to_string(), vec![LABEL_KEY_VERSION.to_string()]);
         self.list_containers(&filters).await
     }
 
@@ -361,7 +362,13 @@ impl PortainerClient {
         let mapped_ports = vec![port, rpc_api_port];
         let container_create_req = ContainerCreate {
             Image: NODE_CONTAINER_IMAGE_NAME.to_string(),
-            Labels: None,
+            // we use a label so we can then filter them when fetching a list of containers
+            // TODO: set the value to the current version of the image used
+            Labels: Some(
+                [(LABEL_KEY_VERSION.to_string(), "TODO!".to_string())]
+                    .into_iter()
+                    .collect(),
+            ),
             Env: Some(vec![
                 format!("NODE_PORT={port}"),
                 format!("RPC_PORT={rpc_api_port}"),
