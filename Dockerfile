@@ -7,8 +7,9 @@ FROM rust:1.80-bullseye AS builder
 
 # Install cargo-binstall, which makes it easier to install other
 # cargo extensions like cargo-leptos
-RUN wget https://github.com/cargo-bins/cargo-binstall/releases/latest/download/cargo-binstall-x86_64-unknown-linux-musl.tgz
-RUN tar -xvf cargo-binstall-x86_64-unknown-linux-musl.tgz
+# Install cargo-binstall for Linux amd64/arm64
+RUN export TARGET="$(uname -m)" && wget -O cargo-binstall-linux-musl.tgz https://github.com/cargo-bins/cargo-binstall/releases/latest/download/cargo-binstall-$TARGET-unknown-linux-musl.tgz
+RUN tar -xvf cargo-binstall-linux-musl.tgz
 RUN cp cargo-binstall /usr/local/cargo/bin
 
 # Install cargo-leptos
