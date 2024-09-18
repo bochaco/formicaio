@@ -2,7 +2,7 @@ use super::metadata_db::DbClient;
 
 use bytes::Bytes;
 use dyn_fmt::AsStrFormatExt;
-use futures_util::Stream;
+use futures_util::{Stream, StreamExt};
 use leptos::*;
 use reqwest::{Client, Response, StatusCode};
 use serde::{Deserialize, Serialize};
@@ -14,6 +14,7 @@ use tokio::sync::Mutex;
 const PORTAINER_API_BASE_URL: &str = "/api/endpoints";
 const PORTAINER_CONTAINER_API: &str = "/docker/containers";
 const PORTAINER_EXEC_API: &str = "/docker/exec";
+const PORTAINER_IMAGES_API: &str = "/docker/images";
 const PORTAINER_AUTH_API: &str = "/api/auth";
 
 // TODO: read these values from env vars and chosen by the user when setting up the app
@@ -174,6 +175,8 @@ pub enum PortainerError {
     PortainerEnvInvalid(String),
     #[error("Container not found with id: {0}")]
     CointainerNotFound(ContainerId),
+    #[error("Image not found locally")]
+    PortainerNoSuchImage,
     #[error("Portainer server error: {0}")]
     PortainerServerError(String),
     #[error(transparent)]
@@ -305,9 +308,8 @@ impl PortainerClient {
     // Request the Portainer server to DELETE a container matching the given id
     pub async fn delete_container_with(&self, id: &ContainerId) -> Result<(), PortainerError> {
         let url = format!(
-            "{}{PORTAINER_API_BASE_URL}/{}{PORTAINER_CONTAINER_API}/{id}",
+            "{}{PORTAINER_API_BASE_URL}/{{}}{PORTAINER_CONTAINER_API}/{id}",
             self.host_port_url,
-            self.portainer_env_id().await
         );
         logging::log!("Sending Portainer request to DELETE containers: {url} ...");
         let query = &[("force", "true")];
@@ -328,9 +330,8 @@ impl PortainerClient {
     // Request the Portainer server to START a container matching the given id
     pub async fn start_container_with(&self, id: &ContainerId) -> Result<(), PortainerError> {
         let url = format!(
-            "{}{PORTAINER_API_BASE_URL}/{}{PORTAINER_CONTAINER_API}/{id}/start",
+            "{}{PORTAINER_API_BASE_URL}/{{}}{PORTAINER_CONTAINER_API}/{id}/start",
             self.host_port_url,
-            self.portainer_env_id().await
         );
         logging::log!("Sending Portainer request to START a container: {url} ...");
         let resp = self.send_request(ReqMethod::Post, &url, &[], &()).await?;
@@ -348,9 +349,8 @@ impl PortainerClient {
     // Request the Portainer server to STOP a container matching the given id
     pub async fn stop_container_with(&self, id: &ContainerId) -> Result<(), PortainerError> {
         let url = format!(
-            "{}{PORTAINER_API_BASE_URL}/{}{PORTAINER_CONTAINER_API}/{id}/stop",
+            "{}{PORTAINER_API_BASE_URL}/{{}}{PORTAINER_CONTAINER_API}/{id}/stop",
             self.host_port_url,
-            self.portainer_env_id().await
         );
         logging::log!("Sending Portainer request to STOP a container: {url} ...");
         let resp = self.send_request(ReqMethod::Post, &url, &[], &()).await?;
@@ -372,9 +372,8 @@ impl PortainerClient {
         rpc_api_port: u16,
     ) -> Result<ContainerId, PortainerError> {
         let url = format!(
-            "{}{PORTAINER_API_BASE_URL}/{}{PORTAINER_CONTAINER_API}/create",
+            "{}{PORTAINER_API_BASE_URL}/{{}}{PORTAINER_CONTAINER_API}/create",
             self.host_port_url,
-            self.portainer_env_id().await
         );
         let mapped_ports = vec![port, rpc_api_port];
         let container_create_req = ContainerCreate {
@@ -454,9 +453,8 @@ impl PortainerClient {
         container_id: &ContainerId,
     ) -> Result<impl Stream<Item = reqwest::Result<Bytes>>, PortainerError> {
         let url = format!(
-            "{}{PORTAINER_API_BASE_URL}/{}{PORTAINER_CONTAINER_API}/{container_id}/logs",
+            "{}{PORTAINER_API_BASE_URL}/{{}}{PORTAINER_CONTAINER_API}/{container_id}/logs",
             self.host_port_url,
-            self.portainer_env_id().await
         );
         logging::log!("Sending Portainer query to get container LOGS stream: {url} ...");
         let query = &[
@@ -483,9 +481,8 @@ impl PortainerClient {
         id: &ContainerId,
     ) -> Result<(), PortainerError> {
         let url = format!(
-            "{}{PORTAINER_API_BASE_URL}/{}{PORTAINER_CONTAINER_API}/{id}/exec",
+            "{}{PORTAINER_API_BASE_URL}/{{}}{PORTAINER_CONTAINER_API}/{id}/exec",
             self.host_port_url,
-            self.portainer_env_id().await
         );
         logging::log!("Sending Portainer request to UPGRADE node within a container: {url} ...");
         let exec_cmd = ContainerExec {
@@ -517,9 +514,8 @@ impl PortainerClient {
 
         // let's now start the exec cmd created
         let url = format!(
-            "{}{PORTAINER_API_BASE_URL}/{}{PORTAINER_EXEC_API}/{exec_id}/start",
+            "{}{PORTAINER_API_BASE_URL}/{{}}{PORTAINER_EXEC_API}/{exec_id}/start",
             self.host_port_url,
-            self.portainer_env_id().await
         );
         let opts = ContainerExecStart {
             Detach: Some(false),
@@ -539,9 +535,8 @@ impl PortainerClient {
 
         // let's check its exit code
         let url = format!(
-            "{}{PORTAINER_API_BASE_URL}/{}{PORTAINER_EXEC_API}/{exec_id}/json",
+            "{}{PORTAINER_API_BASE_URL}/{{}}{PORTAINER_EXEC_API}/{exec_id}/json",
             self.host_port_url,
-            self.portainer_env_id().await
         );
         let resp = self.send_request(ReqMethod::Get, &url, &[], &()).await?;
         match resp.status() {
@@ -563,9 +558,8 @@ impl PortainerClient {
 
         // restart container to run with new node version
         let url = format!(
-            "{}{PORTAINER_API_BASE_URL}/{}{PORTAINER_CONTAINER_API}/{id}/restart",
+            "{}{PORTAINER_API_BASE_URL}/{{}}{PORTAINER_CONTAINER_API}/{id}/restart",
             self.host_port_url,
-            self.portainer_env_id().await
         );
         logging::log!("Sending Portainer request to RESTART a container: {url} ...");
         let resp = self.send_request(ReqMethod::Post, &url, &[], &()).await?;
@@ -585,9 +579,8 @@ impl PortainerClient {
         id: &ContainerId,
     ) -> Result<u64, PortainerError> {
         let url = format!(
-            "{}{PORTAINER_API_BASE_URL}/{}{PORTAINER_CONTAINER_API}/{id}/exec",
+            "{}{PORTAINER_API_BASE_URL}/{{}}{PORTAINER_CONTAINER_API}/{id}/exec",
             self.host_port_url,
-            self.portainer_env_id().await
         );
         //logging::log!("Sending Portainer request to get node forwarded balance: {url} ...");
         let exec_cmd = ContainerExec {
@@ -619,9 +612,8 @@ impl PortainerClient {
 
         // let's now start the exec cmd created
         let url = format!(
-            "{}{PORTAINER_API_BASE_URL}/{}{PORTAINER_EXEC_API}/{exec_id}/start",
+            "{}{PORTAINER_API_BASE_URL}/{{}}{PORTAINER_EXEC_API}/{exec_id}/start",
             self.host_port_url,
-            self.portainer_env_id().await
         );
         let opts = ContainerExecStart {
             Detach: Some(false),
@@ -664,9 +656,15 @@ impl PortainerClient {
                 self.try_send_request(method, url, query, body).await
             }
             Err(PortainerError::PortainerEnvInvalid(id)) => {
-                logging::log!("We need to create a new Portainer environment since current it's invalid: {id}.");
+                logging::log!("We need to create a new Portainer environment since current one ({id}) is invalid.");
                 // let's create a new env before retrying
                 self.new_environment().await?;
+                self.try_send_request(method, url, query, body).await
+            }
+            Err(PortainerError::PortainerNoSuchImage) => {
+                logging::log!("We need to pull the formica image: {NODE_CONTAINER_IMAGE_NAME}.");
+                // let's pull the image before retrying
+                self.pull_formica_image().await?;
                 self.try_send_request(method, url, query, body).await
             }
             other => other,
@@ -707,6 +705,35 @@ impl PortainerClient {
         }
     }
 
+    // Pull the formica image.
+    async fn pull_formica_image(&self) -> Result<(), PortainerError> {
+        let url = format!(
+            "{}{PORTAINER_API_BASE_URL}/{{}}{PORTAINER_IMAGES_API}/create",
+            self.host_port_url,
+        );
+        logging::log!("Sending Portainer request to PULL formica image: {url} ...");
+        let query = &[("fromImage", NODE_CONTAINER_IMAGE_NAME), ("tag", "latest")];
+        let resp = self
+            .try_send_request(ReqMethod::Post, &url, query, &())
+            .await?;
+
+        match resp.status() {
+            StatusCode::OK => {
+                let mut stream = resp.bytes_stream();
+                while let Some(Ok(_bytes)) = stream.next().await {
+                    logging::log!("Pulling image {NODE_CONTAINER_IMAGE_NAME} ...");
+                }
+                logging::log!("Formica image {NODE_CONTAINER_IMAGE_NAME} was successfully pulled!");
+                Ok(())
+            }
+            other => {
+                let msg = resp.json::<ServerErrorMessage>().await?;
+                logging::log!("ERROR: {other:?} - {}", msg.message);
+                Err(PortainerError::PortainerServerError(msg.message))
+            }
+        }
+    }
+
     // Send request to Portainer server
     async fn try_send_request<T: Serialize + ?Sized>(
         &self,
@@ -733,7 +760,17 @@ impl PortainerClient {
 
         match resp.status() {
             StatusCode::UNAUTHORIZED => Err(PortainerError::PortainerUnauthorised),
-            StatusCode::NOT_FOUND => Err(PortainerError::PortainerEnvInvalid(env_id)),
+            StatusCode::NOT_FOUND => {
+                let msg = resp.json::<ServerErrorMessage>().await?.message;
+                logging::log!("404 ERROR: {msg}");
+                if msg.starts_with("Unable to find an environment with the specified identifier") {
+                    Err(PortainerError::PortainerEnvInvalid(env_id))
+                } else if msg.starts_with("No such image") {
+                    Err(PortainerError::PortainerNoSuchImage)
+                } else {
+                    Err(PortainerError::PortainerServerError(msg))
+                }
+            }
             _other => Ok(resp),
         }
     }
