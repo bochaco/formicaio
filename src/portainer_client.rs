@@ -16,7 +16,7 @@ const PORTAINER_CONTAINER_API: &str = "/docker/containers";
 const PORTAINER_EXEC_API: &str = "/docker/exec";
 const PORTAINER_AUTH_API: &str = "/api/auth";
 
-// TODO: read these values from env vars
+// TODO: read these values from env vars and chosen by the user when setting up the app
 const PORTAINER_USERNAME: &str = "admin";
 const PORTAINER_PASSWORD: &str = "adminpassword";
 
@@ -48,6 +48,19 @@ pub struct Container {
     pub State: ContainerState,
     pub Status: String,
     pub Labels: HashMap<String, String>,
+    pub NetworkSettings: Networks,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[allow(non_snake_case)]
+pub struct Networks {
+    pub Networks: HashMap<String, Network>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[allow(non_snake_case)]
+pub struct Network {
+    pub IPAddress: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

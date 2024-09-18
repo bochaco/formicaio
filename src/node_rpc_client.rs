@@ -5,14 +5,10 @@ use sn_protocol::safenode_proto::{
     safe_node_client::SafeNodeClient, KBucketsRequest, NetworkInfoRequest, NodeInfoRequest,
     RecordAddressesRequest,
 };
-use std::env;
 use thiserror::Error;
 use tonic::Request;
 
-// Env var name to set the host where the nodes RPC API can be reached on.
-// When running within a docker container it can be set to 'host.docker.internal'.
-const NODES_RPC_HOST: &str = "NODES_RPC_HOST";
-// Default value for the host
+// Default value for the nodes RPC API host
 const DEFAULT_NODES_RPC_HOST: &str = "127.0.0.1";
 
 #[derive(Debug, Error)]
@@ -30,38 +26,35 @@ pub struct NodeRpcClient {
 }
 
 impl NodeRpcClient {
-    pub async fn new(port: u16) -> Result<Self, RpcClientError> {
-        let host = match env::var(NODES_RPC_HOST) {
-            Ok(v) => v,
-            Err(_) => DEFAULT_NODES_RPC_HOST.to_string(),
-        };
-        let endpoint = format!("https://{host}:{port}");
-
-        Ok(Self { endpoint })
+    pub async fn new(ip: &Option<String>, port: u16) -> Result<Self, RpcClientError> {
+        let host = ip.clone().unwrap_or(DEFAULT_NODES_RPC_HOST.to_string());
+        Ok(Self {
+            endpoint: format!("https://{host}:{port}"),
+        })
     }
 
     pub async fn update_node_info(&mut self, info: &mut NodeInstanceInfo) {
         if let Err(err) = self.node_info(info).await {
             logging::log!(
-                "Failed to get basic info from running node using RPC endpoint {}: {err}",
+                "Failed to get basic info from running node using RPC endpoint {}: {err:?}",
                 self.endpoint
             );
         }
         if let Err(err) = self.network_info(info).await {
             logging::log!(
-                "Failed to get peers info from running node using RPC endpoint {}: {err}",
+                "Failed to get peers info from running node using RPC endpoint {}: {err:?}",
                 self.endpoint
             );
         }
         if let Err(err) = self.record_addresses(info).await {
             logging::log!(
-                "Failed to get record addresses from running node using RPC endpoint {}: {err}",
+                "Failed to get record addresses from running node using RPC endpoint {}: {err:?}",
                 self.endpoint
             );
         }
         if let Err(err) = self.kbuckets(info).await {
             logging::log!(
-                "Failed to get kbuckets peers info from running node using RPC endpoint {}: {err}",
+                "Failed to get kbuckets peers info from running node using RPC endpoint {}: {err:?}",
                 self.endpoint
             );
         }

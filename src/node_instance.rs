@@ -81,6 +81,7 @@ pub struct NodeInstanceInfo {
     pub bin_version: Option<String>,
     pub port: Option<u16>,
     pub rpc_api_port: Option<u16>,
+    pub rpc_api_ip: Option<String>,
     pub rewards: Option<u64>,
     pub balance: Option<u64>,           // nanos
     pub forwarded_balance: Option<u64>, // nanos, only during beta

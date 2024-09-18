@@ -52,6 +52,17 @@ pub async fn nodes_instances() -> Result<BTreeMap<String, NodeInstanceInfo>, Ser
                 .Labels
                 .get(LABEL_KEY_RPC_PORT)
                 .map(|v| v.parse::<u16>().unwrap_or_default()),
+            rpc_api_ip: container
+                .NetworkSettings
+                .Networks
+                .get("bridge")
+                .and_then(|n| {
+                    if n.IPAddress.is_empty() {
+                        None
+                    } else {
+                        Some(n.IPAddress.clone())
+                    }
+                }),
             rewards: None,
             balance: None,
             forwarded_balance: None,
@@ -106,6 +117,17 @@ pub async fn create_node_instance(
         bin_version: None,
         port: Some(port),
         rpc_api_port: Some(rpc_api_port),
+        rpc_api_ip: container
+            .NetworkSettings
+            .Networks
+            .get("bridge")
+            .and_then(|n| {
+                if n.IPAddress.is_empty() {
+                    None
+                } else {
+                    Some(n.IPAddress.clone())
+                }
+            }),
         rewards: None,
         balance: None,
         forwarded_balance: None,
@@ -205,7 +227,7 @@ async fn retrive_and_cache_updated_metadata(
         let context = expect_context::<ServerGlobalState>();
         if let Some(port) = node_instance_info.rpc_api_port {
             // TODO: send info back to the user if we receive an error from using RPC client.
-            match NodeRpcClient::new(port).await {
+            match NodeRpcClient::new(&node_instance_info.rpc_api_ip, port).await {
                 Ok(mut node_rpc_client) => {
                     node_rpc_client.update_node_info(node_instance_info).await
                 }
