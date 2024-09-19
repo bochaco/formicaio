@@ -15,8 +15,10 @@ const PEER_ID_PREFIX_SUFFIX_LEN: usize = 12;
 // Length of nodes Docker container ids' prefix to be displayed
 const CONTAINER_ID_PREFIX_LEN: usize = 12;
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Default, Debug, Deserialize, PartialEq, Serialize)]
 pub enum NodeStatus {
+    #[default]
+    Creating,
     // A running node connected to peers on the network is considered Active.
     Active,
     Restarting,
@@ -35,6 +37,9 @@ pub enum NodeStatus {
 }
 
 impl NodeStatus {
+    pub fn is_creating(&self) -> bool {
+        matches!(self, Self::Creating)
+    }
     pub fn is_active(&self) -> bool {
         matches!(self, Self::Active)
     }
@@ -49,7 +54,8 @@ impl NodeStatus {
     }
     pub fn is_transitioning(&self) -> bool {
         match self {
-            Self::Restarting
+            Self::Creating
+            | Self::Restarting
             | Self::Stopping
             | Self::Removing
             | Self::Upgrading
@@ -71,7 +77,7 @@ impl fmt::Display for NodeStatus {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Default, Debug, Deserialize, PartialEq, Serialize)]
 pub struct NodeInstanceInfo {
     pub container_id: String,
     pub created: u64,
@@ -117,7 +123,13 @@ pub fn NodesListView() -> impl IntoView {
                 key=|(container_id, _)| container_id.clone()
                 let:child
             >
-                <NodeInstanceView info=child.1 set_logs />
+                <Show
+                    when=move || !child.1.get().status.is_creating()
+                    fallback=move || { view! { <CreatingNodeInstanceView /> }.into_view() }
+                >
+                    <NodeInstanceView info=child.1 set_logs />
+                </Show>
+
             </For>
         </div>
 
@@ -146,6 +158,25 @@ pub fn NodesListView() -> impl IntoView {
                         X
                     </label>
                 </div>
+            </div>
+        </div>
+    }
+}
+
+#[component]
+fn CreatingNodeInstanceView() -> impl IntoView {
+    view! {
+        <div class="w-1/4 m-2 p-4 overflow-x-auto card card-normal bg-neutral text-neutral-content card-bordered shadow-2xl">
+            <div class="flex flex-col gap-4">
+                <div class="skeleton h-16 w-full"></div>
+                <div class="skeleton h-4 w-28"></div>
+                <div class="skeleton h-4 w-56"></div>
+                <div class="skeleton h-4 w-28"></div>
+                <div class="skeleton h-4 w-20"></div>
+                <div class="skeleton h-4 w-28"></div>
+                <div class="skeleton h-4 w-40"></div>
+                <div class="skeleton h-4 w-40"></div>
+                <div class="skeleton h-4 w-56"></div>
             </div>
         </div>
     }

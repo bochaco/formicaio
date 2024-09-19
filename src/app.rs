@@ -138,9 +138,11 @@ fn spawn_nodes_list_polling() {
                 }
                 Ok(nodes) => {
                     // first let's get rid of those removed remotely
-                    context
-                        .nodes
-                        .update(|cx_nodes| cx_nodes.retain(|id, _| nodes.contains_key(id)));
+                    context.nodes.update(|cx_nodes| {
+                        cx_nodes.retain(|id, info| {
+                            info.get_untracked().status.is_creating() || nodes.contains_key(id)
+                        })
+                    });
                     // let's now update those with new values
                     context.nodes.with_untracked(|cx_nodes| {
                         for (id, cn) in cx_nodes {

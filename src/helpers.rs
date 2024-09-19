@@ -1,5 +1,6 @@
 use super::{
     app::ClientGlobalState,
+    node_instance::NodeInstanceInfo,
     server_api::{create_node_instance, delete_node_instance, start_node_logs_stream},
 };
 
@@ -9,9 +10,19 @@ use leptos::*;
 pub async fn add_node_instance(port: u16, rpc_api_port: u16) -> Result<(), ServerFnError> {
     let context = expect_context::<ClientGlobalState>();
 
+    let tmp_container_id = "0000000000000000".to_string();
+    let tmp_container = NodeInstanceInfo {
+        container_id: tmp_container_id.clone(),
+        ..Default::default()
+    };
+    context.nodes.update(|items| {
+        items.insert(tmp_container_id.clone(), create_rw_signal(tmp_container));
+    });
+
     let container = create_node_instance(port, rpc_api_port).await?;
 
     context.nodes.update(|items| {
+        items.remove(&tmp_container_id);
         items.insert(container.container_id.clone(), create_rw_signal(container));
     });
 
