@@ -1,11 +1,13 @@
-use super::metadata_db::DbClient;
+pub use super::portainer_msgs::ContainerState;
+
+use super::{metadata_db::DbClient, portainer_msgs::*};
 
 use bytes::Bytes;
 use dyn_fmt::AsStrFormatExt;
 use futures_util::{Stream, StreamExt};
 use leptos::*;
 use reqwest::{Client, Response, StatusCode};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::{collections::HashMap, env, sync::Arc};
 use thiserror::Error;
 use tokio::sync::Mutex;
@@ -36,136 +38,6 @@ const LABEL_KEY_VERSION: &str = "formica_version";
 pub const LABEL_KEY_RPC_PORT: &str = "rpc_api_port";
 // Label's key to cache node's port number
 pub const LABEL_KEY_NODE_PORT: &str = "node_port";
-
-// Hex-encoded container id
-pub type ContainerId = String;
-
-#[derive(Debug, Serialize, Deserialize)]
-#[allow(non_snake_case)]
-pub struct Container {
-    pub Id: ContainerId,
-    pub Created: u64,
-    pub Ports: Vec<Port>,
-    pub State: ContainerState,
-    pub Status: String,
-    pub Labels: HashMap<String, String>,
-    pub NetworkSettings: Networks,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[allow(non_snake_case)]
-pub struct Networks {
-    pub Networks: HashMap<String, Network>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[allow(non_snake_case)]
-pub struct Network {
-    pub IPAddress: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[allow(non_snake_case)]
-pub struct Port {
-    pub IP: Option<String>,
-    pub PrivatePort: u64,
-    pub PublicPort: Option<u64>,
-    pub Type: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[allow(non_camel_case_types)]
-pub enum ContainerState {
-    created,
-    restarting,
-    running,
-    removing,
-    paused,
-    exited,
-    dead,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-#[allow(non_snake_case)]
-pub struct PortBinding {
-    pub HostIp: Option<String>,
-    pub HostPort: String,
-}
-
-pub type PortBindings = HashMap<String, Vec<PortBinding>>;
-
-#[derive(Serialize, Deserialize, Debug)]
-#[allow(non_snake_case)]
-pub struct HostConfigCreate {
-    pub NetworkMode: Option<String>,
-    pub PublishAllPorts: Option<bool>,
-    pub PortBindings: Option<PortBindings>,
-}
-
-pub type ExposedPorts = HashMap<String, HashMap<i32, i32>>;
-
-#[derive(Serialize, Deserialize, Debug)]
-#[allow(non_snake_case)]
-pub struct ContainerCreate {
-    pub Image: String,
-    pub Labels: Option<HashMap<String, String>>,
-    pub Env: Option<Vec<String>>,
-    pub ExposedPorts: Option<ExposedPorts>,
-    pub HostConfig: Option<HostConfigCreate>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-#[allow(non_snake_case)]
-pub struct ContainerExec {
-    pub AttachStdin: Option<bool>,
-    pub AttachStdout: Option<bool>,
-    pub AttachStderr: Option<bool>,
-    pub Cmd: Option<Vec<String>>,
-    pub Tty: Option<bool>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-#[allow(non_snake_case)]
-pub struct ContainerExecStart {
-    pub Detach: Option<bool>,
-    pub Tty: Option<bool>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-#[allow(non_snake_case)]
-pub struct ContainerCreateExecSuccess {
-    pub Id: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-#[allow(non_snake_case)]
-pub struct ContainerCreateEnvSuccess {
-    pub Id: u64,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-#[allow(non_snake_case)]
-pub struct ContainerExecJson {
-    pub Running: bool,
-    pub ExitCode: u8,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct ServerErrorMessage {
-    message: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[allow(non_snake_case)]
-struct PortainerAuthRequest {
-    Username: Option<String>,
-    Password: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct PortainerAuthResponse {
-    jwt: String,
-}
 
 #[derive(Debug, Error)]
 pub enum PortainerError {
@@ -763,6 +635,8 @@ impl PortainerClient {
             StatusCode::NOT_FOUND => {
                 let msg = resp.json::<ServerErrorMessage>().await?.message;
                 logging::log!("404 ERROR: {msg}");
+                // TODO: unfortunatelly the API returns different error
+                // msgs instead of different error codes to properly handle them
                 if msg.starts_with("Unable to find an environment with the specified identifier") {
                     Err(PortainerError::PortainerEnvInvalid(env_id))
                 } else if msg.starts_with("No such image") {

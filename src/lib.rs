@@ -12,6 +12,8 @@ mod node_instance;
 mod node_rpc_client;
 #[cfg(feature = "ssr")]
 pub mod portainer_client;
+#[cfg(feature = "ssr")]
+mod portainer_msgs;
 mod server_api;
 mod stats;
 
