@@ -10,9 +10,10 @@ use leptos::*;
 pub async fn add_node_instance(port: u16, rpc_api_port: u16) -> Result<(), ServerFnError> {
     let context = expect_context::<ClientGlobalState>();
 
-    let tmp_container_id = "0000000000000000".to_string();
+    let tmp_container_id = format!("tmp-{}", hex::encode(rand::random::<[u8; 6]>().to_vec())); // random and temporary
     let tmp_container = NodeInstanceInfo {
         container_id: tmp_container_id.clone(),
+        created: std::u64::MAX, // just so it's shown first as the newest in the UI
         ..Default::default()
     };
     context.nodes.update(|items| {

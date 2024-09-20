@@ -23,14 +23,6 @@ pub fn AggregatedStatsView() -> impl IntoView {
             .filter(|(_, n)| n.get().status.is_inactive())
             .count()
     };
-    let shunned_nodes = move || {
-        context
-            .nodes
-            .get()
-            .iter()
-            .filter(|(_, n)| n.get().status.is_shunned())
-            .count()
-    };
     // TODO: only during beta testing we report the forwarded_balance, after that it
     // shall report the total balance this node has ever received, regardless current balance.
     let rewards = move || {
@@ -109,9 +101,7 @@ pub fn AggregatedStatsView() -> impl IntoView {
             <div class="stat place-items-center">
                 <div class="stat-title">Active nodes</div>
                 <div class="stat-value">{active_nodes} " / " {total_nodes}</div>
-                <div class="stat-desc text-secondary">
-                    {shunned_nodes} " shunned | " {inactive_nodes} " inactive"
-                </div>
+                <div class="stat-desc text-secondary">{inactive_nodes} " inactive"</div>
             </div>
 
             <div class="stat place-items-center">

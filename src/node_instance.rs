@@ -116,10 +116,17 @@ pub fn NodesListView() -> impl IntoView {
     // this signal keeps the reactive list of log entries
     let (logs, set_logs) = create_signal(Vec::new());
 
+    // we display the instances sorted by creation time, newest to oldest
+    let sorted_nodes = create_memo(move |_| {
+        let mut sorted = context.nodes.get().into_iter().collect::<Vec<_>>();
+        sorted.sort_by(|a, b| b.1.get().created.cmp(&a.1.get().created));
+        sorted
+    });
+
     view! {
         <div class="flex flex-wrap">
             <For
-                each=move || context.nodes.get()
+                each=move || sorted_nodes.get()
                 key=|(container_id, _)| container_id.clone()
                 let:child
             >
