@@ -223,7 +223,7 @@ fn NodeInstanceView(
                 >
                     <ButtonUpgrade info />
                 </Show>
-                <NodeLogs container_id=info.get_untracked().container_id set_logs />
+                <NodeLogs info set_logs />
                 <ButtonStopStart info />
                 <ButtonRemove info />
             </div>
@@ -290,7 +290,7 @@ fn NodeInstanceView(
 }
 
 #[component]
-fn NodeLogs(container_id: String, set_logs: WriteSignal<Vec<String>>) -> impl IntoView {
+fn NodeLogs(info: RwSignal<NodeInstanceInfo>, set_logs: WriteSignal<Vec<String>>) -> impl IntoView {
     // we use the context to switch on/off the streaming of logs
     let context = expect_context::<ClientGlobalState>();
 
@@ -308,10 +308,16 @@ fn NodeLogs(container_id: String, set_logs: WriteSignal<Vec<String>>) -> impl In
         <div class="tooltip tooltip-bottom tooltip-info" data-tip="view logs">
             <label
                 for="logs_stream_modal"
-                class="btn btn-square btn-sm"
+                class=move || {
+                    if info.get().status.is_transitioning() || info.get().status.is_inactive() {
+                        "btn btn-square btn-sm btn-disabled"
+                    } else {
+                        "btn btn-square btn-sm"
+                    }
+                }
                 on:click=move |_| {
                     set_logs.set(vec![]);
-                    start_logs_stream.dispatch(container_id.clone());
+                    start_logs_stream.dispatch(info.get_untracked().container_id.clone());
                 }
             >
                 <IconShowLogs />

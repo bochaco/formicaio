@@ -54,12 +54,21 @@ pub async fn node_logs_stream(
         .into_inner();
 
     let context = expect_context::<ClientGlobalState>();
+    let mut cur_line = Vec::<u8>::new();
     // TODO: check 'logs_stream_is_on' signal simultaneously to stop as soon as it's set to 'false'
     while let Some(item) = logs_stream.next().await {
         match item {
             Ok(bytes) => {
-                let log: String = String::from_utf8_lossy(&bytes).to_string();
-                received_logs.update(|entries| entries.push(log));
+                let lines = bytes.split(|&byte| byte == b'\n').collect::<Vec<_>>();
+                let num_lines = lines.len();
+                for (i, line) in lines.into_iter().enumerate() {
+                    cur_line.extend(line);
+                    if i < num_lines - 1 {
+                        let log: String = String::from_utf8_lossy(&cur_line).to_string();
+                        received_logs.update(|entries| entries.push(format!("{log}")));
+                        cur_line.clear();
+                    }
+                }
             }
             Err(err) => {
                 logging::log!("Error reading log: {err}");

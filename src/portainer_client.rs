@@ -322,21 +322,50 @@ impl PortainerClient {
     // Request the Portainer server to return a node container logs stream.
     pub async fn get_container_logs_stream(
         &self,
-        container_id: &ContainerId,
+        id: &ContainerId,
     ) -> Result<impl Stream<Item = reqwest::Result<Bytes>>, PortainerError> {
         let url = format!(
-            "{}{PORTAINER_API_BASE_URL}/{{}}{PORTAINER_CONTAINER_API}/{container_id}/logs",
+            "{}{PORTAINER_API_BASE_URL}/{{}}{PORTAINER_CONTAINER_API}/{id}/exec",
             self.host_port_url,
         );
         logging::log!("Sending Portainer query to get container LOGS stream: {url} ...");
-        let query = &[
-            ("stdout", "true"),
-            ("stderr", "true"),
-            ("follow", "true"),
-            ("tail", "20"),
-        ];
-        let resp = self.send_request(ReqMethod::Get, &url, query, &()).await?;
+        let exec_cmd = ContainerExec {
+            AttachStdin: Some(false),
+            AttachStdout: Some(true),
+            AttachStderr: Some(true),
+            Cmd: Some(vec![
+                "sh".to_string(),
+                "-c".to_string(),
+                "tail -s 7 -f /app/node_data/logs/safenode.log".to_string(),
+            ]),
+            Tty: Some(false),
+        };
+        let resp = self
+            .send_request(ReqMethod::Post, &url, &[], &exec_cmd)
+            .await?;
+        let exec_id = match resp.status() {
+            StatusCode::CREATED => {
+                let exec_result = resp.json::<ContainerCreateExecSuccess>().await?;
+                logging::log!("Cmd to stream logs created successfully: {exec_result:#?}");
+                exec_result.Id
+            }
+            other => {
+                let msg = resp.json::<ServerErrorMessage>().await?;
+                logging::log!("ERROR: {other:?} - {}", msg.message);
+                return Err(PortainerError::PortainerServerError(msg.message));
+            }
+        };
 
+        // let's now start the exec cmd created
+        let url = format!(
+            "{}{PORTAINER_API_BASE_URL}/{{}}{PORTAINER_EXEC_API}/{exec_id}/start",
+            self.host_port_url,
+        );
+        let opts = ContainerExecStart {
+            Detach: Some(false),
+            Tty: Some(true),
+        };
+        let resp = self.send_request(ReqMethod::Post, &url, &[], &opts).await?;
         match resp.status() {
             StatusCode::OK => Ok(resp.bytes_stream()),
             other => {
