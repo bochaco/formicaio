@@ -8,6 +8,11 @@ use super::{
 
 #[cfg(feature = "ssr")]
 use axum::extract::FromRef;
+#[cfg(feature = "ssr")]
+use std::sync::Arc;
+#[cfg(feature = "ssr")]
+use tokio::sync::Mutex;
+
 use gloo_timers::future::TimeoutFuture;
 use leptos::*;
 use leptos_meta::*;
@@ -22,6 +27,7 @@ pub struct ServerGlobalState {
     pub leptos_options: LeptosOptions,
     pub db_client: super::metadata_db::DbClient,
     pub portainer_client: super::portainer_client::PortainerClient,
+    pub latest_bin_version: Arc<Mutex<Option<String>>>,
 }
 
 // Struct to use client side as a global context/state
@@ -72,26 +78,28 @@ pub fn App() -> impl IntoView {
 #[component]
 fn HomePage() -> impl IntoView {
     // we first read (async) the list of nodes instances that currently exist
-    let nodes = create_resource(|| (), |_| async move { nodes_instances().await });
+    let info = create_resource(|| (), |_| async move { nodes_instances().await });
 
     view! {
         <Suspense fallback=move || {
             view! { <p>"Loading..."</p> }
         }>
-            {nodes
+            {info
                 .get()
-                .map(|nodes| {
-                    match nodes {
+                .map(|info| {
+                    match info {
                         Err(err) => {
                             view! { <p>Failed to load list of nodes: {err.to_string()}</p> }
                                 .into_view()
                         }
-                        Ok(nodes) => {
+                        Ok(info) => {
                             let context = expect_context::<ClientGlobalState>();
+                            context.latest_bin_version.set(info.latest_bin_version);
                             context
                                 .nodes
                                 .set(
-                                    nodes
+                                    info
+                                        .nodes
                                         .into_iter()
                                         .map(|(i, n)| (i, create_rw_signal(n)))
                                         .collect(),
@@ -118,14 +126,6 @@ fn HomePage() -> impl IntoView {
 
 // Spawns a task which polls the server to obtain up to date information of nodes instances.
 fn spawn_nodes_list_polling() {
-    // TODO: check latest version of node binary every so often rather than only once
-    spawn_local(async {
-        if let Some(version) = latest_version_available().await {
-            let context = expect_context::<ClientGlobalState>();
-            context.latest_bin_version.set(Some(version));
-        }
-    });
-
     spawn_local(async {
         logging::log!("Polling server every {POLLING_FREQ_MILLIS:?}ms. ...");
         let context = expect_context::<ClientGlobalState>();
@@ -136,17 +136,23 @@ fn spawn_nodes_list_polling() {
                 Err(err) => {
                     logging::log!("Failed to get up to date nodes info from server: {err}")
                 }
-                Ok(nodes) => {
+                Ok(info) => {
+                    // if we received info about new binary version then update context
+                    if info.latest_bin_version.is_some() {
+                        context.latest_bin_version.set(info.latest_bin_version);
+                    }
+
                     // first let's get rid of those removed remotely
                     context.nodes.update(|cx_nodes| {
-                        cx_nodes.retain(|id, info| {
-                            info.get_untracked().status.is_creating() || nodes.contains_key(id)
+                        cx_nodes.retain(|id, node_info| {
+                            node_info.get_untracked().status.is_creating()
+                                || info.nodes.contains_key(id)
                         })
                     });
                     // let's now update those with new values
                     context.nodes.with_untracked(|cx_nodes| {
                         for (id, cn) in cx_nodes {
-                            nodes.get(id).map(|updated| {
+                            info.nodes.get(id).map(|updated| {
                                 if cn.get_untracked() != *updated {
                                     cn.update(|cn| {
                                         if !cn.status.is_transitioning()
@@ -169,7 +175,7 @@ fn spawn_nodes_list_polling() {
                         }
                     });
                     // we can add any new node created remotely, perhaps by another instance of the app
-                    nodes
+                    info.nodes
                         .into_iter()
                         .filter(|(id, _)| !context.nodes.get_untracked().contains_key(id))
                         .for_each(|(id, new_node)| {
@@ -181,34 +187,4 @@ fn spawn_nodes_list_polling() {
             }
         }
     });
-}
-
-// Query crates.io to find out latest version available of the node
-async fn latest_version_available() -> Option<String> {
-    let url = format!("https://crates.io/api/v1/crates/{}", "sn_node");
-    let client = reqwest::Client::new();
-    let response = match client.get(url).send().await {
-        Ok(resp) => resp,
-        Err(_) => return None,
-    };
-
-    if response.status().is_success() {
-        let body = match response.text().await {
-            Ok(body) => body,
-            Err(_) => return None,
-        };
-        let json: serde_json::Value = match serde_json::from_str(&body) {
-            Ok(json) => json,
-            Err(_) => return None,
-        };
-
-        if let Some(version) = json["crate"]["newest_version"].as_str() {
-            if let Ok(latest_version) = semver::Version::parse(version) {
-                logging::log!("Latest node version: {latest_version}");
-                return Some(latest_version.to_string());
-            }
-        }
-    }
-
-    None
 }

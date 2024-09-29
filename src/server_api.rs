@@ -11,6 +11,7 @@ use super::{
 #[cfg(feature = "ssr")]
 use futures_util::StreamExt;
 use leptos::*;
+use serde::{Deserialize, Serialize};
 use server_fn::codec::{ByteStream, Streaming};
 use std::collections::BTreeMap;
 
@@ -29,10 +30,17 @@ impl From<ContainerState> for NodeStatus {
     }
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+pub struct NodesInstancesInfo {
+    pub latest_bin_version: Option<String>,
+    pub nodes: BTreeMap<String, NodeInstanceInfo>,
+}
+
 // Obtain the list of existing nodes instances with their info
 #[server(ListNodeInstances, "/api", "Url", "/list_nodes")]
-pub async fn nodes_instances() -> Result<BTreeMap<String, NodeInstanceInfo>, ServerFnError> {
+pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
+    let latest_bin_version = context.latest_bin_version.lock().await.clone();
     let containers = context.portainer_client.get_containers_list().await?;
 
     let mut nodes = BTreeMap::new();
@@ -84,7 +92,10 @@ pub async fn nodes_instances() -> Result<BTreeMap<String, NodeInstanceInfo>, Ser
         nodes.insert(container.Id, node_instance_info);
     }
 
-    Ok(nodes)
+    Ok(NodesInstancesInfo {
+        latest_bin_version,
+        nodes,
+    })
 }
 
 // Create and add a new node instance returning its info
