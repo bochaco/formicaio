@@ -108,6 +108,18 @@ pub struct ContainerExecJson {
     pub ExitCode: u8,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+#[allow(non_snake_case)]
+pub struct ContainerUpdate {
+    pub RestartPolicy: Option<RestartPolicy>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[allow(non_snake_case)]
+pub struct RestartPolicy {
+    pub Name: String,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ServerErrorMessage {
     pub message: String,

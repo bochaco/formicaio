@@ -126,7 +126,7 @@ impl DockerClient {
 
     // Request the Docker server to DELETE a container matching the given id
     pub async fn delete_container_with(&self, id: &ContainerId) -> Result<(), DockerClientError> {
-        let url = format!("{DOCKER_CONTAINERS_API}/{id}",);
+        let url = format!("{DOCKER_CONTAINERS_API}/{id}");
         logging::log!("[DELETE] Sending Docker request to DELETE containers: {url} ...");
         let query = &[("force", "true")];
         self.send_request(ReqMethod::Delete, &url, query, &())
@@ -136,15 +136,28 @@ impl DockerClient {
 
     // Request the Docker server to START a container matching the given id
     pub async fn start_container_with(&self, id: &ContainerId) -> Result<(), DockerClientError> {
-        let url = format!("{DOCKER_CONTAINERS_API}/{id}/start",);
+        let url = format!("{DOCKER_CONTAINERS_API}/{id}/start");
         logging::log!("[START] Sending Docker request to START a container: {url} ...");
         self.send_request(ReqMethod::Post, &url, &[], &()).await?;
+
+        let url = format!("{DOCKER_CONTAINERS_API}/{id}/update");
+        logging::log!(
+            "Sending Docker request to UPDATE the restart policy of a container: {url} ..."
+        );
+        let container_update_req = ContainerUpdate {
+            RestartPolicy: Some(RestartPolicy {
+                Name: "unless-stopped".to_string(),
+            }),
+        };
+        self.send_request(ReqMethod::Post, &url, &[], &container_update_req)
+            .await?;
+
         Ok(())
     }
 
     // Request the Docker server to STOP a container matching the given id
     pub async fn stop_container_with(&self, id: &ContainerId) -> Result<(), DockerClientError> {
-        let url = format!("{DOCKER_CONTAINERS_API}/{id}/stop",);
+        let url = format!("{DOCKER_CONTAINERS_API}/{id}/stop");
         logging::log!("[STOP] Sending Docker request to STOP a container: {url} ...");
         self.send_request(ReqMethod::Post, &url, &[], &()).await?;
         Ok(())
@@ -156,7 +169,7 @@ impl DockerClient {
         port: u16,
         rpc_api_port: u16,
     ) -> Result<ContainerId, DockerClientError> {
-        let url = format!("{DOCKER_CONTAINERS_API}/create",);
+        let url = format!("{DOCKER_CONTAINERS_API}/create");
         let mapped_ports = vec![port, rpc_api_port];
         let container_create_req = ContainerCreate {
             Image: NODE_CONTAINER_IMAGE_NAME.to_string(),
@@ -225,7 +238,7 @@ impl DockerClient {
         &self,
         id: &ContainerId,
     ) -> Result<impl Stream<Item = Result<Bytes, DockerClientError>>, DockerClientError> {
-        let url = format!("{DOCKER_CONTAINERS_API}/{id}/exec",);
+        let url = format!("{DOCKER_CONTAINERS_API}/{id}/exec");
         logging::log!("[LOGS] Sending Docker query to get container LOGS stream: {url} ...");
         let exec_cmd = ContainerExec {
             AttachStdin: Some(false),
@@ -246,7 +259,7 @@ impl DockerClient {
         let exec_id = exec_result.Id;
 
         // let's now start the exec cmd created
-        let url = format!("{DOCKER_EXEC_API}/{exec_id}/start",);
+        let url = format!("{DOCKER_EXEC_API}/{exec_id}/start");
         let opts = ContainerExecStart {
             Detach: Some(false),
             Tty: Some(true),
@@ -261,7 +274,7 @@ impl DockerClient {
         &self,
         id: &ContainerId,
     ) -> Result<(), DockerClientError> {
-        let url = format!("{DOCKER_CONTAINERS_API}/{id}/exec",);
+        let url = format!("{DOCKER_CONTAINERS_API}/{id}/exec");
         logging::log!(
             "[UPGRADE] Sending Docker request to UPGRADE node within a container: {url} ..."
         );
@@ -284,7 +297,7 @@ impl DockerClient {
         let exec_id = exec_result.Id;
 
         // let's now start the exec cmd created
-        let url = format!("{DOCKER_EXEC_API}/{exec_id}/start",);
+        let url = format!("{DOCKER_EXEC_API}/{exec_id}/start");
         let opts = ContainerExecStart {
             Detach: Some(false),
             Tty: Some(true),
@@ -293,7 +306,7 @@ impl DockerClient {
         logging::log!("Node upgrade process finished in container: {id}");
 
         // let's check its exit code
-        let url = format!("{DOCKER_EXEC_API}/{exec_id}/json",);
+        let url = format!("{DOCKER_EXEC_API}/{exec_id}/json");
         let resp_bytes = self.send_request(ReqMethod::Get, &url, &[], &()).await?;
         let exec: ContainerExecJson = serde_json::from_slice(&resp_bytes)?;
         logging::log!("Container exec: {exec:#?}");
@@ -304,7 +317,7 @@ impl DockerClient {
         }
 
         // restart container to run with new node version
-        let url = format!("{DOCKER_CONTAINERS_API}/{id}/restart",);
+        let url = format!("{DOCKER_CONTAINERS_API}/{id}/restart");
         logging::log!("Sending Docker request to RESTART a container: {url} ...");
         self.send_request(ReqMethod::Post, &url, &[], &()).await?;
         Ok(())
@@ -315,7 +328,7 @@ impl DockerClient {
         &self,
         id: &ContainerId,
     ) -> Result<u64, DockerClientError> {
-        let url = format!("{DOCKER_CONTAINERS_API}/{id}/exec",);
+        let url = format!("{DOCKER_CONTAINERS_API}/{id}/exec");
         //logging::log!("Sending Docker request to get node forwarded balance: {url} ...");
         let exec_cmd = ContainerExec {
             AttachStdin: Some(false),
@@ -336,7 +349,7 @@ impl DockerClient {
         let exec_id = exec_result.Id;
 
         // let's now start the exec cmd created
-        let url = format!("{DOCKER_EXEC_API}/{exec_id}/start",);
+        let url = format!("{DOCKER_EXEC_API}/{exec_id}/start");
         let opts = ContainerExecStart {
             Detach: Some(false),
             Tty: Some(true),
@@ -403,7 +416,7 @@ impl DockerClient {
 
     // Pull the formica image.
     async fn pull_formica_image(&self) -> Result<(), DockerClientError> {
-        let url = format!("{DOCKER_IMAGES_API}/create",);
+        let url = format!("{DOCKER_IMAGES_API}/create");
         logging::log!("[PULL] Sending Docker request to PULL formica image: {url} ...");
         let query = &[("fromImage", NODE_CONTAINER_IMAGE_NAME), ("tag", "latest")];
         let resp = self
