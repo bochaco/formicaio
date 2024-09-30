@@ -34,12 +34,6 @@ pub struct CachedNodeMetadata {
     pub kbuckets_peers: String,
 }
 
-// Struct stored on the DB caching nodes metadata.
-#[derive(Clone, Debug, Deserialize, FromRow, Serialize)]
-pub struct CachedPortainerInfo {
-    pub env_id: String,
-}
-
 impl CachedNodeMetadata {
     // Update the node info with data obtained from DB, but only those
     // fields with non zero/empty values; zero/empty value means it was unknown when stored.
@@ -89,9 +83,7 @@ impl DbClient {
         {
             logging::log!("Creating database {SQLITE_DB_URL}");
             match Sqlite::create_database(SQLITE_DB_URL).await {
-                Ok(()) => {
-                    logging::log!("Created database successfully!");
-                }
+                Ok(()) => logging::log!("Created database successfully!"),
                 Err(err) => {
                     logging::log!("Failed to create database: {err}");
                     return Err(err.into());
@@ -107,34 +99,6 @@ impl DbClient {
 
         logging::log!("Database migrations applied successfully!");
         Ok(Self { db })
-    }
-
-    // Retrieve Portainer environment id from local cache DB
-    pub async fn get_portainer_env_id(&self) -> String {
-        match sqlx::query_as::<_, CachedPortainerInfo>("SELECT env_id FROM portainer_info")
-            .fetch_all(&self.db)
-            .await
-        {
-            Ok(infos) => infos
-                .first()
-                .map_or_else(|| "0".to_string(), |i| i.env_id.clone()),
-            Err(err) => {
-                logging::log!("Sqlite query error: {err}");
-                "0".to_string()
-            }
-        }
-    }
-
-    // Update cached Portainer environment id in local cache DB
-    pub async fn update_portainer_env_id(&self, id: String) {
-        match sqlx::query("INSERT OR REPLACE INTO portainer_info (env_id) VALUES (?)")
-            .bind(id)
-            .execute(&self.db)
-            .await
-        {
-            Ok(_) => {}
-            Err(err) => logging::log!("Sqlite query error: {err}"),
-        }
     }
 
     // Retrieve node metadata from local cache DB

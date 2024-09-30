@@ -26,7 +26,7 @@ const POLLING_FREQ_MILLIS: u32 = 5000;
 pub struct ServerGlobalState {
     pub leptos_options: LeptosOptions,
     pub db_client: super::metadata_db::DbClient,
-    pub portainer_client: super::portainer_client::PortainerClient,
+    pub docker_client: super::docker_client::DockerClient,
     pub latest_bin_version: Arc<Mutex<Option<String>>>,
 }
 

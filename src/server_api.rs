@@ -3,9 +3,9 @@ use super::node_instance::NodeInstanceInfo;
 #[cfg(feature = "ssr")]
 use super::{
     app::ServerGlobalState,
+    docker_client::{ContainerState, LABEL_KEY_NODE_PORT, LABEL_KEY_RPC_PORT},
     node_instance::NodeStatus,
     node_rpc_client::NodeRpcClient,
-    portainer_client::{ContainerState, LABEL_KEY_NODE_PORT, LABEL_KEY_RPC_PORT},
 };
 
 #[cfg(feature = "ssr")]
@@ -41,7 +41,7 @@ pub struct NodesInstancesInfo {
 pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
     let latest_bin_version = context.latest_bin_version.lock().await.clone();
-    let containers = context.portainer_client.get_containers_list().await?;
+    let containers = context.docker_client.get_containers_list().await?;
 
     let mut nodes = BTreeMap::new();
     for container in containers {
@@ -108,13 +108,13 @@ pub async fn create_node_instance(
     let context = expect_context::<ServerGlobalState>();
     logging::log!("Creating new node container with port {port}, RPC API port {rpc_api_port} ...");
     let container_id = context
-        .portainer_client
+        .docker_client
         .create_new_container(port, rpc_api_port)
         .await?;
     logging::log!("New node container Id: {container_id} ...");
 
     let container = context
-        .portainer_client
+        .docker_client
         .get_container_info(&container_id)
         .await?;
     logging::log!("New node container created: {container:?}");
@@ -161,7 +161,7 @@ pub async fn delete_node_instance(container_id: String) -> Result<(), ServerFnEr
     logging::log!("Deleting node container with Id: {container_id} ...");
     let context = expect_context::<ServerGlobalState>();
     context
-        .portainer_client
+        .docker_client
         .delete_container_with(&container_id)
         .await?;
     context
@@ -177,7 +177,7 @@ pub async fn start_node_instance(container_id: String) -> Result<(), ServerFnErr
     logging::log!("Starting node container with Id: {container_id} ...");
     let context = expect_context::<ServerGlobalState>();
     context
-        .portainer_client
+        .docker_client
         .start_container_with(&container_id)
         .await?;
     Ok(())
@@ -189,7 +189,7 @@ pub async fn stop_node_instance(container_id: String) -> Result<(), ServerFnErro
     logging::log!("Stopping node container with Id: {container_id} ...");
     let context = expect_context::<ServerGlobalState>();
     context
-        .portainer_client
+        .docker_client
         .stop_container_with(&container_id)
         .await?;
     // set connect_peers back to 0 and update cache
@@ -207,7 +207,7 @@ pub async fn upgrade_node_instance(container_id: String) -> Result<(), ServerFnE
     logging::log!("Upgrading node container with Id: {container_id} ...");
     let context = expect_context::<ServerGlobalState>();
     context
-        .portainer_client
+        .docker_client
         .upgrade_node_in_container_with(&container_id)
         .await?;
     Ok(())
@@ -219,7 +219,7 @@ pub async fn start_node_logs_stream(container_id: String) -> Result<ByteStream, 
     logging::log!("Starting logs stream from container with Id: {container_id} ...");
     let context = expect_context::<ServerGlobalState>();
     let container_logs_stream = context
-        .portainer_client
+        .docker_client
         .get_container_logs_stream(&container_id)
         .await?;
     let converted_stream = container_logs_stream.map(|item| {
@@ -247,7 +247,7 @@ async fn retrive_and_cache_updated_metadata(
 
             // try to get node's forwarded balance amount
             match context
-                .portainer_client
+                .docker_client
                 .get_node_forwarded_balance(&node_instance_info.container_id)
                 .await
             {

@@ -8,7 +8,7 @@ use tokio::sync::Mutex;
 async fn main() {
     use axum::Router;
     use formicaio::fileserv::file_and_error_handler;
-    use formicaio::{app::*, metadata_db::DbClient, portainer_client::PortainerClient};
+    use formicaio::{app::*, docker_client::DockerClient, metadata_db::DbClient};
     use leptos::*;
     use leptos_axum::{generate_route_list, LeptosRoutes};
 
@@ -22,16 +22,16 @@ async fn main() {
     let addr = leptos_options.site_addr;
     let routes = generate_route_list(App);
 
-    // We'll keep the database and Portainer clients instances in server global state.
+    // We'll keep the database and Docker clients instances in server global state.
     let db_client = DbClient::connect().await.unwrap();
-    let portainer_client = PortainerClient::new(db_client.clone()).await.unwrap();
+    let docker_client = DockerClient::new().await.unwrap();
 
     let latest_bin_version = Arc::new(Mutex::new(None));
 
     let app_state = ServerGlobalState {
         leptos_options,
         db_client,
-        portainer_client,
+        docker_client,
         latest_bin_version: latest_bin_version.clone(),
     };
 

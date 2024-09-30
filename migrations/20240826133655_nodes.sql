@@ -10,7 +10,3 @@ CREATE TABLE IF NOT EXISTS nodes (
     connected_peers TEXT,
     kbuckets_peers TEXT
 );
-
-CREATE TABLE IF NOT EXISTS portainer_info (
-    env_id TEXT PRIMARY KEY NOT NULL
-);

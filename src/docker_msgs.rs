@@ -103,12 +103,6 @@ pub struct ContainerCreateExecSuccess {
 
 #[derive(Serialize, Deserialize, Debug)]
 #[allow(non_snake_case)]
-pub struct ContainerCreateEnvSuccess {
-    pub Id: u64,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-#[allow(non_snake_case)]
 pub struct ContainerExecJson {
     pub Running: bool,
     pub ExitCode: u8,
@@ -117,16 +111,4 @@ pub struct ContainerExecJson {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ServerErrorMessage {
     pub message: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[allow(non_snake_case)]
-pub struct PortainerAuthRequest {
-    pub Username: Option<String>,
-    pub Password: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct PortainerAuthResponse {
-    pub jwt: String,
 }

@@ -1,5 +1,9 @@
 mod add_node;
 pub mod app;
+#[cfg(feature = "ssr")]
+pub mod docker_client;
+#[cfg(feature = "ssr")]
+mod docker_msgs;
 pub mod error_template;
 #[cfg(feature = "ssr")]
 pub mod fileserv;
@@ -10,10 +14,6 @@ pub mod metadata_db;
 mod node_instance;
 #[cfg(feature = "ssr")]
 mod node_rpc_client;
-#[cfg(feature = "ssr")]
-pub mod portainer_client;
-#[cfg(feature = "ssr")]
-mod portainer_msgs;
 mod server_api;
 mod stats;
 
