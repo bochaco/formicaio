@@ -1,9 +1,17 @@
-# Dockerfile for running app on UmbrelOS
+# Dockerfile for running Formicaio app
 
-# Get started with a build env with Rust nightly
-# FROM rustlang/rust:nightly-bullseye as builder
-# If you’re using stable, use this instead
-FROM rust:1.80-bullseye AS builder
+# We first just install tailwindcss from a nodejs slim image
+FROM node:20.17.0-slim AS tailwindcss-builder
+
+WORKDIR /app
+COPY package.json package-lock.json .
+
+# Install tailwindcss modules
+RUN npm install -D tailwindcss
+RUN npx tailwindcss init
+
+# Now let's use a build env with Rust for the app
+FROM rust:1 AS builder
 
 # Install cargo-binstall, which makes it easier to install other
 # cargo extensions like cargo-leptos
@@ -22,12 +30,22 @@ RUN rustup component add rustfmt
 # Make an /app dir, which everything will eventually live in
 RUN mkdir -p /app
 WORKDIR /app
+
+# Copy tailwindcss modules, and nodejs binary, to the /app directory
+# since they are required for building the app
+COPY --from=tailwindcss-builder /app/node_modules /app/node_modules
+COPY --from=tailwindcss-builder /usr/local/bin/node /usr/local/bin/node
+
+# Now we can copy the source files to build them
 COPY . .
 
 # Build the app
 RUN cargo leptos build --release -vv
 
+# Finally use a slim Debian image to build the final runtime image 
+# which contains only the built app and required resource files.
 FROM debian:bookworm-slim AS runtime
+RUN mkdir -p /data
 WORKDIR /app
 RUN apt-get update -y \
   && apt-get install -y --no-install-recommends openssl ca-certificates \

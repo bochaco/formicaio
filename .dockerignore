@@ -1,3 +1,5 @@
+./.git
 Dockerfile
 ./target
 ./docker_volumes
+./node_modules
