@@ -53,8 +53,6 @@ pub enum DockerClientError {
     #[error("Docker server error: {0}")]
     DockerServerError(String),
     #[error(transparent)]
-    Reqwest(#[from] reqwest::Error),
-    #[error(transparent)]
     SerdeJson(#[from] serde_json::Error),
     #[error(transparent)]
     Http(#[from] http::Error),

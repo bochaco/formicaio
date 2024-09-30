@@ -7,56 +7,62 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-async-stream = "0.3.5"
+async-stream = { version = "0.3.5", optional = true }
 axum = { version = "0.7", optional = true, features = ["macros"] }
-bs58 = "0.5.1"
+bs58 = { version = "0.5.1", optional = true }
 bytes = "1.7"
 chrono = "0.4.38"
 console_error_panic_hook = "0.1"
-dyn-fmt = "0.4.0"
 futures-util = "0.3.30"
 gloo-timers = { version = "0.3.0", features = ["futures"] }
 hex = "0.4.3"
-http-body-util = "0.1.2"
-hyper = { version = "1.4.1", features = ["client","http1"] }
-hyper-util = "0.1.9"
+http = "1"
+http-body-util = { version = "0.1.2", optional = true }
+hyper = { version = "1.4.1", features = ["client","http1"], optional = true }
+hyper-util = { version = "0.1.9", optional = true }
 leptos = { version = "0.6" }
 leptos_axum = { version = "0.6", optional = true }
 leptos_meta = { version = "0.6" }
 leptos_router = { version = "0.6" }
 rand = "0.8.5"
-reqwest = { version = "0.12", features = ["json","native-tls-vendored", "stream"] }
-semver = "1.0.20"
+reqwest = { version = "0.12", features = ["native-tls-vendored"], optional = true }
+semver = { version = "1.0.20", optional = true }
 serde = "1.0.207"
 serde_json = "1.0"
-server_fn = { version = "0.6" }
+server_fn = { version = "0.6", optional = true }
 sn_protocol = { version = "0.17.6", features = ["rpc"], optional = true }
 sqlx = { version = "0.8.0", features = ["runtime-tokio","tls-rustls","sqlite"], optional = true }
+thiserror = "1"
 tonic = { version = "0.6.2", optional = true }
 tokio = { version = "1", features = ["rt-multi-thread"], optional = true }
 tower = { version = "0.4", optional = true }
 tower-http = { version = "0.5", features = ["fs"], optional = true }
-url = "2"
+url = { version = "2", optional = true }
 wasm-bindgen = "=0.2.93"
-thiserror = "1"
-tracing = { version = "0.1", optional = true }
-http = "1"
 
 [features]
 hydrate = ["leptos/hydrate", "leptos_meta/hydrate", "leptos_router/hydrate"]
 ssr = [
+    "dep:async-stream",
     "dep:axum",
+    "dep:bs58",
+    "dep:http-body-util",
+    "dep:hyper",
+    "dep:hyper-util",
+    "dep:leptos_axum",
+    "dep:reqwest",
+    "dep:semver",
+    "dep:server_fn",
     "dep:sn_protocol",
     "dep:sqlx",
     "dep:tonic",
     "dep:tokio",
     "dep:tower",
     "dep:tower-http",
-    "dep:leptos_axum",
+    "dep:url",
     "leptos/ssr",
     "leptos_meta/ssr",
     "leptos_router/ssr",
-    "dep:tracing",
 ]
 
 # Defines a size-optimized profile for the WASM bundle in release mode
