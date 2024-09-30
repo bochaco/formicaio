@@ -7,7 +7,10 @@ use sqlx::{
     sqlite::SqlitePool,
     FromRow, Sqlite,
 };
-use std::env::current_dir;
+use std::{
+    env::{self, current_dir},
+    path::Path,
+};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -16,8 +19,12 @@ pub enum DbError {
     SqlxError(#[from] sqlx::Error),
 }
 
-// Sqlite DB URL to connect to with sqlx.
-const SQLITE_DB_URL: &str = "sqlite:formicaio.db";
+// Sqlite DB filename.
+const SQLITE_DB_FILENAME: &str = "formicaio.db";
+// Env var name to set the path for the DB file.
+const DB_PATH: &str = "DB_PATH";
+// Default path for the DB file.
+const DEFAULT_DB_PATH: &str = "./";
 
 // Struct stored on the DB caching nodes metadata.
 #[derive(Clone, Debug, Deserialize, FromRow, Serialize)]
@@ -77,12 +84,19 @@ pub struct DbClient {
 impl DbClient {
     // Create a connection to local Sqlite DB where nodes metadata is cached.
     pub async fn connect() -> Result<Self, sqlx::Error> {
-        if !Sqlite::database_exists(SQLITE_DB_URL)
+        let db_path = match env::var(DB_PATH) {
+            Ok(v) => Path::new(&v).to_path_buf(),
+            Err(_) => Path::new(DEFAULT_DB_PATH).to_path_buf(),
+        };
+        // Sqlite DB URL to connect to with sqlx.
+        let sqlite_db_url = format!("sqlite:{}", db_path.join(SQLITE_DB_FILENAME).display());
+
+        if !Sqlite::database_exists(&sqlite_db_url)
             .await
             .unwrap_or(false)
         {
-            logging::log!("Creating database {SQLITE_DB_URL}");
-            match Sqlite::create_database(SQLITE_DB_URL).await {
+            logging::log!("Creating database {sqlite_db_url}");
+            match Sqlite::create_database(&sqlite_db_url).await {
                 Ok(()) => logging::log!("Created database successfully!"),
                 Err(err) => {
                     logging::log!("Failed to create database: {err}");
@@ -91,7 +105,7 @@ impl DbClient {
             }
         }
 
-        let db = SqlitePool::connect(SQLITE_DB_URL).await?;
+        let db = SqlitePool::connect(&sqlite_db_url).await?;
 
         let migrations = current_dir()?.join("migrations");
         logging::log!("Applying database migration scripts from: {migrations:?} ...");
