@@ -173,7 +173,7 @@ pub fn NodesListView() -> impl IntoView {
 #[component]
 fn CreatingNodeInstanceView() -> impl IntoView {
     view! {
-        <div class="w-1/4 m-2 p-4 overflow-x-auto card card-normal bg-neutral text-neutral-content card-bordered shadow-2xl">
+        <div class="m-2 p-4 overflow-x-auto card card-normal bg-neutral text-neutral-content card-bordered shadow-2xl">
             <div class="flex flex-col gap-4">
                 <div class="skeleton h-16 w-full"></div>
                 <div class="skeleton h-4 w-28"></div>
@@ -215,7 +215,7 @@ fn NodeInstanceView(
     };
 
     view! {
-        <div class="w-1/4 m-2 p-4 overflow-x-auto card card-normal bg-neutral text-neutral-content card-bordered shadow-2xl">
+        <div class="m-2 p-4 overflow-x-auto card card-normal bg-neutral text-neutral-content card-bordered shadow-2xl">
             <div class="card-actions justify-end">
                 <Show
                     when=move || info.get().status.is_transitioning()
