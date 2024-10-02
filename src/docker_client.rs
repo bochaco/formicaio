@@ -192,7 +192,6 @@ impl DockerClient {
         let container_create_req = ContainerCreate {
             Image: format!("{}:{}", self.node_image_name, self.node_image_tag),
             // we use a label so we can then filter them when fetching a list of containers
-            // TODO: set the value to the current version of the image used
             Labels: Some(
                 [
                     (LABEL_KEY_VERSION.to_string(), self.node_image_tag.clone()),
@@ -374,10 +373,13 @@ impl DockerClient {
         };
         let resp_bytes = self.send_request(ReqMethod::Post, &url, &[], &opts).await?;
         let balance_str = String::from_utf8_lossy(&resp_bytes);
-        let balance = balance_str
-            .parse::<u64>()
-            .map_err(|_| DockerClientError::InvalidValue(balance_str.to_string()))?;
-
+        let balance = if balance_str.is_empty() {
+            0
+        } else {
+            balance_str
+                .parse::<u64>()
+                .map_err(|_| DockerClientError::InvalidValue(balance_str.to_string()))?
+        };
         //logging::log!("Forwarded balance in container {id}: {balance}");
         Ok(balance)
     }
@@ -453,7 +455,8 @@ impl DockerClient {
         // consume and await end of response stream, discarding the bytes
         get_response_bytes(resp).await?;
 
-        logging::log!("Formica image {NODE_CONTAINER_IMAGE_NAME} was successfully pulled!");
+        // FIXME: check if it succeeded and report error if it failed
+        //logging::log!("Formica image {NODE_CONTAINER_IMAGE_NAME} was successfully pulled!");
         Ok(())
     }
 

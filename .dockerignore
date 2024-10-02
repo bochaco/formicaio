@@ -1,5 +1,6 @@
 ./.git
 Dockerfile
 ./target
-./docker_volumes
+**/docker_volumes
 ./node_modules
+./deploy
