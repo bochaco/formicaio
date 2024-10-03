@@ -14,6 +14,15 @@ digital assets with ease through the built-in wallet. Receive, send,
 and store tokens, rewards, and coins earned from running nodes or received 
 from third-party sources, all within a single, user-friendly interface.
 
+## How to use:
+
+### UmbrelOS
+
+This application has not yet been published on the official UmbrelOS app store. However, you can still install and run it on any UmbrelOS device using the [Formicaio community app store](https://github.com/bochaco/formicaio-app-store). To do this, simply add the GitHub URL (https://github.com/bochaco/formicaio-app-store) through the UmbrelOS user interface, as demonstrated in the following demo:
+
+https://user-images.githubusercontent.com/10330103/197889452-e5cd7e96-3233-4a09-b475-94b754adc7a3.mp4
+
+
 ## License
 
 This project is licensed under the General Public License (GPL), version
