@@ -1,0 +1,32 @@
+services:
+  docker:
+    image: docker:27.2.0-dind@sha256:f9f72ad901a78f27be922b2d320bbc263174f12919c1b37e6a01f828fa904565
+    privileged: true
+    network_mode: host
+    stop_grace_period: 1m
+    environment:
+      DOCKER_ENSURE_BRIDGE: "dind0:10.32.0.1/16"
+    entrypoint: /entrypoint.sh
+    command: >
+      dockerd
+        --bridge dind0
+        --data-root /data/data
+        --exec-root /data/exec
+        --host unix:///data/docker.sock
+        --pidfile /data/docker.pid
+    volumes:
+      - ./entrypoint.sh:/entrypoint.sh
+      - ./docker_volumes/docker:/data
+
+  formicaio:
+    image: bochaco/formicaio:latest
+    stop_grace_period: 5s
+    ports:
+      - "52100:8080"
+    environment:
+      NODE_CONTAINER_IMAGE_TAG: latest
+      DOCKER_SOCKET_PATH: /var/run/docker.sock
+      DB_PATH: /data
+    volumes:
+      - ./docker_volumes/formicaio:/data
+      - ./docker_volumes/docker:/var/run
