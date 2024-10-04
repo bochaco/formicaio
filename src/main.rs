@@ -27,15 +27,14 @@ async fn main() {
     let docker_client = DockerClient::new().await.unwrap();
 
     let latest_bin_version = Arc::new(Mutex::new(None));
+    spawn_bg_tasks(docker_client.clone(), latest_bin_version.clone());
 
     let app_state = ServerGlobalState {
         leptos_options,
         db_client,
         docker_client,
-        latest_bin_version: latest_bin_version.clone(),
+        latest_bin_version,
     };
-
-    spawn_bg_tasks(latest_bin_version);
 
     let app = Router::new()
         .leptos_routes(&app_state, routes, App)
@@ -58,7 +57,11 @@ pub fn main() {
 
 // Spawn any required background tasks
 #[cfg(feature = "ssr")]
-fn spawn_bg_tasks(latest_bin_version: Arc<Mutex<Option<String>>>) {
+fn spawn_bg_tasks(
+    docker_client: formicaio::docker_client::DockerClient,
+    latest_bin_version: Arc<Mutex<Option<String>>>,
+) {
+    use leptos::logging;
     use tokio::time::{sleep, Duration};
     // check latest version of node binary every couple of hours
     const BIN_VERSION_POLLING_FREQ: Duration = Duration::from_secs(60 * 60 * 2);
@@ -66,10 +69,19 @@ fn spawn_bg_tasks(latest_bin_version: Arc<Mutex<Option<String>>>) {
     tokio::spawn(async move {
         loop {
             if let Some(version) = latest_version_available().await {
-                leptos::logging::log!("Latest version of node binary available: {version}");
+                logging::log!("Latest version of node binary available: {version}");
                 *latest_bin_version.lock().await = Some(version);
             }
             sleep(BIN_VERSION_POLLING_FREQ).await;
+        }
+    });
+
+    // let's pull the node image already to reduce the time it'll take
+    // to create the very first node instance
+    tokio::spawn(async move {
+        logging::log!("Pulling formica node image ...");
+        if let Err(err) = docker_client.pull_formica_image().await {
+            logging::log!("Failed to pull node image when starting up: {err}");
         }
     });
 }
