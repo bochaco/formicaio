@@ -42,6 +42,8 @@ const LABEL_KEY_VERSION: &str = "formica_version";
 pub const LABEL_KEY_RPC_PORT: &str = "rpc_api_port";
 // Label's key to cache node's port number
 pub const LABEL_KEY_NODE_PORT: &str = "node_port";
+// Label's key to cache the beta tester id set for the node
+pub const LABEL_KEY_BETA_TESTER_ID: &str = "beta_tester_id";
 
 #[derive(Debug, Error)]
 pub enum DockerClientError {
@@ -186,25 +188,29 @@ impl DockerClient {
         &self,
         port: u16,
         rpc_api_port: u16,
+        beta_tester_id: String,
     ) -> Result<ContainerId, DockerClientError> {
         let url = format!("{DOCKER_CONTAINERS_API}/create");
         let mapped_ports = vec![port, rpc_api_port];
+        let mut labels = vec![
+            (LABEL_KEY_VERSION.to_string(), self.node_image_tag.clone()),
+            (LABEL_KEY_RPC_PORT.to_string(), rpc_api_port.to_string()),
+            (LABEL_KEY_NODE_PORT.to_string(), port.to_string()),
+        ];
+        let mut env_vars = vec![
+            format!("NODE_PORT={port}"),
+            format!("RPC_PORT={rpc_api_port}"),
+        ];
+        if !beta_tester_id.is_empty() {
+            env_vars.push(format!("BETA_TESTER_ARG=--owner {beta_tester_id}"));
+            labels.push((LABEL_KEY_BETA_TESTER_ID.to_string(), beta_tester_id.clone()));
+        }
+
         let container_create_req = ContainerCreate {
             Image: format!("{}:{}", self.node_image_name, self.node_image_tag),
             // we use a label so we can then filter them when fetching a list of containers
-            Labels: Some(
-                [
-                    (LABEL_KEY_VERSION.to_string(), self.node_image_tag.clone()),
-                    (LABEL_KEY_RPC_PORT.to_string(), rpc_api_port.to_string()),
-                    (LABEL_KEY_NODE_PORT.to_string(), port.to_string()),
-                ]
-                .into_iter()
-                .collect(),
-            ),
-            Env: Some(vec![
-                format!("NODE_PORT={port}"),
-                format!("RPC_PORT={rpc_api_port}"),
-            ]),
+            Labels: Some(labels.into_iter().collect()),
+            Env: Some(env_vars),
             ExposedPorts: Some(
                 mapped_ports
                     .iter()

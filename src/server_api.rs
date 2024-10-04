@@ -3,7 +3,9 @@ use super::node_instance::NodeInstanceInfo;
 #[cfg(feature = "ssr")]
 use super::{
     app::ServerGlobalState,
-    docker_client::{ContainerState, LABEL_KEY_NODE_PORT, LABEL_KEY_RPC_PORT},
+    docker_client::{
+        ContainerState, LABEL_KEY_BETA_TESTER_ID, LABEL_KEY_NODE_PORT, LABEL_KEY_RPC_PORT,
+    },
     node_instance::NodeStatus,
     node_rpc_client::NodeRpcClient,
 };
@@ -74,6 +76,7 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
             rewards: None,
             balance: None,
             forwarded_balance: None,
+            beta_tester_id: container.Labels.get(LABEL_KEY_BETA_TESTER_ID).cloned(),
             records: None,
             connected_peers: None,
             kbuckets_peers: None,
@@ -104,12 +107,13 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
 pub async fn create_node_instance(
     port: u16,
     rpc_api_port: u16,
+    beta_tester_id: String,
 ) -> Result<NodeInstanceInfo, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
     logging::log!("Creating new node container with port {port}, RPC API port {rpc_api_port} ...");
     let container_id = context
         .docker_client
-        .create_new_container(port, rpc_api_port)
+        .create_new_container(port, rpc_api_port, beta_tester_id.clone())
         .await?;
     logging::log!("New node container Id: {container_id} ...");
 
@@ -142,6 +146,11 @@ pub async fn create_node_instance(
         rewards: None,
         balance: None,
         forwarded_balance: None,
+        beta_tester_id: if beta_tester_id.is_empty() {
+            None
+        } else {
+            Some(beta_tester_id)
+        },
         records: None,
         connected_peers: None,
         kbuckets_peers: None,

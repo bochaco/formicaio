@@ -30,6 +30,7 @@ RUN /app/safenode --version
 # Set default port numbers for node and its RPC API
 ENV NODE_PORT=12000
 ENV RPC_PORT=13000
+ENV BETA_TESTER_ARG=''
 
 EXPOSE $NODE_PORT
 EXPOSE $RPC_PORT
@@ -40,5 +41,6 @@ CMD ["sh", "-c", \
       --port ${NODE_PORT} \
       --rpc 0.0.0.0:${RPC_PORT} \
       --root-dir /app/node_data \
-      --log-output-dest /app/node_data/logs" \
+      --log-output-dest /app/node_data/logs \
+      ${BETA_TESTER_ARG}" \
     ]

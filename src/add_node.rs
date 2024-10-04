@@ -11,13 +11,17 @@ const DEFAULT_RPC_API_PORT: u16 = 13000;
 pub fn AddNodeView() -> impl IntoView {
     let port = create_rw_signal(Ok(DEFAULT_NODE_PORT));
     let rpc_port = create_rw_signal(Ok(DEFAULT_RPC_API_PORT));
-    let add_node = create_action(move |(port, rpc_port): &(u16, u16)| {
-        let port = *port;
-        let rpc_port = *rpc_port;
-        async move {
-            let _ = add_node_instance(port, rpc_port).await;
-        }
-    });
+    let beta_tester_id = create_rw_signal("".to_string());
+    let add_node = create_action(
+        move |(port, rpc_port, beta_tester_id): &(u16, u16, String)| {
+            let port = *port;
+            let rpc_port = *rpc_port;
+            let beta_tester_id = beta_tester_id.to_string();
+            async move {
+                let _ = add_node_instance(port, rpc_port, beta_tester_id).await;
+            }
+        },
+    );
 
     view! {
         <div class="divider divider-center">
@@ -35,6 +39,7 @@ pub fn AddNodeView() -> impl IntoView {
                         default=DEFAULT_RPC_API_PORT
                         label="RPC API port number:"
                     />
+                    <BetaTesterInput signal=beta_tester_id label="Beta tester id:" />
 
                     <div class="modal-action">
                         <form method="dialog">
@@ -48,8 +53,12 @@ pub fn AddNodeView() -> impl IntoView {
                                     }
                                 }
                                 on:click=move |_| {
-                                    if let (Ok(p), Ok(r)) = (port.get(), rpc_port.get()) {
-                                        let _ = add_node.dispatch((p, r));
+                                    if let (Ok(p), Ok(r), t) = (
+                                        port.get(),
+                                        rpc_port.get(),
+                                        beta_tester_id.get(),
+                                    ) {
+                                        let _ = add_node.dispatch((p, r, t));
                                     }
                                 }
                             >
@@ -80,6 +89,17 @@ pub fn PortNumberInput(
                     <p>"Not a valid port number"</p>
                 }
             }>""</ErrorBoundary>
+        </label>
+    }
+}
+
+#[component]
+pub fn BetaTesterInput(signal: RwSignal<String>, label: &'static str) -> impl IntoView {
+    let on_input = move |ev| signal.set(event_target_value(&ev));
+
+    view! {
+        <label class="input input-bordered flex items-center gap-2 mb-6">
+            {label} <input type="text" class="grow" value="" on:input=on_input />
         </label>
     }
 }

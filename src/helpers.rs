@@ -7,7 +7,11 @@ use super::{
 use leptos::*;
 
 // Creates and add a new node instance updating the given signal
-pub async fn add_node_instance(port: u16, rpc_api_port: u16) -> Result<(), ServerFnError> {
+pub async fn add_node_instance(
+    port: u16,
+    rpc_api_port: u16,
+    beta_tester_id: String,
+) -> Result<(), ServerFnError> {
     let context = expect_context::<ClientGlobalState>();
 
     let tmp_container_id = format!("tmp-{}", hex::encode(rand::random::<[u8; 6]>().to_vec())); // random and temporary
@@ -20,7 +24,7 @@ pub async fn add_node_instance(port: u16, rpc_api_port: u16) -> Result<(), Serve
         items.insert(tmp_container_id.clone(), create_rw_signal(tmp_container));
     });
 
-    let container = create_node_instance(port, rpc_api_port).await?;
+    let container = create_node_instance(port, rpc_api_port, beta_tester_id).await?;
 
     context.nodes.update(|items| {
         items.remove(&tmp_container_id);

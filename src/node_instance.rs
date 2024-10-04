@@ -91,6 +91,7 @@ pub struct NodeInstanceInfo {
     pub rewards: Option<u64>,
     pub balance: Option<u64>,           // nanos
     pub forwarded_balance: Option<u64>, // nanos, only during beta
+    pub beta_tester_id: Option<String>,
     pub records: Option<usize>,
     pub connected_peers: Option<usize>,
     pub kbuckets_peers: Option<usize>,
@@ -263,9 +264,21 @@ fn NodeInstanceView(
                 {move || info.get().balance.map_or("unknown".to_string(), |v| v.to_string())}
             </p>
             <p>
+                <span class="text-info">"Tester id (Beta): "</span>
+                {move || {
+                    info.get().beta_tester_id.map_or("none".to_string(), |v| v.to_string())
+                }}
+            </p>
+            <p>
                 <span class="text-info">"Forwarded balance (Beta): "</span>
                 {move || {
-                    info.get().forwarded_balance.map_or("unknown".to_string(), |v| v.to_string())
+                    if info.get().beta_tester_id.is_none() {
+                        "n/a".to_string()
+                    } else {
+                        info.get()
+                            .forwarded_balance
+                            .map_or("unknown".to_string(), |v| v.to_string())
+                    }
                 }}
             </p>
             <p>
