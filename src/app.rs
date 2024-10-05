@@ -59,7 +59,6 @@ pub fn App() -> impl IntoView {
 
         // sets the document title
         <Title text="Formicaio" />
-
         // content for this welcome page
         <Router fallback=|| {
             let mut outside_errors = Errors::default();
@@ -67,9 +66,11 @@ pub fn App() -> impl IntoView {
             view! { <ErrorTemplate outside_errors /> }.into_view()
         }>
             <main>
-                <Routes>
-                    <Route path="" view=HomePage />
-                </Routes>
+                <html data-theme="dark">
+                    <Routes>
+                        <Route path="" view=HomePage />
+                    </Routes>
+                </html>
             </main>
         </Router>
     }
