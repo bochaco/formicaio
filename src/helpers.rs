@@ -14,10 +14,10 @@ pub async fn add_node_instance(
 ) -> Result<(), ServerFnError> {
     let context = expect_context::<ClientGlobalState>();
 
-    let tmp_container_id = format!("tmp-{}", hex::encode(rand::random::<[u8; 6]>().to_vec())); // random and temporary
+    let tmp_container_id = format!("tmp-{}", hex::encode(rand::random::<[u8; 6]>())); // random and temporary
     let tmp_container = NodeInstanceInfo {
         container_id: tmp_container_id.clone(),
-        created: std::u64::MAX, // just so it's shown first as the newest in the UI
+        created: u64::MAX, // just so it's shown first as the newest in the UI
         ..Default::default()
     };
     context.nodes.update(|items| {
@@ -70,7 +70,7 @@ pub async fn node_logs_stream(
                     cur_line.extend(line);
                     if i < num_lines - 1 {
                         let log: String = String::from_utf8_lossy(&cur_line).to_string();
-                        received_logs.update(|entries| entries.push(format!("{log}")));
+                        received_logs.update(|entries| entries.push(log.to_string()));
                         cur_line.clear();
                     }
                 }

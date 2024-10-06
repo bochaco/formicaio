@@ -53,15 +53,15 @@ impl NodeStatus {
         matches!(self, Self::Upgrading)
     }
     pub fn is_transitioning(&self) -> bool {
-        match self {
+        matches!(
+            self,
             Self::Creating
-            | Self::Restarting
-            | Self::Stopping
-            | Self::Removing
-            | Self::Upgrading
-            | Self::Transitioned(_) => true,
-            _ => false,
-        }
+                | Self::Restarting
+                | Self::Stopping
+                | Self::Removing
+                | Self::Upgrading
+                | Self::Transitioned(_)
+        )
     }
     pub fn is_transitioned(&self) -> bool {
         matches!(self, Self::Transitioned(_))
@@ -318,9 +318,8 @@ fn NodeLogs(info: RwSignal<NodeInstanceInfo>, set_logs: WriteSignal<Vec<String>>
     let start_logs_stream = create_action(move |id: &String| {
         context.logs_stream_is_on.set(true);
         let id = id.clone();
-        let signal = set_logs.clone();
         async move {
-            let _ = node_logs_stream(id, signal).await;
+            let _ = node_logs_stream(id, set_logs).await;
         }
     });
 

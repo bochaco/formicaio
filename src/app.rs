@@ -19,7 +19,7 @@ use leptos_meta::*;
 use leptos_router::*;
 use std::collections::BTreeMap;
 
-const POLLING_FREQ_MILLIS: u32 = 5000;
+const POLLING_FREQ_MILLIS: u32 = 5_000;
 
 #[cfg(feature = "ssr")]
 #[derive(Clone, FromRef, Debug)]
@@ -128,7 +128,7 @@ fn HomePage() -> impl IntoView {
 // Spawns a task which polls the server to obtain up to date information of nodes instances.
 fn spawn_nodes_list_polling() {
     spawn_local(async {
-        logging::log!("Polling server every {POLLING_FREQ_MILLIS:?}ms. ...");
+        logging::log!("Polling server every {POLLING_FREQ_MILLIS}ms. ...");
         let context = expect_context::<ClientGlobalState>();
         loop {
             TimeoutFuture::new(POLLING_FREQ_MILLIS).await;
@@ -153,7 +153,7 @@ fn spawn_nodes_list_polling() {
                     // let's now update those with new values
                     context.nodes.with_untracked(|cx_nodes| {
                         for (id, cn) in cx_nodes {
-                            info.nodes.get(id).map(|updated| {
+                            if let Some(updated) = info.nodes.get(id) {
                                 if cn.get_untracked() != *updated {
                                     cn.update(|cn| {
                                         if !cn.status.is_transitioning()
@@ -172,7 +172,7 @@ fn spawn_nodes_list_polling() {
                                         cn.kbuckets_peers = updated.kbuckets_peers;
                                     });
                                 }
-                            });
+                            }
                         }
                     });
                     // we can add any new node created remotely, perhaps by another instance of the app

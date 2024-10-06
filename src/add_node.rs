@@ -58,7 +58,7 @@ pub fn AddNodeView() -> impl IntoView {
                                         rpc_port.get(),
                                         beta_tester_id.get(),
                                     ) {
-                                        let _ = add_node.dispatch((p, r, t));
+                                        add_node.dispatch((p, r, t));
                                     }
                                 }
                             >

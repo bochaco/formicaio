@@ -26,9 +26,8 @@ RUN cargo binstall cargo-leptos -y
 # Add the WASM target
 RUN rustup target add wasm32-unknown-unknown
 RUN rustup component add rustfmt
+RUN rustup component add clippy
 
-# Make an /app dir, which everything will eventually live in
-RUN mkdir -p /app
 WORKDIR /app
 
 # Copy tailwindcss modules, and nodejs binary, to the /app directory
@@ -38,6 +37,9 @@ COPY --from=tailwindcss-builder /usr/local/bin/node /usr/local/bin/node
 
 # Now we can copy the source files to build them
 COPY . .
+
+# make sure we exit early if clippy is not happy
+RUN cargo clippy -- -D warnings
 
 # Build the app
 RUN cargo leptos build --release -vv

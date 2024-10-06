@@ -11,16 +11,16 @@ pub fn AggregatedStatsView() -> impl IntoView {
         context
             .nodes
             .get()
-            .iter()
-            .filter(|(_, n)| n.get().status.is_active())
+            .values()
+            .filter(|n| n.get().status.is_active())
             .count()
     };
     let inactive_nodes = move || {
         context
             .nodes
             .get()
-            .iter()
-            .filter(|(_, n)| n.get().status.is_inactive())
+            .values()
+            .filter(|n| n.get().status.is_inactive())
             .count()
     };
     // TODO: only during beta testing we report the forwarded_balance, after that it
@@ -29,32 +29,32 @@ pub fn AggregatedStatsView() -> impl IntoView {
         context
             .nodes
             .get()
-            .iter()
-            .map(|(_, n)| n.get().forwarded_balance.unwrap_or_default())
+            .values()
+            .map(|n| n.get().forwarded_balance.unwrap_or_default())
             .sum::<u64>()
     };
     let balance = move || {
         context
             .nodes
             .get()
-            .iter()
-            .map(|(_, n)| n.get().balance.unwrap_or_default())
+            .values()
+            .map(|n| n.get().balance.unwrap_or_default())
             .sum::<u64>()
     };
     let connected_peers = move || {
         context
             .nodes
             .get()
-            .iter()
-            .map(|(_, n)| n.get().connected_peers.unwrap_or_default())
+            .values()
+            .map(|n| n.get().connected_peers.unwrap_or_default())
             .sum::<usize>()
     };
     let active_records = move || {
         context
             .nodes
             .get()
-            .iter()
-            .map(|(_, n)| {
+            .values()
+            .map(|n| {
                 if n.get().status.is_active() {
                     n.get().records.unwrap_or_default()
                 } else {
@@ -67,8 +67,8 @@ pub fn AggregatedStatsView() -> impl IntoView {
         context
             .nodes
             .get()
-            .iter()
-            .map(|(_, n)| {
+            .values()
+            .map(|n| {
                 if n.get().status.is_inactive() {
                     n.get().records.unwrap_or_default()
                 } else {
