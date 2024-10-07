@@ -1,6 +1,6 @@
 use super::{
     app::ClientGlobalState,
-    helpers::{node_logs_stream, remove_node_instance},
+    helpers::{node_logs_stream, remove_node_instance, show_alert_msg},
     icons::{IconRemoveNode, IconShowLogs, IconStartNode, IconStopNode, IconUpgradeNode},
     server_api::{start_node_instance, stop_node_instance, upgrade_node_instance},
 };
@@ -137,7 +137,6 @@ pub fn NodesListView() -> impl IntoView {
                 >
                     <NodeInstanceView info=child.1 set_logs />
                 </Show>
-
             </For>
         </div>
 
@@ -319,7 +318,10 @@ fn NodeLogs(info: RwSignal<NodeInstanceInfo>, set_logs: WriteSignal<Vec<String>>
         context.logs_stream_is_on.set(true);
         let id = id.clone();
         async move {
-            let _ = node_logs_stream(id, set_logs).await;
+            if let Err(err) = node_logs_stream(id, set_logs).await {
+                logging::log!("Failed to start logs stream: {err:?}");
+                show_alert_msg(err.to_string());
+            }
         }
     });
 
@@ -370,6 +372,7 @@ fn ButtonStopStart(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                             }
                             Err(err) => {
                                 logging::log!("Failed to start node: {err:?}");
+                                show_alert_msg(err.to_string());
                                 info.update(|node| node.status = previous_status);
                             }
                         }
@@ -387,6 +390,7 @@ fn ButtonStopStart(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                             }
                             Err(err) => {
                                 logging::log!("Failed to stop node: {err:?}");
+                                show_alert_msg(err.to_string());
                                 info.update(|node| node.status = previous_status);
                             }
                         }
@@ -405,7 +409,6 @@ fn ButtonStopStart(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                 }
             >
                 <div class="tooltip tooltip-bottom tooltip-info" data-tip="start">
-
                     <IconStartNode />
                 </div>
             </Show>
@@ -446,6 +449,7 @@ fn ButtonUpgrade(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                             }
                             Err(err) => {
                                 logging::log!("Failed to upgrade node: {err:?}");
+                                show_alert_msg(err.to_string());
                                 info.update(|node| node.status = previous_status);
                             }
                         }
@@ -475,7 +479,10 @@ fn ButtonRemove(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                     info.update(|info| info.status = NodeStatus::Removing);
                     let container_id = info.get().container_id.clone();
                     async move {
-                        let _ = remove_node_instance(container_id).await;
+                        if let Err(err) = remove_node_instance(container_id).await {
+                            logging::log!("Failed to remove node: {err:?}");
+                            show_alert_msg(err.to_string());
+                        }
                     }
                 })
             >

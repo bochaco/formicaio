@@ -1,6 +1,7 @@
 use super::{
     add_node::AddNodeView,
     error_template::{AppError, ErrorTemplate},
+    icons::IconAlertMsgError,
     node_instance::{NodeInstanceInfo, NodesListView},
     server_api::nodes_instances,
     stats::AggregatedStatsView,
@@ -39,6 +40,8 @@ pub struct ClientGlobalState {
     pub logs_stream_is_on: RwSignal<bool>,
     // Lastest version of the node binary available
     pub latest_bin_version: RwSignal<Option<String>>,
+    // List of alerts to be shown in the UI
+    pub alerts: RwSignal<Vec<(u64, String)>>,
 }
 
 #[component]
@@ -50,8 +53,8 @@ pub fn App() -> impl IntoView {
     provide_context(ClientGlobalState {
         nodes: create_rw_signal(BTreeMap::default()),
         logs_stream_is_on: create_rw_signal(false),
-        // TODO: spawn a task to update this field with latest version available
         latest_bin_version: create_rw_signal(None),
+        alerts: create_rw_signal(vec![]),
     });
 
     view! {
@@ -115,6 +118,8 @@ fn HomePage() -> impl IntoView {
 
                                 <AddNodeView />
 
+                                <AlertMsg />
+
                                 <NodesListView />
                             }
                                 .into_view()
@@ -122,6 +127,20 @@ fn HomePage() -> impl IntoView {
                     }
                 })}
         </Suspense>
+    }
+}
+
+#[component]
+fn AlertMsg() -> impl IntoView {
+    let context = expect_context::<ClientGlobalState>();
+
+    view! {
+        <For each=move || context.alerts.get() key=|(id, _)| *id let:child>
+            <div role="alert" class="alert alert-error">
+                <IconAlertMsgError />
+                <span>{child.1}</span>
+            </div>
+        </For>
     }
 }
 

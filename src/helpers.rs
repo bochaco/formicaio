@@ -4,7 +4,27 @@ use super::{
     server_api::{create_node_instance, delete_node_instance, start_node_logs_stream},
 };
 
+use gloo_timers::future::TimeoutFuture;
 use leptos::*;
+use rand::Rng;
+
+// Duration of each alert message shows in the UI
+const ALERT_MSG_DURATION_MILLIS: u32 = 9_000;
+
+// Shows an alert message in the UI (currently as an error).
+// TODO: allow to provide the type of alert, i.e. info, warning, etc.
+pub fn show_alert_msg(msg: String) {
+    let context = expect_context::<ClientGlobalState>();
+    spawn_local(async move {
+        let mut rng = rand::thread_rng();
+        let random_id = rng.gen::<u64>();
+        context.alerts.update(|msgs| msgs.push((random_id, msg)));
+        TimeoutFuture::new(ALERT_MSG_DURATION_MILLIS).await;
+        context
+            .alerts
+            .update(|msgs| msgs.retain(|(id, _)| *id != random_id));
+    });
+}
 
 // Creates and add a new node instance updating the given signal
 pub async fn add_node_instance(

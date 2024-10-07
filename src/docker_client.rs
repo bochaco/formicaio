@@ -334,9 +334,9 @@ impl DockerClient {
         let exec: ContainerExecJson = serde_json::from_slice(&resp_bytes)?;
         logging::log!("Container exec: {exec:#?}");
         if exec.ExitCode != 0 {
-            // TODO: update UI
-            logging::log!("Failed to upgrade node, exit code: {}", exec.ExitCode);
-            return Ok(());
+            let error_msg = format!("Failed to upgrade node, exit code: {}", exec.ExitCode);
+            logging::log!("{error_msg}");
+            return Err(DockerClientError::DockerServerError(error_msg));
         }
 
         // restart container to run with new node version
