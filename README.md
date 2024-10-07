@@ -29,10 +29,26 @@ This application can also be launched on a Linux (amd64/arm64) machine using Doc
 ```
 $ git clone https://github.com/bochaco/formicaio
 $ cd formicaio/deploy/local
-$ docker compose up
+$ docker compose up -d
 ```
 
-Once Docker has completed pulling the images and starting the containers, you can access the Formicaio app from a web browser at `localhost:52100`
+Once Docker has completed pulling the images and starting the containers, the app will be running in the background, and you can access the Formicaio app from a web browser at `localhost:52100`
+
+To see the logs you can simply use the following command:
+```
+$ docker compose logs -f
+```
+
+Upgrading the application can be simply achieved by pulling the new image/s and restarting the services:
+```
+$ docker compose pull
+$ docker compose restart
+```
+
+Stopping the Formicaio app and services simply run:
+```
+$ docker compose down
+```
 
 ## License
 
