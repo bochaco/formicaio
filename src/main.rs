@@ -63,7 +63,7 @@ fn spawn_bg_tasks(
 ) {
     use leptos::logging;
     use tokio::time::{sleep, Duration};
-    // check latest version of node binary every couple of hours
+    // Check latest version of node binary every couple of hours
     const BIN_VERSION_POLLING_FREQ: Duration = Duration::from_secs(60 * 60 * 2);
 
     tokio::spawn(async move {
@@ -76,12 +76,18 @@ fn spawn_bg_tasks(
         }
     });
 
-    // let's pull the node image already to reduce the time it'll take
-    // to create the very first node instance
+    // Let's pull the node image already to reduce the time it'll take
+    // to create the very first node instance.
+    // Also, attempt to pull a new version of the formica image every six hours
+    const FORMICA_IMAGE_PULLING_FREQ: Duration = Duration::from_secs(60 * 60 * 6);
+
     tokio::spawn(async move {
-        logging::log!("Pulling formica node image ...");
-        if let Err(err) = docker_client.pull_formica_image().await {
-            logging::log!("Failed to pull node image when starting up: {err}");
+        loop {
+            logging::log!("Pulling formica node image ...");
+            if let Err(err) = docker_client.pull_formica_image().await {
+                logging::log!("Failed to pull node image when starting up: {err}");
+            }
+            sleep(FORMICA_IMAGE_PULLING_FREQ).await;
         }
     });
 }
