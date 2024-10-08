@@ -1,9 +1,11 @@
+#[cfg(feature = "hydrate")]
+use super::server_api::nodes_instances;
 use super::{
     add_node::AddNodeView,
     error_template::{AppError, ErrorTemplate},
     icons::IconAlertMsgError,
+    navbar::{AppScreen, NavBar},
     node_instance::{NodeInstanceInfo, NodesListView},
-    server_api::nodes_instances,
     stats::AggregatedStatsView,
 };
 
@@ -14,12 +16,14 @@ use std::sync::Arc;
 #[cfg(feature = "ssr")]
 use tokio::sync::Mutex;
 
+#[cfg(feature = "hydrate")]
 use gloo_timers::future::TimeoutFuture;
 use leptos::*;
 use leptos_meta::*;
 use leptos_router::*;
 use std::collections::BTreeMap;
 
+#[cfg(feature = "hydrate")]
 const POLLING_FREQ_MILLIS: u32 = 5_000;
 
 #[cfg(feature = "ssr")]
@@ -57,76 +61,49 @@ pub fn App() -> impl IntoView {
         alerts: create_rw_signal(vec![]),
     });
 
-    view! {
-        <Stylesheet id="leptos" href="/pkg/formicaio.css" />
+    // spawn poller task only on client side
+    #[cfg(feature = "hydrate")]
+    spawn_nodes_list_polling();
 
-        // sets the document title
-        <Title text="Formicaio" />
-        // content for this welcome page
-        <Router fallback=|| {
-            let mut outside_errors = Errors::default();
-            outside_errors.insert_with_default_key(AppError::NotFound);
-            view! { <ErrorTemplate outside_errors /> }.into_view()
-        }>
-            <main>
-                <html data-theme="dark">
+    view! {
+        <html data-theme="dark">
+            <Stylesheet id="leptos" href="/pkg/formicaio.css" />
+            <Title text="Formicaio" />
+
+            <Router fallback=|| {
+                let mut outside_errors = Errors::default();
+                outside_errors.insert_with_default_key(AppError::NotFound);
+                view! { <ErrorTemplate outside_errors /> }.into_view()
+            }>
+                <main>
                     <Routes>
-                        <Route path="" view=HomePage />
+                        <Route path="" view=HomeScreenView />
                     </Routes>
-                </html>
-            </main>
-        </Router>
+                </main>
+            </Router>
+        </html>
     }
 }
 
 #[component]
-fn HomePage() -> impl IntoView {
-    // we first read (async) the list of nodes instances that currently exist
-    let info = create_resource(|| (), |_| async move { nodes_instances().await });
+fn HomeScreenView() -> impl IntoView {
+    let active_screen = create_rw_signal(AppScreen::Nodes);
 
     view! {
-        <Suspense fallback=move || {
-            view! { <p>"Loading..."</p> }
-        }>
-            {info
-                .get()
-                .map(|info| {
-                    match info {
-                        Err(err) => {
-                            view! { <p>Failed to load list of nodes: {err.to_string()}</p> }
-                                .into_view()
-                        }
-                        Ok(info) => {
-                            let context = expect_context::<ClientGlobalState>();
-                            context.latest_bin_version.set(info.latest_bin_version);
-                            context
-                                .nodes
-                                .set(
-                                    info
-                                        .nodes
-                                        .into_iter()
-                                        .map(|(i, n)| (i, create_rw_signal(n)))
-                                        .collect(),
-                                );
-                            if cfg!(feature = "hydrate") {
-                                spawn_nodes_list_polling();
-                            }
-                            view! {
-                                // spawn poller task only on client side
-                                // show general stats on top
-                                <AggregatedStatsView />
+        <NavBar active_screen />
 
-                                <AddNodeView />
-
-                                <AlertMsg />
-
-                                <NodesListView />
-                            }
-                                .into_view()
-                        }
-                    }
-                })}
-        </Suspense>
+        {move || match active_screen.get() {
+            AppScreen::Nodes => {
+                view! {
+                    <AggregatedStatsView />
+                    <AddNodeView />
+                    <AlertMsg />
+                    <NodesListView />
+                }
+                    .into_view()
+            }
+            AppScreen::About => view! { <div>"About Formicaio app goes here."</div> }.into_view(),
+        }}
     }
 }
 
@@ -145,13 +122,13 @@ fn AlertMsg() -> impl IntoView {
 }
 
 // Spawns a task which polls the server to obtain up to date information of nodes instances.
+#[cfg(feature = "hydrate")]
 fn spawn_nodes_list_polling() {
     spawn_local(async {
         logging::log!("Polling server every {POLLING_FREQ_MILLIS}ms. ...");
         let context = expect_context::<ClientGlobalState>();
         loop {
-            TimeoutFuture::new(POLLING_FREQ_MILLIS).await;
-
+            // TODO: poll only when nodes list screen is active
             match nodes_instances().await {
                 Err(err) => {
                     logging::log!("Failed to get up to date nodes info from server: {err}")
@@ -205,6 +182,8 @@ fn spawn_nodes_list_polling() {
                         });
                 }
             }
+
+            TimeoutFuture::new(POLLING_FREQ_MILLIS).await;
         }
     });
 }

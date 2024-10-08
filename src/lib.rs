@@ -11,6 +11,7 @@ mod helpers;
 mod icons;
 #[cfg(feature = "ssr")]
 pub mod metadata_db;
+mod navbar;
 mod node_instance;
 #[cfg(feature = "ssr")]
 mod node_rpc_client;
