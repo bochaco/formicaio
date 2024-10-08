@@ -42,7 +42,8 @@ $ docker compose logs -f
 Upgrading the application can be simply achieved by pulling the new image/s and restarting the services:
 ```
 $ docker compose pull
-$ docker compose restart
+$ docker compose down
+$ docker compose up -d
 ```
 
 Stopping the Formicaio app and services simply run:
