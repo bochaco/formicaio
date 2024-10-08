@@ -1,3 +1,4 @@
+mod about;
 mod add_node;
 pub mod app;
 #[cfg(feature = "ssr")]

@@ -1,6 +1,7 @@
 #[cfg(feature = "hydrate")]
 use super::server_api::nodes_instances;
 use super::{
+    about::AboutView,
     add_node::AddNodeView,
     error_template::{AppError, ErrorTemplate},
     icons::IconAlertMsgError,
@@ -102,7 +103,7 @@ fn HomeScreenView() -> impl IntoView {
                 }
                     .into_view()
             }
-            AppScreen::About => view! { <div>"About Formicaio app goes here."</div> }.into_view(),
+            AppScreen::About => view! { <AboutView /> }.into_view(),
         }}
     }
 }
