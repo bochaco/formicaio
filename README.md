@@ -46,7 +46,7 @@ $ docker compose down
 $ docker compose up -d
 ```
 
-Stopping the Formicaio app and services simply run:
+For stopping the Formicaio app and services simply run:
 ```
 $ docker compose down
 ```

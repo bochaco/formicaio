@@ -6,8 +6,8 @@ module.exports = {
     theme: {
       extend: {},
     },
-    plugins: [require('daisyui')],
+    plugins: [require('daisyui'), 'flowbite'],
     daisyui: {
-      themes: ["light", "dark", "cupcake"],
-    },
+      themes: ["light", "dark"],
+    }
   }

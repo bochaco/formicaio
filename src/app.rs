@@ -3,9 +3,9 @@ use super::server_api::nodes_instances;
 use super::{
     about::AboutView,
     add_node::AddNodeView,
+    alerts::AlertMsg,
     error_template::{AppError, ErrorTemplate},
-    icons::IconAlertMsgError,
-    navbar::{AppScreen, NavBar},
+    navbar::NavBar,
     node_instance::{NodeInstanceInfo, NodesListView},
     stats::AggregatedStatsView,
 };
@@ -67,8 +67,11 @@ pub fn App() -> impl IntoView {
     spawn_nodes_list_polling();
 
     view! {
-        <html data-theme="dark">
+        <html>
             <Stylesheet id="leptos" href="/pkg/formicaio.css" />
+            <Script src="https://cdn.jsdelivr.net/npm/flowbite@2.5.1/dist/flowbite.min.js" />
+            // <Script src="/flowbite.min.js" />
+
             <Title text="Formicaio" />
 
             <Router fallback=|| {
@@ -76,9 +79,11 @@ pub fn App() -> impl IntoView {
                 outside_errors.insert_with_default_key(AppError::NotFound);
                 view! { <ErrorTemplate outside_errors /> }.into_view()
             }>
+                <NavBar />
                 <main>
                     <Routes>
-                        <Route path="" view=HomeScreenView />
+                        <Route path="/" view=HomeScreenView />
+                        <Route path="/about" view=AboutView />
                     </Routes>
                 </main>
             </Router>
@@ -88,37 +93,12 @@ pub fn App() -> impl IntoView {
 
 #[component]
 fn HomeScreenView() -> impl IntoView {
-    let active_screen = create_rw_signal(AppScreen::Nodes);
-
     view! {
-        <NavBar active_screen />
+        <AlertMsg />
 
-        {move || match active_screen.get() {
-            AppScreen::Nodes => {
-                view! {
-                    <AggregatedStatsView />
-                    <AddNodeView />
-                    <AlertMsg />
-                    <NodesListView />
-                }
-                    .into_view()
-            }
-            AppScreen::About => view! { <AboutView /> }.into_view(),
-        }}
-    }
-}
-
-#[component]
-fn AlertMsg() -> impl IntoView {
-    let context = expect_context::<ClientGlobalState>();
-
-    view! {
-        <For each=move || context.alerts.get() key=|(id, _)| *id let:child>
-            <div role="alert" class="alert alert-error">
-                <IconAlertMsgError />
-                <span>{child.1}</span>
-            </div>
-        </For>
+        <AggregatedStatsView />
+        <AddNodeView />
+        <NodesListView />
     }
 }
 

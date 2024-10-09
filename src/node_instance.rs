@@ -1,7 +1,9 @@
 use super::{
     app::ClientGlobalState,
     helpers::{node_logs_stream, remove_node_instance, show_alert_msg},
-    icons::{IconRemoveNode, IconShowLogs, IconStartNode, IconStopNode, IconUpgradeNode},
+    icons::{
+        IconCloseModal, IconRemoveNode, IconShowLogs, IconStartNode, IconStopNode, IconUpgradeNode,
+    },
     server_api::{start_node_instance, stop_node_instance, upgrade_node_instance},
 };
 
@@ -108,6 +110,20 @@ impl NodeInstanceInfo {
     pub fn upgradeable(&self) -> bool {
         self.status.is_active() && self.upgrade_available()
     }
+
+    pub fn short_container_id(&self) -> String {
+        self.container_id[..CONTAINER_ID_PREFIX_LEN].to_string()
+    }
+
+    pub fn short_peer_id(&self) -> Option<String> {
+        self.peer_id.as_ref().map(|id| {
+            format!(
+                "{}. . .{}",
+                &id[..PEER_ID_PREFIX_SUFFIX_LEN],
+                &id[id.len() - PEER_ID_PREFIX_SUFFIX_LEN..]
+            )
+        })
+    }
 }
 
 #[component]
@@ -162,7 +178,7 @@ pub fn NodesListView() -> impl IntoView {
                         class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
                         on:click=move |_| context.logs_stream_is_on.set(false)
                     >
-                        X
+                        <IconCloseModal />
                     </label>
                 </div>
             </div>
@@ -173,7 +189,7 @@ pub fn NodesListView() -> impl IntoView {
 #[component]
 fn CreatingNodeInstanceView() -> impl IntoView {
     view! {
-        <div class="m-2 p-4 overflow-x-auto card card-normal bg-neutral text-neutral-content card-bordered shadow-2xl">
+        <div class="max-w-sm m-2 p-4 bg-white border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700">
             <div class="flex flex-col gap-4">
                 <div class="skeleton h-16 w-full"></div>
                 <div class="skeleton h-4 w-28"></div>
@@ -194,16 +210,7 @@ fn NodeInstanceView(
     info: RwSignal<NodeInstanceInfo>,
     set_logs: WriteSignal<Vec<String>>,
 ) -> impl IntoView {
-    let peer_id = move || {
-        info.get().peer_id.map_or("unknown".to_string(), |id| {
-            format!(
-                "{}...{}",
-                &id[..PEER_ID_PREFIX_SUFFIX_LEN],
-                &id[id.len() - PEER_ID_PREFIX_SUFFIX_LEN..]
-            )
-        })
-    };
-    let container_id = info.get_untracked().container_id[..CONTAINER_ID_PREFIX_LEN].to_string();
+    let container_id = info.get_untracked().short_container_id();
 
     let spinner_msg = move || {
         let status = info.get().status;
@@ -214,96 +221,112 @@ fn NodeInstanceView(
         }
     };
 
+    let peer_id = move || {
+        info.get()
+            .short_peer_id()
+            .unwrap_or_else(|| "unknown".to_string())
+    };
+
     view! {
-        <div class="m-2 p-4 overflow-x-auto card card-normal bg-neutral text-neutral-content card-bordered shadow-2xl">
-            <div class="card-actions justify-end">
+        <div class="max-w-sm m-2 p-4 bg-gray-50 border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700">
+            <div class="flex justify-end">
                 <Show
                     when=move || info.get().status.is_transitioning()
                     fallback=move || view! { "" }.into_view()
                 >
-                    <span class="loading loading-spinner mr-2"></span>
-                    <div class="mr-10">{spinner_msg}</div>
+                    <div>
+                        <span class="loading loading-spinner mr-2"></span>
+                    </div>
+                    <div class="mr-6">{spinner_msg}</div>
                 </Show>
+
                 <Show
                     when=move || info.get().upgradeable()
                     fallback=move || view! { "" }.into_view()
                 >
                     <ButtonUpgrade info />
                 </Show>
+
                 <NodeLogs info set_logs />
                 <ButtonStopStart info />
                 <ButtonRemove info />
             </div>
-            <p>
-                <span class="text-info">"Node Id: "</span>
-                {container_id.clone()}
-            </p>
-            <p>
-                <span class="text-info">"Peer Id: "</span>
-                {peer_id}
-            </p>
-            <p>
-                <span class="text-info">"Status: "</span>
-                {move || format!("{} - {}", info.get().status, info.get().status_info)}
-            </p>
-            <p>
-                <span class="text-info">"Version: "</span>
-                {move || info.get().bin_version.unwrap_or_else(|| "unknown".to_string())}
-            </p>
-            <p>
-                <span class="text-info">"Port: "</span>
-                {move || info.get().port.map_or("unknown".to_string(), |v| v.to_string())}
-            </p>
-            <p>
-                <span class="text-info">"RPC API Port: "</span>
-                {move || info.get().rpc_api_port.map_or("unknown".to_string(), |v| v.to_string())}
-            </p>
-            <p>
-                <span class="text-info">"Balance: "</span>
-                {move || info.get().balance.map_or("unknown".to_string(), |v| v.to_string())}
-            </p>
-            <p>
-                <span class="text-info">"Tester id (Beta): "</span>
-                {move || {
-                    info.get().beta_tester_id.map_or("none".to_string(), |v| v.to_string())
-                }}
-            </p>
-            <p>
-                <span class="text-info">"Forwarded balance (Beta): "</span>
-                {move || {
-                    if info.get().beta_tester_id.is_none() {
-                        "n/a".to_string()
-                    } else {
-                        info.get()
-                            .forwarded_balance
-                            .map_or("unknown".to_string(), |v| v.to_string())
-                    }
-                }}
-            </p>
-            <p>
-                <span class="text-info">"Records: "</span>
-                {move || info.get().records.map_or("unknown".to_string(), |v| v.to_string())}
-            </p>
-            <p>
-                <span class="text-info">"Connected peers: "</span>
-                {move || {
-                    info.get().connected_peers.map_or("unknown".to_string(), |v| v.to_string())
-                }}
-            </p>
-            <p>
-                <span class="text-info">"kBuckets peers: "</span>
-                {move || {
-                    info.get().kbuckets_peers.map_or("unknown".to_string(), |v| v.to_string())
-                }}
-            </p>
-            <p>
-                <span class="text-info">"Created: "</span>
-                {move || {
-                    DateTime::<Utc>::from_timestamp(info.get().created as i64, 0)
-                        .unwrap()
-                        .to_string()
-                }}
-            </p>
+            <div class="mt-2">
+                <p>
+                    <span class="text-blue-700 dark:text-blue-400">"Node Id: "</span>
+                    {container_id.clone()}
+                </p>
+                <p>
+                    <span class="text-blue-700 dark:text-blue-400">"Peer Id: "</span>
+                    {move || peer_id}
+                </p>
+                <p>
+                    <span class="text-blue-700 dark:text-blue-400">"Status: "</span>
+                    {move || format!("{}, {}", info.get().status, info.get().status_info)}
+                </p>
+                <p>
+                    <span class="text-blue-700 dark:text-blue-400">"Version: "</span>
+                    {move || info.get().bin_version.unwrap_or_else(|| "unknown".to_string())}
+                </p>
+                <p>
+                    <span class="text-blue-700 dark:text-blue-400">"Port: "</span>
+                    {move || info.get().port.map_or("unknown".to_string(), |v| v.to_string())}
+                </p>
+                <p>
+                    <span class="text-blue-700 dark:text-blue-400">"RPC API Port: "</span>
+                    {move || {
+                        info.get().rpc_api_port.map_or("unknown".to_string(), |v| v.to_string())
+                    }}
+                </p>
+                <p>
+                    <span class="text-blue-700 dark:text-blue-400">"Balance: "</span>
+                    {move || info.get().balance.map_or("unknown".to_string(), |v| v.to_string())}
+                </p>
+                <p>
+                    <span class="text-blue-700 dark:text-blue-400">"Tester id (Beta): "</span>
+                    {move || {
+                        info.get().beta_tester_id.map_or("none".to_string(), |v| v.to_string())
+                    }}
+                </p>
+                <p>
+                    <span class="text-blue-700 dark:text-blue-400">
+                        "Forwarded balance (Beta): "
+                    </span>
+                    {move || {
+                        if info.get().beta_tester_id.is_none() {
+                            "n/a".to_string()
+                        } else {
+                            info.get()
+                                .forwarded_balance
+                                .map_or("unknown".to_string(), |v| v.to_string())
+                        }
+                    }}
+                </p>
+                <p>
+                    <span class="text-blue-700 dark:text-blue-400">"Records: "</span>
+                    {move || info.get().records.map_or("unknown".to_string(), |v| v.to_string())}
+                </p>
+                <p>
+                    <span class="text-blue-700 dark:text-blue-400">"Connected peers: "</span>
+                    {move || {
+                        info.get().connected_peers.map_or("unknown".to_string(), |v| v.to_string())
+                    }}
+                </p>
+                <p>
+                    <span class="text-blue-700 dark:text-blue-400">"kBuckets peers: "</span>
+                    {move || {
+                        info.get().kbuckets_peers.map_or("unknown".to_string(), |v| v.to_string())
+                    }}
+                </p>
+                <p>
+                    <span class="text-blue-700 dark:text-blue-400">"Created: "</span>
+                    {move || {
+                        DateTime::<Utc>::from_timestamp(info.get().created as i64, 0)
+                            .unwrap()
+                            .to_string()
+                    }}
+                </p>
+            </div>
         </div>
     }
 }
@@ -331,9 +354,9 @@ fn NodeLogs(info: RwSignal<NodeInstanceInfo>, set_logs: WriteSignal<Vec<String>>
                 for="logs_stream_modal"
                 class=move || {
                     if info.get().status.is_transitioning() || info.get().status.is_inactive() {
-                        "btn btn-square btn-sm btn-disabled"
+                        "btn-disabled-node-action"
                     } else {
-                        "btn btn-square btn-sm"
+                        "btn-node-action"
                     }
                 }
                 on:click=move |_| {
@@ -349,70 +372,76 @@ fn NodeLogs(info: RwSignal<NodeInstanceInfo>, set_logs: WriteSignal<Vec<String>>
 
 #[component]
 fn ButtonStopStart(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
+    let tip = move || {
+        if info.get().status.is_inactive() {
+            "start"
+        } else {
+            "stop"
+        }
+    };
+
     view! {
-        <button
-            class=move || {
-                if info.get().status.is_transitioning() {
-                    "btn btn-square btn-sm btn-disabled"
-                } else {
-                    "btn btn-square btn-sm"
+        <div class="tooltip tooltip-bottom tooltip-info" data-tip=tip>
+            <button
+                class=move || {
+                    if info.get().status.is_transitioning() {
+                        "btn-disabled-node-action"
+                    } else {
+                        "btn-node-action"
+                    }
                 }
-            }
-            on:click=move |_| {
-                let container_id = info.get().container_id.clone();
-                let previous_status = info.get().status;
-                if previous_status.is_inactive() {
-                    info.update(|node| node.status = NodeStatus::Restarting);
-                    spawn_local(async move {
-                        match start_node_instance(container_id).await {
-                            Ok(()) => {
-                                info.update(|node| {
-                                    node.status = NodeStatus::Transitioned("Restarted".to_string());
-                                })
+                on:click=move |_| {
+                    let container_id = info.get().container_id.clone();
+                    let previous_status = info.get().status;
+                    if previous_status.is_inactive() {
+                        info.update(|node| node.status = NodeStatus::Restarting);
+                        spawn_local(async move {
+                            match start_node_instance(container_id).await {
+                                Ok(()) => {
+                                    info.update(|node| {
+                                        node.status = NodeStatus::Transitioned(
+                                            "Restarted".to_string(),
+                                        );
+                                    })
+                                }
+                                Err(err) => {
+                                    logging::log!("Failed to start node: {err:?}");
+                                    show_alert_msg(err.to_string());
+                                    info.update(|node| node.status = previous_status);
+                                }
                             }
-                            Err(err) => {
-                                logging::log!("Failed to start node: {err:?}");
-                                show_alert_msg(err.to_string());
-                                info.update(|node| node.status = previous_status);
+                        });
+                    } else {
+                        info.update(|node| node.status = NodeStatus::Stopping);
+                        spawn_local(async move {
+                            match stop_node_instance(container_id).await {
+                                Ok(()) => {
+                                    info.update(|node| {
+                                        node.connected_peers = Some(0);
+                                        node.kbuckets_peers = Some(0);
+                                        node.status = NodeStatus::Transitioned(
+                                            "Stopped".to_string(),
+                                        );
+                                    })
+                                }
+                                Err(err) => {
+                                    logging::log!("Failed to stop node: {err:?}");
+                                    show_alert_msg(err.to_string());
+                                    info.update(|node| node.status = previous_status);
+                                }
                             }
-                        }
-                    });
-                } else {
-                    info.update(|node| node.status = NodeStatus::Stopping);
-                    spawn_local(async move {
-                        match stop_node_instance(container_id).await {
-                            Ok(()) => {
-                                info.update(|node| {
-                                    node.connected_peers = Some(0);
-                                    node.kbuckets_peers = Some(0);
-                                    node.status = NodeStatus::Transitioned("Stopped".to_string());
-                                })
-                            }
-                            Err(err) => {
-                                logging::log!("Failed to stop node: {err:?}");
-                                show_alert_msg(err.to_string());
-                                info.update(|node| node.status = previous_status);
-                            }
-                        }
-                    });
-                }
-            }
-        >
-            <Show
-                when=move || info.get().status.is_inactive()
-                fallback=|| {
-                    view! {
-                        <div class="tooltip tooltip-bottom tooltip-info" data-tip="stop">
-                            <IconStopNode />
-                        </div>
+                        });
                     }
                 }
             >
-                <div class="tooltip tooltip-bottom tooltip-info" data-tip="start">
+                <Show
+                    when=move || info.get().status.is_inactive()
+                    fallback=|| view! { <IconStopNode /> }
+                >
                     <IconStartNode />
-                </div>
-            </Show>
-        </button>
+                </Show>
+            </button>
+        </div>
     }
 }
 
@@ -429,11 +458,12 @@ fn ButtonUpgrade(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
     view! {
         <div class="tooltip tooltip-bottom tooltip-info" data-tip=tip>
             <button
+                type="button"
                 class=move || {
                     if info.get().status.is_transitioning() {
-                        "btn btn-square btn-sm btn-disabled"
+                        "btn-disabled-node-action"
                     } else {
-                        "btn btn-square btn-sm"
+                        "btn-node-action"
                     }
                 }
                 on:click=move |_| spawn_local({
@@ -470,9 +500,9 @@ fn ButtonRemove(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
             <button
                 class=move || {
                     if info.get().status.is_transitioning() {
-                        "btn btn-square btn-sm btn-disabled"
+                        "btn-disabled-node-action"
                     } else {
-                        "btn btn-square btn-sm"
+                        "btn-node-action"
                     }
                 }
                 on:click=move |_| spawn_local({

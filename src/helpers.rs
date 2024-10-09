@@ -44,11 +44,11 @@ pub async fn add_node_instance(
         items.insert(tmp_container_id.clone(), create_rw_signal(tmp_container));
     });
 
-    let container = create_node_instance(port, rpc_api_port, beta_tester_id).await?;
+    let info = create_node_instance(port, rpc_api_port, beta_tester_id).await?;
 
     context.nodes.update(|items| {
         items.remove(&tmp_container_id);
-        items.insert(container.container_id.clone(), create_rw_signal(container));
+        items.insert(info.container_id.clone(), create_rw_signal(info));
     });
 
     Ok(())

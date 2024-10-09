@@ -1,5 +1,6 @@
 mod about;
 mod add_node;
+mod alerts;
 pub mod app;
 #[cfg(feature = "ssr")]
 pub mod docker_client;
