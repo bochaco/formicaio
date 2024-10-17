@@ -26,7 +26,7 @@ pub struct NodeRpcClient {
 }
 
 impl NodeRpcClient {
-    pub async fn new(ip: &Option<String>, port: u16) -> Result<Self, RpcClientError> {
+    pub fn new(ip: &Option<String>, port: u16) -> Result<Self, RpcClientError> {
         let host = ip.clone().unwrap_or(DEFAULT_NODES_RPC_HOST.to_string());
         Ok(Self {
             endpoint: format!("https://{host}:{port}"),

@@ -142,7 +142,7 @@ fn spawn_nodes_list_polling() {
                                         cn.status_info = updated.status_info.clone();
                                         cn.bin_version = updated.bin_version.clone();
                                         cn.balance = updated.balance;
-                                        cn.forwarded_balance = updated.forwarded_balance;
+                                        cn.rewards_received = updated.rewards_received;
                                         cn.rewards = updated.rewards;
                                         cn.records = updated.records;
                                         cn.connected_peers = updated.connected_peers;

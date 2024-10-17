@@ -1,6 +1,7 @@
 ./.git
-Dockerfile
+./*Dockerfile
 ./target
 **/docker_volumes
 ./node_modules
 ./deploy
+./*.db*

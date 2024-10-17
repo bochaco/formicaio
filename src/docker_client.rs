@@ -42,8 +42,10 @@ const LABEL_KEY_VERSION: &str = "formica_version";
 pub const LABEL_KEY_RPC_PORT: &str = "rpc_api_port";
 // Label's key to cache node's port number
 pub const LABEL_KEY_NODE_PORT: &str = "node_port";
-// Label's key to cache the beta tester id set for the node
-pub const LABEL_KEY_BETA_TESTER_ID: &str = "beta_tester_id";
+// Label's key to cache node's metrics port number
+pub const LABEL_KEY_METRICS_PORT: &str = "metrics_port";
+// Label's key to cache the rewards address set for the node
+pub const LABEL_KEY_REWARDS_ADDR: &str = "rewards_addr";
 
 #[derive(Debug, Error)]
 pub enum DockerClientError {
@@ -188,7 +190,8 @@ impl DockerClient {
         &self,
         port: u16,
         rpc_api_port: u16,
-        beta_tester_id: String,
+        metrics_port: u16,
+        rewards_addr: String,
     ) -> Result<ContainerId, DockerClientError> {
         let url = format!("{DOCKER_CONTAINERS_API}/create");
         let mapped_ports = vec![port, rpc_api_port];
@@ -196,14 +199,16 @@ impl DockerClient {
             (LABEL_KEY_VERSION.to_string(), self.node_image_tag.clone()),
             (LABEL_KEY_RPC_PORT.to_string(), rpc_api_port.to_string()),
             (LABEL_KEY_NODE_PORT.to_string(), port.to_string()),
+            (LABEL_KEY_METRICS_PORT.to_string(), metrics_port.to_string()),
         ];
         let mut env_vars = vec![
             format!("NODE_PORT={port}"),
             format!("RPC_PORT={rpc_api_port}"),
+            format!("METRICS_PORT={metrics_port}"),
         ];
-        if !beta_tester_id.is_empty() {
-            env_vars.push(format!("BETA_TESTER_ARG=--owner {beta_tester_id}"));
-            labels.push((LABEL_KEY_BETA_TESTER_ID.to_string(), beta_tester_id.clone()));
+        if !rewards_addr.is_empty() {
+            env_vars.push(format!("REWARDS_ADDR_ARG=--rewards-address {rewards_addr}"));
+            labels.push((LABEL_KEY_REWARDS_ADDR.to_string(), rewards_addr.clone()));
         }
 
         let container_create_req = ContainerCreate {
@@ -344,50 +349,6 @@ impl DockerClient {
         logging::log!("Sending Docker request to RESTART a container: {url} ...");
         self.send_request(ReqMethod::Post, &url, &[], &()).await?;
         Ok(())
-    }
-
-    // Request the Docker server to UPGRADE the node binary within a container matching the given id
-    pub async fn get_node_forwarded_balance(
-        &self,
-        id: &ContainerId,
-    ) -> Result<u64, DockerClientError> {
-        let url = format!("{DOCKER_CONTAINERS_API}/{id}/exec");
-        //logging::log!("Sending Docker request to get node forwarded balance: {url} ...");
-        let exec_cmd = ContainerExec {
-            AttachStdin: Some(false),
-            AttachStdout: Some(true),
-            AttachStderr: Some(true),
-            Cmd: Some(vec![
-                "sh".to_string(),
-                "-c".to_string(),
-                "cat /app/node_data/forwarded_balance".to_string(),
-            ]),
-            Tty: Some(false),
-        };
-        let resp_bytes = self
-            .send_request(ReqMethod::Post, &url, &[], &exec_cmd)
-            .await?;
-        let exec_result: ContainerCreateExecSuccess = serde_json::from_slice(&resp_bytes)?;
-        //logging::log!("Cmd to get rewarded balance created successfully: {exec_result:#?}");
-        let exec_id = exec_result.Id;
-
-        // let's now start the exec cmd created
-        let url = format!("{DOCKER_EXEC_API}/{exec_id}/start");
-        let opts = ContainerExecStart {
-            Detach: Some(false),
-            Tty: Some(true),
-        };
-        let resp_bytes = self.send_request(ReqMethod::Post, &url, &[], &opts).await?;
-        let balance_str = String::from_utf8_lossy(&resp_bytes);
-        let balance = if balance_str.is_empty() {
-            0
-        } else {
-            balance_str
-                .parse::<u64>()
-                .map_err(|_| DockerClientError::InvalidValue(balance_str.to_string()))?
-        };
-        //logging::log!("Forwarded balance in container {id}: {balance}");
-        Ok(balance)
     }
 
     // Send request to Docker server, pulling the formica image

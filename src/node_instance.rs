@@ -16,6 +16,8 @@ use std::fmt;
 const PEER_ID_PREFIX_SUFFIX_LEN: usize = 12;
 // Length of nodes Docker container ids' prefix to be displayed
 const CONTAINER_ID_PREFIX_LEN: usize = 12;
+// Length of nodes rewards address' prefix and suffix to be displayed
+const REWARDS_ADDR_PREFIX_SUFFIX_LEN: usize = 8;
 
 #[derive(Clone, Default, Debug, Deserialize, PartialEq, Serialize)]
 pub enum NodeStatus {
@@ -89,11 +91,12 @@ pub struct NodeInstanceInfo {
     pub bin_version: Option<String>,
     pub port: Option<u16>,
     pub rpc_api_port: Option<u16>,
-    pub rpc_api_ip: Option<String>,
+    pub metrics_port: Option<u16>,
+    pub node_ip: Option<String>,
     pub rewards: Option<u64>,
-    pub balance: Option<u64>,           // nanos
-    pub forwarded_balance: Option<u64>, // nanos, only during beta
-    pub beta_tester_id: Option<String>,
+    pub balance: Option<u64>,
+    pub rewards_received: Option<u64>,
+    pub rewards_addr: Option<String>, // hex-encoded rewards address
     pub records: Option<usize>,
     pub connected_peers: Option<usize>,
     pub kbuckets_peers: Option<usize>,
@@ -121,6 +124,16 @@ impl NodeInstanceInfo {
                 "{}. . .{}",
                 &id[..PEER_ID_PREFIX_SUFFIX_LEN],
                 &id[id.len() - PEER_ID_PREFIX_SUFFIX_LEN..]
+            )
+        })
+    }
+
+    pub fn short_rewards_addr(&self) -> Option<String> {
+        self.rewards_addr.as_ref().map(|addr| {
+            format!(
+                "0x{}...{}",
+                &addr[..REWARDS_ADDR_PREFIX_SUFFIX_LEN],
+                &addr[addr.len() - REWARDS_ADDR_PREFIX_SUFFIX_LEN..]
             )
         })
     }
@@ -227,6 +240,12 @@ fn NodeInstanceView(
             .unwrap_or_else(|| "unknown".to_string())
     };
 
+    let rewards_addr = move || {
+        info.get()
+            .short_rewards_addr()
+            .unwrap_or_else(|| "unknown".to_string())
+    };
+
     view! {
         <div class="max-w-sm m-2 p-4 bg-gray-50 border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700">
             <div class="flex justify-end">
@@ -279,27 +298,23 @@ fn NodeInstanceView(
                     }}
                 </p>
                 <p>
+                    <span class="text-blue-700 dark:text-blue-400">"Node metrics Port: "</span>
+                    {move || {
+                        info.get().metrics_port.map_or("unknown".to_string(), |v| v.to_string())
+                    }}
+                </p>
+                <p>
                     <span class="text-blue-700 dark:text-blue-400">"Balance: "</span>
                     {move || info.get().balance.map_or("unknown".to_string(), |v| v.to_string())}
                 </p>
                 <p>
-                    <span class="text-blue-700 dark:text-blue-400">"Tester id (Beta): "</span>
-                    {move || {
-                        info.get().beta_tester_id.map_or("none".to_string(), |v| v.to_string())
-                    }}
+                    <span class="text-blue-700 dark:text-blue-400">"Rewards addr: "</span>
+                    {move || rewards_addr}
                 </p>
                 <p>
-                    <span class="text-blue-700 dark:text-blue-400">
-                        "Forwarded balance (Beta): "
-                    </span>
+                    <span class="text-blue-700 dark:text-blue-400">"Rewards received: "</span>
                     {move || {
-                        if info.get().beta_tester_id.is_none() {
-                            "n/a".to_string()
-                        } else {
-                            info.get()
-                                .forwarded_balance
-                                .map_or("unknown".to_string(), |v| v.to_string())
-                        }
+                        info.get().rewards_received.map_or("unknown".to_string(), |v| v.to_string())
                     }}
                 </p>
                 <p>

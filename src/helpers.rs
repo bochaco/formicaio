@@ -30,7 +30,8 @@ pub fn show_alert_msg(msg: String) {
 pub async fn add_node_instance(
     port: u16,
     rpc_api_port: u16,
-    beta_tester_id: String,
+    metrics_port: u16,
+    rewards_addr: String,
 ) -> Result<(), ServerFnError> {
     let context = expect_context::<ClientGlobalState>();
 
@@ -44,7 +45,7 @@ pub async fn add_node_instance(
         items.insert(tmp_container_id.clone(), create_rw_signal(tmp_container));
     });
 
-    let info = create_node_instance(port, rpc_api_port, beta_tester_id).await?;
+    let info = create_node_instance(port, rpc_api_port, metrics_port, rewards_addr).await?;
 
     context.nodes.update(|items| {
         items.remove(&tmp_container_id);

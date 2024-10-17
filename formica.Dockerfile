@@ -1,6 +1,6 @@
 # Dockerfile for running a node
 
-FROM rust:1.80-bullseye AS builder
+FROM rust:1.81-bullseye AS builder
 
 # Make an /app dir, which everything will eventually live in
 RUN mkdir -p /app
@@ -30,17 +30,27 @@ RUN /app/safenode --version
 # Set default port numbers for node and its RPC API
 ENV NODE_PORT=12000
 ENV RPC_PORT=13000
-ENV BETA_TESTER_ARG=''
+ENV METRICS_PORT=14000
+
+# This can be used to set the rewards address. The rewards address is the address
+# that will receive the rewards for the node: --rewards-address <REWARDS_ADDRESS>
+ENV REWARDS_ADDR_ARG=''
 
 EXPOSE $NODE_PORT
 EXPOSE $RPC_PORT
+EXPOSE $METRICS_PORT
+
+# Temporary fix to use nginx since the node metrics server is exposed only at ip 127.0.0.1
+RUN apt-get -y update && apt-get -y install nginx
 
 # Run the node
 CMD ["sh", "-c", \
-      "/app/safenode --home-network \
+      "echo \"server { listen ${METRICS_PORT}; server_name localhost; location /metrics { proxy_pass http://127.0.0.1:9090/metrics; include /etc/nginx/proxy_params; } }\" > /etc/nginx/sites-available/default \
+      && nginx && /app/safenode --home-network \
       --port ${NODE_PORT} \
       --rpc 0.0.0.0:${RPC_PORT} \
+      --metrics-server-port 9090 \
       --root-dir /app/node_data \
       --log-output-dest /app/node_data/logs \
-      ${BETA_TESTER_ARG}" \
+      ${REWARDS_ADDR_ARG}" \
     ]

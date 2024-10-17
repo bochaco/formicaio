@@ -13,6 +13,8 @@ mod helpers;
 mod icons;
 #[cfg(feature = "ssr")]
 pub mod metadata_db;
+#[cfg(feature = "ssr")]
+mod metrics_client;
 mod navbar;
 mod node_instance;
 #[cfg(feature = "ssr")]

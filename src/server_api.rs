@@ -4,8 +4,10 @@ use super::node_instance::NodeInstanceInfo;
 use super::{
     app::ServerGlobalState,
     docker_client::{
-        ContainerState, LABEL_KEY_BETA_TESTER_ID, LABEL_KEY_NODE_PORT, LABEL_KEY_RPC_PORT,
+        ContainerState, LABEL_KEY_METRICS_PORT, LABEL_KEY_NODE_PORT, LABEL_KEY_REWARDS_ADDR,
+        LABEL_KEY_RPC_PORT,
     },
+    metrics_client::NodeMetricsClient,
     node_instance::NodeStatus,
     node_rpc_client::NodeRpcClient,
 };
@@ -62,7 +64,11 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
                 .Labels
                 .get(LABEL_KEY_RPC_PORT)
                 .map(|v| v.parse::<u16>().unwrap_or_default()),
-            rpc_api_ip: container
+            metrics_port: container
+                .Labels
+                .get(LABEL_KEY_METRICS_PORT)
+                .map(|v| v.parse::<u16>().unwrap_or_default()),
+            node_ip: container
                 .NetworkSettings
                 .Networks
                 .get("bridge")
@@ -75,8 +81,8 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
                 }),
             rewards: None,
             balance: None,
-            forwarded_balance: None,
-            beta_tester_id: container.Labels.get(LABEL_KEY_BETA_TESTER_ID).cloned(),
+            rewards_received: None,
+            rewards_addr: container.Labels.get(LABEL_KEY_REWARDS_ADDR).cloned(),
             records: None,
             connected_peers: None,
             kbuckets_peers: None,
@@ -107,13 +113,14 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
 pub async fn create_node_instance(
     port: u16,
     rpc_api_port: u16,
-    beta_tester_id: String,
+    metrics_port: u16,
+    rewards_addr: String,
 ) -> Result<NodeInstanceInfo, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
     logging::log!("Creating new node container with port {port}, RPC API port {rpc_api_port} ...");
     let container_id = context
         .docker_client
-        .create_new_container(port, rpc_api_port, beta_tester_id.clone())
+        .create_new_container(port, rpc_api_port, metrics_port, rewards_addr.clone())
         .await?;
     logging::log!("New node container Id: {container_id} ...");
 
@@ -132,7 +139,8 @@ pub async fn create_node_instance(
         bin_version: None,
         port: Some(port),
         rpc_api_port: Some(rpc_api_port),
-        rpc_api_ip: container
+        metrics_port: Some(metrics_port),
+        node_ip: container
             .NetworkSettings
             .Networks
             .get("bridge")
@@ -145,11 +153,11 @@ pub async fn create_node_instance(
             }),
         rewards: None,
         balance: None,
-        forwarded_balance: None,
-        beta_tester_id: if beta_tester_id.is_empty() {
+        rewards_received: None,
+        rewards_addr: if rewards_addr.is_empty() {
             None
         } else {
-            Some(beta_tester_id)
+            Some(rewards_addr)
         },
         records: None,
         connected_peers: None,
@@ -247,29 +255,31 @@ async fn retrive_and_cache_updated_metadata(
         let context = expect_context::<ServerGlobalState>();
         if let Some(port) = node_instance_info.rpc_api_port {
             // TODO: send info back to the user if we receive an error from using RPC client.
-            match NodeRpcClient::new(&node_instance_info.rpc_api_ip, port).await {
+            match NodeRpcClient::new(&node_instance_info.node_ip, port) {
                 Ok(mut node_rpc_client) => {
                     node_rpc_client.update_node_info(node_instance_info).await
                 }
                 Err(err) => logging::log!("Failed to connect to RPC API endpoint: {err}"),
             }
-
-            // try to get node's forwarded balance amount
-            match context
-                .docker_client
-                .get_node_forwarded_balance(&node_instance_info.container_id)
-                .await
-            {
-                Ok(balance) => node_instance_info.forwarded_balance = Some(balance),
-                Err(err) => logging::log!("Failed to get node's forwarded balance: {err}"),
-            }
-
-            // update DB with this new info we just obtained
-            context
-                .db_client
-                .store_node_metadata(&node_instance_info)
-                .await?;
         }
+
+        if let Some(port) = node_instance_info.metrics_port {
+            // fetch metrics from the node, for now we are only interested in rewards
+            match NodeMetricsClient::new(&node_instance_info.node_ip, port) {
+                Ok(mut node_metrics_client) => {
+                    node_metrics_client
+                        .update_node_info(node_instance_info)
+                        .await
+                }
+                Err(err) => logging::log!("Failed to connect to node metrics endpoint: {err}"),
+            }
+        }
+
+        // update DB with this new info we just obtained
+        context
+            .db_client
+            .store_node_metadata(&node_instance_info)
+            .await?;
     }
 
     Ok(())
