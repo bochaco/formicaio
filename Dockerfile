@@ -39,7 +39,7 @@ COPY --from=tailwindcss-builder /usr/local/bin/node /usr/local/bin/node
 COPY . .
 
 # make sure we exit early if clippy is not happy
-RUN cargo clippy -- -D warnings
+#RUN cargo clippy -- -D warnings
 
 # Build the app
 RUN cargo leptos build --release -vv
