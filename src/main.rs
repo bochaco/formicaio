@@ -8,7 +8,9 @@ use tokio::sync::Mutex;
 async fn main() {
     use axum::Router;
     use formicaio::fileserv::file_and_error_handler;
-    use formicaio::{app::*, docker_client::DockerClient, metadata_db::DbClient};
+    use formicaio::{
+        app::*, docker_client::DockerClient, metadata_db::DbClient, metrics_client::NodesMetrics,
+    };
     use leptos::*;
     use leptos_axum::{generate_route_list, LeptosRoutes};
 
@@ -27,13 +29,19 @@ async fn main() {
     let docker_client = DockerClient::new().await.unwrap();
 
     let latest_bin_version = Arc::new(Mutex::new(None));
-    spawn_bg_tasks(docker_client.clone(), latest_bin_version.clone());
+    let nodes_metrics = Arc::new(Mutex::new(NodesMetrics::new()));
+    spawn_bg_tasks(
+        docker_client.clone(),
+        latest_bin_version.clone(),
+        nodes_metrics.clone(),
+    );
 
     let app_state = ServerGlobalState {
         leptos_options,
         db_client,
         docker_client,
         latest_bin_version,
+        nodes_metrics,
     };
 
     let app = Router::new()
@@ -60,12 +68,14 @@ pub fn main() {
 fn spawn_bg_tasks(
     docker_client: formicaio::docker_client::DockerClient,
     latest_bin_version: Arc<Mutex<Option<String>>>,
+    nodes_metrics: Arc<Mutex<formicaio::metrics_client::NodesMetrics>>,
 ) {
+    use formicaio::{metrics_client::NodeMetricsClient, node_instance::NodeStatus};
     use leptos::logging;
     use tokio::time::{sleep, Duration};
+
     // Check latest version of node binary every couple of hours
     const BIN_VERSION_POLLING_FREQ: Duration = Duration::from_secs(60 * 60 * 2);
-
     tokio::spawn(async move {
         loop {
             if let Some(version) = latest_version_available().await {
@@ -81,13 +91,50 @@ fn spawn_bg_tasks(
     // Also, attempt to pull a new version of the formica image every six hours
     const FORMICA_IMAGE_PULLING_FREQ: Duration = Duration::from_secs(60 * 60 * 6);
 
+    let docker_client_clone = docker_client.clone();
     tokio::spawn(async move {
         loop {
             logging::log!("Pulling formica node image ...");
-            if let Err(err) = docker_client.pull_formica_image().await {
+            if let Err(err) = docker_client_clone.pull_formica_image().await {
                 logging::log!("Failed to pull node image when starting up: {err}");
             }
             sleep(FORMICA_IMAGE_PULLING_FREQ).await;
+        }
+    });
+
+    // Collect metrics from nodes and cache them in global context
+    const NODES_METRICS_POLLING_FREQ: Duration = Duration::from_secs(10);
+
+    tokio::spawn(async move {
+        loop {
+            sleep(NODES_METRICS_POLLING_FREQ).await;
+
+            let containers = match docker_client.get_containers_list().await {
+                Ok(containers) if !containers.is_empty() => containers,
+                _ => continue,
+            };
+
+            logging::log!("Polling nodes ({}) metrics ...", containers.len());
+            for container in containers {
+                let metrics_port = match (
+                    NodeStatus::from(&container.State).is_active(),
+                    container.metrics_port(),
+                ) {
+                    (true, Some(metrics_port)) => metrics_port,
+                    _ => continue,
+                };
+
+                let node_ip = container.node_ip();
+                let metrics_client = NodeMetricsClient::new(&node_ip, metrics_port);
+                match metrics_client.fetch_metrics().await {
+                    Ok(metrics) => {
+                        nodes_metrics.lock().await.push(&container.Id, &metrics);
+                    }
+                    Err(err) => logging::log!(
+                        "Failed to pull node metrics from {node_ip:?}:{metrics_port}: {err}"
+                    ),
+                }
+            }
         }
     });
 }

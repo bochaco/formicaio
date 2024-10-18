@@ -2,14 +2,8 @@ use super::node_instance::NodeInstanceInfo;
 
 #[cfg(feature = "ssr")]
 use super::{
-    app::ServerGlobalState,
-    docker_client::{
-        ContainerState, LABEL_KEY_METRICS_PORT, LABEL_KEY_NODE_PORT, LABEL_KEY_REWARDS_ADDR,
-        LABEL_KEY_RPC_PORT,
-    },
-    metrics_client::NodeMetricsClient,
-    node_instance::NodeStatus,
-    node_rpc_client::NodeRpcClient,
+    app::ServerGlobalState, docker_client::LABEL_KEY_REWARDS_ADDR,
+    metrics_client::NodeMetricsClient, node_instance::NodeStatus, node_rpc_client::NodeRpcClient,
 };
 
 #[cfg(feature = "ssr")]
@@ -18,21 +12,6 @@ use leptos::*;
 use serde::{Deserialize, Serialize};
 use server_fn::codec::{ByteStream, Streaming};
 use std::collections::BTreeMap;
-
-#[cfg(feature = "ssr")]
-impl From<ContainerState> for NodeStatus {
-    fn from(item: ContainerState) -> NodeStatus {
-        match item {
-            ContainerState::created => NodeStatus::Inactive,
-            ContainerState::restarting => NodeStatus::Restarting,
-            ContainerState::running => NodeStatus::Active,
-            ContainerState::removing => NodeStatus::Removing,
-            ContainerState::paused | ContainerState::exited | ContainerState::dead => {
-                NodeStatus::Inactive
-            }
-        }
-    }
-}
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct NodesInstancesInfo {
@@ -53,32 +32,13 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
             container_id: container.Id.clone(),
             created: container.Created,
             peer_id: None,
-            status: NodeStatus::from(container.State),
-            status_info: container.Status,
+            status: NodeStatus::from(&container.State),
+            status_info: container.Status.clone(),
             bin_version: None,
-            port: container
-                .Labels
-                .get(LABEL_KEY_NODE_PORT)
-                .map(|v| v.parse::<u16>().unwrap_or_default()),
-            rpc_api_port: container
-                .Labels
-                .get(LABEL_KEY_RPC_PORT)
-                .map(|v| v.parse::<u16>().unwrap_or_default()),
-            metrics_port: container
-                .Labels
-                .get(LABEL_KEY_METRICS_PORT)
-                .map(|v| v.parse::<u16>().unwrap_or_default()),
-            node_ip: container
-                .NetworkSettings
-                .Networks
-                .get("bridge")
-                .and_then(|n| {
-                    if n.IPAddress.is_empty() {
-                        None
-                    } else {
-                        Some(n.IPAddress.clone())
-                    }
-                }),
+            port: container.port(),
+            rpc_api_port: container.rpc_api_port(),
+            metrics_port: container.metrics_port(),
+            node_ip: container.node_ip(),
             rewards: None,
             balance: None,
             rewards_received: None,
@@ -134,7 +94,7 @@ pub async fn create_node_instance(
         container_id: container.Id,
         created: container.Created,
         peer_id: None,
-        status: NodeStatus::from(container.State),
+        status: NodeStatus::from(&container.State),
         status_info: container.Status,
         bin_version: None,
         port: Some(port),
@@ -265,14 +225,10 @@ async fn retrive_and_cache_updated_metadata(
 
         if let Some(port) = node_instance_info.metrics_port {
             // fetch metrics from the node, for now we are only interested in rewards
-            match NodeMetricsClient::new(&node_instance_info.node_ip, port) {
-                Ok(mut node_metrics_client) => {
-                    node_metrics_client
-                        .update_node_info(node_instance_info)
-                        .await
-                }
-                Err(err) => logging::log!("Failed to connect to node metrics endpoint: {err}"),
-            }
+            let node_metrics_client = NodeMetricsClient::new(&node_instance_info.node_ip, port);
+            node_metrics_client
+                .update_node_info(node_instance_info)
+                .await
         }
 
         // update DB with this new info we just obtained

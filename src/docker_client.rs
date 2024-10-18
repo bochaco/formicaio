@@ -410,7 +410,11 @@ impl DockerClient {
     // Pull the formica image.
     pub async fn pull_formica_image(&self) -> Result<(), DockerClientError> {
         let url = format!("{DOCKER_IMAGES_API}/create");
-        logging::log!("[PULL] Sending Docker request to PULL formica image: {url} ...");
+        logging::log!(
+            "[PULL] Sending Docker request to PULL formica image: {}:{} ...",
+            self.node_image_name,
+            self.node_image_tag
+        );
         let query = &[
             ("fromImage", self.node_image_name.as_str()),
             ("tag", self.node_image_tag.as_str()),

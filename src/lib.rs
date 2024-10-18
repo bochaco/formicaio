@@ -14,9 +14,9 @@ mod icons;
 #[cfg(feature = "ssr")]
 pub mod metadata_db;
 #[cfg(feature = "ssr")]
-mod metrics_client;
+pub mod metrics_client;
 mod navbar;
-mod node_instance;
+pub mod node_instance;
 #[cfg(feature = "ssr")]
 mod node_rpc_client;
 mod server_api;

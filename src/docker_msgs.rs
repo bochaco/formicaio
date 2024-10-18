@@ -1,6 +1,12 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+#[cfg(feature = "ssr")]
+use super::{
+    docker_client::{LABEL_KEY_METRICS_PORT, LABEL_KEY_NODE_PORT, LABEL_KEY_RPC_PORT},
+    node_instance::NodeStatus,
+};
+
 // Hex-encoded container id
 pub type ContainerId = String;
 
@@ -14,6 +20,34 @@ pub struct Container {
     pub Status: String,
     pub Labels: HashMap<String, String>,
     pub NetworkSettings: Networks,
+}
+
+// some helper methods to extract values from it
+impl Container {
+    pub fn port(&self) -> Option<u16> {
+        self.Labels
+            .get(LABEL_KEY_NODE_PORT)
+            .map(|v| v.parse::<u16>().unwrap_or_default())
+    }
+    pub fn rpc_api_port(&self) -> Option<u16> {
+        self.Labels
+            .get(LABEL_KEY_RPC_PORT)
+            .map(|v| v.parse::<u16>().unwrap_or_default())
+    }
+    pub fn metrics_port(&self) -> Option<u16> {
+        self.Labels
+            .get(LABEL_KEY_METRICS_PORT)
+            .map(|v| v.parse::<u16>().unwrap_or_default())
+    }
+    pub fn node_ip(&self) -> Option<String> {
+        self.NetworkSettings.Networks.get("bridge").and_then(|n| {
+            if n.IPAddress.is_empty() {
+                None
+            } else {
+                Some(n.IPAddress.clone())
+            }
+        })
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -37,7 +71,7 @@ pub struct Port {
     pub Type: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[allow(non_camel_case_types)]
 pub enum ContainerState {
     created,
@@ -47,6 +81,21 @@ pub enum ContainerState {
     paused,
     exited,
     dead,
+}
+
+#[cfg(feature = "ssr")]
+impl From<&ContainerState> for NodeStatus {
+    fn from(item: &ContainerState) -> NodeStatus {
+        match item {
+            ContainerState::created => NodeStatus::Inactive,
+            ContainerState::restarting => NodeStatus::Restarting,
+            ContainerState::running => NodeStatus::Active,
+            ContainerState::removing => NodeStatus::Removing,
+            ContainerState::paused | ContainerState::exited | ContainerState::dead => {
+                NodeStatus::Inactive
+            }
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]

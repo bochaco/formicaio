@@ -34,6 +34,7 @@ pub struct ServerGlobalState {
     pub db_client: super::metadata_db::DbClient,
     pub docker_client: super::docker_client::DockerClient,
     pub latest_bin_version: Arc<Mutex<Option<String>>>,
+    pub nodes_metrics: Arc<Mutex<super::metrics_client::NodesMetrics>>,
 }
 
 // Struct to use client side as a global context/state
