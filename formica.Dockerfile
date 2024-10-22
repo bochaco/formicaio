@@ -8,7 +8,7 @@ WORKDIR /app
 
 # Install node binary
 RUN curl -sSL https://raw.githubusercontent.com/maidsafe/safeup/main/install.sh | bash
-RUN /usr/local/bin/safeup node -p /app
+RUN /usr/local/bin/safeup node -v 0.112.0 -p /app
 
 FROM debian:bookworm-slim AS runtime
 WORKDIR /app
@@ -52,5 +52,6 @@ CMD ["sh", "-c", \
       --metrics-server-port 9090 \
       --root-dir /app/node_data \
       --log-output-dest /app/node_data/logs \
-      ${REWARDS_ADDR_ARG}" \
+      ${REWARDS_ADDR_ARG} \
+      evm-arbitrum-sepolia" \
     ]
