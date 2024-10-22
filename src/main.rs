@@ -9,7 +9,7 @@ async fn main() {
     use axum::Router;
     use formicaio::fileserv::file_and_error_handler;
     use formicaio::{
-        app::*, docker_client::DockerClient, metadata_db::DbClient, metrics_client::NodesMetrics,
+        app::NodesMetrics, app::*, docker_client::DockerClient, metadata_db::DbClient,
     };
     use leptos::*;
     use leptos_axum::{generate_route_list, LeptosRoutes};
@@ -68,7 +68,7 @@ pub fn main() {
 fn spawn_bg_tasks(
     docker_client: formicaio::docker_client::DockerClient,
     latest_bin_version: Arc<Mutex<Option<String>>>,
-    nodes_metrics: Arc<Mutex<formicaio::metrics_client::NodesMetrics>>,
+    nodes_metrics: Arc<Mutex<formicaio::app::NodesMetrics>>,
 ) {
     use formicaio::{metrics_client::NodeMetricsClient, node_instance::NodeStatus};
     use leptos::logging;
@@ -103,7 +103,7 @@ fn spawn_bg_tasks(
     });
 
     // Collect metrics from nodes and cache them in global context
-    const NODES_METRICS_POLLING_FREQ: Duration = Duration::from_secs(10);
+    const NODES_METRICS_POLLING_FREQ: Duration = Duration::from_secs(5);
 
     tokio::spawn(async move {
         loop {

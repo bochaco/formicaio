@@ -1,3 +1,5 @@
+pub use super::metrics::{ContainerId, Metrics, NodeMetric, NodesMetrics};
+
 #[cfg(feature = "hydrate")]
 use super::server_api::nodes_instances;
 use super::{
@@ -22,10 +24,10 @@ use gloo_timers::future::TimeoutFuture;
 use leptos::*;
 use leptos_meta::*;
 use leptos_router::*;
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 
 #[cfg(feature = "hydrate")]
-const POLLING_FREQ_MILLIS: u32 = 5_000;
+const POLLING_FREQ_MILLIS: u32 = 5_500;
 
 #[cfg(feature = "ssr")]
 #[derive(Clone, FromRef, Debug)]
@@ -34,14 +36,14 @@ pub struct ServerGlobalState {
     pub db_client: super::metadata_db::DbClient,
     pub docker_client: super::docker_client::DockerClient,
     pub latest_bin_version: Arc<Mutex<Option<String>>>,
-    pub nodes_metrics: Arc<Mutex<super::metrics_client::NodesMetrics>>,
+    pub nodes_metrics: Arc<Mutex<NodesMetrics>>,
 }
 
 // Struct to use client side as a global context/state
 #[derive(Clone, Copy, Debug)]
 pub struct ClientGlobalState {
     // List of nodes instances and their info/state
-    pub nodes: RwSignal<BTreeMap<String, RwSignal<NodeInstanceInfo>>>,
+    pub nodes: RwSignal<HashMap<String, RwSignal<NodeInstanceInfo>>>,
     // Flag to enable/disable nodes' logs stream
     pub logs_stream_is_on: RwSignal<bool>,
     // Lastest version of the node binary available
@@ -57,7 +59,7 @@ pub fn App() -> impl IntoView {
 
     // Provide context to manage all client side states that need to be used globally
     provide_context(ClientGlobalState {
-        nodes: create_rw_signal(BTreeMap::default()),
+        nodes: create_rw_signal(HashMap::default()),
         logs_stream_is_on: create_rw_signal(false),
         latest_bin_version: create_rw_signal(None),
         alerts: create_rw_signal(vec![]),
@@ -143,9 +145,12 @@ fn spawn_nodes_list_polling() {
                                         cn.status_info = updated.status_info.clone();
                                         cn.bin_version = updated.bin_version.clone();
                                         cn.balance = updated.balance;
-                                        cn.rewards_received = updated.rewards_received;
                                         cn.rewards = updated.rewards;
                                         cn.records = updated.records;
+                                        cn.relevant_records = updated.relevant_records;
+                                        cn.store_cost = updated.store_cost;
+                                        cn.mem_used = updated.mem_used;
+                                        cn.cpu_usage = updated.cpu_usage.clone();
                                         cn.connected_peers = updated.connected_peers;
                                         cn.kbuckets_peers = updated.kbuckets_peers;
                                     });

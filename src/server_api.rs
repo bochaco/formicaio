@@ -1,4 +1,4 @@
-use super::node_instance::NodeInstanceInfo;
+use super::{app::ContainerId, node_instance::NodeInstanceInfo};
 
 #[cfg(feature = "ssr")]
 use super::{
@@ -11,12 +11,12 @@ use futures_util::StreamExt;
 use leptos::*;
 use serde::{Deserialize, Serialize};
 use server_fn::codec::{ByteStream, Streaming};
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct NodesInstancesInfo {
     pub latest_bin_version: Option<String>,
-    pub nodes: BTreeMap<String, NodeInstanceInfo>,
+    pub nodes: HashMap<String, NodeInstanceInfo>,
 }
 
 // Obtain the list of existing nodes instances with their info
@@ -26,7 +26,7 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
     let latest_bin_version = context.latest_bin_version.lock().await.clone();
     let containers = context.docker_client.get_containers_list().await?;
 
-    let mut nodes = BTreeMap::new();
+    let mut nodes = HashMap::new();
     for container in containers {
         let mut node_instance_info = NodeInstanceInfo {
             container_id: container.Id.clone(),
@@ -39,11 +39,15 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
             rpc_api_port: container.rpc_api_port(),
             metrics_port: container.metrics_port(),
             node_ip: container.node_ip(),
-            rewards: None,
             balance: None,
-            rewards_received: None,
+            rewards: None,
             rewards_addr: container.Labels.get(LABEL_KEY_REWARDS_ADDR).cloned(),
             records: None,
+            relevant_records: None,
+            store_cost: None,
+            mem_used: None,
+            cpu_usage: None,
+
             connected_peers: None,
             kbuckets_peers: None,
         };
@@ -111,15 +115,18 @@ pub async fn create_node_instance(
                     Some(n.IPAddress.clone())
                 }
             }),
-        rewards: None,
         balance: None,
-        rewards_received: None,
+        rewards: None,
         rewards_addr: if rewards_addr.is_empty() {
             None
         } else {
             Some(rewards_addr)
         },
         records: None,
+        relevant_records: None,
+        store_cost: None,
+        mem_used: None,
+        cpu_usage: None,
         connected_peers: None,
         kbuckets_peers: None,
     };
@@ -134,7 +141,7 @@ pub async fn create_node_instance(
 
 // Delete a node instance with given id
 #[server(DeleteNodeInstance, "/api", "Url", "/delete_node")]
-pub async fn delete_node_instance(container_id: String) -> Result<(), ServerFnError> {
+pub async fn delete_node_instance(container_id: ContainerId) -> Result<(), ServerFnError> {
     logging::log!("Deleting node container with Id: {container_id} ...");
     let context = expect_context::<ServerGlobalState>();
     context
@@ -150,7 +157,7 @@ pub async fn delete_node_instance(container_id: String) -> Result<(), ServerFnEr
 
 // Start a node instance with given id
 #[server(StartNodeInstance, "/api", "Url", "/start_node")]
-pub async fn start_node_instance(container_id: String) -> Result<(), ServerFnError> {
+pub async fn start_node_instance(container_id: ContainerId) -> Result<(), ServerFnError> {
     logging::log!("Starting node container with Id: {container_id} ...");
     let context = expect_context::<ServerGlobalState>();
     context
@@ -162,7 +169,7 @@ pub async fn start_node_instance(container_id: String) -> Result<(), ServerFnErr
 
 // Stop a node instance with given id
 #[server(StopNodeInstance, "/api", "Url", "/stop_node")]
-pub async fn stop_node_instance(container_id: String) -> Result<(), ServerFnError> {
+pub async fn stop_node_instance(container_id: ContainerId) -> Result<(), ServerFnError> {
     logging::log!("Stopping node container with Id: {container_id} ...");
     let context = expect_context::<ServerGlobalState>();
     context
@@ -180,7 +187,7 @@ pub async fn stop_node_instance(container_id: String) -> Result<(), ServerFnErro
 
 // Upgrade a node instance with given id
 #[server(UpgradeNodeInstance, "/api", "Url", "/upgrade_node")]
-pub async fn upgrade_node_instance(container_id: String) -> Result<(), ServerFnError> {
+pub async fn upgrade_node_instance(container_id: ContainerId) -> Result<(), ServerFnError> {
     logging::log!("Upgrading node container with Id: {container_id} ...");
     let context = expect_context::<ServerGlobalState>();
     context
@@ -192,7 +199,9 @@ pub async fn upgrade_node_instance(container_id: String) -> Result<(), ServerFnE
 
 // Start streaming logs from a node instance with given id
 #[server(output = Streaming)]
-pub async fn start_node_logs_stream(container_id: String) -> Result<ByteStream, ServerFnError> {
+pub async fn start_node_logs_stream(
+    container_id: ContainerId,
+) -> Result<ByteStream, ServerFnError> {
     logging::log!("Starting logs stream from container with Id: {container_id} ...");
     let context = expect_context::<ServerGlobalState>();
     let container_logs_stream = context
@@ -203,6 +212,22 @@ pub async fn start_node_logs_stream(container_id: String) -> Result<ByteStream, 
         item.map_err(ServerFnError::from) // convert the error type
     });
     Ok(ByteStream::new(converted_stream))
+}
+
+// Retrieve the metrics for a node instance with given id and filters
+#[server(NodeMetrics, "/api", "Url", "/node_metrics")]
+pub async fn node_metrics(
+    container_id: ContainerId,
+    since: Option<i64>,
+    keys: Vec<String>,
+) -> Result<HashMap<String, Vec<super::app::NodeMetric>>, ServerFnError> {
+    let context = expect_context::<ServerGlobalState>();
+    let metrics = context
+        .nodes_metrics
+        .lock()
+        .await
+        .get_metrics(&container_id, since, &keys);
+    Ok(metrics)
 }
 
 // If the node is active, retrieve up to date node's metadata through
@@ -223,13 +248,8 @@ async fn retrive_and_cache_updated_metadata(
             }
         }
 
-        if let Some(port) = node_instance_info.metrics_port {
-            // fetch metrics from the node, for now we are only interested in rewards
-            let node_metrics_client = NodeMetricsClient::new(&node_instance_info.node_ip, port);
-            node_metrics_client
-                .update_node_info(node_instance_info)
-                .await
-        }
+        // update with info retrieved through the metrics server
+        NodeMetricsClient::update_node_info(node_instance_info).await;
 
         // update DB with this new info we just obtained
         context

@@ -1,4 +1,4 @@
-pub use super::docker_msgs::ContainerState;
+pub use super::{app::ContainerId, docker_msgs::ContainerState};
 
 use super::docker_msgs::*;
 

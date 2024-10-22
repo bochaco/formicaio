@@ -93,11 +93,14 @@ pub struct NodeInstanceInfo {
     pub rpc_api_port: Option<u16>,
     pub metrics_port: Option<u16>,
     pub node_ip: Option<String>,
-    pub rewards: Option<u64>,
     pub balance: Option<u64>,
-    pub rewards_received: Option<u64>,
+    pub rewards: Option<u64>,
     pub rewards_addr: Option<String>, // hex-encoded rewards address
     pub records: Option<usize>,
+    pub relevant_records: Option<usize>,
+    pub store_cost: Option<u64>,
+    pub mem_used: Option<u64>,
+    pub cpu_usage: Option<String>,
     pub connected_peers: Option<usize>,
     pub kbuckets_peers: Option<usize>,
 }
@@ -272,69 +275,113 @@ fn NodeInstanceView(
             </div>
             <div class="mt-2">
                 <p>
-                    <span class="text-blue-700 dark:text-blue-400">"Node Id: "</span>
+                    <span class="node-info-item">"Node Id: "</span>
                     {container_id.clone()}
                 </p>
                 <p>
-                    <span class="text-blue-700 dark:text-blue-400">"Peer Id: "</span>
+                    <span class="node-info-item">"Peer Id: "</span>
                     {move || peer_id}
                 </p>
                 <p>
-                    <span class="text-blue-700 dark:text-blue-400">"Status: "</span>
+                    <span class="node-info-item">"Status: "</span>
                     {move || format!("{}, {}", info.get().status, info.get().status_info)}
                 </p>
                 <p>
-                    <span class="text-blue-700 dark:text-blue-400">"Version: "</span>
+                    <span class="node-info-item">"Version: "</span>
                     {move || info.get().bin_version.unwrap_or_else(|| "unknown".to_string())}
                 </p>
                 <p>
-                    <span class="text-blue-700 dark:text-blue-400">"Port: "</span>
-                    {move || info.get().port.map_or("unknown".to_string(), |v| v.to_string())}
+                    <div class="flex flex-row">
+                        <div class="basis-1/3">
+                            <span class="node-info-item">"Port: "</span>
+                            {move || {
+                                info.get().port.map_or("unknown".to_string(), |v| v.to_string())
+                            }}
+                        </div>
+                        <div class="basis-2/3">
+                            <span class="node-info-item">"RPC API Port: "</span>
+                            {move || {
+                                info.get()
+                                    .rpc_api_port
+                                    .map_or("unknown".to_string(), |v| v.to_string())
+                            }}
+                        </div>
+                    </div>
                 </p>
                 <p>
-                    <span class="text-blue-700 dark:text-blue-400">"RPC API Port: "</span>
-                    {move || {
-                        info.get().rpc_api_port.map_or("unknown".to_string(), |v| v.to_string())
-                    }}
-                </p>
-                <p>
-                    <span class="text-blue-700 dark:text-blue-400">"Node metrics Port: "</span>
+                    <span class="node-info-item">"Node metrics Port: "</span>
                     {move || {
                         info.get().metrics_port.map_or("unknown".to_string(), |v| v.to_string())
                     }}
                 </p>
                 <p>
-                    <span class="text-blue-700 dark:text-blue-400">"Balance: "</span>
+                    <span class="node-info-item">"Balance: "</span>
                     {move || info.get().balance.map_or("unknown".to_string(), |v| v.to_string())}
                 </p>
                 <p>
-                    <span class="text-blue-700 dark:text-blue-400">"Rewards addr: "</span>
+                    <span class="node-info-item">"Rewards addr: "</span>
                     {move || rewards_addr}
                 </p>
                 <p>
-                    <span class="text-blue-700 dark:text-blue-400">"Rewards received: "</span>
+                    <span class="node-info-item">"Rewards received: "</span>
                     {move || {
-                        info.get().rewards_received.map_or("unknown".to_string(), |v| v.to_string())
+                        info.get().rewards.map_or("unknown".to_string(), |v| v.to_string())
                     }}
                 </p>
                 <p>
-                    <span class="text-blue-700 dark:text-blue-400">"Records: "</span>
-                    {move || info.get().records.map_or("unknown".to_string(), |v| v.to_string())}
+                    <span class="node-info-item">"Store cost: "</span>
+                    {move || {
+                        info.get().store_cost.map_or("unknown".to_string(), |v| v.to_string())
+                    }}
                 </p>
                 <p>
-                    <span class="text-blue-700 dark:text-blue-400">"Connected peers: "</span>
+                    <div class="flex flex-row">
+                        <div class="basis-1/2">
+                            <span class="node-info-item">"Records: "</span>
+                            {move || {
+                                info.get().records.map_or("unknown".to_string(), |v| v.to_string())
+                            }}
+                        </div>
+                        <div class="basis-1/2">
+                            <span class="node-info-item">"Relevant: "</span>
+                            {move || {
+                                info.get()
+                                    .relevant_records
+                                    .map_or("unknown".to_string(), |v| v.to_string())
+                            }}
+                        </div>
+                    </div>
+                </p>
+                <p>
+                    <span class="node-info-item">"Connected peers: "</span>
                     {move || {
                         info.get().connected_peers.map_or("unknown".to_string(), |v| v.to_string())
                     }}
                 </p>
                 <p>
-                    <span class="text-blue-700 dark:text-blue-400">"kBuckets peers: "</span>
+                    <span class="node-info-item">"kBuckets peers: "</span>
                     {move || {
                         info.get().kbuckets_peers.map_or("unknown".to_string(), |v| v.to_string())
                     }}
                 </p>
                 <p>
-                    <span class="text-blue-700 dark:text-blue-400">"Created: "</span>
+                    <div class="flex flex-row">
+                        <div class="basis-2/3">
+                            <span class="node-info-item">"Memory used: "</span>
+                            {move || {
+                                info.get().mem_used.map_or("".to_string(), |v| format!("{v} MB"))
+                            }}
+                        </div>
+                        <div class="basis-1/3">
+                            <span class="node-info-item">"CPU: "</span>
+                            {move || {
+                                info.get().cpu_usage.map_or("".to_string(), |v| format!("{v}%"))
+                            }}
+                        </div>
+                    </div>
+                </p>
+                <p>
+                    <span class="node-info-item">"Created: "</span>
                     {move || {
                         DateTime::<Utc>::from_timestamp(info.get().created as i64, 0)
                             .unwrap()

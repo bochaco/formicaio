@@ -1,3 +1,4 @@
+use super::app::ContainerId;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -6,9 +7,6 @@ use super::{
     docker_client::{LABEL_KEY_METRICS_PORT, LABEL_KEY_NODE_PORT, LABEL_KEY_RPC_PORT},
     node_instance::NodeStatus,
 };
-
-// Hex-encoded container id
-pub type ContainerId = String;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[allow(non_snake_case)]

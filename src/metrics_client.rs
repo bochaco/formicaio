@@ -1,78 +1,48 @@
-use super::{app::ServerGlobalState, docker_msgs::ContainerId, node_instance::NodeInstanceInfo};
+use super::{
+    app::ServerGlobalState,
+    metrics::{Metrics, NodeMetric},
+    node_instance::NodeInstanceInfo,
+};
 
 use chrono::Utc;
 use leptos::*;
-use std::collections::HashMap;
 use thiserror::Error;
 
 // Default value for the nodes metrics host
 const DEFAULT_NODES_METRICS_HOST: &str = "127.0.0.1";
-// Maximum number of metrics data points to be kept per node
-const DEFAULT_METRICS_MAX_SIZE: usize = 100;
+
+// Keys returned by the node for each of the metrics we will be monitoring
+// The cumulative number of Nanos forwarded by the node.
+const METRIC_KEY_REWARDS: &str = "sn_node_total_forwarded_rewards";
+// The number of Nanos in the node reward wallet.
+const METRIC_KEY_BALANCE: &str = "sn_node_current_reward_wallet_balance";
+// The store cost of the node.
+const METRIC_KEY_STORE_COST: &str = "sn_networking_store_cost";
+// Memory used by the process in MegaBytes.
+const METRIC_KEY_MEM_USED_MB: &str = "sn_networking_process_memory_used_mb";
+// The percentage of CPU used by the process. Value is from 0-100.
+const METRIC_KEY_CPU_USEAGE: &str = "sn_networking_process_cpu_usage_percentage";
+// The number of records stored locally.
+const METRIC_KEY_RECORDS: &str = "sn_networking_records_stored";
+// The number of records that we're responsible for. This is used to calculate the store cost.
+const METRIC_KEY_RELEVANT_RECORDS: &str = "sn_networking_relevant_records";
+// The number of peers that we are currently connected to.
+const METRIC_KEY_CONNECTED_PEERS: &str = "sn_networking_connected_peers";
+// The total number of peers in our routing table.
+const METRIC_KEY_PEERS_IN_RT: &str = "sn_networking_peers_in_routing_table";
 
 // Predefined set of metrics to monitor and collect in cache.
-const NODE_METRICS_TO_COLLECT: [&str; 2] = [
-    "sn_node_total_forwarded_rewards",
-    "sn_node_current_reward_wallet_balance",
+const NODE_METRICS_TO_COLLECT: [&str; 9] = [
+    METRIC_KEY_REWARDS,
+    METRIC_KEY_BALANCE,
+    METRIC_KEY_STORE_COST,
+    METRIC_KEY_MEM_USED_MB,
+    METRIC_KEY_CPU_USEAGE,
+    METRIC_KEY_RECORDS,
+    METRIC_KEY_RELEVANT_RECORDS,
+    METRIC_KEY_CONNECTED_PEERS,
+    METRIC_KEY_PEERS_IN_RT,
 ];
-
-// Structure to keep track of all nodes metrics. These metrics
-// are collected periodically at the backend in a background task,
-// and consumed by the frontend through a server api.
-#[derive(Debug)]
-pub struct NodesMetrics {
-    // Cache of the metrics for each node indexed by their container id.
-    data: HashMap<ContainerId, HashMap<String, Vec<NodeMetric>>>,
-    // Number of data points to keep for each node.
-    max_size: usize,
-}
-
-#[derive(Clone, Debug)]
-pub struct NodeMetric {
-    // Name/key of the metric.
-    pub key: String,
-    // Value measured the metric.
-    pub value: String,
-    // Timestamp of the metric. Note this isn't used to sorting metrics in cache.
-    pub timestamp: i64,
-}
-
-impl NodesMetrics {
-    // TODO: allow user to define the max number of data points to be kept
-    pub fn new() -> Self {
-        Self {
-            data: HashMap::new(),
-            max_size: DEFAULT_METRICS_MAX_SIZE,
-        }
-    }
-
-    // Add a data point for the specified container id,
-    // removing the oldest if max size has been reached.
-    pub fn push(&mut self, container_id: &ContainerId, metrics: &[NodeMetric]) {
-        let nodes_metrics = self.data.entry(container_id.to_string()).or_default();
-        for m in metrics {
-            let metrics = nodes_metrics.entry(m.key.clone()).or_default();
-            metrics.push(m.clone());
-            if metrics.len() > self.max_size {
-                metrics.remove(0);
-            }
-        }
-    }
-
-    // Return all the metrics for the specified container id
-    pub fn get_all_metrics(&self, container_id: &ContainerId) -> HashMap<String, Vec<NodeMetric>> {
-        self.data.get(container_id).cloned().unwrap_or_default()
-    }
-
-    // Return last data point for a specific type of metrics and specific container id
-    pub fn get_last_data_point(&self, container_id: &ContainerId, key: &str) -> Option<NodeMetric> {
-        self.data
-            .get(container_id) // get the metrics for the given container id
-            .and_then(|m| m.get(key)) // get the metrics of the given type
-            .and_then(|m| m.get(m.len() - 1)) // get the last value from the data points
-            .cloned()
-    }
-}
 
 #[derive(Debug, Error)]
 pub enum MetricsClientError {
@@ -93,34 +63,39 @@ impl NodeMetricsClient {
         }
     }
 
-    pub async fn update_node_info(&self, info: &mut NodeInstanceInfo) {
-        if let Err(err) = self.fetch_rewards_metrics(info).await {
-            logging::log!(
-                "Failed to get metrics from running node at endpoint {}: {err:?}",
-                self.endpoint
-            );
-        }
-    }
-
-    // Fetch metrics related to rewards and update given node instance info
-    async fn fetch_rewards_metrics(
-        &self,
-        info: &mut NodeInstanceInfo,
-    ) -> Result<(), MetricsClientError> {
+    // Fetch metrics and update given node instance info
+    pub async fn update_node_info(info: &mut NodeInstanceInfo) {
         let context = expect_context::<ServerGlobalState>();
         let nodes_metrics = context.nodes_metrics.lock().await;
-        if let Some(metric) =
-            nodes_metrics.get_last_data_point(&info.container_id, "sn_node_total_forwarded_rewards")
-        {
-            info.rewards_received = metric.value.parse::<u64>().ok();
-        }
-        if let Some(metric) = nodes_metrics
-            .get_last_data_point(&info.container_id, "sn_node_current_reward_wallet_balance")
-        {
-            info.balance = metric.value.parse::<u64>().ok();
-        }
 
-        Ok(())
+        let metrics = nodes_metrics.get_container_metrics(&info.container_id);
+
+        get_last_data_point(metrics, METRIC_KEY_REWARDS)
+            .map(|metric| info.rewards = metric.value.parse::<u64>().ok());
+
+        get_last_data_point(metrics, METRIC_KEY_BALANCE)
+            .map(|metric| info.balance = metric.value.parse::<u64>().ok());
+
+        get_last_data_point(metrics, METRIC_KEY_STORE_COST)
+            .map(|metric| info.store_cost = metric.value.parse::<u64>().ok());
+
+        get_last_data_point(metrics, METRIC_KEY_MEM_USED_MB)
+            .map(|metric| info.mem_used = metric.value.parse::<u64>().ok());
+
+        get_last_data_point(metrics, METRIC_KEY_CPU_USEAGE)
+            .map(|metric| info.cpu_usage = Some(metric.value.clone()));
+
+        get_last_data_point(metrics, METRIC_KEY_RECORDS)
+            .map(|metric| info.records = metric.value.parse::<usize>().ok());
+
+        get_last_data_point(metrics, METRIC_KEY_RELEVANT_RECORDS)
+            .map(|metric| info.relevant_records = metric.value.parse::<usize>().ok());
+
+        get_last_data_point(metrics, METRIC_KEY_CONNECTED_PEERS)
+            .map(|metric| info.connected_peers = metric.value.parse::<usize>().ok());
+
+        get_last_data_point(metrics, METRIC_KEY_PEERS_IN_RT)
+            .map(|metric| info.kbuckets_peers = metric.value.parse::<usize>().ok());
     }
 
     // Fetch, filter, and return the predefined type of metrics.
@@ -152,4 +127,14 @@ impl NodeMetricsClient {
 
         Ok(fetched_metrics)
     }
+}
+
+// Return last data point for a specific metric
+pub fn get_last_data_point<'a>(
+    metrics: Option<&'a Metrics>,
+    key: &'a str,
+) -> Option<&'a NodeMetric> {
+    metrics
+        .and_then(|m| m.get(key)) // get the metrics of the given type
+        .and_then(|m| m.get(m.len() - 1)) // get the last value from the data points
 }

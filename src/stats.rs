@@ -28,7 +28,7 @@ pub fn AggregatedStatsView() -> impl IntoView {
             .nodes
             .get()
             .values()
-            .map(|n| n.get().rewards_received.unwrap_or_default())
+            .map(|n| n.get().rewards.unwrap_or_default())
             .sum::<u64>()
     };
     let balance = move || {
@@ -47,7 +47,7 @@ pub fn AggregatedStatsView() -> impl IntoView {
             .map(|n| n.get().connected_peers.unwrap_or_default())
             .sum::<usize>()
     };
-    let active_records = move || {
+    let stored_records = move || {
         context
             .nodes
             .get()
@@ -69,6 +69,20 @@ pub fn AggregatedStatsView() -> impl IntoView {
             .map(|n| {
                 if n.get().status.is_inactive() {
                     n.get().records.unwrap_or_default()
+                } else {
+                    0
+                }
+            })
+            .sum::<usize>()
+    };
+    let relevant_records = move || {
+        context
+            .nodes
+            .get()
+            .values()
+            .map(|n| {
+                if n.get().status.is_active() {
+                    n.get().relevant_records.unwrap_or_default()
                 } else {
                     0
                 }
@@ -101,9 +115,10 @@ pub fn AggregatedStatsView() -> impl IntoView {
 
             <div class="stat place-items-center">
                 <div class="stat-title">Stored records</div>
-                <div class="stat-value">{active_records}</div>
+                <div class="stat-value">{stored_records}</div>
                 <div class="stat-desc text-secondary">
-                    {inactive_records} " records are in inactive nodes"
+                    {relevant_records} " are relevant | " {inactive_records}
+                    " are in inactive nodes"
                 </div>
             </div>
         </div>
