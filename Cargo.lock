@@ -1124,6 +1124,7 @@ dependencies = [
  "tower-http",
  "url",
  "wasm-bindgen",
+ "wasm-bindgen-futures",
 ]
 
 [[package]]

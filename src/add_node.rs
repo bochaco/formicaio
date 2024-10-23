@@ -1,6 +1,7 @@
 use super::{
+    app::get_addr_from_metamask,
     helpers::add_node_instance,
-    icons::{IconAddNode, IconCloseModal},
+    icons::{IconAddNode, IconCloseModal, IconPasteAddr},
 };
 
 use leptos::*;
@@ -19,7 +20,10 @@ pub fn AddNodeView() -> impl IntoView {
     let port = create_rw_signal(Ok(DEFAULT_NODE_PORT));
     let rpc_port = create_rw_signal(Ok(DEFAULT_RPC_API_PORT));
     let metrics_port = create_rw_signal(Ok(DEFAULT_METRICS_PORT));
-    let rewards_addr = create_rw_signal(Err("Enter a rewards address".to_string()));
+    let rewards_addr = create_rw_signal(Err((
+        "Enter a rewards address".to_string(),
+        "0x".to_string(),
+    )));
     let add_node = create_action(
         move |(port, rpc_port, metrics_port, rewards_addr): &(u16, u16, u16, String)| {
             let port = *port;
@@ -52,7 +56,7 @@ pub fn AddNodeView() -> impl IntoView {
                     }
                 }
             >
-                <div class="relative p-4 w-full max-w-md max-h-full">
+                <div class="relative p-4 w-full max-w-lg max-h-full">
                     <div class="relative bg-white rounded-lg shadow dark:bg-gray-700">
                         <div class="flex items-center justify-between p-4 md:p-5 border-b rounded-t dark:border-gray-600">
                             <h3 class="text-xl font-semibold text-gray-900 dark:text-white">
@@ -150,23 +154,27 @@ pub fn PortNumberInput(
 
 #[component]
 pub fn RewardsAddrInput(
-    signal: RwSignal<Result<String, String>>,
+    signal: RwSignal<Result<String, (String, String)>>,
     label: &'static str,
 ) -> impl IntoView {
-    let on_input = move |ev| {
-        // let's check the address is valid length
-        let input_str = event_target_value(&ev);
-        let value = match input_str.strip_prefix("0x") {
-            Some(stripped) => stripped.to_string(),
-            None => input_str,
-        };
+    let validate_and_set = move |input_str: String| {
+        let value = input_str
+            .strip_prefix("0x")
+            .unwrap_or(&input_str)
+            .to_string();
 
         let res = if value.len() != REWARDS_ADDR_LENGTH {
-            Err("Unexpected length of rewards address".to_string())
+            Err((
+                "Unexpected length of rewards address".to_string(),
+                input_str,
+            ))
         } else if hex::decode(&value).is_err() {
-            Err("The address entered is not hex-encoded".to_string())
+            Err((
+                "The address entered is not hex-encoded".to_string(),
+                input_str,
+            ))
         } else {
-            Ok(value)
+            Ok(input_str)
         };
 
         signal.set(res);
@@ -180,16 +188,66 @@ pub fn RewardsAddrInput(
             >
                 {label}
             </label>
-            <input
-                type="text"
-                name="rewards_addr"
-                id="rewards_addr"
-                on:input=on_input
-                required
-                class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white"
-            />
+
+            <div class="flex items-center">
+                <div class="relative w-full">
+                    <input
+                        type="text"
+                        name="rewards_addr"
+                        id="rewards_addr"
+                        on:input=move |ev| validate_and_set(event_target_value(&ev))
+                        required
+                        class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white"
+                        prop:value=move || match signal.get() {
+                            Ok(s) => s,
+                            Err((_, s)) => s,
+                        }
+                    />
+                </div>
+
+                <button
+                    data-tooltip-target="tooltip-rewards_addr"
+                    data-copy-to-clipboard-target="rewards_addr"
+                    class="btn-node-action"
+                    type="button"
+                    on:click=move |_| {
+                        spawn_local(async move {
+                            if let Some(addr) = get_addr_from_metamask().await.as_string() {
+                                validate_and_set(addr);
+                            } else {
+                                let prev = match signal.get_untracked() {
+                                    Ok(s) => s,
+                                    Err((_, s)) => s,
+                                };
+                                signal
+                                    .set(
+                                        Err((
+                                            "failed to get address fom Metamask".to_string(),
+                                            prev,
+                                        )),
+                                    )
+                            }
+                        });
+                    }
+                >
+                    <span id="default-icon">
+                        <IconPasteAddr />
+                    </span>
+                </button>
+                <div
+                    id="tooltip-rewards_addr"
+                    role="tooltip"
+                    class="absolute z-10 invisible inline-block px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700"
+                >
+                    <span>Retrieve address from Metamask</span>
+                    <div class="tooltip-arrow" data-popper-arrow></div>
+                </div>
+            </div>
+
             <Show when=move || signal.get().is_err() fallback=move || view! { "" }.into_view()>
-                <p class="mt-2 text-sm text-red-600 dark:text-red-500">{signal.get().err()}</p>
+                <p class="mt-2 text-sm text-red-600 dark:text-red-500">
+                    {signal.get().err().map(|(e, _)| e)}
+                </p>
             </Show>
         </div>
     }

@@ -25,6 +25,12 @@ use leptos::*;
 use leptos_meta::*;
 use leptos_router::*;
 use std::collections::HashMap;
+use wasm_bindgen::{prelude::*, JsValue};
+
+#[wasm_bindgen(module = "/public/metamask.js")]
+extern "C" {
+    pub async fn get_addr_from_metamask() -> JsValue;
+}
 
 #[cfg(feature = "hydrate")]
 const POLLING_FREQ_MILLIS: u32 = 5_500;
