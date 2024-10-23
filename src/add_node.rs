@@ -4,6 +4,7 @@ use super::{
     icons::{IconAddNode, IconCloseModal, IconPasteAddr},
 };
 
+use alloy_core::primitives::Address;
 use leptos::*;
 use std::num::ParseIntError;
 
@@ -29,7 +30,10 @@ pub fn AddNodeView() -> impl IntoView {
             let port = *port;
             let rpc_port = *rpc_port;
             let metrics_port = *metrics_port;
-            let rewards_addr = rewards_addr.to_string();
+            let rewards_addr = rewards_addr
+                .strip_prefix("0x")
+                .unwrap_or(&rewards_addr)
+                .to_string();
             async move {
                 let _ = add_node_instance(port, rpc_port, metrics_port, rewards_addr).await;
             }
@@ -173,8 +177,15 @@ pub fn RewardsAddrInput(
                 "The address entered is not hex-encoded".to_string(),
                 input_str,
             ))
-        } else {
+        } else if value.to_lowercase() == value || value.to_uppercase() == value {
+            // it's a non-checksummed address
             Ok(input_str)
+        } else {
+            // validate checksum
+            match Address::parse_checksummed(&input_str, None) {
+                Ok(_) => Ok(input_str),
+                Err(_) => Err(("Checksum validation failed".to_string(), input_str)),
+            }
         };
 
         signal.set(res);
@@ -207,7 +218,6 @@ pub fn RewardsAddrInput(
 
                 <button
                     data-tooltip-target="tooltip-rewards_addr"
-                    data-copy-to-clipboard-target="rewards_addr"
                     class="btn-node-action"
                     type="button"
                     on:click=move |_| {
@@ -222,7 +232,7 @@ pub fn RewardsAddrInput(
                                 signal
                                     .set(
                                         Err((
-                                            "failed to get address fom Metamask".to_string(),
+                                            "Failed to retrieve address from Metamask".to_string(),
                                             prev,
                                         )),
                                     )
@@ -230,9 +240,7 @@ pub fn RewardsAddrInput(
                         });
                     }
                 >
-                    <span id="default-icon">
-                        <IconPasteAddr />
-                    </span>
+                    <IconPasteAddr />
                 </button>
                 <div
                     id="tooltip-rewards_addr"
