@@ -8,7 +8,7 @@ WORKDIR /app
 
 # Install node binary
 RUN curl -sSL https://raw.githubusercontent.com/maidsafe/safeup/main/install.sh | bash
-RUN /usr/local/bin/safeup node -v 0.112.0 -p /app
+RUN /usr/local/bin/safeup node -p /app
 
 FROM debian:bookworm-slim AS runtime
 WORKDIR /app
