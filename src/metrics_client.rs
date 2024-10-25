@@ -11,9 +11,6 @@ use thiserror::Error;
 // Default value for the nodes metrics host
 const DEFAULT_NODES_METRICS_HOST: &str = "127.0.0.1";
 
-// Keys returned by the node for each of the metrics we will be monitoring
-// The cumulative number of Nanos forwarded by the node.
-const METRIC_KEY_REWARDS: &str = "sn_node_total_forwarded_rewards";
 // The number of Nanos in the node reward wallet.
 const METRIC_KEY_BALANCE: &str = "sn_node_current_reward_wallet_balance";
 // The store cost of the node.
@@ -32,8 +29,7 @@ const METRIC_KEY_CONNECTED_PEERS: &str = "sn_networking_connected_peers";
 const METRIC_KEY_PEERS_IN_RT: &str = "sn_networking_peers_in_routing_table";
 
 // Predefined set of metrics to monitor and collect in cache.
-const NODE_METRICS_TO_COLLECT: [&str; 9] = [
-    METRIC_KEY_REWARDS,
+const NODE_METRICS_TO_COLLECT: [&str; 8] = [
     METRIC_KEY_BALANCE,
     METRIC_KEY_STORE_COST,
     METRIC_KEY_MEM_USED_MB,
@@ -69,9 +65,6 @@ impl NodeMetricsClient {
         let nodes_metrics = context.nodes_metrics.lock().await;
 
         let metrics = nodes_metrics.get_container_metrics(&info.container_id);
-
-        get_last_data_point(metrics, METRIC_KEY_REWARDS)
-            .map(|metric| info.rewards = metric.value.parse::<u64>().ok());
 
         get_last_data_point(metrics, METRIC_KEY_BALANCE)
             .map(|metric| info.balance = metric.value.parse::<u64>().ok());

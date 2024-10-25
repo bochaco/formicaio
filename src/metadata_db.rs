@@ -34,7 +34,7 @@ pub struct CachedNodeMetadata {
     pub bin_version: String,
     pub port: u16,
     pub rpc_api_port: u16,
-    pub rewards: String,
+    pub rewards: String, // TODO: currently unused, remove it
     pub balance: String,
     pub records: String,
     pub connected_peers: String,
@@ -56,9 +56,6 @@ impl CachedNodeMetadata {
         }
         if self.rpc_api_port > 0 {
             info.rpc_api_port = Some(self.rpc_api_port);
-        }
-        if let Ok(v) = self.rewards.parse::<u64>() {
-            info.rewards = Some(v);
         }
         if let Ok(v) = self.balance.parse::<u64>() {
             info.balance = Some(v);
@@ -117,15 +114,10 @@ impl DbClient {
 
     // Retrieve node metadata from local cache DB
     pub async fn get_node_metadata(&self, info: &mut NodeInstanceInfo) -> Result<(), DbError> {
-        match sqlx::query_as::<_, CachedNodeMetadata>(
-            "SELECT container_id, peer_id, bin_version, port, \
-                rpc_api_port, rewards, balance, records, \
-                connected_peers, kbuckets_peers \
-            FROM nodes WHERE container_id=?",
-        )
-        .bind(info.container_id.clone())
-        .fetch_all(&self.db)
-        .await
+        match sqlx::query_as::<_, CachedNodeMetadata>("SELECT * FROM nodes WHERE container_id=?")
+            .bind(info.container_id.clone())
+            .fetch_all(&self.db)
+            .await
         {
             Ok(nodes) => {
                 for node in nodes {
@@ -145,16 +137,15 @@ impl DbClient {
         match sqlx::query(
             "INSERT OR REPLACE INTO nodes (\
                 container_id, peer_id, bin_version, port, \
-                rpc_api_port, rewards, balance, records, \
+                rpc_api_port, balance, records, \
                 connected_peers, kbuckets_peers \
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(info.container_id.clone())
         .bind(info.peer_id.clone())
         .bind(info.bin_version.clone().unwrap_or_default())
         .bind(info.port.clone())
         .bind(info.rpc_api_port.clone())
-        .bind(info.rewards.map_or("".to_string(), |v| v.to_string()))
         .bind(info.balance.map_or("".to_string(), |v| v.to_string()))
         .bind(info.records.map_or("".to_string(), |v| v.to_string()))
         .bind(

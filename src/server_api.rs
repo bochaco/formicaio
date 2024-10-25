@@ -40,7 +40,6 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
             metrics_port: container.metrics_port(),
             node_ip: container.node_ip(),
             balance: None,
-            rewards: None,
             rewards_addr: container.Labels.get(LABEL_KEY_REWARDS_ADDR).cloned(),
             records: None,
             relevant_records: None,
@@ -116,7 +115,6 @@ pub async fn create_node_instance(
                 }
             }),
         balance: None,
-        rewards: None,
         rewards_addr: if rewards_addr.is_empty() {
             None
         } else {

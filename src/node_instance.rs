@@ -94,7 +94,6 @@ pub struct NodeInstanceInfo {
     pub metrics_port: Option<u16>,
     pub node_ip: Option<String>,
     pub balance: Option<u64>,
-    pub rewards: Option<u64>,
     pub rewards_addr: Option<String>, // hex-encoded rewards address
     pub records: Option<usize>,
     pub relevant_records: Option<usize>,
@@ -321,12 +320,6 @@ fn NodeInstanceView(
                 <p>
                     <span class="node-info-item">"Rewards addr: "</span>
                     {move || rewards_addr}
-                </p>
-                <p>
-                    <span class="node-info-item">"Rewards received: "</span>
-                    {move || {
-                        info.get().rewards.map_or("unknown".to_string(), |v| v.to_string())
-                    }}
                 </p>
                 <p>
                     <span class="node-info-item">"Store cost: "</span>

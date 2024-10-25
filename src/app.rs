@@ -151,7 +151,6 @@ fn spawn_nodes_list_polling() {
                                         cn.status_info = updated.status_info.clone();
                                         cn.bin_version = updated.bin_version.clone();
                                         cn.balance = updated.balance;
-                                        cn.rewards = updated.rewards;
                                         cn.records = updated.records;
                                         cn.relevant_records = updated.relevant_records;
                                         cn.store_cost = updated.store_cost;
