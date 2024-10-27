@@ -14,6 +14,8 @@ async fn main() {
     use leptos::*;
     use leptos_axum::{generate_route_list, LeptosRoutes};
 
+    logging::log!("Starting Formicaio v{} ...", env!("CARGO_PKG_VERSION"));
+
     // Setting get_configuration(None) means we'll be using cargo-leptos's env values
     // For deployment these variables are:
     // <https://github.com/leptos-rs/start-axum#executing-a-server-on-a-remote-machine-without-the-toolchain>
@@ -109,7 +111,7 @@ fn spawn_bg_tasks(
         loop {
             sleep(NODES_METRICS_POLLING_FREQ).await;
 
-            let containers = match docker_client.get_containers_list().await {
+            let containers = match docker_client.get_containers_list(false).await {
                 Ok(containers) if !containers.is_empty() => containers,
                 _ => continue,
             };

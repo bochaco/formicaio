@@ -116,29 +116,35 @@ impl DockerClient {
     ) -> Result<Container, DockerClientError> {
         let mut filters = HashMap::default();
         filters.insert("id".to_string(), vec![id.clone()]);
-        let containers = self.list_containers(&filters).await?;
+        let containers = self.list_containers(&filters, true).await?;
         containers
             .into_iter()
             .next()
             .ok_or(DockerClientError::CointainerNotFound(id.clone()))
     }
 
-    // Query the Docker server to return the list of ALL existing containers.
-    pub async fn get_containers_list(&self) -> Result<Vec<Container>, DockerClientError> {
+    // Query the Docker server to return the list of ALL existing containers,
+    // unless 'all' argument is set to false in which case only running containers are returned.
+    pub async fn get_containers_list(
+        &self,
+        all: bool,
+    ) -> Result<Vec<Container>, DockerClientError> {
         let mut filters = HashMap::default();
         filters.insert("label".to_string(), vec![LABEL_KEY_VERSION.to_string()]);
-        self.list_containers(&filters).await
+        self.list_containers(&filters, all).await
     }
 
     // Query the Docker server to return a LIST of existing containers using the given filter.
     async fn list_containers(
         &self,
         filters: &HashMap<String, Vec<String>>,
+        all: bool,
     ) -> Result<Vec<Container>, DockerClientError> {
         let url = format!("{DOCKER_CONTAINERS_API}/json");
         logging::log!("[LIST] Sending Docker query to get LIST of containers: {url} ...");
+        let all_str = all.to_string();
         let query = &[
-            ("all", "true"),
+            ("all", all_str.as_str()),
             ("filters", &serde_json::to_string(filters)?),
         ];
         let resp_bytes = self.send_request(ReqMethod::Get, &url, query, &()).await?;

@@ -22,9 +22,9 @@ This application has not yet been published on the official UmbrelOS app store. 
 
 https://user-images.githubusercontent.com/10330103/197889452-e5cd7e96-3233-4a09-b475-94b754adc7a3.mp4
 
-### Linux (amd64/arm64)
+### Linux or MacOS (amd64/arm64)
 
-This application can also be launched on a Linux (amd64/arm64) machine using Docker Compose with the following commands:
+This application can also be launched on a Linux or MacOS (amd64/arm64) machine using Docker Compose with the following commands:
 
 ```
 $ git clone https://github.com/bochaco/formicaio
