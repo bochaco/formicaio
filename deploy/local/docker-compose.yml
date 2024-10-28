@@ -20,6 +20,8 @@ services:
 
   formicaio:
     image: bochaco/formicaio:latest
+    depends_on:
+      - docker
     stop_grace_period: 5s
     ports:
       - "52100:8080"
