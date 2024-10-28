@@ -1534,7 +1534,7 @@ dependencies = [
 
 [[package]]
 name = "formicaio"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "alloy-core",
  "async-stream",
