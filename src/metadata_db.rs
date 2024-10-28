@@ -10,8 +10,10 @@ use sqlx::{
 use std::{
     env::{self, current_dir},
     path::Path,
+    sync::Arc,
 };
 use thiserror::Error;
+use tokio::sync::Mutex;
 
 #[derive(Debug, Error)]
 pub enum DbError {
@@ -75,7 +77,7 @@ impl CachedNodeMetadata {
 // Client to interface with the local Sqlite database
 #[derive(Clone, Debug)]
 pub struct DbClient {
-    db: SqlitePool,
+    db: Arc<Mutex<SqlitePool>>,
 }
 
 impl DbClient {
@@ -109,14 +111,17 @@ impl DbClient {
         Migrator::new(migrations).await?.run(&db).await?;
 
         logging::log!("Database migrations applied successfully!");
-        Ok(Self { db })
+        Ok(Self {
+            db: Arc::new(Mutex::new(db)),
+        })
     }
 
     // Retrieve node metadata from local cache DB
     pub async fn get_node_metadata(&self, info: &mut NodeInstanceInfo) -> Result<(), DbError> {
+        let db_lock = self.db.lock().await;
         match sqlx::query_as::<_, CachedNodeMetadata>("SELECT * FROM nodes WHERE container_id=?")
             .bind(info.container_id.clone())
-            .fetch_all(&self.db)
+            .fetch_all(&*db_lock)
             .await
         {
             Ok(nodes) => {
@@ -134,6 +139,7 @@ impl DbClient {
 
     // Store node metadata (insert, or update if it exists) onto local cache DB
     pub async fn store_node_metadata(&self, info: &NodeInstanceInfo) -> Result<(), DbError> {
+        let db_lock = self.db.lock().await;
         match sqlx::query(
             "INSERT OR REPLACE INTO nodes (\
                 container_id, peer_id, bin_version, port, \
@@ -156,7 +162,7 @@ impl DbClient {
             info.kbuckets_peers
                 .map_or("".to_string(), |v| v.to_string()),
         )
-        .execute(&self.db)
+        .execute(&*db_lock)
         .await
         {
             Ok(_) => {}
@@ -168,9 +174,10 @@ impl DbClient {
 
     // Remove node metadata from local cache DB
     pub async fn delete_node_metadata(&self, container_id: &str) -> Result<(), DbError> {
+        let db_lock = self.db.lock().await;
         match sqlx::query("DELETE FROM nodes WHERE container_id = ?")
             .bind(container_id)
-            .execute(&self.db)
+            .execute(&*db_lock)
             .await
         {
             Ok(_) => {}
@@ -187,10 +194,11 @@ impl DbClient {
         field: &str,
         value: &str,
     ) -> Result<(), DbError> {
+        let db_lock = self.db.lock().await;
         match sqlx::query(&format!("UPDATE nodes SET {field}=? WHERE container_id=?"))
             .bind(value)
             .bind(container_id)
-            .execute(&self.db)
+            .execute(&*db_lock)
             .await
         {
             Ok(_) => {}

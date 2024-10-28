@@ -19,7 +19,7 @@ pub mod metrics_client;
 mod navbar;
 pub mod node_instance;
 #[cfg(feature = "ssr")]
-mod node_rpc_client;
+pub mod node_rpc_client;
 mod server_api;
 mod stats;
 

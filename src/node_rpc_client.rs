@@ -1,4 +1,4 @@
-use super::node_instance::NodeInstanceInfo;
+use super::{app::ContainerId, metadata_db::DbClient};
 
 use leptos::*;
 use sn_protocol::safenode_proto::{safe_node_client::SafeNodeClient, NodeInfoRequest};
@@ -30,16 +30,34 @@ impl NodeRpcClient {
         })
     }
 
-    pub async fn update_node_info(&mut self, info: &mut NodeInstanceInfo) {
-        if let Err(err) = self.node_info(info).await {
-            logging::log!(
+    pub async fn update_node_info(&self, container_id: &ContainerId, db_client: &DbClient) {
+        match self.node_info().await {
+            Ok((peer_id, bin_version)) => {
+                if let Err(err) = db_client
+                    .update_node_metadata_field(container_id, "peer_id", &peer_id)
+                    .await
+                {
+                    logging::log!(
+                        "Failed to update DB cached peer_id info fetched through RPC API: {err}"
+                    );
+                }
+                if let Err(err) = db_client
+                    .update_node_metadata_field(container_id, "bin_version", &bin_version)
+                    .await
+                {
+                    logging::log!(
+                        "Failed to update DB cached bin_version fetched through RPC API: {err}"
+                    )
+                }
+            }
+            Err(err) => logging::log!(
                 "Failed to get basic info from running node using RPC endpoint {}: {err:?}",
                 self.endpoint
-            );
+            ),
         }
     }
 
-    async fn node_info(&mut self, info: &mut NodeInstanceInfo) -> Result<(), RpcClientError> {
+    async fn node_info(&self) -> Result<(String, String), RpcClientError> {
         logging::log!(
             "Sending RPC query to get node's basic info: {} ...",
             self.endpoint
@@ -49,9 +67,8 @@ impl NodeRpcClient {
         let response = client.node_info(Request::new(NodeInfoRequest {})).await?;
         let node_info = response.get_ref();
 
-        info.peer_id = Some(bs58::encode(&node_info.peer_id).into_string());
-        info.bin_version = Some(node_info.bin_version.clone());
+        let peer_id = bs58::encode(&node_info.peer_id).into_string();
 
-        Ok(())
+        Ok((peer_id, node_info.bin_version.clone()))
     }
 }

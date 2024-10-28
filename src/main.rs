@@ -36,6 +36,7 @@ async fn main() {
         docker_client.clone(),
         latest_bin_version.clone(),
         nodes_metrics.clone(),
+        db_client.clone(),
     );
 
     let app_state = ServerGlobalState {
@@ -71,8 +72,12 @@ fn spawn_bg_tasks(
     docker_client: formicaio::docker_client::DockerClient,
     latest_bin_version: Arc<Mutex<Option<String>>>,
     nodes_metrics: Arc<Mutex<formicaio::app::NodesMetrics>>,
+    db_client: formicaio::metadata_db::DbClient,
 ) {
-    use formicaio::{metrics_client::NodeMetricsClient, node_instance::NodeStatus};
+    use formicaio::{
+        metrics_client::NodeMetricsClient, node_instance::NodeStatus,
+        node_rpc_client::NodeRpcClient,
+    };
     use leptos::logging;
     use tokio::time::{sleep, Duration};
 
@@ -118,6 +123,22 @@ fn spawn_bg_tasks(
 
             logging::log!("Polling nodes ({}) metrics ...", containers.len());
             for container in containers {
+                let node_ip = container.node_ip();
+
+                // let's also fetch up to date info using its RPC API
+                if let Some(port) = container.rpc_api_port() {
+                    match NodeRpcClient::new(&node_ip, port) {
+                        Ok(node_rpc_client) => {
+                            node_rpc_client
+                                .update_node_info(&container.Id, &db_client)
+                                .await;
+                        }
+                        Err(err) => {
+                            logging::log!("Failed to connect to RPC API endpoint: {err}")
+                        }
+                    }
+                }
+
                 let metrics_port = match (
                     NodeStatus::from(&container.State).is_active(),
                     container.metrics_port(),
@@ -126,7 +147,6 @@ fn spawn_bg_tasks(
                     _ => continue,
                 };
 
-                let node_ip = container.node_ip();
                 let metrics_client = NodeMetricsClient::new(&node_ip, metrics_port);
                 match metrics_client.fetch_metrics().await {
                     Ok(metrics) => {

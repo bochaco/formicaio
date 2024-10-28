@@ -3,7 +3,7 @@ use super::{app::ContainerId, node_instance::NodeInstanceInfo};
 #[cfg(feature = "ssr")]
 use super::{
     app::ServerGlobalState, docker_client::LABEL_KEY_REWARDS_ADDR,
-    metrics_client::NodeMetricsClient, node_instance::NodeStatus, node_rpc_client::NodeRpcClient,
+    metrics_client::NodeMetricsClient, node_instance::NodeStatus,
 };
 
 #[cfg(feature = "ssr")]
@@ -46,7 +46,6 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
             store_cost: None,
             mem_used: None,
             cpu_usage: None,
-
             connected_peers: None,
             kbuckets_peers: None,
         };
@@ -58,8 +57,12 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
             .get_node_metadata(&mut node_instance_info)
             .await?;
 
-        // if the node is Active, we can also fetch up to date info using its RPC API
-        retrive_and_cache_updated_metadata(&mut node_instance_info).await?;
+        // if the node is Active, let's also get up to date metrics
+        // info retrieved through the metrics server
+        if node_instance_info.status.is_active() {
+            // TOOD: have all/some of this data to be also cached in DB
+            NodeMetricsClient::update_node_info(&mut node_instance_info).await;
+        }
 
         nodes.insert(container.Id, node_instance_info);
     }
@@ -174,10 +177,14 @@ pub async fn stop_node_instance(container_id: ContainerId) -> Result<(), ServerF
         .docker_client
         .stop_container_with(&container_id)
         .await?;
-    // set connect_peers back to 0 and update cache
+    // set connected/kbucket peers back to 0 and update cache
     context
         .db_client
         .update_node_metadata_field(&container_id, "connected_peers", "0")
+        .await?;
+    context
+        .db_client
+        .update_node_metadata_field(&container_id, "kbuckets_peers", "0")
         .await?;
 
     Ok(())
@@ -226,35 +233,4 @@ pub async fn node_metrics(
         .await
         .get_metrics(&container_id, since, &keys);
     Ok(metrics)
-}
-
-// If the node is active, retrieve up to date node's metadata through
-// its RPC API and update its cache in local database.
-#[cfg(feature = "ssr")]
-async fn retrive_and_cache_updated_metadata(
-    node_instance_info: &mut NodeInstanceInfo,
-) -> Result<(), ServerFnError> {
-    if node_instance_info.status.is_active() {
-        let context = expect_context::<ServerGlobalState>();
-        if let Some(port) = node_instance_info.rpc_api_port {
-            // TODO: send info back to the user if we receive an error from using RPC client.
-            match NodeRpcClient::new(&node_instance_info.node_ip, port) {
-                Ok(mut node_rpc_client) => {
-                    node_rpc_client.update_node_info(node_instance_info).await
-                }
-                Err(err) => logging::log!("Failed to connect to RPC API endpoint: {err}"),
-            }
-        }
-
-        // update with info retrieved through the metrics server
-        NodeMetricsClient::update_node_info(node_instance_info).await;
-
-        // update DB with this new info we just obtained
-        context
-            .db_client
-            .store_node_metadata(&node_instance_info)
-            .await?;
-    }
-
-    Ok(())
 }
