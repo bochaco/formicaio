@@ -23,6 +23,7 @@ pub struct NodesInstancesInfo {
 #[server(ListNodeInstances, "/api", "Url", "/list_nodes")]
 pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
+    *context.server_api_hit.lock().await = true;
     let latest_bin_version = context.latest_bin_version.lock().await.clone();
     let containers = context.docker_client.get_containers_list(true).await?;
 

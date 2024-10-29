@@ -32,11 +32,15 @@ async fn main() {
 
     let latest_bin_version = Arc::new(Mutex::new(None));
     let nodes_metrics = Arc::new(Mutex::new(NodesMetrics::new()));
+    // We'll use this flag to keep track if server API is being hit by any
+    // active client, in order to prevent from polling nodes unnecessarily.
+    let server_api_hit = Arc::new(Mutex::new(true));
     spawn_bg_tasks(
         docker_client.clone(),
         latest_bin_version.clone(),
         nodes_metrics.clone(),
         db_client.clone(),
+        server_api_hit.clone(),
     );
 
     let app_state = ServerGlobalState {
@@ -45,6 +49,7 @@ async fn main() {
         docker_client,
         latest_bin_version,
         nodes_metrics,
+        server_api_hit,
     };
 
     let app = Router::new()
@@ -73,6 +78,7 @@ fn spawn_bg_tasks(
     latest_bin_version: Arc<Mutex<Option<String>>>,
     nodes_metrics: Arc<Mutex<formicaio::app::NodesMetrics>>,
     db_client: formicaio::metadata_db::DbClient,
+    server_api_hit: Arc<Mutex<bool>>,
 ) {
     use formicaio::{
         metrics_client::NodeMetricsClient, node_instance::NodeStatus,
@@ -115,6 +121,11 @@ fn spawn_bg_tasks(
     tokio::spawn(async move {
         loop {
             sleep(NODES_METRICS_POLLING_FREQ).await;
+
+            if !*server_api_hit.lock().await {
+                continue;
+            }
+            *server_api_hit.lock().await = false;
 
             let containers = match docker_client.get_containers_list(false).await {
                 Ok(containers) if !containers.is_empty() => containers,

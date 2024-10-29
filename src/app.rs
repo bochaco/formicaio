@@ -43,6 +43,7 @@ pub struct ServerGlobalState {
     pub docker_client: super::docker_client::DockerClient,
     pub latest_bin_version: Arc<Mutex<Option<String>>>,
     pub nodes_metrics: Arc<Mutex<NodesMetrics>>,
+    pub server_api_hit: Arc<Mutex<bool>>,
 }
 
 // Struct to use client side as a global context/state
