@@ -81,7 +81,8 @@ fn spawn_bg_tasks(
     server_api_hit: Arc<Mutex<bool>>,
 ) {
     use formicaio::{
-        metrics_client::NodeMetricsClient, node_instance::NodeStatus,
+        metrics_client::NodeMetricsClient,
+        node_instance::{NodeInstanceInfo, NodeStatus},
         node_rpc_client::NodeRpcClient,
     };
     use leptos::logging;
@@ -135,14 +136,16 @@ fn spawn_bg_tasks(
             logging::log!("Polling nodes ({}) metrics ...", containers.len());
             for container in containers {
                 let node_ip = container.node_ip();
+                let mut node_info = NodeInstanceInfo {
+                    container_id: container.Id.clone(),
+                    ..Default::default()
+                };
 
                 // let's also fetch up to date info using its RPC API
                 if let Some(port) = container.rpc_api_port() {
                     match NodeRpcClient::new(&node_ip, port) {
                         Ok(node_rpc_client) => {
-                            node_rpc_client
-                                .update_node_info(&container.Id, &db_client)
-                                .await;
+                            node_rpc_client.update_node_info(&mut node_info).await;
                         }
                         Err(err) => {
                             logging::log!("Failed to connect to RPC API endpoint: {err}")
@@ -161,11 +164,18 @@ fn spawn_bg_tasks(
                 let metrics_client = NodeMetricsClient::new(&node_ip, metrics_port);
                 match metrics_client.fetch_metrics().await {
                     Ok(metrics) => {
-                        nodes_metrics.lock().await.push(&container.Id, &metrics);
+                        let mut node_metrics = nodes_metrics.lock().await;
+                        node_metrics.push(&container.Id, &metrics);
+                        node_metrics.update_node_info(&mut node_info);
                     }
                     Err(err) => logging::log!(
                         "Failed to pull node metrics from {node_ip:?}:{metrics_port}: {err}"
                     ),
+                }
+
+                // update DB with this new info we just obtained
+                if let Err(err) = db_client.store_node_metadata(&node_info).await {
+                    logging::log!("Failed to update DB cache with node info: {err}");
                 }
             }
         }

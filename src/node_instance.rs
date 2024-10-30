@@ -290,6 +290,14 @@ fn NodeInstanceView(
                     {move || info.get().bin_version.unwrap_or_else(|| "unknown".to_string())}
                 </p>
                 <p>
+                    <span class="node-info-item">"Balance: "</span>
+                    {move || info.get().balance.map_or("unknown".to_string(), |v| v.to_string())}
+                </p>
+                <p>
+                    <span class="node-info-item">"Rewards addr: "</span>
+                    {move || rewards_addr}
+                </p>
+                <p>
                     <div class="flex flex-row">
                         <div class="basis-1/3">
                             <span class="node-info-item">"Port: "</span>
@@ -312,14 +320,6 @@ fn NodeInstanceView(
                     {move || {
                         info.get().metrics_port.map_or("unknown".to_string(), |v| v.to_string())
                     }}
-                </p>
-                <p>
-                    <span class="node-info-item">"Balance: "</span>
-                    {move || info.get().balance.map_or("unknown".to_string(), |v| v.to_string())}
-                </p>
-                <p>
-                    <span class="node-info-item">"Rewards addr: "</span>
-                    {move || rewards_addr}
                 </p>
                 <p>
                     <span class="node-info-item">"Store cost: "</span>

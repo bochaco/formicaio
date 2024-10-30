@@ -1,4 +1,4 @@
-use super::{app::ContainerId, metadata_db::DbClient};
+use super::node_instance::NodeInstanceInfo;
 
 use leptos::*;
 use sn_protocol::safenode_proto::{safe_node_client::SafeNodeClient, NodeInfoRequest};
@@ -30,25 +30,11 @@ impl NodeRpcClient {
         })
     }
 
-    pub async fn update_node_info(&self, container_id: &ContainerId, db_client: &DbClient) {
+    pub async fn update_node_info(&self, node_info: &mut NodeInstanceInfo) {
         match self.node_info().await {
             Ok((peer_id, bin_version)) => {
-                if let Err(err) = db_client
-                    .update_node_metadata_field(container_id, "peer_id", &peer_id)
-                    .await
-                {
-                    logging::log!(
-                        "Failed to update DB cached peer_id info fetched through RPC API: {err}"
-                    );
-                }
-                if let Err(err) = db_client
-                    .update_node_metadata_field(container_id, "bin_version", &bin_version)
-                    .await
-                {
-                    logging::log!(
-                        "Failed to update DB cached bin_version fetched through RPC API: {err}"
-                    )
-                }
+                node_info.peer_id = Some(peer_id);
+                node_info.bin_version = Some(bin_version);
             }
             Err(err) => logging::log!(
                 "Failed to get basic info from running node using RPC endpoint {}: {err:?}",

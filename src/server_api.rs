@@ -2,8 +2,7 @@ use super::{app::ContainerId, node_instance::NodeInstanceInfo};
 
 #[cfg(feature = "ssr")]
 use super::{
-    app::ServerGlobalState, docker_client::LABEL_KEY_REWARDS_ADDR,
-    metrics_client::NodeMetricsClient, node_instance::NodeStatus,
+    app::ServerGlobalState, docker_client::LABEL_KEY_REWARDS_ADDR, node_instance::NodeStatus,
 };
 
 #[cfg(feature = "ssr")]
@@ -62,7 +61,11 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
         // info retrieved through the metrics server
         if node_instance_info.status.is_active() {
             // TOOD: have all/some of this data to be also cached in DB
-            NodeMetricsClient::update_node_info(&mut node_instance_info).await;
+            context
+                .nodes_metrics
+                .lock()
+                .await
+                .update_node_info(&mut node_instance_info);
         }
 
         nodes.insert(container.Id, node_instance_info);

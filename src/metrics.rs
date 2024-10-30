@@ -1,3 +1,5 @@
+use super::node_instance::NodeInstanceInfo;
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -17,6 +19,23 @@ pub struct NodesMetrics {
     // Number of data points to keep for each node.
     max_size: usize,
 }
+
+// The number of Nanos in the node reward wallet.
+pub const METRIC_KEY_BALANCE: &str = "sn_node_current_reward_wallet_balance";
+// The store cost of the node.
+pub const METRIC_KEY_STORE_COST: &str = "sn_networking_store_cost";
+// Memory used by the process in MegaBytes.
+pub const METRIC_KEY_MEM_USED_MB: &str = "sn_networking_process_memory_used_mb";
+// The percentage of CPU used by the process. Value is from 0-100.
+pub const METRIC_KEY_CPU_USEAGE: &str = "sn_networking_process_cpu_usage_percentage";
+// The number of records stored locally.
+pub const METRIC_KEY_RECORDS: &str = "sn_networking_records_stored";
+// The number of records that we're responsible for. This is used to calculate the store cost.
+pub const METRIC_KEY_RELEVANT_RECORDS: &str = "sn_networking_relevant_records";
+// The number of peers that we are currently connected to.
+pub const METRIC_KEY_CONNECTED_PEERS: &str = "sn_networking_connected_peers";
+// The total number of peers in our routing table.
+pub const METRIC_KEY_PEERS_IN_RT: &str = "sn_networking_peers_in_routing_table";
 
 // Maximum number of metrics data points to be kept per node
 const DEFAULT_METRICS_MAX_SIZE: usize = 1;
@@ -82,4 +101,40 @@ impl NodesMetrics {
             Metrics::default()
         }
     }
+
+    // Update given node instance info with in-memory cached metrics
+    pub fn update_node_info(&self, info: &mut NodeInstanceInfo) {
+        if let Some(metrics) = self.get_container_metrics(&info.container_id) {
+            get_last_data_point(metrics, METRIC_KEY_BALANCE)
+                .map(|metric| info.balance = metric.value.parse::<u64>().ok());
+
+            get_last_data_point(metrics, METRIC_KEY_STORE_COST)
+                .map(|metric| info.store_cost = metric.value.parse::<u64>().ok());
+
+            get_last_data_point(metrics, METRIC_KEY_MEM_USED_MB)
+                .map(|metric| info.mem_used = metric.value.parse::<u64>().ok());
+
+            get_last_data_point(metrics, METRIC_KEY_CPU_USEAGE)
+                .map(|metric| info.cpu_usage = Some(metric.value.clone()));
+
+            get_last_data_point(metrics, METRIC_KEY_RECORDS)
+                .map(|metric| info.records = metric.value.parse::<usize>().ok());
+
+            get_last_data_point(metrics, METRIC_KEY_RELEVANT_RECORDS)
+                .map(|metric| info.relevant_records = metric.value.parse::<usize>().ok());
+
+            get_last_data_point(metrics, METRIC_KEY_CONNECTED_PEERS)
+                .map(|metric| info.connected_peers = metric.value.parse::<usize>().ok());
+
+            get_last_data_point(metrics, METRIC_KEY_PEERS_IN_RT)
+                .map(|metric| info.kbuckets_peers = metric.value.parse::<usize>().ok());
+        }
+    }
+}
+
+// Return last data point for a specific metric
+fn get_last_data_point<'a>(metrics: &'a Metrics, key: &'a str) -> Option<&'a NodeMetric> {
+    metrics
+        .get(key) // get the metrics of the given type
+        .and_then(|m| m.get(m.len() - 1)) // get the last value from the data points
 }
