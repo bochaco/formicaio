@@ -32,7 +32,7 @@ pub fn AddNodeView() -> impl IntoView {
             let metrics_port = *metrics_port;
             let rewards_addr = rewards_addr
                 .strip_prefix("0x")
-                .unwrap_or(&rewards_addr)
+                .unwrap_or(rewards_addr)
                 .to_string();
             async move {
                 let _ = add_node_instance(port, rpc_port, metrics_port, rewards_addr).await;

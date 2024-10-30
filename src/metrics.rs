@@ -50,15 +50,17 @@ pub struct NodeMetric {
     pub timestamp: i64,
 }
 
-impl NodesMetrics {
-    // TODO: allow user to define the max number of data points to be kept
-    pub fn new() -> Self {
+impl Default for NodesMetrics {
+    fn default() -> Self {
+        // TODO: allow user to define the max number of data points to be kept
         Self {
             data: HashMap::new(),
             max_size: DEFAULT_METRICS_MAX_SIZE,
         }
     }
+}
 
+impl NodesMetrics {
     // Add a data point for the specified container id,
     // removing the oldest if max size has been reached.
     pub fn push(&mut self, container_id: &ContainerId, metrics: &[NodeMetric]) {
@@ -90,7 +92,7 @@ impl NodesMetrics {
                 .filter(|(k, _)| keys.is_empty() || keys.contains(k))
                 .map(|(k, values)| {
                     let filtered_values = if let Some(t) = since {
-                        values.iter().cloned().filter(|v| v.timestamp > t).collect()
+                        values.iter().filter(|v| v.timestamp > t).cloned().collect()
                     } else {
                         values.clone()
                     };
@@ -105,29 +107,37 @@ impl NodesMetrics {
     // Update given node instance info with in-memory cached metrics
     pub fn update_node_info(&self, info: &mut NodeInstanceInfo) {
         if let Some(metrics) = self.get_container_metrics(&info.container_id) {
-            get_last_data_point(metrics, METRIC_KEY_BALANCE)
-                .map(|metric| info.balance = metric.value.parse::<u64>().ok());
+            if let Some(metric) = get_last_data_point(metrics, METRIC_KEY_BALANCE) {
+                info.balance = metric.value.parse::<u64>().ok();
+            }
 
-            get_last_data_point(metrics, METRIC_KEY_STORE_COST)
-                .map(|metric| info.store_cost = metric.value.parse::<u64>().ok());
+            if let Some(metric) = get_last_data_point(metrics, METRIC_KEY_STORE_COST) {
+                info.store_cost = metric.value.parse::<u64>().ok();
+            }
 
-            get_last_data_point(metrics, METRIC_KEY_MEM_USED_MB)
-                .map(|metric| info.mem_used = metric.value.parse::<u64>().ok());
+            if let Some(metric) = get_last_data_point(metrics, METRIC_KEY_MEM_USED_MB) {
+                info.mem_used = metric.value.parse::<u64>().ok();
+            }
 
-            get_last_data_point(metrics, METRIC_KEY_CPU_USEAGE)
-                .map(|metric| info.cpu_usage = Some(metric.value.clone()));
+            if let Some(metric) = get_last_data_point(metrics, METRIC_KEY_CPU_USEAGE) {
+                info.cpu_usage = Some(metric.value.clone());
+            }
 
-            get_last_data_point(metrics, METRIC_KEY_RECORDS)
-                .map(|metric| info.records = metric.value.parse::<usize>().ok());
+            if let Some(metric) = get_last_data_point(metrics, METRIC_KEY_RECORDS) {
+                info.records = metric.value.parse::<usize>().ok();
+            }
 
-            get_last_data_point(metrics, METRIC_KEY_RELEVANT_RECORDS)
-                .map(|metric| info.relevant_records = metric.value.parse::<usize>().ok());
+            if let Some(metric) = get_last_data_point(metrics, METRIC_KEY_RELEVANT_RECORDS) {
+                info.relevant_records = metric.value.parse::<usize>().ok();
+            }
 
-            get_last_data_point(metrics, METRIC_KEY_CONNECTED_PEERS)
-                .map(|metric| info.connected_peers = metric.value.parse::<usize>().ok());
+            if let Some(metric) = get_last_data_point(metrics, METRIC_KEY_CONNECTED_PEERS) {
+                info.connected_peers = metric.value.parse::<usize>().ok();
+            }
 
-            get_last_data_point(metrics, METRIC_KEY_PEERS_IN_RT)
-                .map(|metric| info.kbuckets_peers = metric.value.parse::<usize>().ok());
+            if let Some(metric) = get_last_data_point(metrics, METRIC_KEY_PEERS_IN_RT) {
+                info.kbuckets_peers = metric.value.parse::<usize>().ok();
+            }
         }
     }
 }
@@ -136,5 +146,5 @@ impl NodesMetrics {
 fn get_last_data_point<'a>(metrics: &'a Metrics, key: &'a str) -> Option<&'a NodeMetric> {
     metrics
         .get(key) // get the metrics of the given type
-        .and_then(|m| m.get(m.len() - 1)) // get the last value from the data points
+        .and_then(|m| m.last()) // get the last value from the data points
 }

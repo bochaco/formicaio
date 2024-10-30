@@ -31,7 +31,7 @@ async fn main() {
     let docker_client = DockerClient::new().await.unwrap();
 
     let latest_bin_version = Arc::new(Mutex::new(None));
-    let nodes_metrics = Arc::new(Mutex::new(NodesMetrics::new()));
+    let nodes_metrics = Arc::new(Mutex::new(NodesMetrics::default()));
     // We'll use this flag to keep track if server API is being hit by any
     // active client, in order to prevent from polling nodes unnecessarily.
     let server_api_hit = Arc::new(Mutex::new(true));
