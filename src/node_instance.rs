@@ -102,6 +102,8 @@ pub struct NodeInstanceInfo {
     pub cpu_usage: Option<String>,
     pub connected_peers: Option<usize>,
     pub kbuckets_peers: Option<usize>,
+    pub shunned_count: Option<usize>,
+    pub net_size: Option<usize>,
 }
 
 impl NodeInstanceInfo {
@@ -346,10 +348,24 @@ fn NodeInstanceView(
                     </div>
                 </p>
                 <p>
-                    <span class="node-info-item">"Connected peers: "</span>
-                    {move || {
-                        info.get().connected_peers.map_or("unknown".to_string(), |v| v.to_string())
-                    }}
+                    <div class="flex flex-row">
+                        <div class="basis-1/2">
+                            <span class="node-info-item">"Conn. peers: "</span>
+                            {move || {
+                                info.get()
+                                    .connected_peers
+                                    .map_or("unknown".to_string(), |v| v.to_string())
+                            }}
+                        </div>
+                        <div class="basis-1/2">
+                            <span class="node-info-item">"Shunned by: "</span>
+                            {move || {
+                                info.get()
+                                    .shunned_count
+                                    .map_or("unknown".to_string(), |v| v.to_string())
+                            }}
+                        </div>
+                    </div>
                 </p>
                 <p>
                     <span class="node-info-item">"kBuckets peers: "</span>

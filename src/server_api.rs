@@ -31,23 +31,14 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
         let mut node_instance_info = NodeInstanceInfo {
             container_id: container.Id.clone(),
             created: container.Created,
-            peer_id: None,
             status: NodeStatus::from(&container.State),
             status_info: container.Status.clone(),
-            bin_version: None,
             port: container.port(),
             rpc_api_port: container.rpc_api_port(),
             metrics_port: container.metrics_port(),
             node_ip: container.node_ip(),
-            balance: None,
             rewards_addr: container.Labels.get(LABEL_KEY_REWARDS_ADDR).cloned(),
-            records: None,
-            relevant_records: None,
-            store_cost: None,
-            mem_used: None,
-            cpu_usage: None,
-            connected_peers: None,
-            kbuckets_peers: None,
+            ..Default::default()
         };
 
         // we first read node metadata cached in the database
@@ -103,10 +94,8 @@ pub async fn create_node_instance(
     let node_instance_info = NodeInstanceInfo {
         container_id: container.Id,
         created: container.Created,
-        peer_id: None,
         status: NodeStatus::from(&container.State),
         status_info: container.Status,
-        bin_version: None,
         port: Some(port),
         rpc_api_port: Some(rpc_api_port),
         metrics_port: Some(metrics_port),
@@ -121,19 +110,12 @@ pub async fn create_node_instance(
                     Some(n.IPAddress.clone())
                 }
             }),
-        balance: None,
         rewards_addr: if rewards_addr.is_empty() {
             None
         } else {
             Some(rewards_addr)
         },
-        records: None,
-        relevant_records: None,
-        store_cost: None,
-        mem_used: None,
-        cpu_usage: None,
-        connected_peers: None,
-        kbuckets_peers: None,
+        ..Default::default()
     };
 
     context

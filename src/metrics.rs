@@ -6,6 +6,16 @@ use std::collections::HashMap;
 // Hex-encoded container id
 pub type ContainerId = String;
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct NodeMetric {
+    // Name/key of the metric.
+    pub key: String,
+    // Value measured the metric.
+    pub value: String,
+    // Timestamp of the metric. Note this isn't used to sorting metrics in cache.
+    pub timestamp: i64,
+}
+
 // Set of metrics collected for a node, indexed by metric name/key.
 pub type Metrics = HashMap<String, Vec<NodeMetric>>;
 
@@ -18,6 +28,19 @@ pub struct NodesMetrics {
     data: HashMap<ContainerId, Metrics>,
     // Number of data points to keep for each node.
     max_size: usize,
+}
+
+// Maximum number of metrics data points to be kept per node
+const DEFAULT_METRICS_MAX_SIZE: usize = 1;
+
+impl Default for NodesMetrics {
+    fn default() -> Self {
+        // TODO: allow user to define the max number of data points to be kept
+        Self {
+            data: HashMap::new(),
+            max_size: DEFAULT_METRICS_MAX_SIZE,
+        }
+    }
 }
 
 // The number of Nanos in the node reward wallet.
@@ -36,29 +59,10 @@ pub const METRIC_KEY_RELEVANT_RECORDS: &str = "sn_networking_relevant_records";
 pub const METRIC_KEY_CONNECTED_PEERS: &str = "sn_networking_connected_peers";
 // The total number of peers in our routing table.
 pub const METRIC_KEY_PEERS_IN_RT: &str = "sn_networking_peers_in_routing_table";
-
-// Maximum number of metrics data points to be kept per node
-const DEFAULT_METRICS_MAX_SIZE: usize = 1;
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct NodeMetric {
-    // Name/key of the metric.
-    pub key: String,
-    // Value measured the metric.
-    pub value: String,
-    // Timestamp of the metric. Note this isn't used to sorting metrics in cache.
-    pub timestamp: i64,
-}
-
-impl Default for NodesMetrics {
-    fn default() -> Self {
-        // TODO: allow user to define the max number of data points to be kept
-        Self {
-            data: HashMap::new(),
-            max_size: DEFAULT_METRICS_MAX_SIZE,
-        }
-    }
-}
+// Number of peers that have shunned our node.
+pub const METRIC_KEY_SHUNNED_COUNT: &str = "sn_networking_shunned_count_total";
+// The estimated number of nodes in the network calculated by the peers in our RT.
+pub const METRIC_KEY_NET_SIZE: &str = "sn_networking_estimated_network_size";
 
 impl NodesMetrics {
     // Add a data point for the specified container id,
@@ -137,6 +141,14 @@ impl NodesMetrics {
 
             if let Some(metric) = get_last_data_point(metrics, METRIC_KEY_PEERS_IN_RT) {
                 info.kbuckets_peers = metric.value.parse::<usize>().ok();
+            }
+
+            if let Some(metric) = get_last_data_point(metrics, METRIC_KEY_SHUNNED_COUNT) {
+                info.shunned_count = metric.value.parse::<usize>().ok();
+            }
+
+            if let Some(metric) = get_last_data_point(metrics, METRIC_KEY_NET_SIZE) {
+                info.net_size = metric.value.parse::<usize>().ok();
             }
         }
     }

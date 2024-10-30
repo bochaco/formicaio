@@ -159,6 +159,8 @@ fn spawn_nodes_list_polling() {
                                         cn.cpu_usage = updated.cpu_usage.clone();
                                         cn.connected_peers = updated.connected_peers;
                                         cn.kbuckets_peers = updated.kbuckets_peers;
+                                        cn.shunned_count = updated.shunned_count;
+                                        cn.net_size = updated.net_size;
                                     });
                                 }
                             }

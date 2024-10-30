@@ -8,7 +8,7 @@ use thiserror::Error;
 const DEFAULT_NODES_METRICS_HOST: &str = "127.0.0.1";
 
 // Predefined set of metrics to monitor and collect in cache.
-const NODE_METRICS_TO_COLLECT: [&str; 8] = [
+const NODE_METRICS_TO_COLLECT: [&str; 10] = [
     METRIC_KEY_BALANCE,
     METRIC_KEY_STORE_COST,
     METRIC_KEY_MEM_USED_MB,
@@ -17,6 +17,8 @@ const NODE_METRICS_TO_COLLECT: [&str; 8] = [
     METRIC_KEY_RELEVANT_RECORDS,
     METRIC_KEY_CONNECTED_PEERS,
     METRIC_KEY_PEERS_IN_RT,
+    METRIC_KEY_SHUNNED_COUNT,
+    METRIC_KEY_NET_SIZE,
 ];
 
 #[derive(Debug, Error)]
@@ -48,6 +50,7 @@ impl NodeMetricsClient {
         let response = reqwest::get(&self.endpoint).await?.text().await?;
 
         let mut fetched_metrics = Vec::new();
+        let timestamp = Utc::now().timestamp();
         for line in response.lines() {
             if line.starts_with('#') {
                 continue; // Skip comments
@@ -60,7 +63,7 @@ impl NodeMetricsClient {
                 fetched_metrics.push(NodeMetric {
                     key,
                     value,
-                    timestamp: Utc::now().timestamp(),
+                    timestamp,
                 });
             }
         }
