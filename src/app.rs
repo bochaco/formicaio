@@ -32,8 +32,11 @@ extern "C" {
     pub async fn get_addr_from_metamask() -> JsValue;
 }
 
+// Frequency in millis for nodes metrics polling
+pub const METRICS_POLLING_FREQ_MILLIS: u32 = 5_000;
+
 #[cfg(feature = "hydrate")]
-const POLLING_FREQ_MILLIS: u32 = 5_500;
+const NODES_LIST_POLLING_FREQ_MILLIS: u32 = 5_500;
 
 #[cfg(feature = "ssr")]
 #[derive(Clone, FromRef, Debug)]
@@ -119,7 +122,7 @@ fn HomeScreenView() -> impl IntoView {
 #[cfg(feature = "hydrate")]
 fn spawn_nodes_list_polling() {
     spawn_local(async {
-        logging::log!("Polling server every {POLLING_FREQ_MILLIS}ms. ...");
+        logging::log!("Polling server every {NODES_LIST_POLLING_FREQ_MILLIS}ms. ...");
         let context = expect_context::<ClientGlobalState>();
         loop {
             // TODO: poll only when nodes list screen is active
@@ -181,7 +184,7 @@ fn spawn_nodes_list_polling() {
                 }
             }
 
-            TimeoutFuture::new(POLLING_FREQ_MILLIS).await;
+            TimeoutFuture::new(NODES_LIST_POLLING_FREQ_MILLIS).await;
         }
     });
 }

@@ -179,7 +179,7 @@ pub fn NodesListView() -> impl IntoView {
         <input type="checkbox" id="logs_stream_modal" class="modal-toggle" />
         <div class="modal" role="dialog">
             <div class="modal-box border border-solid border-slate-50 max-w-full h-full overflow-hidden">
-                <h3 class="text-lg font-bold">Node logs</h3>
+                <h3 class="text-sm font-bold">Node logs</h3>
                 <div class="p-2.5 border-transparent overflow-y-auto h-full">
                     <ul>
                         <For
@@ -207,7 +207,7 @@ pub fn NodesListView() -> impl IntoView {
         <input type="checkbox" id="node_chart_modal" class="modal-toggle" />
         <div class="modal" role="dialog">
             <div class="modal-box border border-solid border-slate-50 w-4/5 max-w-full h-3/5 max-h-full overflow-y-auto">
-                <h3 class="text-lg font-bold">"Node Mem & CPU"</h3>
+                <h3 class="text-sm font-bold">"Node Mem & CPU"</h3>
                 <div class="border-transparent h-full">
                     <NodeChartView chart_data />
                 </div>

@@ -50,7 +50,7 @@ impl NodeMetricsClient {
         let response = reqwest::get(&self.endpoint).await?.text().await?;
 
         let mut fetched_metrics = Vec::new();
-        let timestamp = Utc::now().timestamp();
+        let timestamp = Utc::now().timestamp_millis();
         for line in response.lines() {
             if line.starts_with('#') {
                 continue; // Skip comments

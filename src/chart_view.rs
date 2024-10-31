@@ -1,34 +1,23 @@
 use super::{
-    app::{ClientGlobalState, METRIC_KEY_CPU_USEAGE, METRIC_KEY_MEM_USED_MB},
+    app::{
+        ClientGlobalState, METRICS_POLLING_FREQ_MILLIS, METRIC_KEY_CPU_USEAGE,
+        METRIC_KEY_MEM_USED_MB,
+    },
     server_api::node_metrics,
 };
 
-use apexcharts_rs::prelude::{ApexChart, ChartSeries, ChartType, SeriesData};
+use apexcharts_rs::prelude::ApexChart;
 use gloo_timers::future::TimeoutFuture;
 use gloo_utils::format::JsValueSerdeExt;
 use leptos::*;
 use serde_json::Value;
 use wasm_bindgen::JsValue;
 
-pub type ChartSeriesData = (Vec<(i64, i64)>, Vec<(i64, i64)>);
+pub type ChartSeriesData = (Vec<[i64; 2]>, Vec<[i64; 2]>);
 
 #[component]
 pub fn NodeChartView(chart_data: ReadSignal<ChartSeriesData>) -> impl IntoView {
     let chart_id = "metrics_chart".to_string();
-    let mem_serie = ChartSeries {
-        name: "Memory".to_string(),
-        data: SeriesData::Timestamped(vec![]),
-        color: "#F98080".to_string(),
-        r#type: None,
-        z_index: None,
-    };
-    let cpu_serie = ChartSeries {
-        name: "CPU".to_string(),
-        data: SeriesData::Timestamped(vec![]),
-        color: "#3F83F8".to_string(),
-        r#type: None,
-        z_index: None,
-    };
 
     let metrics_chart_options = format!(
         r##"{{
@@ -39,7 +28,7 @@ pub fn NodeChartView(chart_data: ReadSignal<ChartSeriesData>) -> impl IntoView {
           "chart": {{
             "id": "{chart_id}",
             "width": "100%",
-            "height": 350,
+            "height": 380,
             "type": "line",
             "animations": {{
               "enabled": true,
@@ -70,7 +59,12 @@ pub fn NodeChartView(chart_data: ReadSignal<ChartSeriesData>) -> impl IntoView {
             "position": "bottom",
             "labels": {{
               "show": true,
-              "format": "dd/MMM H:m:s"
+              "rotate": -30,
+              "rotateAlways": false,
+              "format": "HH:mm:ss",
+              "style": {{
+                "colors": "#9CA3AF"
+              }}
             }}
           }},
           "yaxis": [
@@ -110,9 +104,8 @@ pub fn NodeChartView(chart_data: ReadSignal<ChartSeriesData>) -> impl IntoView {
 
     let chart = create_rw_signal(None);
 
-    let mut options = serde_json::from_str::<Value>(&metrics_chart_options)
+    let options = serde_json::from_str::<Value>(&metrics_chart_options)
         .unwrap_or_else(|_| panic!("Invalid JSON: {}", metrics_chart_options));
-    options["chart"]["type"] = Value::String(ChartType::Line.to_string());
 
     let opts_clone = options.clone();
     let chart_id_clone = chart_id.clone();
@@ -128,13 +121,17 @@ pub fn NodeChartView(chart_data: ReadSignal<ChartSeriesData>) -> impl IntoView {
         let mut opts_clone = opts_clone.clone();
         chart.with(|c| {
             if let Some(chart) = c {
-                let mut new_mem_series = mem_serie.clone();
-                let mut new_cpu_series = cpu_serie.clone();
                 let (mem_data, cpu_data) = chart_data.get();
-                new_mem_series.data = SeriesData::Timestamped(mem_data);
-                new_cpu_series.data = SeriesData::Timestamped(cpu_data);
-                opts_clone["series"] = serde_json::to_value(&[new_mem_series, new_cpu_series])
-                    .unwrap_or(Value::Array(vec![]));
+                opts_clone["series"] = serde_json::json!([
+                    {
+                      "name": "Memory (MB)",
+                      "data": mem_data
+                    },
+                    {
+                      "name": "CPU (%)",
+                      "data": cpu_data
+                    }
+                ]);
                 let opt = <JsValue as JsValueSerdeExt>::from_serde(&opts_clone).unwrap();
                 chart.update_options(&opt, Some(false), Some(true), Some(true));
             }
@@ -178,7 +175,7 @@ pub async fn node_metrics_update(
                     mem.extend(
                         values
                             .iter()
-                            .map(|v| (v.timestamp, v.value.parse::<i64>().unwrap())),
+                            .map(|v| [v.timestamp, v.value.parse::<i64>().unwrap()]),
                     )
                 });
             }
@@ -190,14 +187,14 @@ pub async fn node_metrics_update(
                     cpu.extend(
                         values
                             .iter()
-                            .map(|v| (v.timestamp, v.value.parse::<i64>().unwrap())),
+                            .map(|v| [v.timestamp, v.value.parse::<i64>().unwrap()]),
                     )
                 });
             }
         }
 
         // FIXME: shortcircuit the delay if the flag is set to off
-        TimeoutFuture::new(4000).await;
+        TimeoutFuture::new(METRICS_POLLING_FREQ_MILLIS).await;
     }
 
     logging::log!("Node metrics update from container {container_id} stopped.");

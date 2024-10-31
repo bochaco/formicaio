@@ -81,6 +81,7 @@ fn spawn_bg_tasks(
     server_api_hit: Arc<Mutex<bool>>,
 ) {
     use formicaio::{
+        app::METRICS_POLLING_FREQ_MILLIS,
         metrics_client::NodeMetricsClient,
         node_instance::{NodeInstanceInfo, NodeStatus},
         node_rpc_client::NodeRpcClient,
@@ -117,7 +118,8 @@ fn spawn_bg_tasks(
     });
 
     // Collect metrics from nodes and cache them in global context
-    const NODES_METRICS_POLLING_FREQ: Duration = Duration::from_secs(5);
+    const NODES_METRICS_POLLING_FREQ: Duration =
+        Duration::from_millis(METRICS_POLLING_FREQ_MILLIS as u64);
 
     tokio::spawn(async move {
         loop {
