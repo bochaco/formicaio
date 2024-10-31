@@ -2,6 +2,7 @@ mod about;
 mod add_node;
 mod alerts;
 pub mod app;
+mod chart_view;
 #[cfg(feature = "ssr")]
 pub mod docker_client;
 #[cfg(feature = "ssr")]

@@ -1,8 +1,10 @@
 use super::{
     app::ClientGlobalState,
+    chart_view::{ChartSeriesData, NodeChartView},
     helpers::{node_logs_stream, remove_node_instance, show_alert_msg},
     icons::{
-        IconCloseModal, IconRemoveNode, IconShowLogs, IconStartNode, IconStopNode, IconUpgradeNode,
+        IconCloseModal, IconRemoveNode, IconShowChart, IconShowLogs, IconStartNode, IconStopNode,
+        IconUpgradeNode,
     },
     server_api::{start_node_instance, stop_node_instance, upgrade_node_instance},
 };
@@ -149,6 +151,7 @@ pub fn NodesListView() -> impl IntoView {
     let context = expect_context::<ClientGlobalState>();
     // this signal keeps the reactive list of log entries
     let (logs, set_logs) = create_signal(Vec::new());
+    let (chart_data, set_chart_data) = create_signal((vec![], vec![]));
 
     // we display the instances sorted by creation time, newest to oldest
     let sorted_nodes = create_memo(move |_| {
@@ -168,7 +171,7 @@ pub fn NodesListView() -> impl IntoView {
                     when=move || !child.1.get().status.is_creating()
                     fallback=move || { view! { <CreatingNodeInstanceView /> }.into_view() }
                 >
-                    <NodeInstanceView info=child.1 set_logs />
+                    <NodeInstanceView info=child.1 set_logs set_chart_data />
                 </Show>
             </For>
         </div>
@@ -194,6 +197,26 @@ pub fn NodesListView() -> impl IntoView {
                         for="logs_stream_modal"
                         class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
                         on:click=move |_| context.logs_stream_is_on.set(false)
+                    >
+                        <IconCloseModal />
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <input type="checkbox" id="node_chart_modal" class="modal-toggle" />
+        <div class="modal" role="dialog">
+            <div class="modal-box border border-solid border-slate-50 w-4/5 max-w-full h-3/5 max-h-full overflow-y-auto">
+                <h3 class="text-lg font-bold">"Node Mem & CPU"</h3>
+                <div class="border-transparent h-full">
+                    <NodeChartView chart_data />
+                </div>
+
+                <div class="modal-action">
+                    <label
+                        for="node_chart_modal"
+                        class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
+                        on:click=move |_| context.metrics_update_is_on.set(false)
                     >
                         <IconCloseModal />
                     </label>
@@ -226,6 +249,7 @@ fn CreatingNodeInstanceView() -> impl IntoView {
 fn NodeInstanceView(
     info: RwSignal<NodeInstanceInfo>,
     set_logs: WriteSignal<Vec<String>>,
+    set_chart_data: WriteSignal<ChartSeriesData>,
 ) -> impl IntoView {
     let container_id = info.get_untracked().short_container_id();
 
@@ -271,6 +295,7 @@ fn NodeInstanceView(
                 </Show>
 
                 <NodeLogs info set_logs />
+                <NodeChartShow info set_chart_data />
                 <ButtonStopStart info />
                 <ButtonRemove info />
             </div>
@@ -436,6 +461,47 @@ fn NodeLogs(info: RwSignal<NodeInstanceInfo>, set_logs: WriteSignal<Vec<String>>
                 }
             >
                 <IconShowLogs />
+            </label>
+        </div>
+    }
+}
+
+#[component]
+fn NodeChartShow(
+    info: RwSignal<NodeInstanceInfo>,
+    set_chart_data: WriteSignal<ChartSeriesData>,
+) -> impl IntoView {
+    // we use the context to switch on/off the update of metrics charts
+    let context = expect_context::<ClientGlobalState>();
+
+    // action to trigger the update of nodes metrics charts
+    let start_metrics_update = create_action(move |id: &String| {
+        context.metrics_update_is_on.set(true);
+        let id = id.clone();
+        async move {
+            if let Err(err) = super::chart_view::node_metrics_update(id, set_chart_data).await {
+                logging::log!("Failed to start updating metrics charts: {err:?}");
+                show_alert_msg(err.to_string());
+            }
+        }
+    });
+
+    view! {
+        <div class="tooltip tooltip-bottom tooltip-info" data-tip="mem & cpu">
+            <label
+                for="node_chart_modal"
+                class=move || {
+                    if info.get().status.is_transitioning() || info.get().status.is_inactive() {
+                        "btn-disabled-node-action"
+                    } else {
+                        "btn-node-action"
+                    }
+                }
+                on:click=move |_| {
+                    start_metrics_update.dispatch(info.get_untracked().container_id.clone());
+                }
+            >
+                <IconShowChart />
             </label>
         </div>
     }

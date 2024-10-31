@@ -1,4 +1,4 @@
-pub use super::metrics::{ContainerId, Metrics, NodeMetric, NodesMetrics};
+pub use super::metrics::*;
 
 #[cfg(feature = "hydrate")]
 use super::server_api::nodes_instances;
@@ -53,6 +53,8 @@ pub struct ClientGlobalState {
     pub nodes: RwSignal<HashMap<String, RwSignal<NodeInstanceInfo>>>,
     // Flag to enable/disable nodes' logs stream
     pub logs_stream_is_on: RwSignal<bool>,
+    // Flag to enable/disable nodes' metrics charts update
+    pub metrics_update_is_on: RwSignal<bool>,
     // Lastest version of the node binary available
     pub latest_bin_version: RwSignal<Option<String>>,
     // List of alerts to be shown in the UI
@@ -68,6 +70,7 @@ pub fn App() -> impl IntoView {
     provide_context(ClientGlobalState {
         nodes: create_rw_signal(HashMap::default()),
         logs_stream_is_on: create_rw_signal(false),
+        metrics_update_is_on: create_rw_signal(false),
         latest_bin_version: create_rw_signal(None),
         alerts: create_rw_signal(vec![]),
     });

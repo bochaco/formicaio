@@ -31,7 +31,8 @@ pub struct NodesMetrics {
 }
 
 // Maximum number of metrics data points to be kept per node
-const DEFAULT_METRICS_MAX_SIZE: usize = 1;
+// TODO: cache it on DB.
+const DEFAULT_METRICS_MAX_SIZE: usize = 5_000;
 
 impl Default for NodesMetrics {
     fn default() -> Self {

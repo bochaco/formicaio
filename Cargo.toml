@@ -8,6 +8,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 alloy-core = "0.8.9"
+apexcharts-rs = { version = "0.1.7", features = ["leptos"] }
 async-stream = { version = "0.3.5", optional = true }
 axum = { version = "0.7", optional = true, features = ["macros"] }
 bs58 = { version = "0.5.1", optional = true }
@@ -15,7 +16,8 @@ bytes = "1.7"
 chrono = "0.4.38"
 console_error_panic_hook = "0.1"
 futures-util = "0.3.30"
-gloo-timers = { version = "0.3.0", features = ["futures"] }
+gloo-timers = { version = "0.3.0", default-features = false, features = ["futures"] }
+gloo-utils = { version = "0.2.0", default-features = false, features = ["serde"] }
 hex = "0.4.3"
 http = "1"
 http-body-util = { version = "0.1.2", optional = true }
