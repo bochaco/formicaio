@@ -84,6 +84,11 @@ impl NodesMetrics {
         self.data.get(container_id)
     }
 
+    // Remove all the metrics for the specified container id
+    pub fn remove_container_metrics(&mut self, container_id: &ContainerId) {
+        self.data.remove(container_id);
+    }
+
     // Return all the metrics for the specified container id with given filters
     pub fn get_metrics(
         &self,

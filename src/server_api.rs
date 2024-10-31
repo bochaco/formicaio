@@ -139,6 +139,12 @@ pub async fn delete_node_instance(container_id: ContainerId) -> Result<(), Serve
         .db_client
         .delete_node_metadata(&container_id)
         .await?;
+    context
+        .nodes_metrics
+        .lock()
+        .await
+        .remove_container_metrics(&container_id);
+
     Ok(())
 }
 

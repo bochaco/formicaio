@@ -168,33 +168,28 @@ pub async fn node_metrics_update(
         )
         .await?;
 
-        if let Some(values) = update.get(METRIC_KEY_MEM_USED_MB) {
-            if !values.is_empty() {
-                since = values.last().map(|m| m.timestamp);
-                set_chart_data.update(|(mem, _)| {
-                    mem.extend(
-                        values
-                            .iter()
+        match (
+            update.get(METRIC_KEY_MEM_USED_MB),
+            update.get(METRIC_KEY_CPU_USEAGE),
+        ) {
+            (Some(mem), Some(cpu)) if !mem.is_empty() && !cpu.is_empty() => {
+                since = mem.last().map(|m| m.timestamp);
+                set_chart_data.update(|(m, c)| {
+                    m.extend(
+                        mem.iter()
                             .map(|v| [v.timestamp, v.value.parse::<i64>().unwrap()]),
-                    )
+                    );
+                    c.extend(
+                        cpu.iter()
+                            .map(|v| [v.timestamp, v.value.parse::<i64>().unwrap()]),
+                    );
                 });
             }
-        }
-
-        if let Some(values) = update.get(METRIC_KEY_CPU_USEAGE) {
-            if !values.is_empty() {
-                set_chart_data.update(|(_, cpu)| {
-                    cpu.extend(
-                        values
-                            .iter()
-                            .map(|v| [v.timestamp, v.value.parse::<i64>().unwrap()]),
-                    )
-                });
-            }
+            _ => (),
         }
 
         // FIXME: shortcircuit the delay if the flag is set to off
-        TimeoutFuture::new(METRICS_POLLING_FREQ_MILLIS).await;
+        TimeoutFuture::new(2 * METRICS_POLLING_FREQ_MILLIS).await;
     }
 
     logging::log!("Node metrics update from container {container_id} stopped.");
