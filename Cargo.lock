@@ -1554,7 +1554,7 @@ dependencies = [
 
 [[package]]
 name = "formicaio"
-version = "0.0.10"
+version = "0.0.11"
 dependencies = [
  "alloy-core",
  "apexcharts-rs",
