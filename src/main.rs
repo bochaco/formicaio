@@ -125,17 +125,16 @@ fn spawn_bg_tasks(
         loop {
             sleep(NODES_METRICS_POLLING_FREQ).await;
 
-            if !*server_api_hit.lock().await {
-                continue;
-            }
-            *server_api_hit.lock().await = false;
-
             let containers = match docker_client.get_containers_list(false).await {
                 Ok(containers) if !containers.is_empty() => containers,
                 _ => continue,
             };
 
+            let poll_rpc_apis = *server_api_hit.lock().await;
+            *server_api_hit.lock().await = false;
+
             logging::log!("Polling nodes ({}) metrics ...", containers.len());
+            // TODO: poll nodes concurrently with tasks
             for container in containers {
                 let node_ip = container.node_ip();
                 let mut node_info = NodeInstanceInfo {
@@ -143,14 +142,16 @@ fn spawn_bg_tasks(
                     ..Default::default()
                 };
 
-                // let's also fetch up to date info using its RPC API
-                if let Some(port) = container.rpc_api_port() {
-                    match NodeRpcClient::new(&node_ip, port) {
-                        Ok(node_rpc_client) => {
-                            node_rpc_client.update_node_info(&mut node_info).await;
-                        }
-                        Err(err) => {
-                            logging::log!("Failed to connect to RPC API endpoint: {err}")
+                if poll_rpc_apis {
+                    // let's fetch up to date info using its RPC API
+                    if let Some(port) = container.rpc_api_port() {
+                        match NodeRpcClient::new(&node_ip, port) {
+                            Ok(node_rpc_client) => {
+                                node_rpc_client.update_node_info(&mut node_info).await;
+                            }
+                            Err(err) => {
+                                logging::log!("Failed to connect to RPC API endpoint: {err}")
+                            }
                         }
                     }
                 }
@@ -163,6 +164,7 @@ fn spawn_bg_tasks(
                     _ => continue,
                 };
 
+                // let's now collect metrics the node
                 let metrics_client = NodeMetricsClient::new(&node_ip, metrics_port);
                 match metrics_client.fetch_metrics().await {
                     Ok(metrics) => {

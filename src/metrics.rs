@@ -102,7 +102,10 @@ impl NodesMetrics {
                 .filter(|(k, _)| keys.is_empty() || keys.contains(k))
                 .map(|(k, values)| {
                     let filtered_values = if let Some(t) = since {
-                        values.iter().filter(|v| v.timestamp > t).cloned().collect()
+                        let filtered_values =
+                            values.iter().filter(|v| v.timestamp > t).cloned().collect();
+                        leptos::logging::log!(">> {t} ==> {filtered_values:#?}");
+                        filtered_values
                     } else {
                         values.clone()
                     };

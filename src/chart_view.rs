@@ -184,6 +184,10 @@ pub async fn node_metrics_update(
                             .map(|v| [v.timestamp, v.value.parse::<i64>().unwrap()]),
                     );
                 });
+
+                logging::log!("MEM>>> {mem:#?}");
+                logging::log!("CPU>>> {cpu:#?}");
+                logging::log!(">>=================================================");
             }
             _ => (),
         }
