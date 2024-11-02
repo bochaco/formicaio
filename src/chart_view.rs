@@ -49,7 +49,8 @@ pub fn NodeChartView(chart_data: ReadSignal<ChartSeriesData>) -> impl IntoView {
           }},
           "colors": ["#F98080", "#3F83F8"],
           "stroke": {{
-            "curve": "smooth"
+            "curve": "smooth",
+            "width": [4, 4]
           }},
           "markers": {{
             "size": 0
@@ -184,10 +185,6 @@ pub async fn node_metrics_update(
                             .map(|v| [v.timestamp, v.value.parse::<i64>().unwrap()]),
                     );
                 });
-
-                logging::log!("MEM>>> {mem:#?}");
-                logging::log!("CPU>>> {cpu:#?}");
-                logging::log!(">>=================================================");
             }
             _ => (),
         }

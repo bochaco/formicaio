@@ -81,10 +81,8 @@ fn spawn_bg_tasks(
     server_api_hit: Arc<Mutex<bool>>,
 ) {
     use formicaio::{
-        app::METRICS_POLLING_FREQ_MILLIS,
-        metrics_client::NodeMetricsClient,
-        node_instance::{NodeInstanceInfo, NodeStatus},
-        node_rpc_client::NodeRpcClient,
+        app::METRICS_POLLING_FREQ_MILLIS, metrics_client::NodeMetricsClient,
+        node_instance::NodeInstanceInfo, node_rpc_client::NodeRpcClient,
     };
     use leptos::logging;
     use tokio::time::{sleep, Duration};
@@ -122,29 +120,41 @@ fn spawn_bg_tasks(
         Duration::from_millis(METRICS_POLLING_FREQ_MILLIS as u64);
 
     tokio::spawn(async move {
+        // we start a countdown to stop polling RPC API when there is no active client
+        let mut poll_rpc_countdown = 1;
         loop {
             sleep(NODES_METRICS_POLLING_FREQ).await;
 
             let containers = match docker_client.get_containers_list(false).await {
                 Ok(containers) if !containers.is_empty() => containers,
+                Err(err) => {
+                    logging::log!("Failed to get containers list: {err}");
+                    continue;
+                }
                 _ => continue,
             };
 
-            let poll_rpc_apis = *server_api_hit.lock().await;
-            *server_api_hit.lock().await = false;
+            if *server_api_hit.lock().await {
+                // reset the countdown to five more cycles
+                poll_rpc_countdown = 5;
+                *server_api_hit.lock().await = false;
+            } else if poll_rpc_countdown > 0 {
+                poll_rpc_countdown -= 1;
+            }
 
             logging::log!("Polling nodes ({}) metrics ...", containers.len());
-            // TODO: poll nodes concurrently with tasks
             for container in containers {
                 let node_ip = container.node_ip();
                 let mut node_info = NodeInstanceInfo {
                     container_id: container.Id.clone(),
+                    port: container.port(),
+                    rpc_api_port: container.rpc_api_port(),
                     ..Default::default()
                 };
 
-                if poll_rpc_apis {
+                if poll_rpc_countdown > 0 {
                     // let's fetch up to date info using its RPC API
-                    if let Some(port) = container.rpc_api_port() {
+                    if let Some(port) = node_info.rpc_api_port {
                         match NodeRpcClient::new(&node_ip, port) {
                             Ok(node_rpc_client) => {
                                 node_rpc_client.update_node_info(&mut node_info).await;
@@ -156,15 +166,12 @@ fn spawn_bg_tasks(
                     }
                 }
 
-                let metrics_port = match (
-                    NodeStatus::from(&container.State).is_active(),
-                    container.metrics_port(),
-                ) {
-                    (true, Some(metrics_port)) => metrics_port,
-                    _ => continue,
+                let metrics_port = match container.metrics_port() {
+                    Some(metrics_port) => metrics_port,
+                    None => continue,
                 };
 
-                // let's now collect metrics the node
+                // let's now collect metrics from the node
                 let metrics_client = NodeMetricsClient::new(&node_ip, metrics_port);
                 match metrics_client.fetch_metrics().await {
                     Ok(metrics) => {

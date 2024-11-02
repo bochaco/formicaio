@@ -140,30 +140,44 @@ impl DbClient {
     // Store node metadata (insert, or update if it exists) onto local cache DB
     pub async fn store_node_metadata(&self, info: &NodeInstanceInfo) -> Result<(), DbError> {
         let db_lock = self.db.lock().await;
-        match sqlx::query(
+        let bind_peer_and_bin = info.peer_id.is_some() && info.bin_version.is_some();
+        let query_str = format!(
             "INSERT OR REPLACE INTO nodes (\
-                container_id, peer_id, bin_version, port, \
+                container_id,{} port, \
                 rpc_api_port, balance, records, \
                 connected_peers, kbuckets_peers \
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        )
-        .bind(info.container_id.clone())
-        .bind(info.peer_id.clone())
-        .bind(info.bin_version.clone().unwrap_or_default())
-        .bind(info.port.clone())
-        .bind(info.rpc_api_port.clone())
-        .bind(info.balance.map_or("".to_string(), |v| v.to_string()))
-        .bind(info.records.map_or("".to_string(), |v| v.to_string()))
-        .bind(
-            info.connected_peers
-                .map_or("".to_string(), |v| v.to_string()),
-        )
-        .bind(
-            info.kbuckets_peers
-                .map_or("".to_string(), |v| v.to_string()),
-        )
-        .execute(&*db_lock)
-        .await
+            ) VALUES (?,{} ?, ?, ?, ?, ?, ?)",
+            if bind_peer_and_bin {
+                "peer_id, bin_version,"
+            } else {
+                ""
+            },
+            if bind_peer_and_bin { "?, ?," } else { "" }
+        );
+
+        let mut query = sqlx::query(&query_str).bind(info.container_id.clone());
+
+        if bind_peer_and_bin {
+            query = query
+                .bind(info.peer_id.clone())
+                .bind(info.bin_version.clone().unwrap_or_default());
+        }
+
+        match query
+            .bind(info.port.clone())
+            .bind(info.rpc_api_port.clone())
+            .bind(info.balance.map_or("".to_string(), |v| v.to_string()))
+            .bind(info.records.map_or("".to_string(), |v| v.to_string()))
+            .bind(
+                info.connected_peers
+                    .map_or("".to_string(), |v| v.to_string()),
+            )
+            .bind(
+                info.kbuckets_peers
+                    .map_or("".to_string(), |v| v.to_string()),
+            )
+            .execute(&*db_lock)
+            .await
         {
             Ok(_) => {}
             Err(err) => logging::log!("Sqlite query error: {err}"),
