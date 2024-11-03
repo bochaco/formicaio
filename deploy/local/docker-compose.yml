@@ -28,6 +28,7 @@ services:
     environment:
       NODE_CONTAINER_IMAGE_TAG: latest
       DOCKER_SOCKET_PATH: /var/run/docker.sock
+      DOCKER_PIPE_NAME: //./pipe/dockerDesktopLinuxEngine
       DB_PATH: /data
     volumes:
       - ./docker_volumes/formicaio:/data

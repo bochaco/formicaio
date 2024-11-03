@@ -16,7 +16,7 @@ use std::{
     time::Duration,
 };
 use thiserror::Error;
-use tokio::{net::UnixStream, time::timeout};
+use tokio::time::timeout;
 use url::form_urlencoded;
 
 // Label's key to set to each container created, so we can then use as
@@ -37,9 +37,18 @@ const DOCKER_EXEC_API: &str = "/exec";
 const DOCKER_IMAGES_API: &str = "/images";
 
 // Env var name to set the path of the Docker socket.
+#[cfg(not(target_os = "windows"))]
 const DOCKER_SOCKET_PATH: &str = "DOCKER_SOCKET_PATH";
 // Default path for the Docker socket.
+#[cfg(not(target_os = "windows"))]
 const DEFAULT_DOCKER_SOCKET_PATH: &str = "/var/run/docker.sock";
+
+// Env var name to set the name of the Docker pipe.
+#[cfg(target_os = "windows")]
+const DOCKER_PIPE_NAME: &str = "DOCKER_PIPE_NAME";
+// Default name for the Docker pipe.
+#[cfg(target_os = "windows")]
+const DEFAULT_DOCKER_PIPE_NAME: &str = "//./pipe/dockerDesktopLinuxEngine";
 
 // Name and tag of the Docker image to use by default for each node instance
 const DEFAULT_NODE_CONTAINER_IMAGE_NAME: &str = "bochaco/formica";
@@ -71,6 +80,8 @@ pub enum DockerClientError {
     Http(#[from] http::Error),
     #[error("Value received couldn't be parsed as integer: '{0}'")]
     InvalidValue(String),
+    #[error("Failed to connect to Docker engine: '{0}'")]
+    ConnectionFailed(String),
 }
 
 // Type of request supported by internal helpers herein.
@@ -92,16 +103,13 @@ pub struct DockerClient {
 impl DockerClient {
     // Instantiate a Docker client,
     pub async fn new() -> Result<Self, DockerClientError> {
-        let socket_path = match env::var(DOCKER_SOCKET_PATH) {
-            Ok(v) => Path::new(&v).to_path_buf(),
-            Err(_) => Path::new(DEFAULT_DOCKER_SOCKET_PATH).to_path_buf(),
-        };
-        logging::log!("Docker socket path: {socket_path:?}");
+        let socket_path = get_socket_path();
 
         let node_image_name = match env::var(NODE_CONTAINER_IMAGE_NAME) {
             Ok(v) => v.to_string(),
             Err(_) => DEFAULT_NODE_CONTAINER_IMAGE_NAME.to_string(),
         };
+
         let node_image_tag = match env::var(NODE_CONTAINER_IMAGE_TAG) {
             Ok(v) => v.to_string(),
             Err(_) => DEFAULT_NODE_CONTAINER_IMAGE_TAG.to_string(),
@@ -458,22 +466,6 @@ impl DockerClient {
         query_params: &[(&str, &str)],
         body: &T,
     ) -> Result<Response<Incoming>, DockerClientError> {
-        let unix_stream = UnixStream::connect(&self.socket_path)
-            .await
-            .map_err(|err| {
-                DockerClientError::ClientError(format!(
-                    "Failed to connect to Docker socket at {:?}: {err}",
-                    self.socket_path
-                ))
-            })?;
-        let io = TokioIo::new(unix_stream);
-        let (mut docker_reqs_sender, connection) = conn::http1::handshake(io).await?;
-        tokio::spawn(async move {
-            if let Err(err) = connection.await {
-                logging::log!("Error when connecting to Docker: {err}");
-            }
-        });
-
         // Construct the query string using url::form_urlencoded
         let query_string = form_urlencoded::Serializer::new(String::new())
             .extend_pairs(query_params)
@@ -494,8 +486,7 @@ impl DockerClient {
             ReqMethod::Delete => req_builder.method(Method::DELETE),
         };
         let req = req_builder.body(json_body)?;
-
-        let resp = docker_reqs_sender.send_request(req).await?;
+        let resp = send_req_to_docker(req, &self.socket_path).await?;
 
         match resp.status() {
             StatusCode::NO_CONTENT | StatusCode::CREATED | StatusCode::OK => Ok(resp),
@@ -554,4 +545,88 @@ async fn get_response_bytes(resp: Response<Incoming>) -> Result<Vec<u8>, DockerC
     }
 
     Ok(resp_bytes)
+}
+
+#[cfg(target_os = "windows")]
+fn get_socket_path() -> PathBuf {
+    let pipe_name = match env::var(DOCKER_PIPE_NAME) {
+        Ok(v) => Path::new(&v).to_path_buf(),
+        Err(_) => Path::new(DEFAULT_DOCKER_PIPE_NAME).to_path_buf(),
+    };
+    logging::log!("Docker pipe name: {pipe_name:?}");
+    pipe_name
+}
+
+#[cfg(not(target_os = "windows"))]
+fn get_socket_path() -> PathBuf {
+    let socket_path = match env::var(DOCKER_SOCKET_PATH) {
+        Ok(v) => Path::new(&v).to_path_buf(),
+        Err(_) => Path::new(DEFAULT_DOCKER_SOCKET_PATH).to_path_buf(),
+    };
+    logging::log!("Docker socket path: {socket_path:?}");
+    socket_path
+}
+
+#[cfg(target_os = "windows")]
+async fn send_req_to_docker(
+    req: Request<String>,
+    pipe_name: &Path,
+) -> Result<Response<Incoming>, DockerClientError> {
+    use std::time::Duration;
+    use tokio::net::windows::named_pipe::ClientOptions;
+    use tokio::time;
+    use windows_sys::Win32::Foundation::ERROR_PIPE_BUSY;
+
+    let mut attempts = 0;
+    let client = loop {
+        attempts += 1;
+        match ClientOptions::new().open(pipe_name) {
+            Ok(client) => break client,
+            Err(e) if e.raw_os_error() == Some(ERROR_PIPE_BUSY as i32) => (),
+            Err(e) => return Err(DockerClientError::ConnectionFailed(format!("{e:?}"))),
+        }
+        if attempts >= 5 {
+            return Err(DockerClientError::ConnectionFailed(
+                "Maximum number of connection attempts ({attempts}) reached without success."
+                    .to_string(),
+            ));
+        }
+        time::sleep(Duration::from_millis(50)).await;
+    };
+
+    let io = TokioIo::new(client);
+    let (mut docker_reqs_sender, connection) = conn::http1::handshake(io).await?;
+    tokio::spawn(async move {
+        if let Err(err) = connection.await {
+            logging::log!("Error when connecting to Docker: {err}");
+        }
+    });
+
+    let resp = docker_reqs_sender.send_request(req).await?;
+
+    Ok(resp)
+}
+
+#[cfg(not(target_os = "windows"))]
+async fn send_req_to_docker(
+    req: Request<String>,
+    socket_path: &Path,
+) -> Result<Response<Incoming>, DockerClientError> {
+    use tokio::net::UnixStream;
+    let unix_stream = UnixStream::connect(socket_path).await.map_err(|err| {
+        DockerClientError::ClientError(format!(
+            "Failed to connect to Docker socket at '{socket_path:?}': {err}",
+        ))
+    })?;
+    let io = TokioIo::new(unix_stream);
+    let (mut docker_reqs_sender, connection) = conn::http1::handshake(io).await?;
+    tokio::spawn(async move {
+        if let Err(err) = connection.await {
+            logging::log!("Error when connecting to Docker: {err}");
+        }
+    });
+
+    let resp = docker_reqs_sender.send_request(req).await?;
+
+    Ok(resp)
 }
