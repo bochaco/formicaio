@@ -92,6 +92,8 @@ impl DockerClient {
             Ok(v) => Path::new(&v).to_path_buf(),
             Err(_) => Path::new(DEFAULT_DOCKER_SOCKET_PATH).to_path_buf(),
         };
+        logging::log!("Docker socket path: {socket_path:?}");
+
         let node_image_name = match env::var(NODE_CONTAINER_IMAGE_NAME) {
             Ok(v) => v.to_string(),
             Err(_) => DEFAULT_NODE_CONTAINER_IMAGE_NAME.to_string(),
@@ -449,7 +451,7 @@ impl DockerClient {
             .await
             .map_err(|err| {
                 DockerClientError::ClientError(format!(
-                    "Failed to connect to Docker socket at '{:?}': {err}",
+                    "Failed to connect to Docker socket at {:?}: {err}",
                     self.socket_path
                 ))
             })?;
