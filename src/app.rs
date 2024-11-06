@@ -8,7 +8,8 @@ use super::{
     alerts::AlertMsg,
     error_template::{AppError, ErrorTemplate},
     navbar::NavBar,
-    node_instance::{NodeInstanceInfo, NodesListView},
+    node_instance::NodeInstanceInfo,
+    nodes_list_view::NodesListView,
     stats::AggregatedStatsView,
 };
 

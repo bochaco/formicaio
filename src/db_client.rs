@@ -311,7 +311,7 @@ impl DbClient {
         .execute(&*db_lock)
         .await
         {
-            Ok(_) => {}
+            Ok(res) => logging::log!("Removed {} metrics records", res.rows_affected()),
             Err(err) => logging::log!("Sqlite query error: {err}"),
         }
     }
