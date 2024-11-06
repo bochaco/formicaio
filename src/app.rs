@@ -57,9 +57,9 @@ pub struct ClientGlobalState {
     // List of nodes instances and their info/state
     pub nodes: RwSignal<HashMap<String, RwSignal<NodeInstanceInfo>>>,
     // Flag to enable/disable nodes' logs stream
-    pub logs_stream_is_on: RwSignal<bool>,
+    pub logs_stream_on_for: RwSignal<Option<ContainerId>>,
     // Flag to enable/disable nodes' metrics charts update
-    pub metrics_update_is_on: RwSignal<bool>,
+    pub metrics_update_on_for: RwSignal<Option<ContainerId>>,
     // Lastest version of the node binary available
     pub latest_bin_version: RwSignal<Option<String>>,
     // List of alerts to be shown in the UI
@@ -74,8 +74,8 @@ pub fn App() -> impl IntoView {
     // Provide context to manage all client side states that need to be used globally
     provide_context(ClientGlobalState {
         nodes: create_rw_signal(HashMap::default()),
-        logs_stream_is_on: create_rw_signal(false),
-        metrics_update_is_on: create_rw_signal(false),
+        logs_stream_on_for: create_rw_signal(None),
+        metrics_update_on_for: create_rw_signal(None),
         latest_bin_version: create_rw_signal(None),
         alerts: create_rw_signal(vec![]),
     });

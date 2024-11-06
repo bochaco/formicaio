@@ -154,11 +154,11 @@ pub async fn node_metrics_update(
     let mut since = None;
     set_chart_data.set((vec![], vec![]));
 
-    loop {
-        if !context.metrics_update_is_on.get_untracked() {
-            break;
-        }
-
+    while let Some(true) = context
+        .metrics_update_on_for
+        .get_untracked()
+        .map(|id| id == container_id)
+    {
         let update = node_metrics(container_id.clone(), since).await?;
 
         match (
@@ -193,6 +193,6 @@ pub async fn node_metrics_update(
         TimeoutFuture::new(2 * METRICS_POLLING_FREQ_MILLIS).await;
     }
 
-    logging::log!("Node metrics update from container {container_id} stopped.");
+    logging::log!("Stopped node metrics update from container {container_id}.");
     Ok(())
 }

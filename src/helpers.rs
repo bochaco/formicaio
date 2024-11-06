@@ -18,6 +18,7 @@ pub fn show_alert_msg(msg: String) {
     spawn_local(async move {
         let mut rng = rand::thread_rng();
         let random_id = rng.gen::<u64>();
+        logging::log!("Alert msg. displayed: {msg}");
         context.alerts.update(|msgs| msgs.push((random_id, msg)));
         TimeoutFuture::new(ALERT_MSG_DURATION_MILLIS).await;
         context
@@ -103,12 +104,16 @@ pub async fn node_logs_stream(
         }
 
         // use context to check if we should stop listening the logs stream
-        let stop = move || !context.logs_stream_is_on.get_untracked();
-        if stop() {
+        if Some(true)
+            != context
+                .logs_stream_on_for
+                .get_untracked()
+                .map(|id| id == container_id)
+        {
             break;
         }
     }
 
-    logging::log!("Node logs stream dropped from container {container_id}.");
+    logging::log!("Dropped node logs stream from container {container_id}.");
     Ok(())
 }

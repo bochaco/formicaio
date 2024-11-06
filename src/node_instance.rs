@@ -196,7 +196,7 @@ pub fn NodesListView() -> impl IntoView {
                     <label
                         for="logs_stream_modal"
                         class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
-                        on:click=move |_| context.logs_stream_is_on.set(false)
+                        on:click=move |_| context.logs_stream_on_for.set(None)
                     >
                         <IconCloseModal />
                     </label>
@@ -216,7 +216,7 @@ pub fn NodesListView() -> impl IntoView {
                     <label
                         for="node_chart_modal"
                         class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
-                        on:click=move |_| context.metrics_update_is_on.set(false)
+                        on:click=move |_| context.metrics_update_on_for.set(None)
                     >
                         <IconCloseModal />
                     </label>
@@ -434,7 +434,7 @@ fn NodeLogs(info: RwSignal<NodeInstanceInfo>, set_logs: WriteSignal<Vec<String>>
 
     // action to trigger the streaming of logs from the node to the 'set_logs' signal
     let start_logs_stream = create_action(move |id: &String| {
-        context.logs_stream_is_on.set(true);
+        context.logs_stream_on_for.set(Some(id.clone()));
         let id = id.clone();
         async move {
             if let Err(err) = node_logs_stream(id, set_logs).await {
@@ -476,7 +476,7 @@ fn NodeChartShow(
 
     // action to trigger the update of nodes metrics charts
     let start_metrics_update = create_action(move |id: &String| {
-        context.metrics_update_is_on.set(true);
+        context.metrics_update_on_for.set(Some(id.clone()));
         let id = id.clone();
         async move {
             if let Err(err) = super::chart_view::node_metrics_update(id, set_chart_data).await {

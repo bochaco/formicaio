@@ -200,6 +200,10 @@ fn spawn_bg_tasks(
                 cycles_before_clean_up += 1;
                 if cycles_before_clean_up >= METRICS_CLEAN_UP {
                     // it's time for a metrics DB clean up
+                    logging::log!(
+                        "Removing oldest metrics from DB for node {} ...",
+                        node_info.short_container_id()
+                    );
                     db_client
                         .remove_oldest_metrics(container.Id.clone(), METRICS_MAX_SIZE_PER_CONTAINER)
                         .await;
