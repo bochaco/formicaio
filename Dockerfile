@@ -4,7 +4,7 @@
 FROM node:20.17.0-slim AS tailwindcss-builder
 
 WORKDIR /app
-COPY package.json package-lock.json .
+COPY package.json package-lock.json ./
 
 # Install tailwindcss modules
 RUN npm install -D tailwindcss

@@ -34,6 +34,8 @@ extern "C" {
 
 // Frequency in millis for nodes metrics polling
 pub const METRICS_POLLING_FREQ_MILLIS: u32 = 5_000;
+// Maximum number of metrics data points to be kept per node on DB cache.
+pub const METRICS_MAX_SIZE_PER_CONTAINER: usize = 5_000;
 
 #[cfg(feature = "hydrate")]
 const NODES_LIST_POLLING_FREQ_MILLIS: u32 = 5_500;
@@ -42,10 +44,10 @@ const NODES_LIST_POLLING_FREQ_MILLIS: u32 = 5_500;
 #[derive(Clone, FromRef, Debug)]
 pub struct ServerGlobalState {
     pub leptos_options: LeptosOptions,
-    pub db_client: super::metadata_db::DbClient,
+    pub db_client: super::db_client::DbClient,
     pub docker_client: super::docker_client::DockerClient,
     pub latest_bin_version: Arc<Mutex<Option<String>>>,
-    pub nodes_metrics: Arc<Mutex<NodesMetrics>>,
+    pub nodes_metrics: Arc<Mutex<super::metrics_client::NodesMetrics>>,
     pub server_api_hit: Arc<Mutex<bool>>,
 }
 

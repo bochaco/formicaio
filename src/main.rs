@@ -9,7 +9,7 @@ async fn main() {
     use axum::Router;
     use formicaio::fileserv::file_and_error_handler;
     use formicaio::{
-        app::NodesMetrics, app::*, docker_client::DockerClient, metadata_db::DbClient,
+        app::*, db_client::DbClient, docker_client::DockerClient, metrics_client::NodesMetrics,
     };
     use leptos::*;
     use leptos_axum::{generate_route_list, LeptosRoutes};
@@ -31,7 +31,7 @@ async fn main() {
     let docker_client = DockerClient::new().await.unwrap();
 
     let latest_bin_version = Arc::new(Mutex::new(None));
-    let nodes_metrics = Arc::new(Mutex::new(NodesMetrics::default()));
+    let nodes_metrics = Arc::new(Mutex::new(NodesMetrics::new(db_client.clone())));
     // We'll use this flag to keep track if server API is being hit by any
     // active client, in order to prevent from polling nodes unnecessarily.
     let server_api_hit = Arc::new(Mutex::new(true));
@@ -76,19 +76,22 @@ pub fn main() {
 fn spawn_bg_tasks(
     docker_client: formicaio::docker_client::DockerClient,
     latest_bin_version: Arc<Mutex<Option<String>>>,
-    nodes_metrics: Arc<Mutex<formicaio::app::NodesMetrics>>,
-    db_client: formicaio::metadata_db::DbClient,
+    nodes_metrics: Arc<Mutex<formicaio::metrics_client::NodesMetrics>>,
+    db_client: formicaio::db_client::DbClient,
     server_api_hit: Arc<Mutex<bool>>,
 ) {
     use formicaio::{
-        app::METRICS_POLLING_FREQ_MILLIS, metrics_client::NodeMetricsClient,
-        node_instance::NodeInstanceInfo, node_rpc_client::NodeRpcClient,
+        app::{METRICS_MAX_SIZE_PER_CONTAINER, METRICS_POLLING_FREQ_MILLIS},
+        metrics_client::NodeMetricsClient,
+        node_instance::NodeInstanceInfo,
+        node_rpc_client::NodeRpcClient,
     };
     use leptos::logging;
     use tokio::time::{sleep, Duration};
 
     // Check latest version of node binary every couple of hours
     const BIN_VERSION_POLLING_FREQ: Duration = Duration::from_secs(60 * 60 * 2);
+
     tokio::spawn(async move {
         loop {
             if let Some(version) = latest_version_available().await {
@@ -118,10 +121,15 @@ fn spawn_bg_tasks(
     // Collect metrics from nodes and cache them in global context
     const NODES_METRICS_POLLING_FREQ: Duration =
         Duration::from_millis(METRICS_POLLING_FREQ_MILLIS as u64);
+    // How many cycles of metrics polling before performing a clean up in the DB.
+    const METRICS_CLEAN_UP: u32 = 3_600_000 / METRICS_POLLING_FREQ_MILLIS; // every ~1hr.
 
     tokio::spawn(async move {
         // we start a countdown to stop polling RPC API when there is no active client
         let mut poll_rpc_countdown = 1;
+        // we do a clean up of the cache DB to always keep the number of records within a limit.
+        let mut cycles_before_clean_up = METRICS_CLEAN_UP; // we will do a first clean up when starting up.
+
         loop {
             sleep(NODES_METRICS_POLLING_FREQ).await;
 
@@ -176,7 +184,7 @@ fn spawn_bg_tasks(
                 match metrics_client.fetch_metrics().await {
                     Ok(metrics) => {
                         let mut node_metrics = nodes_metrics.lock().await;
-                        node_metrics.push(&container.Id, &metrics);
+                        node_metrics.store(&container.Id, &metrics).await;
                         node_metrics.update_node_info(&mut node_info);
                     }
                     Err(err) => logging::log!(
@@ -187,6 +195,15 @@ fn spawn_bg_tasks(
                 // update DB with this new info we just obtained
                 if let Err(err) = db_client.store_node_metadata(&node_info).await {
                     logging::log!("Failed to update DB cache with node info: {err}");
+                }
+
+                cycles_before_clean_up += 1;
+                if cycles_before_clean_up >= METRICS_CLEAN_UP {
+                    // it's time for a metrics DB clean up
+                    db_client
+                        .remove_oldest_metrics(container.Id.clone(), METRICS_MAX_SIZE_PER_CONTAINER)
+                        .await;
+                    cycles_before_clean_up = 0;
                 }
             }
         }

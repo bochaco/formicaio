@@ -143,7 +143,8 @@ pub async fn delete_node_instance(container_id: ContainerId) -> Result<(), Serve
         .nodes_metrics
         .lock()
         .await
-        .remove_container_metrics(&container_id);
+        .remove_container_metrics(&container_id)
+        .await;
 
     Ok(())
 }
@@ -216,13 +217,13 @@ pub async fn start_node_logs_stream(
 pub async fn node_metrics(
     container_id: ContainerId,
     since: Option<i64>,
-    keys: Vec<String>,
 ) -> Result<HashMap<String, Vec<super::app::NodeMetric>>, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
     let metrics = context
         .nodes_metrics
         .lock()
         .await
-        .get_metrics(&container_id, since, &keys);
+        .get_container_metrics(container_id, since)
+        .await;
     Ok(metrics)
 }

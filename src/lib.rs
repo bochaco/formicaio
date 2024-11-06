@@ -4,6 +4,8 @@ mod alerts;
 pub mod app;
 mod chart_view;
 #[cfg(feature = "ssr")]
+pub mod db_client;
+#[cfg(feature = "ssr")]
 pub mod docker_client;
 #[cfg(feature = "ssr")]
 mod docker_msgs;
@@ -12,8 +14,6 @@ pub mod error_template;
 pub mod fileserv;
 mod helpers;
 mod icons;
-#[cfg(feature = "ssr")]
-pub mod metadata_db;
 mod metrics;
 #[cfg(feature = "ssr")]
 pub mod metrics_client;

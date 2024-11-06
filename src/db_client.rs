@@ -1,11 +1,15 @@
-use super::node_instance::NodeInstanceInfo;
+use super::{
+    app::ContainerId,
+    metrics::{Metrics, NodeMetric},
+    node_instance::NodeInstanceInfo,
+};
 
 use leptos::*;
 use serde::{Deserialize, Serialize};
 use sqlx::{
     migrate::{MigrateDatabase, Migrator},
     sqlite::SqlitePool,
-    FromRow, Sqlite,
+    FromRow, QueryBuilder, Row, Sqlite,
 };
 use std::{
     env::{self, current_dir},
@@ -220,5 +224,95 @@ impl DbClient {
         }
 
         Ok(())
+    }
+
+    // Retrieve node metrics from local cache DB
+    pub async fn get_node_metrics(&self, container_id: ContainerId, since: Option<i64>) -> Metrics {
+        let db_lock = self.db.lock().await;
+        let mut node_metrics = Metrics::new();
+
+        match sqlx::query(
+            "SELECT * FROM nodes_metrics WHERE container_id = ? AND timestamp > ? ORDER BY timestamp",
+        )
+        .bind(container_id.clone())
+        .bind(since.unwrap_or_default())
+        .fetch_all(&*db_lock)
+        .await
+        {
+            Ok(metrics) => {
+                metrics.into_iter().for_each(|m| {
+                    let key: String = m.get("key");
+                    let entry = node_metrics.entry(key.clone()).or_default();
+                    entry.push(NodeMetric {
+                        timestamp: m.get("timestamp"),
+                        key,
+                        value: m.get("value"),
+                    });
+                });
+            }
+            Err(err) => logging::log!("Sqlite query error: {err}"),
+        }
+
+        node_metrics
+    }
+
+    // Store node metrics onto local cache DB
+    pub async fn store_node_metrics(
+        &self,
+        container_id: ContainerId,
+        metrics: impl IntoIterator<Item = &NodeMetric>,
+    ) {
+        let db_lock = self.db.lock().await;
+        let mut query_builder =
+            QueryBuilder::new("INSERT INTO nodes_metrics (container_id, timestamp, key, value) ");
+
+        query_builder.push_values(metrics, |mut b, metric| {
+            b.push_bind(container_id.clone())
+                .push_bind(metric.timestamp)
+                .push_bind(metric.key.clone())
+                .push_bind(metric.value.clone());
+        });
+
+        match query_builder.build().execute(&*db_lock).await {
+            Ok(_) => {}
+            Err(err) => logging::log!("Sqlite query error: {err}"),
+        }
+    }
+
+    // Remove node metrics from local cache DB
+    pub async fn delete_node_metrics(&self, container_id: &str) {
+        let db_lock = self.db.lock().await;
+        match sqlx::query("DELETE FROM nodes_metrics WHERE container_id = ?")
+            .bind(container_id)
+            .execute(&*db_lock)
+            .await
+        {
+            Ok(_) => {}
+            Err(err) => logging::log!("Sqlite query error: {err}"),
+        }
+    }
+
+    // Remove metrics for a container so there are no more than max_size records
+    pub async fn remove_oldest_metrics(&self, container_id: ContainerId, max_size: usize) {
+        let db_lock = self.db.lock().await;
+        match sqlx::query(
+            "DELETE FROM nodes_metrics WHERE \
+                container_id = ? AND timestamp <= \
+                    (SELECT DISTINCT timestamp \
+                        FROM nodes_metrics \
+                        WHERE container_id = ? \
+                        ORDER BY timestamp DESC \
+                        LIMIT 1 OFFSET ? \
+                    )",
+        )
+        .bind(container_id.clone())
+        .bind(container_id)
+        .bind(max_size as i64)
+        .execute(&*db_lock)
+        .await
+        {
+            Ok(_) => {}
+            Err(err) => logging::log!("Sqlite query error: {err}"),
+        }
     }
 }

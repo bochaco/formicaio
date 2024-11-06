@@ -30,7 +30,7 @@ const DEFAULT_DOCKER_SOCKET_PATH: &str = "/var/run/docker.sock";
 
 // Name and tag of the Docker image to use by default for each node instance
 const DEFAULT_NODE_CONTAINER_IMAGE_NAME: &str = "bochaco/formica";
-const DEFAULT_NODE_CONTAINER_IMAGE_TAG: &str = "0.0.1";
+const DEFAULT_NODE_CONTAINER_IMAGE_TAG: &str = "latest";
 // Env var names to set the name and tag of the Docker image to use for each node instance
 const NODE_CONTAINER_IMAGE_NAME: &str = "NODE_CONTAINER_IMAGE_NAME";
 const NODE_CONTAINER_IMAGE_TAG: &str = "NODE_CONTAINER_IMAGE_TAG";

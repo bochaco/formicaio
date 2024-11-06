@@ -1,7 +1,7 @@
 use super::{
     app::{
-        ClientGlobalState, METRICS_POLLING_FREQ_MILLIS, METRIC_KEY_CPU_USEAGE,
-        METRIC_KEY_MEM_USED_MB,
+        ClientGlobalState, METRICS_MAX_SIZE_PER_CONTAINER, METRICS_POLLING_FREQ_MILLIS,
+        METRIC_KEY_CPU_USEAGE, METRIC_KEY_MEM_USED_MB,
     },
     server_api::node_metrics,
 };
@@ -50,7 +50,7 @@ pub fn NodeChartView(chart_data: ReadSignal<ChartSeriesData>) -> impl IntoView {
           "colors": ["#F98080", "#3F83F8"],
           "stroke": {{
             "curve": "smooth",
-            "width": [4, 4]
+            "width": [3, 3]
           }},
           "markers": {{
             "size": 0
@@ -159,15 +159,7 @@ pub async fn node_metrics_update(
             break;
         }
 
-        let update = node_metrics(
-            container_id.clone(),
-            since,
-            vec![
-                METRIC_KEY_MEM_USED_MB.to_string(),
-                METRIC_KEY_CPU_USEAGE.to_string(),
-            ],
-        )
-        .await?;
+        let update = node_metrics(container_id.clone(), since).await?;
 
         match (
             update.get(METRIC_KEY_MEM_USED_MB),
@@ -184,6 +176,14 @@ pub async fn node_metrics_update(
                         cpu.iter()
                             .map(|v| [v.timestamp, v.value.parse::<i64>().unwrap()]),
                     );
+
+                    // remove items if they exceed the max size
+                    if let Some(delta) = m.len().checked_sub(METRICS_MAX_SIZE_PER_CONTAINER) {
+                        m.drain(0..delta);
+                    }
+                    if let Some(delta) = c.len().checked_sub(METRICS_MAX_SIZE_PER_CONTAINER) {
+                        c.drain(0..delta);
+                    }
                 });
             }
             _ => (),
