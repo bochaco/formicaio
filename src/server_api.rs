@@ -28,7 +28,7 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
 
     let mut nodes = HashMap::new();
     for container in containers {
-        let mut node_instance_info = NodeInstanceInfo {
+        let mut node_info = NodeInstanceInfo {
             container_id: container.Id.clone(),
             created: container.Created,
             status: NodeStatus::from(&container.State),
@@ -43,23 +43,21 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
 
         // we first read node metadata cached in the database
         // TODO: fetch metadata of all containers from DB with a single DB call
-        context
-            .db_client
-            .get_node_metadata(&mut node_instance_info)
-            .await?;
+        context.db_client.get_node_metadata(&mut node_info).await?;
 
         // if the node is Active, let's also get up to date metrics
         // info retrieved through the metrics server
-        if node_instance_info.status.is_active() {
-            // TOOD: have all/some of this data to be also cached in DB
+        // TODO: if inactive, some other active node might share the same
+        // rewards addr., if so, we should have up to date balance value.
+        if node_info.status.is_active() {
             context
                 .nodes_metrics
                 .lock()
                 .await
-                .update_node_info(&mut node_instance_info);
+                .update_node_info(&mut node_info);
         }
 
-        nodes.insert(container.Id, node_instance_info);
+        nodes.insert(container.Id, node_info);
     }
 
     Ok(NodesInstancesInfo {
@@ -91,7 +89,7 @@ pub async fn create_node_instance(
         .await?;
     logging::log!("New node container created: {container:?}");
 
-    let node_instance_info = NodeInstanceInfo {
+    let node_info = NodeInstanceInfo {
         container_id: container.Id,
         created: container.Created,
         status: NodeStatus::from(&container.State),
@@ -118,12 +116,9 @@ pub async fn create_node_instance(
         ..Default::default()
     };
 
-    context
-        .db_client
-        .store_node_metadata(&node_instance_info)
-        .await?;
+    context.db_client.insert_node_metadata(&node_info).await?;
 
-    Ok(node_instance_info)
+    Ok(node_info)
 }
 
 // Delete a node instance with given id

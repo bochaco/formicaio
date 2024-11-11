@@ -4,7 +4,7 @@ use super::{
     icons::{IconAddNode, IconCloseModal, IconPasteAddr},
 };
 
-use alloy_core::primitives::Address;
+use alloy::primitives::Address;
 use leptos::*;
 use std::num::ParseIntError;
 

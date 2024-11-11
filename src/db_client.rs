@@ -14,6 +14,7 @@ use sqlx::{
 use std::{
     env::{self, current_dir},
     path::Path,
+    str::FromStr,
     sync::Arc,
 };
 use thiserror::Error;
@@ -40,7 +41,7 @@ pub struct CachedNodeMetadata {
     pub bin_version: String,
     pub port: u16,
     pub rpc_api_port: u16,
-    pub rewards: String, // TODO: currently unused, remove it
+    pub rewards: String, // TODO: currently unused, fetch value from ledger
     pub balance: String,
     pub records: String,
     pub connected_peers: String,
@@ -63,8 +64,8 @@ impl CachedNodeMetadata {
         if self.rpc_api_port > 0 {
             info.rpc_api_port = Some(self.rpc_api_port);
         }
-        if let Ok(v) = self.balance.parse::<u64>() {
-            info.balance = Some(v);
+        if let Ok(v) = alloy::primitives::U256::from_str(&self.balance) {
+            info.balance = Some(v.into());
         }
         if let Ok(v) = self.records.parse::<usize>() {
             info.records = Some(v);
@@ -141,36 +142,21 @@ impl DbClient {
         Ok(())
     }
 
-    // Store node metadata (insert, or update if it exists) onto local cache DB
-    pub async fn store_node_metadata(&self, info: &NodeInstanceInfo) -> Result<(), DbError> {
+    // Insert node metadata onto local cache DB
+    pub async fn insert_node_metadata(&self, info: &NodeInstanceInfo) -> Result<(), DbError> {
         let db_lock = self.db.lock().await;
-        let bind_peer_and_bin = info.peer_id.is_some() && info.bin_version.is_some();
         let query_str = format!(
             "INSERT OR REPLACE INTO nodes (\
-                container_id,{} port, \
-                rpc_api_port, balance, records, \
+                container_id, port, \
+                rpc_api_port, records, \
                 connected_peers, kbuckets_peers \
-            ) VALUES (?,{} ?, ?, ?, ?, ?, ?)",
-            if bind_peer_and_bin {
-                "peer_id, bin_version,"
-            } else {
-                ""
-            },
-            if bind_peer_and_bin { "?, ?," } else { "" }
+            ) VALUES (?, ?, ?, ?, ?, ?)"
         );
 
-        let mut query = sqlx::query(&query_str).bind(info.container_id.clone());
-
-        if bind_peer_and_bin {
-            query = query
-                .bind(info.peer_id.clone())
-                .bind(info.bin_version.clone().unwrap_or_default());
-        }
-
-        match query
+        match sqlx::query(&query_str)
+            .bind(info.container_id.clone())
             .bind(info.port.clone())
             .bind(info.rpc_api_port.clone())
-            .bind(info.balance.map_or("".to_string(), |v| v.to_string()))
             .bind(info.records.map_or("".to_string(), |v| v.to_string()))
             .bind(
                 info.connected_peers
@@ -184,7 +170,63 @@ impl DbClient {
             .await
         {
             Ok(_) => {}
-            Err(err) => logging::log!("Sqlite query error: {err}"),
+            Err(err) => logging::log!("Sqlite insert query error: {err}"),
+        }
+
+        Ok(())
+    }
+
+    // Update node metadata on local cache DB
+    pub async fn update_node_metadata(&self, info: &NodeInstanceInfo) -> Result<(), DbError> {
+        let db_lock = self.db.lock().await;
+        let bind_peer_and_bin = info.peer_id.is_some() && info.bin_version.is_some();
+        let query_str = format!(
+            "UPDATE nodes SET \
+                {}{} port=?, \
+                rpc_api_port=?, records=?, \
+                connected_peers=?, kbuckets_peers=? \
+                WHERE container_id=?",
+            if bind_peer_and_bin {
+                "peer_id=?, bin_version=?,"
+            } else {
+                ""
+            },
+            if info.balance.is_some() {
+                "balance=?,"
+            } else {
+                ""
+            },
+        );
+
+        let mut query = sqlx::query(&query_str);
+
+        if bind_peer_and_bin {
+            query = query
+                .bind(info.peer_id.clone())
+                .bind(info.bin_version.clone().unwrap_or_default());
+        }
+        if let Some(v) = info.balance {
+            query = query.bind(v.to_string())
+        }
+
+        match query
+            .bind(info.port.clone())
+            .bind(info.rpc_api_port.clone())
+            .bind(info.records.map_or("".to_string(), |v| v.to_string()))
+            .bind(
+                info.connected_peers
+                    .map_or("".to_string(), |v| v.to_string()),
+            )
+            .bind(
+                info.kbuckets_peers
+                    .map_or("".to_string(), |v| v.to_string()),
+            )
+            .bind(info.container_id.clone())
+            .execute(&*db_lock)
+            .await
+        {
+            Ok(_) => {}
+            Err(err) => logging::log!("Sqlite update query error: {err}"),
         }
 
         Ok(())
@@ -199,7 +241,7 @@ impl DbClient {
             .await
         {
             Ok(_) => {}
-            Err(err) => logging::log!("Sqlite query error: {err}"),
+            Err(err) => logging::log!("Sqlite delete query error: {err}"),
         }
 
         Ok(())
@@ -220,7 +262,7 @@ impl DbClient {
             .await
         {
             Ok(_) => {}
-            Err(err) => logging::log!("Sqlite query error: {err}"),
+            Err(err) => logging::log!("Sqlite update query error: {err}"),
         }
 
         Ok(())
@@ -275,7 +317,7 @@ impl DbClient {
 
         match query_builder.build().execute(&*db_lock).await {
             Ok(_) => {}
-            Err(err) => logging::log!("Sqlite query error: {err}"),
+            Err(err) => logging::log!("Sqlite insert query error: {err}"),
         }
     }
 
@@ -288,7 +330,7 @@ impl DbClient {
             .await
         {
             Ok(_) => {}
-            Err(err) => logging::log!("Sqlite query error: {err}"),
+            Err(err) => logging::log!("Sqlite delete query error: {err}"),
         }
     }
 
@@ -312,7 +354,7 @@ impl DbClient {
         .await
         {
             Ok(res) => logging::log!("Removed {} metrics records", res.rows_affected()),
-            Err(err) => logging::log!("Sqlite query error: {err}"),
+            Err(err) => logging::log!("Sqlite pruning query error: {err}"),
         }
     }
 }

@@ -1,6 +1,8 @@
 use super::app::ClientGlobalState;
 
+use alloy::primitives::U256;
 use leptos::*;
+use std::collections::HashMap;
 
 #[component]
 pub fn AggregatedStatsView() -> impl IntoView {
@@ -24,12 +26,22 @@ pub fn AggregatedStatsView() -> impl IntoView {
             .count()
     };
     let balance = move || {
-        context
+        let mut total = U256::ZERO;
+        let seen = context
             .nodes
             .get()
             .values()
-            .map(|n| n.get().balance.unwrap_or_default())
-            .sum::<u64>()
+            .filter_map(|n| n.get().balance.map(|v| (n.get_untracked().rewards_addr, v)))
+            .fold(HashMap::new(), |mut acc, (addr, v)| {
+                acc.insert(addr, v);
+                acc
+            });
+
+        for (_, balance) in seen.iter() {
+            total += balance;
+        }
+
+        total.to_string()
     };
     let connected_peers = move || {
         context

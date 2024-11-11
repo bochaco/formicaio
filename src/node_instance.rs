@@ -1,5 +1,6 @@
 use super::app::ClientGlobalState;
 
+use alloy::primitives::U256;
 use leptos::*;
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -85,7 +86,7 @@ pub struct NodeInstanceInfo {
     pub rpc_api_port: Option<u16>,
     pub metrics_port: Option<u16>,
     pub node_ip: Option<String>,
-    pub balance: Option<u64>,
+    pub balance: Option<U256>,
     pub rewards_addr: Option<String>, // hex-encoded rewards address
     pub records: Option<usize>,
     pub relevant_records: Option<usize>,

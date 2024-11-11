@@ -2,6 +2,8 @@ mod about;
 mod add_node;
 mod alerts;
 pub mod app;
+#[cfg(feature = "ssr")]
+pub mod bg_tasks;
 mod chart_view;
 #[cfg(feature = "ssr")]
 pub mod db_client;

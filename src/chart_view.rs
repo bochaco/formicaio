@@ -133,8 +133,10 @@ pub fn NodeChartView(chart_data: ReadSignal<ChartSeriesData>) -> impl IntoView {
                       "data": cpu_data
                     }
                 ]);
-                let opt = <JsValue as JsValueSerdeExt>::from_serde(&opts_clone).unwrap();
-                chart.update_options(&opt, Some(false), Some(true), Some(true));
+                match <JsValue as JsValueSerdeExt>::from_serde(&opts_clone) {
+                    Ok(opt) => chart.update_options(&opt, Some(false), Some(true), Some(true)),
+                    Err(err) => logging::log!("Failed to update chart: {err}"),
+                }
             }
         });
     });
@@ -170,11 +172,11 @@ pub async fn node_metrics_update(
                 set_chart_data.update(|(m, c)| {
                     m.extend(
                         mem.iter()
-                            .map(|v| [v.timestamp, v.value.parse::<i64>().unwrap()]),
+                            .map(|v| [v.timestamp, v.value.parse::<i64>().unwrap_or_default()]),
                     );
                     c.extend(
                         cpu.iter()
-                            .map(|v| [v.timestamp, v.value.parse::<i64>().unwrap()]),
+                            .map(|v| [v.timestamp, v.value.parse::<i64>().unwrap_or_default()]),
                     );
 
                     // remove items if they exceed the max size

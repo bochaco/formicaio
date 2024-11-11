@@ -1,8 +1,9 @@
 use super::{db_client::DbClient, metrics::*, node_instance::NodeInstanceInfo};
 
+use alloy::primitives::U256;
 use chrono::Utc;
 use leptos::*;
-use std::collections::HashMap;
+use std::{collections::HashMap, str::FromStr};
 use thiserror::Error;
 
 // Default value for the nodes metrics host
@@ -133,7 +134,7 @@ impl NodesMetrics {
     pub fn update_node_info(&self, info: &mut NodeInstanceInfo) {
         if let Some(metrics) = self.data.get(&info.container_id) {
             if let Some(metric) = metrics.get(METRIC_KEY_BALANCE) {
-                info.balance = metric.value.parse::<u64>().ok();
+                info.balance = U256::from_str(&metric.value).ok();
             }
 
             if let Some(metric) = metrics.get(METRIC_KEY_STORE_COST) {
