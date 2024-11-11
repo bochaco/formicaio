@@ -7,7 +7,9 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-alloy = { version = "0.6.2", default-features = false, features = ["serde"] }
+alloy = { version = "0.6.2", default-features = false, features = ["provider-http","reqwest"] }
+alloy-sol-types = { version = "0.8.11", default-features = false, features = ["json"], optional = true }
+alloy-contract = { version = "0.6.2", default-features = false, optional = true }
 apexcharts-rs = { version = "0.1.7", features = ["leptos"] }
 async-stream = { version = "0.3.5", optional = true }
 axum = { version = "0.7", optional = true, features = ["macros"] }
@@ -15,6 +17,7 @@ bs58 = { version = "0.5.1", optional = true }
 bytes = "1.7"
 chrono = "0.4.38"
 console_error_panic_hook = "0.1"
+eyre = { version = "0.6.12", optional = true }
 futures-util = "0.3.30"
 gloo-timers = { version = "0.3.0", default-features = false, features = ["futures"] }
 gloo-utils = { version = "0.2.0", default-features = false, features = ["serde"] }
@@ -47,9 +50,12 @@ wasm-bindgen-futures = "0.4"
 [features]
 hydrate = ["leptos/hydrate", "leptos_meta/hydrate", "leptos_router/hydrate"]
 ssr = [
+    "dep:alloy-sol-types",
+    "dep:alloy-contract",
     "dep:async-stream",
     "dep:axum",
     "dep:bs58",
+    "dep:eyre",
     "dep:http-body-util",
     "dep:hyper",
     "dep:hyper-util",

@@ -46,9 +46,7 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
         context.db_client.get_node_metadata(&mut node_info).await?;
 
         // if the node is Active, let's also get up to date metrics
-        // info retrieved through the metrics server
-        // TODO: if inactive, some other active node might share the same
-        // rewards addr., if so, we should have up to date balance value.
+        // info that was retrieved through the metrics server
         if node_info.status.is_active() {
             context
                 .nodes_metrics

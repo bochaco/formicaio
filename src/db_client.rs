@@ -64,8 +64,10 @@ impl CachedNodeMetadata {
         if self.rpc_api_port > 0 {
             info.rpc_api_port = Some(self.rpc_api_port);
         }
-        if let Ok(v) = alloy::primitives::U256::from_str(&self.balance) {
-            info.balance = Some(v.into());
+        if !self.balance.is_empty() {
+            if let Ok(v) = alloy::primitives::U256::from_str(&self.balance) {
+                info.balance = Some(v.into());
+            }
         }
         if let Ok(v) = self.records.parse::<usize>() {
             info.records = Some(v);
@@ -179,52 +181,51 @@ impl DbClient {
     // Update node metadata on local cache DB
     pub async fn update_node_metadata(&self, info: &NodeInstanceInfo) -> Result<(), DbError> {
         let db_lock = self.db.lock().await;
-        let bind_peer_and_bin = info.peer_id.is_some() && info.bin_version.is_some();
+
+        let mut updates = Vec::new();
+        let mut params = Vec::new();
+
+        if let Some(peer_id) = &info.peer_id {
+            updates.push("peer_id=?");
+            params.push(peer_id.clone());
+        }
+        if let Some(bin_version) = &info.bin_version {
+            updates.push("bin_version=?");
+            params.push(bin_version.clone());
+        }
+        if let Some(balance) = &info.balance {
+            updates.push("balance=?");
+            params.push(balance.to_string());
+        }
+        if let Some(records) = &info.records {
+            updates.push("records=?");
+            params.push(records.to_string());
+        }
+        if let Some(connected_peers) = &info.connected_peers {
+            updates.push("connected_peers=?");
+            params.push(connected_peers.to_string());
+        }
+        if let Some(kbuckets_peers) = &info.kbuckets_peers {
+            updates.push("kbuckets_peers=?");
+            params.push(kbuckets_peers.to_string());
+        }
+
+        if updates.is_empty() {
+            return Ok(()); // no updates to make
+        }
+
         let query_str = format!(
-            "UPDATE nodes SET \
-                {}{} port=?, \
-                rpc_api_port=?, records=?, \
-                connected_peers=?, kbuckets_peers=? \
-                WHERE container_id=?",
-            if bind_peer_and_bin {
-                "peer_id=?, bin_version=?,"
-            } else {
-                ""
-            },
-            if info.balance.is_some() {
-                "balance=?,"
-            } else {
-                ""
-            },
+            "UPDATE nodes SET {} WHERE container_id=?",
+            updates.join(", ")
         );
+        params.push(info.container_id.clone());
 
         let mut query = sqlx::query(&query_str);
-
-        if bind_peer_and_bin {
-            query = query
-                .bind(info.peer_id.clone())
-                .bind(info.bin_version.clone().unwrap_or_default());
-        }
-        if let Some(v) = info.balance {
-            query = query.bind(v.to_string())
+        for p in params {
+            query = query.bind(p);
         }
 
-        match query
-            .bind(info.port.clone())
-            .bind(info.rpc_api_port.clone())
-            .bind(info.records.map_or("".to_string(), |v| v.to_string()))
-            .bind(
-                info.connected_peers
-                    .map_or("".to_string(), |v| v.to_string()),
-            )
-            .bind(
-                info.kbuckets_peers
-                    .map_or("".to_string(), |v| v.to_string()),
-            )
-            .bind(info.container_id.clone())
-            .execute(&*db_lock)
-            .await
-        {
+        match query.execute(&*db_lock).await {
             Ok(_) => {}
             Err(err) => logging::log!("Sqlite update query error: {err}"),
         }

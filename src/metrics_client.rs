@@ -1,17 +1,15 @@
 use super::{db_client::DbClient, metrics::*, node_instance::NodeInstanceInfo};
 
-use alloy::primitives::U256;
 use chrono::Utc;
 use leptos::*;
-use std::{collections::HashMap, str::FromStr};
+use std::collections::HashMap;
 use thiserror::Error;
 
 // Default value for the nodes metrics host
 const DEFAULT_NODES_METRICS_HOST: &str = "127.0.0.1";
 
 // Predefined set of metrics to monitor and collect.
-const NODE_METRICS_TO_COLLECT: [&str; 10] = [
-    METRIC_KEY_BALANCE,
+const NODE_METRICS_TO_COLLECT: [&str; 9] = [
     METRIC_KEY_STORE_COST,
     METRIC_KEY_MEM_USED_MB,
     METRIC_KEY_CPU_USEAGE,
@@ -133,10 +131,6 @@ impl NodesMetrics {
     // Update given node instance info with in-memory cached metrics
     pub fn update_node_info(&self, info: &mut NodeInstanceInfo) {
         if let Some(metrics) = self.data.get(&info.container_id) {
-            if let Some(metric) = metrics.get(METRIC_KEY_BALANCE) {
-                info.balance = U256::from_str(&metric.value).ok();
-            }
-
             if let Some(metric) = metrics.get(METRIC_KEY_STORE_COST) {
                 info.store_cost = metric.value.parse::<u64>().ok();
             }
