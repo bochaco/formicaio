@@ -55,6 +55,18 @@ For stopping the Formicaio app and services simply run:
 $ docker compose down
 ```
 
+## Disclaimer
+
+Please be aware that the Formicaio backend application, as well as the `safenode` binary running within each user-created node instance, utilizes third-party RPC services to retrieve information related to the Arbitrum L2 ledger.
+
+Specifically, the Formicaio backend application queries the RPC server at `https://sepolia-rollup.arbitrum.io/rpc` to periodically check the current rewards balances for each node instance based on the configured (ETH) rewards addresses.
+
+Risks:
+- Privacy: Using third-party RPC services may expose your IP address and other metadata to those services. This means that the service provider can potentially track which addresses you are querying, which could lead to privacy concerns regarding your activity on the Arbitrum network.
+- Data Exposure: Any data sent to the RPC service may be logged or monitored by the service provider, which could include sensitive information related to your node instances.
+
+We recommend considering these risks when using the application and taking appropriate measures to protect your privacy.
+
 ## License
 
 This project is licensed under the General Public License (GPL), version
