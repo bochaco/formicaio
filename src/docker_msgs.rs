@@ -1,8 +1,10 @@
-use super::node_instance::ContainerId;
+use super::node_instance::{ContainerId, NodeInstanceInfo};
 
 #[cfg(feature = "ssr")]
 use super::{
-    docker_client::{LABEL_KEY_METRICS_PORT, LABEL_KEY_NODE_PORT, LABEL_KEY_RPC_PORT},
+    docker_client::{
+        LABEL_KEY_METRICS_PORT, LABEL_KEY_NODE_PORT, LABEL_KEY_REWARDS_ADDR, LABEL_KEY_RPC_PORT,
+    },
     node_instance::NodeStatus,
 };
 
@@ -46,6 +48,23 @@ impl Container {
                 Some(n.IPAddress.clone())
             }
         })
+    }
+}
+
+impl Into<NodeInstanceInfo> for Container {
+    fn into(self) -> NodeInstanceInfo {
+        NodeInstanceInfo {
+            container_id: self.Id.clone(),
+            created: self.Created,
+            status: NodeStatus::from(&self.State),
+            status_info: self.Status.clone(),
+            port: self.port(),
+            rpc_api_port: self.rpc_api_port(),
+            metrics_port: self.metrics_port(),
+            node_ip: self.node_ip(),
+            rewards_addr: self.Labels.get(LABEL_KEY_REWARDS_ADDR).cloned(),
+            ..Default::default()
+        }
     }
 }
 

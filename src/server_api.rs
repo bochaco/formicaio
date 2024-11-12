@@ -1,9 +1,7 @@
 use super::node_instance::{ContainerId, NodeInstanceInfo};
 
 #[cfg(feature = "ssr")]
-use super::{
-    app::ServerGlobalState, docker_client::LABEL_KEY_REWARDS_ADDR, node_instance::NodeStatus,
-};
+use super::app::ServerGlobalState;
 
 #[cfg(feature = "ssr")]
 use futures_util::StreamExt;
@@ -28,18 +26,7 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
 
     let mut nodes = HashMap::new();
     for container in containers {
-        let mut node_info = NodeInstanceInfo {
-            container_id: container.Id.clone(),
-            created: container.Created,
-            status: NodeStatus::from(&container.State),
-            status_info: container.Status.clone(),
-            port: container.port(),
-            rpc_api_port: container.rpc_api_port(),
-            metrics_port: container.metrics_port(),
-            node_ip: container.node_ip(),
-            rewards_addr: container.Labels.get(LABEL_KEY_REWARDS_ADDR).cloned(),
-            ..Default::default()
-        };
+        let mut node_info = container.into();
 
         // we first read node metadata cached in the database
         // TODO: fetch metadata of all containers from DB with a single DB call
@@ -55,7 +42,7 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
                 .update_node_info(&mut node_info);
         }
 
-        nodes.insert(container.Id, node_info);
+        nodes.insert(node_info.container_id.clone(), node_info);
     }
 
     Ok(NodesInstancesInfo {
@@ -87,33 +74,7 @@ pub async fn create_node_instance(
         .await?;
     logging::log!("New node container created: {container:?}");
 
-    let node_info = NodeInstanceInfo {
-        container_id: container.Id,
-        created: container.Created,
-        status: NodeStatus::from(&container.State),
-        status_info: container.Status,
-        port: Some(port),
-        rpc_api_port: Some(rpc_api_port),
-        metrics_port: Some(metrics_port),
-        node_ip: container
-            .NetworkSettings
-            .Networks
-            .get("bridge")
-            .and_then(|n| {
-                if n.IPAddress.is_empty() {
-                    None
-                } else {
-                    Some(n.IPAddress.clone())
-                }
-            }),
-        rewards_addr: if rewards_addr.is_empty() {
-            None
-        } else {
-            Some(rewards_addr)
-        },
-        ..Default::default()
-    };
-
+    let node_info = container.into();
     context.db_client.insert_node_metadata(&node_info).await?;
 
     Ok(node_info)
