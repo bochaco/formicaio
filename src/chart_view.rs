@@ -1,3 +1,5 @@
+use crate::node_instance::ContainerId;
+
 use super::{
     app::{
         ClientGlobalState, METRICS_MAX_SIZE_PER_CONTAINER, METRICS_POLLING_FREQ_MILLIS,
@@ -146,7 +148,7 @@ pub fn NodeChartView(chart_data: ReadSignal<ChartSeriesData>) -> impl IntoView {
 
 // Fetch metrics data for a given node to render the charts
 pub async fn node_metrics_update(
-    container_id: String,
+    container_id: ContainerId,
     set_chart_data: WriteSignal<ChartSeriesData>,
 ) -> Result<(), ServerFnError> {
     logging::log!("Retriving node metrics from container {container_id}...");

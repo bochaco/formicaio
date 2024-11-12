@@ -1,3 +1,5 @@
+use crate::node_instance::ContainerId;
+
 use super::{
     app::ClientGlobalState,
     node_instance::NodeInstanceInfo,
@@ -36,7 +38,8 @@ pub async fn add_node_instance(
 ) -> Result<(), ServerFnError> {
     let context = expect_context::<ClientGlobalState>();
 
-    let tmp_container_id = format!("tmp-{}", hex::encode(rand::random::<[u8; 6]>())); // random and temporary
+    // random container_id and temporary
+    let tmp_container_id = format!("tmp-{}", hex::encode(rand::random::<[u8; 6]>()));
     let tmp_container = NodeInstanceInfo {
         container_id: tmp_container_id.clone(),
         created: u64::MAX, // just so it's shown first as the newest in the UI
@@ -57,7 +60,7 @@ pub async fn add_node_instance(
 }
 
 // Removes a node instance with given id and updates given signal
-pub async fn remove_node_instance(container_id: String) -> Result<(), ServerFnError> {
+pub async fn remove_node_instance(container_id: ContainerId) -> Result<(), ServerFnError> {
     let context = expect_context::<ClientGlobalState>();
 
     delete_node_instance(container_id.clone()).await?;
@@ -71,7 +74,7 @@ pub async fn remove_node_instance(container_id: String) -> Result<(), ServerFnEr
 
 // Obtains a stream from the node's log
 pub async fn node_logs_stream(
-    container_id: String,
+    container_id: ContainerId,
     received_logs: WriteSignal<Vec<String>>,
 ) -> Result<(), ServerFnError> {
     use futures_util::stream::StreamExt;

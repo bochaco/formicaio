@@ -1,4 +1,8 @@
-use super::{db_client::DbClient, metrics::*, node_instance::NodeInstanceInfo};
+use super::{
+    db_client::DbClient,
+    metrics::*,
+    node_instance::{ContainerId, NodeInstanceInfo},
+};
 
 use chrono::Utc;
 use leptos::*;

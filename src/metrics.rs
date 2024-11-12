@@ -1,9 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-// Hex-encoded container id
-pub type ContainerId = String;
-
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct NodeMetric {
     // Name/key of the metric.

@@ -1,4 +1,4 @@
-use super::{app::ContainerId, node_instance::NodeInstanceInfo};
+use super::node_instance::{ContainerId, NodeInstanceInfo};
 
 #[cfg(feature = "ssr")]
 use super::{

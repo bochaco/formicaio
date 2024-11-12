@@ -12,6 +12,9 @@ const CONTAINER_ID_PREFIX_LEN: usize = 12;
 // Length of nodes rewards address' prefix and suffix to be displayed
 const REWARDS_ADDR_PREFIX_SUFFIX_LEN: usize = 8;
 
+// Hex-encoded container id
+pub type ContainerId = String;
+
 #[derive(Clone, Default, Debug, Deserialize, PartialEq, Serialize)]
 pub enum NodeStatus {
     #[default]
@@ -76,7 +79,7 @@ impl fmt::Display for NodeStatus {
 
 #[derive(Clone, Default, Debug, Deserialize, PartialEq, Serialize)]
 pub struct NodeInstanceInfo {
-    pub container_id: String,
+    pub container_id: ContainerId,
     pub created: u64,
     pub peer_id: Option<String>, // base58-encoded Peer Id bytes
     pub status: NodeStatus,

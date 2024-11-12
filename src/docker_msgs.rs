@@ -1,12 +1,13 @@
-use super::app::ContainerId;
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use super::node_instance::ContainerId;
 
 #[cfg(feature = "ssr")]
 use super::{
     docker_client::{LABEL_KEY_METRICS_PORT, LABEL_KEY_NODE_PORT, LABEL_KEY_RPC_PORT},
     node_instance::NodeStatus,
 };
+
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[allow(non_snake_case)]

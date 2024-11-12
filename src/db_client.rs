@@ -1,7 +1,6 @@
 use super::{
-    app::ContainerId,
     metrics::{Metrics, NodeMetric},
-    node_instance::NodeInstanceInfo,
+    node_instance::{ContainerId, NodeInstanceInfo},
 };
 
 use leptos::*;
