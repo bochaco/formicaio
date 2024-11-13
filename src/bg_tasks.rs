@@ -201,12 +201,7 @@ async fn update_nodes_info(
                 .await;
             }
 
-            if let Err(err) = db_client.update_node_metadata(&node_info).await {
-                logging::log!(
-                    "Failed to update DB cache for node {}: {err}",
-                    node_info.short_container_id()
-                );
-            }
+            db_client.update_node_metadata(&node_info).await;
         }
 
         balances_retrieval_counter.increment();

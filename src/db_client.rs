@@ -123,7 +123,7 @@ impl DbClient {
     }
 
     // Retrieve node metadata from local cache DB
-    pub async fn get_node_metadata(&self, info: &mut NodeInstanceInfo) -> Result<(), DbError> {
+    pub async fn get_node_metadata(&self, info: &mut NodeInstanceInfo) {
         let db_lock = self.db.lock().await;
         match sqlx::query_as::<_, CachedNodeMetadata>("SELECT * FROM nodes WHERE container_id=?")
             .bind(info.container_id.clone())
@@ -139,12 +139,10 @@ impl DbClient {
             }
             Err(err) => logging::log!("Sqlite query error: {err}"),
         }
-
-        Ok(())
     }
 
     // Insert node metadata onto local cache DB
-    pub async fn insert_node_metadata(&self, info: &NodeInstanceInfo) -> Result<(), DbError> {
+    pub async fn insert_node_metadata(&self, info: &NodeInstanceInfo) {
         let db_lock = self.db.lock().await;
         let query_str = format!(
             "INSERT OR REPLACE INTO nodes (\
@@ -173,12 +171,10 @@ impl DbClient {
             Ok(_) => {}
             Err(err) => logging::log!("Sqlite insert query error: {err}"),
         }
-
-        Ok(())
     }
 
     // Update node metadata on local cache DB
-    pub async fn update_node_metadata(&self, info: &NodeInstanceInfo) -> Result<(), DbError> {
+    pub async fn update_node_metadata(&self, info: &NodeInstanceInfo) {
         let db_lock = self.db.lock().await;
 
         let mut updates = Vec::new();
@@ -210,7 +206,7 @@ impl DbClient {
         }
 
         if updates.is_empty() {
-            return Ok(()); // no updates to make
+            return; // no updates to make
         }
 
         let query_str = format!(
@@ -228,12 +224,10 @@ impl DbClient {
             Ok(_) => {}
             Err(err) => logging::log!("Sqlite update query error: {err}"),
         }
-
-        Ok(())
     }
 
     // Remove node metadata from local cache DB
-    pub async fn delete_node_metadata(&self, container_id: &str) -> Result<(), DbError> {
+    pub async fn delete_node_metadata(&self, container_id: &str) {
         let db_lock = self.db.lock().await;
         match sqlx::query("DELETE FROM nodes WHERE container_id = ?")
             .bind(container_id)
@@ -243,29 +237,39 @@ impl DbClient {
             Ok(_) => {}
             Err(err) => logging::log!("Sqlite delete query error: {err}"),
         }
-
-        Ok(())
     }
 
-    // Update node metadata onto local cache DB by specifying specific field and new value
-    pub async fn update_node_metadata_field(
+    // Update node metadata onto local cache DB by specifying specific fields and new values
+    pub async fn update_node_metadata_fields(
         &self,
         container_id: &str,
-        field: &str,
-        value: &str,
-    ) -> Result<(), DbError> {
+        fields_values: &[(&str, &str)],
+    ) {
         let db_lock = self.db.lock().await;
-        match sqlx::query(&format!("UPDATE nodes SET {field}=? WHERE container_id=?"))
-            .bind(value)
-            .bind(container_id)
-            .execute(&*db_lock)
-            .await
-        {
+        let (updates, mut params) =
+            fields_values
+                .iter()
+                .fold((vec![], vec![]), |(mut u, mut p), (field, param)| {
+                    u.push(format!("{field}=?"));
+                    p.push(*param);
+                    (u, p)
+                });
+        params.push(container_id);
+
+        let query_str = format!(
+            "UPDATE nodes SET {} WHERE container_id=?",
+            updates.join(", ")
+        );
+
+        let mut query = sqlx::query(&query_str);
+        for p in params {
+            query = query.bind(p);
+        }
+
+        match query.execute(&*db_lock).await {
             Ok(_) => {}
             Err(err) => logging::log!("Sqlite update query error: {err}"),
         }
-
-        Ok(())
     }
 
     // Retrieve node metrics from local cache DB

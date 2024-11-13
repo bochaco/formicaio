@@ -30,7 +30,7 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
 
         // we first read node metadata cached in the database
         // TODO: fetch metadata of all containers from DB with a single DB call
-        context.db_client.get_node_metadata(&mut node_info).await?;
+        context.db_client.get_node_metadata(&mut node_info).await;
 
         // if the node is Active, let's also get up to date metrics
         // info that was retrieved through the metrics server
@@ -52,7 +52,6 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
 }
 
 // Create and add a new node instance returning its info
-// TODO: read node instances metadata form a database
 #[server(CreateNodeInstance, "/api", "Url", "/create_node")]
 pub async fn create_node_instance(
     port: u16,
@@ -75,7 +74,7 @@ pub async fn create_node_instance(
     logging::log!("New node container created: {container:?}");
 
     let node_info = container.into();
-    context.db_client.insert_node_metadata(&node_info).await?;
+    context.db_client.insert_node_metadata(&node_info).await;
 
     Ok(node_info)
 }
@@ -89,10 +88,7 @@ pub async fn delete_node_instance(container_id: ContainerId) -> Result<(), Serve
         .docker_client
         .delete_container_with(&container_id)
         .await?;
-    context
-        .db_client
-        .delete_node_metadata(&container_id)
-        .await?;
+    context.db_client.delete_node_metadata(&container_id).await;
     context
         .nodes_metrics
         .lock()
@@ -127,12 +123,11 @@ pub async fn stop_node_instance(container_id: ContainerId) -> Result<(), ServerF
     // set connected/kbucket peers back to 0 and update cache
     context
         .db_client
-        .update_node_metadata_field(&container_id, "connected_peers", "0")
-        .await?;
-    context
-        .db_client
-        .update_node_metadata_field(&container_id, "kbuckets_peers", "0")
-        .await?;
+        .update_node_metadata_fields(
+            &container_id,
+            &[("connected_peers", "0"), ("kbuckets_peers", "0")],
+        )
+        .await;
 
     Ok(())
 }

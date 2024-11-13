@@ -121,6 +121,7 @@ impl NodesMetrics {
     // Remove all the metrics for the specified container id
     pub async fn remove_container_metrics(&mut self, container_id: &ContainerId) {
         self.db_client.delete_node_metrics(container_id).await;
+        let _ = self.data.remove(container_id);
     }
 
     // Return all the metrics for the specified container id with given filters
