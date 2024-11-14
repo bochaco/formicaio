@@ -13,10 +13,23 @@ use std::{
     collections::HashMap,
     env,
     path::{Path, PathBuf},
+    time::Duration,
 };
 use thiserror::Error;
-use tokio::net::UnixStream;
+use tokio::{net::UnixStream, time::timeout};
 use url::form_urlencoded;
+
+// Label's key to set to each container created, so we can then use as
+// filter when fetching the list of them.
+const LABEL_KEY_VERSION: &str = "formica_version";
+// Label's key to cache node's RPC API port number
+pub const LABEL_KEY_RPC_PORT: &str = "rpc_api_port";
+// Label's key to cache node's port number
+pub const LABEL_KEY_NODE_PORT: &str = "node_port";
+// Label's key to cache node's metrics port number
+pub const LABEL_KEY_METRICS_PORT: &str = "metrics_port";
+// Label's key to cache the rewards address set for the node
+pub const LABEL_KEY_REWARDS_ADDR: &str = "rewards_addr";
 
 // Docker API base paths
 const DOCKER_CONTAINERS_API: &str = "/containers";
@@ -35,17 +48,8 @@ const DEFAULT_NODE_CONTAINER_IMAGE_TAG: &str = "latest";
 const NODE_CONTAINER_IMAGE_NAME: &str = "NODE_CONTAINER_IMAGE_NAME";
 const NODE_CONTAINER_IMAGE_TAG: &str = "NODE_CONTAINER_IMAGE_TAG";
 
-// Label's key to set to each container created, so we can then use as
-// filter when fetching the list of them.
-const LABEL_KEY_VERSION: &str = "formica_version";
-// Label's key to cache node's RPC API port number
-pub const LABEL_KEY_RPC_PORT: &str = "rpc_api_port";
-// Label's key to cache node's port number
-pub const LABEL_KEY_NODE_PORT: &str = "node_port";
-// Label's key to cache node's metrics port number
-pub const LABEL_KEY_METRICS_PORT: &str = "metrics_port";
-// Label's key to cache the rewards address set for the node
-pub const LABEL_KEY_REWARDS_ADDR: &str = "rewards_addr";
+// Number of seconds before timing out an attempt to upgrade the node binary.
+const UPGRADE_NODE_BIN_TIMEOUT_SECS: u64 = 8 * 60; // 8 mins
 
 #[derive(Debug, Error)]
 pub enum DockerClientError {
@@ -317,7 +321,7 @@ impl DockerClient {
         let exec_cmd = ContainerExec {
             AttachStdin: Some(false),
             AttachStdout: Some(true),
-            AttachStderr: Some(true),
+            AttachStderr: Some(false),
             Cmd: Some(vec![
                 "sh".to_string(),
                 "-c".to_string(),
@@ -332,29 +336,36 @@ impl DockerClient {
         logging::log!("Container node upgrade cmd created successfully: {exec_result:#?}");
         let exec_id = exec_result.Id;
 
-        // let's now start the exec cmd created
+        // let's now start the exec cmd created to upgrade the binary
         let url = format!("{DOCKER_EXEC_API}/{exec_id}/start");
         let opts = ContainerExecStart {
             Detach: Some(false),
             Tty: Some(true),
         };
-        self.send_request(ReqMethod::Post, &url, &[], &opts).await?;
-        logging::log!("Node upgrade process finished in container: {id}");
+        let send_req = self.send_request(ReqMethod::Post, &url, &[], &opts);
+        let timeout_duration = Duration::from_secs(UPGRADE_NODE_BIN_TIMEOUT_SECS);
+        match timeout(timeout_duration, send_req).await {
+            Err(_) => logging::log!("Timeout ({timeout_duration:?}) while upgrading node binary. Let's restart it anyways..."),
+            Ok(resp) => {
+                resp?;
+                logging::log!("Node upgrade process finished in container: {id}");
 
-        // let's check its exit code
-        let url = format!("{DOCKER_EXEC_API}/{exec_id}/json");
-        let resp_bytes = self.send_request(ReqMethod::Get, &url, &[], &()).await?;
-        let exec: ContainerExecJson = serde_json::from_slice(&resp_bytes)?;
-        logging::log!("Container exec: {exec:#?}");
-        if exec.ExitCode != 0 {
-            let error_msg = format!("Failed to upgrade node, exit code: {}", exec.ExitCode);
-            logging::log!("{error_msg}");
-            return Err(DockerClientError::DockerServerError(error_msg));
+                // let's check its exit code
+                let url = format!("{DOCKER_EXEC_API}/{exec_id}/json");
+                let resp_bytes = self.send_request(ReqMethod::Get, &url, &[], &()).await?;
+                let exec: ContainerExecJson = serde_json::from_slice(&resp_bytes)?;
+                logging::log!("Container exec: {exec:#?}");
+                if exec.ExitCode != 0 {
+                    let error_msg = format!("Failed to upgrade node, exit code: {}", exec.ExitCode);
+                    logging::log!("{error_msg}");
+                    return Err(DockerClientError::DockerServerError(error_msg));
+                }
+            }
         }
 
         // restart container to run with new node version
         let url = format!("{DOCKER_CONTAINERS_API}/{id}/restart");
-        logging::log!("Sending Docker request to RESTART a container: {url} ...");
+        logging::log!("[RESTART] Sending Docker request to RESTART a container: {url} ...");
         self.send_request(ReqMethod::Post, &url, &[], &()).await?;
         Ok(())
     }
@@ -502,9 +513,12 @@ impl DockerClient {
             }
             other => {
                 let resp_bytes = get_response_bytes(resp).await?;
-                let msg: ServerErrorMessage = serde_json::from_slice(&resp_bytes)?;
-                logging::log!("ERROR: {other:?} - {}", msg.message);
-                Err(DockerClientError::DockerServerError(msg.message))
+                let msg = match serde_json::from_slice::<ServerErrorMessage>(&resp_bytes) {
+                    Ok(msg) => msg.message,
+                    Err(_) => String::from_utf8_lossy(&resp_bytes).to_string(),
+                };
+                logging::log!("ERROR: {other:?} - {msg}");
+                Err(DockerClientError::DockerServerError(msg))
             }
         }
     }

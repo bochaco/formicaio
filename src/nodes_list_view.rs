@@ -480,6 +480,7 @@ fn ButtonUpgrade(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                             Ok(()) => {
                                 info.update(|node| {
                                     node.status = NodeStatus::Transitioned("Upgraded".to_string());
+                                    node.bin_version = None;
                                 })
                             }
                             Err(err) => {

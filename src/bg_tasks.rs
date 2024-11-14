@@ -174,9 +174,10 @@ async fn update_nodes_info(
             poll_rpc_counter.increment();
         }
 
-        logging::log!("Updating {} node/s metrics ...", containers.len());
         // cache retrieved rewards balances to not query more than once per reward address
         let mut updated_balances = HashMap::new();
+
+        logging::log!("Fetching metrics for {} node/s ...", containers.len());
         for container in containers.into_iter() {
             let mut node_info: NodeInstanceInfo = container.into();
 
