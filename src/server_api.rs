@@ -108,6 +108,7 @@ pub async fn start_node_instance(container_id: ContainerId) -> Result<(), Server
         .docker_client
         .start_container_with(&container_id)
         .await?;
+
     Ok(())
 }
 
@@ -141,6 +142,13 @@ pub async fn upgrade_node_instance(container_id: ContainerId) -> Result<(), Serv
         .docker_client
         .upgrade_node_in_container_with(&container_id)
         .await?;
+    // set bin_version to 'unknown', otherwise it can be confusing while the
+    // node is restarting what version it really is running.
+    context
+        .db_client
+        .update_node_metadata_fields(&container_id, &[("bin_version", "")])
+        .await;
+
     Ok(())
 }
 
