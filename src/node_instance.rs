@@ -91,6 +91,7 @@ pub struct NodeInstanceInfo {
     pub node_ip: Option<String>,
     pub balance: Option<U256>,
     pub rewards_addr: Option<String>, // hex-encoded rewards address
+    pub rewards: Option<U256>,
     pub records: Option<usize>,
     pub relevant_records: Option<usize>,
     pub store_cost: Option<u64>,

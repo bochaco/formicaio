@@ -185,8 +185,20 @@ fn NodeInstanceView(
                     {move || info.get().bin_version.unwrap_or_else(|| "unknown".to_string())}
                 </p>
                 <p>
-                    <span class="node-info-item">"Balance: "</span>
-                    {move || info.get().balance.map_or("unknown".to_string(), |v| v.to_string())}
+                    <div class="flex flex-row">
+                        <div class="basis-1/2">
+                            <span class="node-info-item">"Balance: "</span>
+                            {move || {
+                                info.get().balance.map_or("unknown".to_string(), |v| v.to_string())
+                            }}
+                        </div>
+                        <div class="basis-1/2">
+                            <span class="node-info-item">"Rewards: "</span>
+                            {move || {
+                                info.get().rewards.map_or("unknown".to_string(), |v| v.to_string())
+                            }}
+                        </div>
+                    </div>
                 </p>
                 <p>
                     <span class="node-info-item">"Rewards addr: "</span>

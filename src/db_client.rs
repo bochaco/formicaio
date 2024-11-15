@@ -3,6 +3,7 @@ use super::{
     node_instance::{ContainerId, NodeInstanceInfo},
 };
 
+use alloy::primitives::U256;
 use leptos::*;
 use serde::{Deserialize, Serialize};
 use sqlx::{
@@ -40,7 +41,7 @@ pub struct CachedNodeMetadata {
     pub bin_version: String,
     pub port: u16,
     pub rpc_api_port: u16,
-    pub rewards: String, // TODO: currently unused, fetch value from ledger
+    pub rewards: String,
     pub balance: String,
     pub records: String,
     pub connected_peers: String,
@@ -63,8 +64,13 @@ impl CachedNodeMetadata {
         if self.rpc_api_port > 0 {
             info.rpc_api_port = Some(self.rpc_api_port);
         }
+        if !self.rewards.is_empty() {
+            if let Ok(v) = U256::from_str(&self.rewards) {
+                info.rewards = Some(v.into());
+            }
+        }
         if !self.balance.is_empty() {
-            if let Ok(v) = alloy::primitives::U256::from_str(&self.balance) {
+            if let Ok(v) = U256::from_str(&self.balance) {
                 info.balance = Some(v.into());
             }
         }
@@ -187,6 +193,10 @@ impl DbClient {
         if let Some(bin_version) = &info.bin_version {
             updates.push("bin_version=?");
             params.push(bin_version.clone());
+        }
+        if let Some(rewards) = &info.rewards {
+            updates.push("rewards=?");
+            params.push(rewards.to_string());
         }
         if let Some(balance) = &info.balance {
             updates.push("balance=?");

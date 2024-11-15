@@ -160,6 +160,7 @@ fn spawn_nodes_list_polling() {
                                         cn.peer_id = updated.peer_id.clone();
                                         cn.status_info = updated.status_info.clone();
                                         cn.bin_version = updated.bin_version.clone();
+                                        cn.rewards = updated.rewards;
                                         cn.balance = updated.balance;
                                         cn.records = updated.records;
                                         cn.relevant_records = updated.relevant_records;
