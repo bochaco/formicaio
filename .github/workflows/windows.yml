@@ -10,7 +10,17 @@ jobs:
 
   build:
 
-    runs-on: windows-latest
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      max-parallel: 3
+      matrix:
+        os: [windows-latest]
+        include:
+        - os: windows-latest
+          base: nanoserver-1809
+          file: windows.Dockerfile
+          tag: ${{ vars.DOCKERHUB_USERNAME }}/formicaio:latest_win
 
     steps:
       - name: Login to Docker Hub
@@ -22,7 +32,10 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@v4
   
-      - name: Build and Push container to registry
+      - name: Build container
         run: |
-          docker build --file=windows.Dockerfile -t ${{ vars.DOCKERHUB_USERNAME }}/formicaio:latest_win .
-          docker push ${{ vars.DOCKERHUB_USERNAME }}/formicaio:latest_win
+          docker build --file=windows.Dockerfile --build-arg BASE=${{ matrix.base }} -t ${{ matrix.tag }} .
+
+      - name: Push container to registry
+        run: |
+          docker push ${{ matrix.tag }}
