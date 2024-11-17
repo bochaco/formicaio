@@ -18,7 +18,7 @@ jobs:
         os: [windows-latest]
         include:
         - os: windows-latest
-          base: nanoserver-1809
+          target: x86_64-pc-windows-msvc
           file: windows.Dockerfile
           tag: ${{ vars.DOCKERHUB_USERNAME }}/formicaio:latest_win
 
@@ -34,7 +34,7 @@ jobs:
   
       - name: Build container
         run: |
-          docker build --file=windows.Dockerfile --build-arg BASE=${{ matrix.base }} -t ${{ matrix.tag }} .
+          docker build -f ${{ matrix.file }} -t ${{ matrix.tag }} .
 
       - name: Push container to registry
         run: |

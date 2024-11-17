@@ -1,10 +1,13 @@
 # Dockerfile for running Formicaio app on Windows
 
-# We first just install tailwindcss from a nodejs slim image
-FROM mcr.microsoft.com/windows/servercore:1809 as tailwindcss-builder
+# We first just install tailwindcss with nodejs
+FROM mcr.microsoft.com/powershell as tailwindcss-builder
 
 SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop';$ProgressPreference='silentlyContinue';"]
-RUN Invoke-WebRequest -OutFile nodejs.zip -UseBasicParsing "https://nodejs.org/dist/v20.17.0/node-v20.17.0-win-x86.zip"; `Expand-Archive nodejs.zip -DestinationPath C:\; `Rename-Item "C:\\node-v20.17.0-win-x64" c:\nodejs
+
+RUN Invoke-WebRequest -OutFile nodejs.zip -UseBasicParsing -Uri "https://nodejs.org/dist/v20.17.0/node-v20.17.0-win-x86.zip"
+RUN Expand-Archive -DestinationPath C:\ nodejs.zip
+RUN Rename-Item C:\node-v20.17.0-win-x64 C:\nodejs
 RUN SETX PATH C:\nodejs
 
 WORKDIR /app
@@ -15,14 +18,17 @@ RUN npm install -D tailwindcss
 RUN npx tailwindcss init
 
 # Now let's use a build env with Rust for the app
-FROM rust:1 AS builder
+FROM mcr.microsoft.com/powershell as builder
+
+SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop';$ProgressPreference='silentlyContinue';"]
 
 # Install cargo-binstall, which makes it easier to install other
 # cargo extensions like cargo-leptos
-# Install cargo-binstall for Linux amd64/arm64
-RUN export TARGET="$(uname -m)" && wget -O cargo-binstall-linux-musl.tgz https://github.com/cargo-bins/cargo-binstall/releases/latest/download/cargo-binstall-$TARGET-unknown-linux-musl.tgz
-RUN tar -xvf cargo-binstall-linux-musl.tgz
-RUN cp cargo-binstall /usr/local/cargo/bin
+# Install cargo-binstall for Windows amd64/arm64
+RUN Invoke-WebRequest -OutFile cargo-binstall.zip -UseBasicParsing -Uri "https://github.com/cargo-bins/cargo-binstall/releases/latest/download/cargo-binstall-$TARGET-pc-windows-msvc.full.zip"
+RUN Expand-Archive cargo-binstall.zip -DestinationPath C:\;
+RUN Rename-Item "C:\\cargo-binstall.zip" C:\cargo-binstall
+RUN SETX PATH C:\cargo-binstall
 
 # Install cargo-leptos
 RUN cargo binstall cargo-leptos -y
