@@ -5,11 +5,15 @@ FROM mcr.microsoft.com/powershell as tailwindcss-builder
 
 SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop';$ProgressPreference='silentlyContinue';"]
 
-RUN Invoke-WebRequest -OutFile nodejs.msi -UseBasicParsing -Uri "https://nodejs.org/dist/v20.17.0/node-v20.17.0-x86.msi"
-#RUN Expand-Archive -DestinationPath C:\ nodejs.zip
+RUN Invoke-WebRequest -OutFile nvm-noinstall.zip -UseBasicParsing -Uri "https://github.com/coreybutler/nvm-windows/releases/latest/download/nvm-noinstall.zip"
+RUN Expand-Archive -DestinationPath C:\ nvm-noinstall.zip
 #RUN Rename-Item C:\node-v20.17.0-x64 C:\nodejs
 #RUN SETX PATH C:\nodejs
-RUN msiexec.exe /q /i nodejs.msi
+#RUN msiexec.exe /q /i nodejs.msi
+RUN C:\nvm.exe install 20.17.0
+RUN C:\nvm.exe use 20.17.0
+
+#RUN npm install -g yarn
 
 WORKDIR /app
 COPY package.json package-lock.json ./
