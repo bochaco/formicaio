@@ -5,10 +5,11 @@ FROM mcr.microsoft.com/powershell as tailwindcss-builder
 
 SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop';$ProgressPreference='silentlyContinue';"]
 
-RUN Invoke-WebRequest -OutFile nodejs.zip -UseBasicParsing -Uri "https://nodejs.org/dist/v20.17.0/node-v20.17.0-win-x86.zip"
-RUN Expand-Archive -DestinationPath C:\ nodejs.zip
-RUN Rename-Item C:\node-v20.17.0-win-x64 C:\nodejs
-RUN SETX PATH C:\nodejs
+RUN Invoke-WebRequest -OutFile nodejs.msi -UseBasicParsing -Uri "https://nodejs.org/dist/v20.17.0/node-v20.17.0-x86.msi"
+#RUN Expand-Archive -DestinationPath C:\ nodejs.zip
+#RUN Rename-Item C:\node-v20.17.0-x64 C:\nodejs
+#RUN SETX PATH C:\nodejs
+RUN msiexec.exe /q /i nodejs.msi
 
 WORKDIR /app
 COPY package.json package-lock.json ./
