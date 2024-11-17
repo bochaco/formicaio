@@ -13,8 +13,6 @@ RUN Expand-Archive -DestinationPath C:\ nvm-noinstall.zip
 RUN C:\nvm.exe install 20.17.0
 RUN C:\nvm.exe use 20.17.0
 
-#RUN npm install -g yarn
-
 WORKDIR /app
 COPY package.json package-lock.json ./
 
@@ -23,20 +21,22 @@ RUN npm install -D tailwindcss
 RUN npx tailwindcss init
 
 # Now let's use a build env with Rust for the app
-FROM mcr.microsoft.com/powershell as builder
+FROM mcr.microsoft.com/devcontainers/rust:dev-1 as builder
 
 SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop';$ProgressPreference='silentlyContinue';"]
 
 # Install cargo-binstall, which makes it easier to install other
 # cargo extensions like cargo-leptos
 # Install cargo-binstall for Windows amd64/arm64
-RUN Invoke-WebRequest -OutFile cargo-binstall.zip -UseBasicParsing -Uri "https://github.com/cargo-bins/cargo-binstall/releases/latest/download/cargo-binstall-$TARGET-pc-windows-msvc.full.zip"
-RUN Expand-Archive cargo-binstall.zip -DestinationPath C:\;
-RUN Rename-Item "C:\\cargo-binstall.zip" C:\cargo-binstall
-RUN SETX PATH C:\cargo-binstall
+#RUN Invoke-WebRequest -OutFile cargo-binstall.zip -UseBasicParsing -Uri "https://github.com/cargo-bins/cargo-binstall/releases/latest/download/cargo-binstall-x86_64-pc-windows-msvc.full.zip"
+#RUN Expand-Archive -DestinationPath C:\ cargo-binstall.zip
+RUN Set-ExecutionPolicy Unrestricted -Scope Process; iex (iwr "https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.ps1").Content
+
+#RUN C:\cargo-binstall.exe rustup -y
+#RUN winget install Rustlang.Rustup
 
 # Install cargo-leptos
-RUN cargo binstall cargo-leptos -y
+RUN cargo-binstall cargo-leptos -y
 
 # Add the WASM target
 RUN rustup target add wasm32-unknown-unknown
@@ -61,17 +61,11 @@ RUN cargo leptos build --release -vv
 
 # Finally use a slim Debian image to build the final runtime image 
 # which contains only the built app and required resource files.
-FROM debian:bookworm-slim AS runtime
-RUN mkdir -p /data
+FROM mcr.microsoft.com/windows/nanoserver:1809 AS runtime
 WORKDIR /app
-RUN apt-get update -y \
-  && apt-get install -y --no-install-recommends openssl ca-certificates \
-  && apt-get autoremove -y \
-  && apt-get clean -y \
-  && rm -rf /var/lib/apt/lists/*
 
 # Copy the server binary to the /app directory
-COPY --from=builder /app/target/release/formicaio /app/
+COPY --from=builder /app/target/release/formicaio.exe /app/
 
 # Copy Sqlite migrations files
 COPY --from=builder /app/migrations /app/migrations
@@ -90,4 +84,4 @@ ENV LEPTOS_SITE_ROOT="site"
 EXPOSE 8080
 
 # Run the server
-CMD ["/app/formicaio"]
+CMD ["/app/formicaio.exe"]
