@@ -1,7 +1,7 @@
 use super::node_instance::{ContainerId, NodeInstanceInfo};
 
 #[cfg(feature = "ssr")]
-use super::app::ServerGlobalState;
+use super::{app::ServerGlobalState, node_instance::NodeStatus};
 
 #[cfg(feature = "ssr")]
 use futures_util::StreamExt;
@@ -105,6 +105,10 @@ pub async fn start_node_instance(container_id: ContainerId) -> Result<(), Server
     logging::log!("Starting node container with Id: {container_id} ...");
     let context = expect_context::<ServerGlobalState>();
     context
+        .db_client
+        .update_node_status(&container_id, NodeStatus::Restarting)
+        .await;
+    context
         .docker_client
         .start_container_with(&container_id)
         .await?;
@@ -118,19 +122,42 @@ pub async fn stop_node_instance(container_id: ContainerId) -> Result<(), ServerF
     logging::log!("Stopping node container with Id: {container_id} ...");
     let context = expect_context::<ServerGlobalState>();
     context
-        .docker_client
-        .stop_container_with(&container_id)
-        .await?;
-    // set connected/kbucket peers back to 0 and update cache
+        .node_status_locked
+        .lock()
+        .await
+        .insert(container_id.clone());
     context
         .db_client
-        .update_node_metadata_fields(
-            &container_id,
-            &[("connected_peers", "0"), ("kbuckets_peers", "0")],
-        )
+        .update_node_status(&container_id, NodeStatus::Stopping)
         .await;
 
-    Ok(())
+    let res = context
+        .docker_client
+        .stop_container_with(&container_id)
+        .await;
+
+    if matches!(res, Ok(())) {
+        // set connected/kbucket peers back to 0 and update cache
+        context
+            .db_client
+            .update_node_metadata_fields(
+                &container_id,
+                &[("connected_peers", "0"), ("kbuckets_peers", "0")],
+            )
+            .await;
+        context
+            .db_client
+            .update_node_status(&container_id, NodeStatus::Inactive)
+            .await;
+    }
+
+    context
+        .node_status_locked
+        .lock()
+        .await
+        .remove(&container_id);
+
+    Ok(res?)
 }
 
 // Upgrade a node instance with given id
@@ -139,17 +166,43 @@ pub async fn upgrade_node_instance(container_id: ContainerId) -> Result<(), Serv
     logging::log!("Upgrading node container with Id: {container_id} ...");
     let context = expect_context::<ServerGlobalState>();
     context
-        .docker_client
-        .upgrade_node_in_container_with(&container_id)
-        .await?;
-    // set bin_version to 'unknown', otherwise it can be confusing while the
-    // node is restarting what version it really is running.
+        .node_status_locked
+        .lock()
+        .await
+        .insert(container_id.clone());
     context
         .db_client
-        .update_node_metadata_fields(&container_id, &[("bin_version", "")])
+        .update_node_status(&container_id, NodeStatus::Upgrading)
         .await;
 
-    Ok(())
+    let res = context
+        .docker_client
+        .upgrade_node_in_container_with(&container_id)
+        .await;
+
+    if matches!(res, Ok(())) {
+        // set bin_version to 'unknown', otherwise it can be confusing while the
+        // node is restarting what version it really is running.
+        context
+            .db_client
+            .update_node_metadata_fields(&container_id, &[("bin_version", "")])
+            .await;
+        context
+            .db_client
+            .update_node_status(
+                &container_id,
+                NodeStatus::Transitioned("Upgraded".to_string()),
+            )
+            .await;
+    }
+
+    context
+        .node_status_locked
+        .lock()
+        .await
+        .remove(&container_id);
+
+    Ok(res?)
 }
 
 // Start streaming logs from a node instance with given id

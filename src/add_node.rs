@@ -182,7 +182,7 @@ pub fn RewardsAddrInput(
             Ok(input_str)
         } else {
             // validate checksum
-            match Address::parse_checksummed(&input_str, None) {
+            match Address::parse_checksummed(&format!("0x{value}"), None) {
                 Ok(_) => Ok(input_str),
                 Err(_) => Err(("Checksum validation failed".to_string(), input_str)),
             }

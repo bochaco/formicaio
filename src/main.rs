@@ -8,7 +8,7 @@ async fn main() {
     };
     use leptos::*;
     use leptos_axum::{generate_route_list, LeptosRoutes};
-    use std::sync::Arc;
+    use std::{collections::HashSet, sync::Arc};
     use tokio::sync::Mutex;
 
     logging::log!("Starting Formicaio v{} ...", env!("CARGO_PKG_VERSION"));
@@ -32,6 +32,8 @@ async fn main() {
     // We'll use this flag to keep track if server API is being hit by any
     // active client, in order to prevent from polling nodes unnecessarily.
     let server_api_hit = Arc::new(Mutex::new(true));
+    // List of nodes which are currently being upgraded
+    let node_status_locked = Arc::new(Mutex::new(HashSet::new()));
 
     spawn_bg_tasks(
         docker_client.clone(),
@@ -39,6 +41,7 @@ async fn main() {
         nodes_metrics.clone(),
         db_client.clone(),
         server_api_hit.clone(),
+        node_status_locked.clone(),
     );
 
     let app_state = ServerGlobalState {
@@ -48,6 +51,7 @@ async fn main() {
         latest_bin_version,
         nodes_metrics,
         server_api_hit,
+        node_status_locked,
     };
 
     let app = Router::new()

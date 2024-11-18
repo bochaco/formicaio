@@ -3,7 +3,7 @@ use super::{
     db_client::DbClient,
     docker_client::DockerClient,
     metrics_client::{NodeMetricsClient, NodesMetrics},
-    node_instance::NodeInstanceInfo,
+    node_instance::{ContainerId, NodeInstanceInfo},
     node_rpc_client::NodeRpcClient,
 };
 use alloy::{
@@ -13,7 +13,10 @@ use alloy::{
 };
 use alloy_sol_types::sol;
 use leptos::logging;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 use tokio::{
     sync::Mutex,
     time::{sleep, Duration},
@@ -40,6 +43,7 @@ pub fn spawn_bg_tasks(
     nodes_metrics: Arc<Mutex<NodesMetrics>>,
     db_client: DbClient,
     server_api_hit: Arc<Mutex<bool>>,
+    node_status_locked: Arc<Mutex<HashSet<ContainerId>>>,
 ) {
     // Check latest version of node binary every couple of hours
     const BIN_VERSION_POLLING_FREQ: Duration = Duration::from_secs(60 * 60 * 2);
@@ -75,6 +79,7 @@ pub fn spawn_bg_tasks(
         nodes_metrics,
         db_client,
         server_api_hit,
+        node_status_locked,
     ));
 }
 
@@ -126,6 +131,7 @@ async fn update_nodes_info(
     nodes_metrics: Arc<Mutex<NodesMetrics>>,
     db_client: DbClient,
     server_api_hit: Arc<Mutex<bool>>,
+    node_status_locked: Arc<Mutex<HashSet<ContainerId>>>,
 ) -> Result<(), eyre::Error> {
     // Collect metrics from nodes and cache them in global context
     const NODES_METRICS_POLLING_FREQ: Duration =
@@ -202,7 +208,13 @@ async fn update_nodes_info(
                 .await;
             }
 
-            db_client.update_node_metadata(&node_info).await;
+            let update_status = !node_status_locked
+                .lock()
+                .await
+                .contains(&node_info.container_id);
+            db_client
+                .update_node_metadata(&node_info, update_status)
+                .await;
         }
 
         balances_retrieval_counter.increment();

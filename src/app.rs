@@ -16,7 +16,7 @@ use super::{
 #[cfg(feature = "ssr")]
 use axum::extract::FromRef;
 #[cfg(feature = "ssr")]
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 #[cfg(feature = "ssr")]
 use tokio::sync::Mutex;
 
@@ -50,6 +50,7 @@ pub struct ServerGlobalState {
     pub latest_bin_version: Arc<Mutex<Option<String>>>,
     pub nodes_metrics: Arc<Mutex<super::metrics_client::NodesMetrics>>,
     pub server_api_hit: Arc<Mutex<bool>>,
+    pub node_status_locked: Arc<Mutex<HashSet<super::node_instance::ContainerId>>>,
 }
 
 // Struct to use client side as a global context/state
@@ -151,27 +152,7 @@ fn spawn_nodes_list_polling() {
                         for (id, cn) in cx_nodes {
                             if let Some(updated) = info.nodes.get(id) {
                                 if cn.get_untracked() != *updated {
-                                    cn.update(|cn| {
-                                        if !cn.status.is_transitioning()
-                                            || cn.status.is_transitioned()
-                                        {
-                                            cn.status = updated.status.clone();
-                                        }
-                                        cn.peer_id = updated.peer_id.clone();
-                                        cn.status_info = updated.status_info.clone();
-                                        cn.bin_version = updated.bin_version.clone();
-                                        cn.rewards = updated.rewards;
-                                        cn.balance = updated.balance;
-                                        cn.records = updated.records;
-                                        cn.relevant_records = updated.relevant_records;
-                                        cn.store_cost = updated.store_cost;
-                                        cn.mem_used = updated.mem_used;
-                                        cn.cpu_usage = updated.cpu_usage.clone();
-                                        cn.connected_peers = updated.connected_peers;
-                                        cn.kbuckets_peers = updated.kbuckets_peers;
-                                        cn.shunned_count = updated.shunned_count;
-                                        cn.net_size = updated.net_size;
-                                    });
+                                    cn.set(updated.clone());
                                 }
                             }
                         }

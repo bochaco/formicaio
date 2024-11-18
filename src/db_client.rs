@@ -1,11 +1,12 @@
 use super::{
     metrics::{Metrics, NodeMetric},
-    node_instance::{ContainerId, NodeInstanceInfo},
+    node_instance::{ContainerId, NodeInstanceInfo, NodeStatus},
 };
 
 use alloy::primitives::U256;
 use leptos::*;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use sqlx::{
     migrate::{MigrateDatabase, Migrator},
     sqlite::SqlitePool,
@@ -37,6 +38,7 @@ const DEFAULT_DB_PATH: &str = "./";
 #[derive(Clone, Debug, Deserialize, FromRow, Serialize)]
 pub struct CachedNodeMetadata {
     pub container_id: String,
+    pub status: String,
     pub peer_id: String,
     pub bin_version: String,
     pub port: u16,
@@ -52,6 +54,9 @@ impl CachedNodeMetadata {
     // Update the node info with data obtained from DB, but only those
     // fields with non zero/empty values; zero/empty value means it was unknown when stored.
     pub fn merge_onto(&self, info: &mut NodeInstanceInfo) {
+        if let Ok(status) = serde_json::from_str(&self.status) {
+            info.status = status;
+        }
         if !self.peer_id.is_empty() {
             info.peer_id = Some(self.peer_id.clone());
         }
@@ -152,14 +157,15 @@ impl DbClient {
         let db_lock = self.db.lock().await;
         let query_str = format!(
             "INSERT OR REPLACE INTO nodes (\
-                container_id, port, \
+                container_id, status, port, \
                 rpc_api_port, records, \
                 connected_peers, kbuckets_peers \
-            ) VALUES (?, ?, ?, ?, ?, ?)"
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)"
         );
 
         match sqlx::query(&query_str)
             .bind(info.container_id.clone())
+            .bind(json!(info.status).to_string())
             .bind(info.port.clone())
             .bind(info.rpc_api_port.clone())
             .bind(info.records.map_or("".to_string(), |v| v.to_string()))
@@ -180,11 +186,16 @@ impl DbClient {
     }
 
     // Update node metadata on local cache DB
-    pub async fn update_node_metadata(&self, info: &NodeInstanceInfo) {
+    pub async fn update_node_metadata(&self, info: &NodeInstanceInfo, update_status: bool) {
         let db_lock = self.db.lock().await;
 
         let mut updates = Vec::new();
         let mut params = Vec::new();
+
+        if update_status {
+            updates.push("status=?");
+            params.push(json!(info.status).to_string());
+        }
 
         if let Some(peer_id) = &info.peer_id {
             updates.push("peer_id=?");
@@ -280,6 +291,12 @@ impl DbClient {
             Ok(_) => {}
             Err(err) => logging::log!("Sqlite update query error: {err}"),
         }
+    }
+
+    // Convenient method to update node status field on local cache DB
+    pub async fn update_node_status(&self, container_id: &str, status: NodeStatus) {
+        self.update_node_metadata_fields(container_id, &[("status", &json!(&status).to_string())])
+            .await
     }
 
     // Retrieve node metrics from local cache DB
