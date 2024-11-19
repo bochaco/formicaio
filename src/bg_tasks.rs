@@ -5,6 +5,7 @@ use super::{
     metrics_client::{NodeMetricsClient, NodesMetrics},
     node_instance::{ContainerId, NodeInstanceInfo},
     node_rpc_client::NodeRpcClient,
+    server_api::helper_upgrade_node_instance,
 };
 use alloy::{
     primitives::{Address, U256},
@@ -28,6 +29,21 @@ const L2_RPC_URL: &str = "https://sepolia-rollup.arbitrum.io/rpc";
 // ERC20 token contract address.
 const ANT_TOKEN_CONTRACT_ADDR: &str = "0xBE1802c27C324a28aeBcd7eeC7D734246C807194";
 
+// Check latest version of node binary every couple of hours
+const BIN_VERSION_POLLING_FREQ: Duration = Duration::from_secs(60 * 60 * 2);
+
+// Delay between each node upgrade during nodes auto-upgrade if enabled.
+const NODES_AUTO_UPGRADES_DELAY: Duration = Duration::from_secs(10);
+
+// How many cycles of metrics polling before performing a metrics pruning in the DB.
+const METRICS_PRUNING: u32 = 3_600_000 / METRICS_POLLING_FREQ_MILLIS; // every ~1hr.
+
+// How many cycles of metrics polling before querying balances from the ledger.
+const REWARDS_BALANCES_RETRIEVAL: u32 = 900_000 / METRICS_POLLING_FREQ_MILLIS; // every ~15mins.
+
+// Frequency to pull a new version of the formica image
+const FORMICA_IMAGE_PULLING_FREQ: Duration = Duration::from_secs(60 * 60 * 6); // every 6 hours.
+
 // Create ERC20 contract instance
 sol!(
     #[allow(missing_docs)]
@@ -45,24 +61,9 @@ pub fn spawn_bg_tasks(
     server_api_hit: Arc<Mutex<bool>>,
     node_status_locked: Arc<Mutex<HashSet<ContainerId>>>,
 ) {
-    // Check latest version of node binary every couple of hours
-    const BIN_VERSION_POLLING_FREQ: Duration = Duration::from_secs(60 * 60 * 2);
-
-    tokio::spawn(async move {
-        loop {
-            if let Some(version) = latest_version_available().await {
-                logging::log!("Latest version of node binary available: {version}");
-                *latest_bin_version.lock().await = Some(version);
-            }
-            sleep(BIN_VERSION_POLLING_FREQ).await;
-        }
-    });
-
     // Let's pull the node image already to reduce the time it'll take
     // to create the very first node instance.
     // Also, attempt to pull a new version of the formica image every six hours
-    const FORMICA_IMAGE_PULLING_FREQ: Duration = Duration::from_secs(60 * 60 * 6);
-
     let docker_client_clone = docker_client.clone();
     tokio::spawn(async move {
         loop {
@@ -74,6 +75,15 @@ pub fn spawn_bg_tasks(
         }
     });
 
+    // Spawn a task which checks nodes binary versions against latest available
+    tokio::spawn(check_node_bin_version(
+        docker_client.clone(),
+        latest_bin_version,
+        db_client.clone(),
+        node_status_locked.clone(),
+    ));
+
+    // Spawn a task to update nodes info and metrics
     tokio::spawn(update_nodes_info(
         docker_client,
         nodes_metrics,
@@ -81,6 +91,47 @@ pub fn spawn_bg_tasks(
         server_api_hit,
         node_status_locked,
     ));
+}
+
+// Check latest version of node binary and upgrade nodes
+// automatically if auto-upgrade was enabled by the user.
+async fn check_node_bin_version(
+    docker_client: DockerClient,
+    latest_bin_version: Arc<Mutex<Option<String>>>,
+    db_client: DbClient,
+    node_status_locked: Arc<Mutex<HashSet<ContainerId>>>,
+) {
+    loop {
+        if let Some(version) = latest_version_available().await {
+            logging::log!("Latest version of node binary available: {version}");
+            *latest_bin_version.lock().await = Some(version.clone());
+
+            // TODO: user to enable/disable auto-upgrading from a settings panel
+            match db_client.get_outdated_nodes_list(&version).await {
+                Ok(versions) => {
+                    for (id, v) in versions {
+                        logging::log!("Auto-upgrading node binary from v{v} to v{version} for node instance {id} ...");
+                        if let Err(err) = helper_upgrade_node_instance(
+                            &id,
+                            &node_status_locked,
+                            &db_client,
+                            &docker_client,
+                        )
+                        .await
+                        {
+                            logging::log!("Failed to auto-upgrade node binary for node instance {id}: {err:?}.");
+                        }
+                        sleep(NODES_AUTO_UPGRADES_DELAY).await;
+                    }
+                }
+                Err(err) => {
+                    logging::log!("Failed to retrieve list of nodes' binary versions: {err:?}")
+                }
+            }
+        }
+
+        sleep(BIN_VERSION_POLLING_FREQ).await;
+    }
 }
 
 // Query crates.io to find out latest version available of the node
@@ -133,16 +184,6 @@ async fn update_nodes_info(
     server_api_hit: Arc<Mutex<bool>>,
     node_status_locked: Arc<Mutex<HashSet<ContainerId>>>,
 ) -> Result<(), eyre::Error> {
-    // Collect metrics from nodes and cache them in global context
-    const NODES_METRICS_POLLING_FREQ: Duration =
-        Duration::from_millis(METRICS_POLLING_FREQ_MILLIS as u64);
-
-    // How many cycles of metrics polling before performing a clean up in the DB.
-    const METRICS_PRUNING: u32 = 3_600_000 / METRICS_POLLING_FREQ_MILLIS; // every ~1hr.
-
-    // How many cycles of metrics polling before querying balances from the ledger.
-    const REWARDS_BALANCES_RETRIEVAL: u32 = 900_000 / METRICS_POLLING_FREQ_MILLIS; // every ~15mins.
-
     // we start a counter to stop polling RPC API when there is no active client
     let mut poll_rpc_counter = SelfResetCounter::new(5);
 
@@ -157,6 +198,10 @@ async fn update_nodes_info(
     let token_address: Address = ANT_TOKEN_CONTRACT_ADDR.parse()?;
     let provider = ProviderBuilder::new().on_http(L2_RPC_URL.parse()?);
     let token_contract = TokenContract::new(token_address, provider);
+
+    // Collect metrics from nodes and cache them in global context
+    const NODES_METRICS_POLLING_FREQ: Duration =
+        Duration::from_millis(METRICS_POLLING_FREQ_MILLIS as u64);
 
     loop {
         sleep(NODES_METRICS_POLLING_FREQ).await;

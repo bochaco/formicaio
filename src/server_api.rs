@@ -1,7 +1,12 @@
 use super::node_instance::{ContainerId, NodeInstanceInfo};
 
 #[cfg(feature = "ssr")]
-use super::{app::ServerGlobalState, node_instance::NodeStatus};
+use super::{
+    app::ServerGlobalState,
+    db_client::DbClient,
+    docker_client::{DockerClient, DockerClientError},
+    node_instance::NodeStatus,
+};
 
 #[cfg(feature = "ssr")]
 use futures_util::StreamExt;
@@ -9,6 +14,11 @@ use leptos::*;
 use serde::{Deserialize, Serialize};
 use server_fn::codec::{ByteStream, Streaming};
 use std::collections::HashMap;
+
+#[cfg(feature = "ssr")]
+use std::{collections::HashSet, sync::Arc};
+#[cfg(feature = "ssr")]
+use tokio::sync::Mutex;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct NodesInstancesInfo {
@@ -165,30 +175,43 @@ pub async fn stop_node_instance(container_id: ContainerId) -> Result<(), ServerF
 pub async fn upgrade_node_instance(container_id: ContainerId) -> Result<(), ServerFnError> {
     logging::log!("Upgrading node container with Id: {container_id} ...");
     let context = expect_context::<ServerGlobalState>();
-    context
-        .node_status_locked
-        .lock()
-        .await
-        .insert(container_id.clone());
-    context
-        .db_client
-        .update_node_status(&container_id, NodeStatus::Upgrading)
+
+    helper_upgrade_node_instance(
+        &container_id,
+        &context.node_status_locked,
+        &context.db_client,
+        &context.docker_client,
+    )
+    .await?;
+
+    Ok(())
+}
+
+/// Helper to upgrade a node instance with given id
+#[cfg(feature = "ssr")]
+pub(crate) async fn helper_upgrade_node_instance(
+    container_id: &ContainerId,
+    node_status_locked: &Arc<Mutex<HashSet<ContainerId>>>,
+    db_client: &DbClient,
+    docker_client: &DockerClient,
+) -> Result<(), DockerClientError> {
+    // TODO: use docker 'extract' api to simply copy the new node binary into the container.
+    node_status_locked.lock().await.insert(container_id.clone());
+    db_client
+        .update_node_status(container_id, NodeStatus::Upgrading)
         .await;
 
-    let res = context
-        .docker_client
-        .upgrade_node_in_container_with(&container_id)
+    let res = docker_client
+        .upgrade_node_in_container_with(container_id)
         .await;
 
     if matches!(res, Ok(())) {
         // set bin_version to 'unknown', otherwise it can be confusing while the
         // node is restarting what version it really is running.
-        context
-            .db_client
-            .update_node_metadata_fields(&container_id, &[("bin_version", "")])
+        db_client
+            .update_node_metadata_fields(container_id, &[("bin_version", "")])
             .await;
-        context
-            .db_client
+        db_client
             .update_node_status(
                 &container_id,
                 NodeStatus::Transitioned("Upgraded".to_string()),
@@ -196,11 +219,7 @@ pub async fn upgrade_node_instance(container_id: ContainerId) -> Result<(), Serv
             .await;
     }
 
-    context
-        .node_status_locked
-        .lock()
-        .await
-        .remove(&container_id);
+    node_status_locked.lock().await.remove(container_id);
 
     Ok(res?)
 }

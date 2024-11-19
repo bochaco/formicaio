@@ -152,6 +152,29 @@ impl DbClient {
         }
     }
 
+    // Retrieve the list of nodes which have a binary version not matching the provided version
+    // TODO: use semantic version to make the comparison.
+    pub async fn get_outdated_nodes_list(
+        &self,
+        version: &str,
+    ) -> Result<Vec<(ContainerId, String)>, DbError> {
+        let db_lock = self.db.lock().await;
+        let data = sqlx::query(
+            "SELECT container_id,bin_version FROM nodes WHERE status = ? AND bin_version != ?",
+        )
+        .bind(json!(NodeStatus::Active).to_string())
+        .bind(version)
+        .fetch_all(&*db_lock)
+        .await?;
+
+        let version = data
+            .iter()
+            .map(|v| (v.get("container_id"), v.get("bin_version")))
+            .collect();
+
+        Ok(version)
+    }
+
     // Insert node metadata onto local cache DB
     pub async fn insert_node_metadata(&self, info: &NodeInstanceInfo) {
         let db_lock = self.db.lock().await;
