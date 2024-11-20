@@ -517,7 +517,9 @@ fn ButtonRemove(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
 
             <button
                 class=move || {
-                    if info.get().status.is_transitioning() {
+                    if info.get().status.is_transitioning()
+                        && info.get().status != NodeStatus::Upgrading
+                    {
                         "btn-disabled-node-action"
                     } else {
                         "btn-node-action"

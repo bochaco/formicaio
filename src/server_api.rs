@@ -254,5 +254,23 @@ pub async fn node_metrics(
         .await
         .get_container_metrics(container_id, since)
         .await;
+
     Ok(metrics)
+}
+
+// Retrieve the settings
+#[server(GetSettings, "/api", "Url", "/get_settings")]
+pub async fn get_settings() -> Result<super::app::AppSettings, ServerFnError> {
+    let context = expect_context::<ServerGlobalState>();
+    let settings = context.db_client.get_settings().await;
+
+    Ok(settings)
+}
+
+// Update the settings
+#[server(UpdateSettings, "/api", "Url", "/update_settings")]
+pub async fn update_settings(settings: super::app::AppSettings) -> Result<(), ServerFnError> {
+    let context = expect_context::<ServerGlobalState>();
+    context.db_client.update_settings(settings).await?;
+    Ok(())
 }

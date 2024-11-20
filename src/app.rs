@@ -25,12 +25,20 @@ use gloo_timers::future::TimeoutFuture;
 use leptos::*;
 use leptos_meta::*;
 use leptos_router::*;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use wasm_bindgen::{prelude::*, JsValue};
 
 #[wasm_bindgen(module = "/public/metamask.js")]
 extern "C" {
     pub async fn get_addr_from_metamask() -> JsValue;
+}
+
+// Application settings values.
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct AppSettings {
+    pub nodes_auto_upgrade: bool,
+    pub nodes_auto_upgrade_delay_secs: u64,
 }
 
 // Frequency in millis for nodes metrics polling

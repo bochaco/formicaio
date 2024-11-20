@@ -1,4 +1,5 @@
 use super::{
+    app::AppSettings,
     metrics::{Metrics, NodeMetric},
     node_instance::{ContainerId, NodeInstanceInfo, NodeStatus},
 };
@@ -34,20 +35,36 @@ const DB_PATH: &str = "DB_PATH";
 // Default path for the DB file.
 const DEFAULT_DB_PATH: &str = "./";
 
+// Struct stored on the DB with application settings.
+#[derive(Clone, Debug, Deserialize, FromRow, Serialize)]
+struct CachedSettings {
+    nodes_auto_upgrade: bool,
+    nodes_auto_upgrade_delay_secs: u64,
+}
+
+impl Default for CachedSettings {
+    fn default() -> Self {
+        Self {
+            nodes_auto_upgrade: false,
+            nodes_auto_upgrade_delay_secs: 10,
+        }
+    }
+}
+
 // Struct stored on the DB caching nodes metadata.
 #[derive(Clone, Debug, Deserialize, FromRow, Serialize)]
-pub struct CachedNodeMetadata {
-    pub container_id: String,
-    pub status: String,
-    pub peer_id: String,
-    pub bin_version: String,
-    pub port: u16,
-    pub rpc_api_port: u16,
-    pub rewards: String,
-    pub balance: String,
-    pub records: String,
-    pub connected_peers: String,
-    pub kbuckets_peers: String,
+struct CachedNodeMetadata {
+    container_id: String,
+    status: String,
+    peer_id: String,
+    bin_version: String,
+    port: u16,
+    rpc_api_port: u16,
+    rewards: String,
+    balance: String,
+    records: String,
+    connected_peers: String,
+    kbuckets_peers: String,
 }
 
 impl CachedNodeMetadata {
@@ -409,6 +426,53 @@ impl DbClient {
         {
             Ok(res) => logging::log!("Removed {} metrics records", res.rows_affected()),
             Err(err) => logging::log!("Sqlite pruning query error: {err}"),
+        }
+    }
+
+    // Retrieve the settings values
+    pub async fn get_settings(&self) -> AppSettings {
+        let db_lock = self.db.lock().await;
+        match sqlx::query_as::<_, CachedSettings>("SELECT * FROM settings")
+            .fetch_all(&*db_lock)
+            .await
+            .map(|s| s.get(0).cloned())
+        {
+            Ok(Some(settings)) => AppSettings {
+                nodes_auto_upgrade: settings.nodes_auto_upgrade,
+                nodes_auto_upgrade_delay_secs: settings.nodes_auto_upgrade_delay_secs,
+            },
+            Ok(None) => {
+                logging::log!("No settings found in DB, using defaults.");
+                AppSettings::default()
+            }
+            Err(err) => {
+                logging::log!("Sqlite query error on settings: {err}. Using defaults.");
+                AppSettings::default()
+            }
+        }
+    }
+
+    // Update the settings values
+    pub async fn update_settings(&self, settings: AppSettings) -> Result<(), DbError> {
+        let db_lock = self.db.lock().await;
+        match sqlx::query(
+            "UPDATE settings SET \
+            nodes_auto_upgrade = ?, \
+            nodes_auto_upgrade_delay_secs = ?",
+        )
+        .bind(settings.nodes_auto_upgrade)
+        .bind(settings.nodes_auto_upgrade_delay_secs as i64)
+        .execute(&*db_lock)
+        .await
+        {
+            Ok(_) => {
+                logging::log!("Settings updated in DB cache with: {settings:#?}");
+                Ok(())
+            }
+            Err(err) => {
+                logging::log!("Sqlite settings update error: {err}");
+                Err(err.into())
+            }
         }
     }
 }

@@ -25,6 +25,7 @@ pub mod node_instance;
 pub mod node_rpc_client;
 mod nodes_list_view;
 mod server_api;
+mod settings;
 mod stats;
 
 #[cfg(feature = "hydrate")]

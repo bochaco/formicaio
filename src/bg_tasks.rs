@@ -23,6 +23,9 @@ use tokio::{
     time::{sleep, Duration},
 };
 
+// TODO: move all the following consts to become part of AppSettings, an keep
+// a copy of current settings in memory/ServerGlobalState
+
 // URL to send queries using RPC to get rewards addresses balances from L2.
 const L2_RPC_URL: &str = "https://sepolia-rollup.arbitrum.io/rpc";
 
@@ -31,9 +34,6 @@ const ANT_TOKEN_CONTRACT_ADDR: &str = "0xBE1802c27C324a28aeBcd7eeC7D734246C80719
 
 // Check latest version of node binary every couple of hours
 const BIN_VERSION_POLLING_FREQ: Duration = Duration::from_secs(60 * 60 * 2);
-
-// Delay between each node upgrade during nodes auto-upgrade if enabled.
-const NODES_AUTO_UPGRADES_DELAY: Duration = Duration::from_secs(10);
 
 // How many cycles of metrics polling before performing a metrics pruning in the DB.
 const METRICS_PRUNING: u32 = 3_600_000 / METRICS_POLLING_FREQ_MILLIS; // every ~1hr.
@@ -106,26 +106,43 @@ async fn check_node_bin_version(
             logging::log!("Latest version of node binary available: {version}");
             *latest_bin_version.lock().await = Some(version.clone());
 
-            // TODO: user to enable/disable auto-upgrading from a settings panel
-            match db_client.get_outdated_nodes_list(&version).await {
-                Ok(versions) => {
-                    for (id, v) in versions {
-                        logging::log!("Auto-upgrading node binary from v{v} to v{version} for node instance {id} ...");
+            loop {
+                let auto_upgrade = db_client.get_settings().await.nodes_auto_upgrade;
+                logging::log!("Nodes auto-upgrading setting enabled?: {auto_upgrade}",);
+                if !auto_upgrade {
+                    break;
+                }
+
+                // we'll upgrade only one in each iteration of the loop, if the user changes the
+                // settings, in next iteration we will stop the auto-upgrade and/or avoid upgrading a node
+                // which may have been already upgraded by the user manually.
+                match db_client
+                    .get_outdated_nodes_list(&version)
+                    .await
+                    .map(|list| list.first().cloned())
+                {
+                    Ok(Some((container_id, v))) => {
+                        logging::log!("Auto-upgrading node binary from v{v} to v{version} for node instance {container_id} ...");
                         if let Err(err) = helper_upgrade_node_instance(
-                            &id,
+                            &container_id,
                             &node_status_locked,
                             &db_client,
                             &docker_client,
                         )
                         .await
                         {
-                            logging::log!("Failed to auto-upgrade node binary for node instance {id}: {err:?}.");
+                            logging::log!("Failed to auto-upgrade node binary for node instance {container_id}: {err:?}.");
                         }
-                        sleep(NODES_AUTO_UPGRADES_DELAY).await;
+                        let delay = Duration::from_secs(
+                            db_client.get_settings().await.nodes_auto_upgrade_delay_secs,
+                        );
+                        sleep(delay).await;
                     }
-                }
-                Err(err) => {
-                    logging::log!("Failed to retrieve list of nodes' binary versions: {err:?}")
+                    Ok(None) => break, // all nodes are up to date
+                    Err(err) => {
+                        logging::log!("Failed to retrieve list of nodes' binary versions: {err:?}");
+                        break;
+                    }
                 }
             }
         }
