@@ -147,7 +147,6 @@ impl DockerClient {
         all: bool,
     ) -> Result<Vec<Container>, DockerClientError> {
         let url = format!("{DOCKER_CONTAINERS_API}/json");
-        logging::log!("[LIST] Sending Docker query to get LIST of containers: {url} ...");
         let all_str = all.to_string();
         let query = &[
             ("all", all_str.as_str()),
