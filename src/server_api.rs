@@ -194,22 +194,22 @@ pub(crate) async fn helper_upgrade_node_instance(
     node_status_locked: &Arc<Mutex<HashSet<ContainerId>>>,
     db_client: &DbClient,
     docker_client: &DockerClient,
-) -> Result<(), DockerClientError> {
+) -> Result<Option<String>, DockerClientError> {
     // TODO: use docker 'extract' api to simply copy the new node binary into the container.
     node_status_locked.lock().await.insert(container_id.clone());
     db_client
         .update_node_status(container_id, NodeStatus::Upgrading)
         .await;
 
-    let res = docker_client
-        .upgrade_node_in_container_with(container_id)
-        .await;
+    let res = docker_client.upgrade_node_in_container(container_id).await;
 
-    if matches!(res, Ok(())) {
-        // set bin_version to 'unknown', otherwise it can be confusing while the
-        // node is restarting what version it really is running.
+    if let Ok(ref new_version) = res {
+        // set bin_version to new version obtained
         db_client
-            .update_node_metadata_fields(container_id, &[("bin_version", "")])
+            .update_node_metadata_fields(
+                container_id,
+                &[("bin_version", new_version.as_deref().unwrap_or_default())],
+            )
             .await;
         db_client
             .update_node_status(

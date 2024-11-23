@@ -309,44 +309,19 @@ impl DockerClient {
     }
 
     // Request the Docker server to UPGRADE the node binary within a container matching the given id
-    pub async fn upgrade_node_in_container_with(
+    pub async fn upgrade_node_in_container(
         &self,
         id: &ContainerId,
-    ) -> Result<(), DockerClientError> {
-        let url = format!("{DOCKER_CONTAINERS_API}/{id}/exec");
-        logging::log!(
-            "[UPGRADE] Sending Docker request to UPGRADE node within a container: {url} ..."
-        );
-        let exec_cmd = ContainerExec {
-            AttachStdin: Some(false),
-            AttachStdout: Some(true),
-            AttachStderr: Some(false),
-            Cmd: Some(vec![
-                "sh".to_string(),
-                "-c".to_string(),
-                "./safeup node -n -p /app".to_string(),
-            ]),
-            Tty: Some(false),
-        };
-        let resp_bytes = self
-            .send_request(ReqMethod::Post, &url, &[], &exec_cmd)
-            .await?;
-        let exec_result: ContainerCreateExecSuccess = serde_json::from_slice(&resp_bytes)?;
-        logging::log!("Container node upgrade cmd created successfully: {exec_result:#?}");
-        let exec_id = exec_result.Id;
+    ) -> Result<Option<String>, DockerClientError> {
+        logging::log!("[UPGRADE] Sending Docker request to UPGRADE node within a container...");
 
-        // let's now start the exec cmd created to upgrade the binary
-        let url = format!("{DOCKER_EXEC_API}/{exec_id}/start");
-        let opts = ContainerExecStart {
-            Detach: Some(false),
-            Tty: Some(true),
-        };
-        let send_req = self.send_request(ReqMethod::Post, &url, &[], &opts);
+        let cmd = "./safeup node -n -p /app".to_string();
+        let exec_cmd = self.exec_in_container(id, cmd, "upgrade node binary");
         let timeout_duration = Duration::from_secs(UPGRADE_NODE_BIN_TIMEOUT_SECS);
-        match timeout(timeout_duration, send_req).await {
+        match timeout(timeout_duration, exec_cmd).await {
             Err(_) => logging::log!("Timeout ({timeout_duration:?}) while upgrading node binary. Let's restart it anyways..."),
             Ok(resp) => {
-                resp?;
+                let (exec_id, _) = resp?;
                 logging::log!("Node upgrade process finished in container: {id}");
 
                 // let's check its exit code
@@ -362,11 +337,69 @@ impl DockerClient {
             }
         }
 
+        // let's try to retrieve new version, forget it if there is any error
+        let new_version = self.get_node_bin_version(id).await.unwrap_or_default();
+
         // restart container to run with new node version
         let url = format!("{DOCKER_CONTAINERS_API}/{id}/restart");
         logging::log!("[RESTART] Sending Docker request to RESTART a container: {url} ...");
         self.send_request(ReqMethod::Post, &url, &[], &()).await?;
-        Ok(())
+
+        Ok(new_version)
+    }
+
+    // Retrieve version of the node binary
+    async fn get_node_bin_version(
+        &self,
+        id: &ContainerId,
+    ) -> Result<Option<String>, DockerClientError> {
+        let cmd = "/app/safenode --version | grep -oE 'Autonomi Node v[0-9]+\\.[0-9]+\\.[0-9]+'"
+            .to_string();
+        let (_, resp_str) = self
+            .exec_in_container(id, cmd, "get node bin version")
+            .await?;
+
+        let version = if let Some(v) = resp_str.strip_prefix("Autonomi Node v") {
+            Some(v.replace('\n', "").replace('\r', ""))
+        } else {
+            None
+        };
+
+        logging::log!("Node bin version in container {id}: {version:?}");
+        Ok(version)
+    }
+
+    // Helper to execute a cmd in a given container
+    async fn exec_in_container(
+        &self,
+        id: &ContainerId,
+        cmd: String,
+        cmd_desc: &str,
+    ) -> Result<(String, String), DockerClientError> {
+        let url = format!("{DOCKER_CONTAINERS_API}/{id}/exec");
+        let exec_cmd = ContainerExec {
+            AttachStdin: Some(false),
+            AttachStdout: Some(true),
+            AttachStderr: Some(false),
+            Cmd: Some(vec!["sh".to_string(), "-c".to_string(), cmd]),
+            Tty: Some(false),
+        };
+        let resp_bytes = self
+            .send_request(ReqMethod::Post, &url, &[], &exec_cmd)
+            .await?;
+        let exec_result: ContainerCreateExecSuccess = serde_json::from_slice(&resp_bytes)?;
+        logging::log!("Cmd to {cmd_desc} created successfully: {exec_result:#?}");
+        let exec_id = exec_result.Id;
+        // let's now start the exec cmd created
+        let url = format!("{DOCKER_EXEC_API}/{exec_id}/start");
+        let opts = ContainerExecStart {
+            Detach: Some(false),
+            Tty: Some(true),
+        };
+        let resp_bytes = self.send_request(ReqMethod::Post, &url, &[], &opts).await?;
+        let resp_str = String::from_utf8_lossy(&resp_bytes).to_string();
+
+        Ok((exec_id, resp_str))
     }
 
     // Send request to Docker server, pulling the formica image

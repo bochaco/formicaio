@@ -126,6 +126,7 @@ pub fn spawn_bg_tasks(
                     // we don't spawn a task for this one just in case it's taking
                     // too long to complete and we may start overwhelming the backend
                     // with multiple overlapping tasks being launched.
+                    // TODO: update also inactive nodes only the first time to get up to date node status.
                     update_nodes_info(
                         docker_client.clone(),
                         nodes_metrics.clone(),
