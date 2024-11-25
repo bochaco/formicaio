@@ -96,7 +96,7 @@ pub async fn delete_node_instance(container_id: ContainerId) -> Result<(), Serve
     let context = expect_context::<ServerGlobalState>();
     context
         .docker_client
-        .delete_container_with(&container_id)
+        .delete_container(&container_id)
         .await?;
     context.db_client.delete_node_metadata(&container_id).await;
     context
@@ -118,10 +118,7 @@ pub async fn start_node_instance(container_id: ContainerId) -> Result<(), Server
         .db_client
         .update_node_status(&container_id, NodeStatus::Restarting)
         .await;
-    context
-        .docker_client
-        .start_container_with(&container_id)
-        .await?;
+    context.docker_client.start_container(&container_id).await?;
 
     Ok(())
 }
@@ -141,10 +138,7 @@ pub async fn stop_node_instance(container_id: ContainerId) -> Result<(), ServerF
         .update_node_status(&container_id, NodeStatus::Stopping)
         .await;
 
-    let res = context
-        .docker_client
-        .stop_container_with(&container_id)
-        .await;
+    let res = context.docker_client.stop_container(&container_id).await;
 
     if matches!(res, Ok(())) {
         // set connected/kbucket peers back to 0 and update cache

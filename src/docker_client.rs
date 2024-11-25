@@ -158,7 +158,7 @@ impl DockerClient {
     }
 
     // Request the Docker server to DELETE a container matching the given id
-    pub async fn delete_container_with(&self, id: &ContainerId) -> Result<(), DockerClientError> {
+    pub async fn delete_container(&self, id: &ContainerId) -> Result<(), DockerClientError> {
         let url = format!("{DOCKER_CONTAINERS_API}/{id}");
         logging::log!("[DELETE] Sending Docker request to DELETE containers: {url} ...");
         let query = &[("force", "true")];
@@ -168,7 +168,7 @@ impl DockerClient {
     }
 
     // Request the Docker server to START a container matching the given id
-    pub async fn start_container_with(&self, id: &ContainerId) -> Result<(), DockerClientError> {
+    pub async fn start_container(&self, id: &ContainerId) -> Result<(), DockerClientError> {
         let url = format!("{DOCKER_CONTAINERS_API}/{id}/start");
         logging::log!("[START] Sending Docker request to START a container: {url} ...");
         self.send_request(ReqMethod::Post, &url, &[], &()).await?;
@@ -189,7 +189,7 @@ impl DockerClient {
     }
 
     // Request the Docker server to STOP a container matching the given id
-    pub async fn stop_container_with(&self, id: &ContainerId) -> Result<(), DockerClientError> {
+    pub async fn stop_container(&self, id: &ContainerId) -> Result<(), DockerClientError> {
         let url = format!("{DOCKER_CONTAINERS_API}/{id}/stop");
         logging::log!("[STOP] Sending Docker request to STOP a container: {url} ...");
         self.send_request(ReqMethod::Post, &url, &[], &()).await?;

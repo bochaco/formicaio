@@ -514,17 +514,8 @@ fn ButtonUpgrade(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
 fn ButtonRemove(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
     view! {
         <div class="tooltip tooltip-bottom tooltip-info" data-tip="remove">
-
             <button
-                class=move || {
-                    if info.get().status.is_transitioning()
-                        && info.get().status != NodeStatus::Upgrading
-                    {
-                        "btn-disabled-node-action"
-                    } else {
-                        "btn-node-action"
-                    }
-                }
+                class="btn-node-action"
                 on:click=move |_| spawn_local({
                     info.update(|info| info.status = NodeStatus::Removing);
                     let container_id = info.get().container_id.clone();
