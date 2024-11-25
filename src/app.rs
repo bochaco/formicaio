@@ -67,8 +67,6 @@ impl Default for AppSettings {
     }
 }
 
-// Frequency in millis for nodes metrics polling
-pub const METRICS_POLLING_FREQ_MILLIS: u32 = 5_000;
 // Maximum number of metrics data points to be kept per node on DB cache.
 pub const METRICS_MAX_SIZE_PER_CONTAINER: usize = 5_000;
 

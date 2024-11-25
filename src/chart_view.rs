@@ -1,9 +1,9 @@
-use crate::node_instance::ContainerId;
+use crate::{node_instance::ContainerId, server_api::get_settings};
 
 use super::{
     app::{
-        ClientGlobalState, METRICS_MAX_SIZE_PER_CONTAINER, METRICS_POLLING_FREQ_MILLIS,
-        METRIC_KEY_CPU_USEAGE, METRIC_KEY_MEM_USED_MB,
+        ClientGlobalState, METRICS_MAX_SIZE_PER_CONTAINER, METRIC_KEY_CPU_USEAGE,
+        METRIC_KEY_MEM_USED_MB,
     },
     server_api::node_metrics,
 };
@@ -153,6 +153,9 @@ pub async fn node_metrics_update(
 ) -> Result<(), ServerFnError> {
     logging::log!("Retriving node metrics from container {container_id}...");
 
+    let polling_freq_millis =
+        get_settings().await?.nodes_metrics_polling_freq.as_secs() as u32 * 2000;
+
     // use context to check if we should stop retrieving the metrics
     let context = expect_context::<ClientGlobalState>();
     let mut since = None;
@@ -194,7 +197,7 @@ pub async fn node_metrics_update(
         }
 
         // FIXME: shortcircuit the delay if the flag is set to off
-        TimeoutFuture::new(2 * METRICS_POLLING_FREQ_MILLIS).await;
+        TimeoutFuture::new(polling_freq_millis).await;
     }
 
     logging::log!("Stopped node metrics update from container {container_id}.");
