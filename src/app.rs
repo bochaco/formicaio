@@ -18,7 +18,7 @@ use axum::extract::FromRef;
 #[cfg(feature = "ssr")]
 use std::{collections::HashSet, sync::Arc};
 #[cfg(feature = "ssr")]
-use tokio::sync::Mutex;
+use tokio::sync::{mpsc, Mutex};
 
 #[cfg(feature = "hydrate")]
 use gloo_timers::future::TimeoutFuture;
@@ -26,7 +26,7 @@ use leptos::*;
 use leptos_meta::*;
 use leptos_router::*;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 use wasm_bindgen::{prelude::*, JsValue};
 
 #[wasm_bindgen(module = "/public/metamask.js")]
@@ -35,10 +35,36 @@ extern "C" {
 }
 
 // Application settings values.
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AppSettings {
     pub nodes_auto_upgrade: bool,
-    pub nodes_auto_upgrade_delay_secs: u64,
+    pub nodes_auto_upgrade_delay: Duration,
+    pub node_bin_version_polling_freq: Duration,
+    pub nodes_metrics_polling_freq: Duration,
+    pub rewards_balances_retrieval_freq: Duration,
+    pub l2_network_rpc_url: String,
+    pub token_contract_address: String,
+}
+
+impl Default for AppSettings {
+    fn default() -> Self {
+        Self {
+            // Node auto-upgrading is disabled by default.
+            nodes_auto_upgrade: false,
+            // Delay 10 secs. between each node being auto-upgraded.
+            nodes_auto_upgrade_delay: Duration::from_secs(10),
+            // Check latest version of node binary every couple of hours.
+            node_bin_version_polling_freq: Duration::from_secs(60 * 60 * 2),
+            // How often to fetch metrics and node info from active/running nodes
+            nodes_metrics_polling_freq: Duration::from_secs(5),
+            // Retrieve balances every 15 mins.
+            rewards_balances_retrieval_freq: Duration::from_secs(60 * 15),
+            // Arbitrum Sepolia testnet.
+            l2_network_rpc_url: "https://sepolia-rollup.arbitrum.io/rpc".to_string(),
+            // ANT token contract on Arbitrum Sepolia testnet.
+            token_contract_address: "0xBE1802c27C324a28aeBcd7eeC7D734246C807194".to_string(),
+        }
+    }
 }
 
 // Frequency in millis for nodes metrics polling
@@ -59,6 +85,7 @@ pub struct ServerGlobalState {
     pub nodes_metrics: Arc<Mutex<super::metrics_client::NodesMetrics>>,
     pub server_api_hit: Arc<Mutex<bool>>,
     pub node_status_locked: Arc<Mutex<HashSet<super::node_instance::ContainerId>>>,
+    pub updated_settings_tx: mpsc::Sender<AppSettings>,
 }
 
 // Struct to use client side as a global context/state

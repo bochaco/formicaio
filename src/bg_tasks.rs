@@ -1,5 +1,5 @@
 use super::{
-    app::{METRICS_MAX_SIZE_PER_CONTAINER, METRICS_POLLING_FREQ_MILLIS},
+    app::{AppSettings, METRICS_MAX_SIZE_PER_CONTAINER},
     db_client::DbClient,
     docker_client::DockerClient,
     metrics_client::{NodeMetricsClient, NodesMetrics},
@@ -20,42 +20,97 @@ use std::{
 };
 use tokio::{
     select,
-    sync::Mutex,
-    time::{interval, sleep, Duration},
+    sync::{mpsc, Mutex},
+    time::{interval, sleep, timeout, Duration, Interval},
 };
-
-// TODO: move all the following consts to become part of AppSettings, an keep
-// a copy of current settings in memory/ServerGlobalState
-
-// URL to send queries using RPC to get rewards addresses balances from L2.
-const L2_RPC_URL: &str = "https://sepolia-rollup.arbitrum.io/rpc";
-
-// ERC20 token contract address.
-const ANT_TOKEN_CONTRACT_ADDR: &str = "0xBE1802c27C324a28aeBcd7eeC7D734246C807194";
-
-// How often to fetch metrics and node info from nodes
-const NODES_METRICS_POLLING_FREQ: Duration =
-    Duration::from_millis(METRICS_POLLING_FREQ_MILLIS as u64);
-
-// Check latest version of node binary every couple of hours
-const BIN_VERSION_POLLING_FREQ: Duration = Duration::from_secs(60 * 60 * 2);
+use url::Url;
 
 // How often to perform a metrics pruning in the DB.
 const METRICS_PRUNING_FREQ: Duration = Duration::from_secs(60 * 60); // every hour.
 
-// How often to query balances from the ledger.
-const REWARDS_BALANCES_RETRIEVAL: Duration = Duration::from_secs(60 * 15); // every 15mins.
-
-// Frequency to pull a new version of the formica image
+// Frequency to pull a new version of the formica image.
 const FORMICA_IMAGE_PULLING_FREQ: Duration = Duration::from_secs(60 * 60 * 6); // every 6 hours.
 
-// Create ERC20 contract instance
+// Timeout duration when querying for each rewards balance.
+const BALANCE_QUERY_TIMEOUT: Duration = Duration::from_secs(10);
+
+// ERC20 token contract ABI
 sol!(
     #[allow(missing_docs)]
     #[sol(rpc)]
     TokenContract,
     "artifacts/token_contract_abi.json"
 );
+
+// App settings and set of intervals used to schedule each of the tasks.
+struct TasksContext {
+    formica_image_pulling: Interval,
+    node_bin_version_check: Interval,
+    balances_retrieval: Interval,
+    metrics_pruning: Interval,
+    nodes_metrics_polling: Interval,
+    app_settings: AppSettings,
+}
+
+impl TasksContext {
+    fn from(settings: AppSettings) -> Self {
+        Self {
+            formica_image_pulling: interval(FORMICA_IMAGE_PULLING_FREQ),
+            node_bin_version_check: interval(settings.node_bin_version_polling_freq),
+            balances_retrieval: interval(settings.rewards_balances_retrieval_freq),
+            metrics_pruning: interval(METRICS_PRUNING_FREQ),
+            nodes_metrics_polling: interval(settings.nodes_metrics_polling_freq),
+            app_settings: settings,
+        }
+    }
+
+    fn apply_settings(&mut self, settings: AppSettings) {
+        logging::log!("Applying new settings values immediataly to bg tasks: {settings:#?}");
+
+        // helper to create a new interval only if new period differs from current
+        let update_interval = |target: &mut Interval, new_period: Duration| {
+            let curr_period = target.period();
+            if new_period != curr_period {
+                *target = interval(new_period);
+                // reset interval to start next period from this instant
+                target.reset();
+            }
+        };
+
+        update_interval(
+            &mut self.node_bin_version_check,
+            settings.node_bin_version_polling_freq,
+        );
+        update_interval(
+            &mut self.balances_retrieval,
+            settings.rewards_balances_retrieval_freq,
+        );
+        update_interval(
+            &mut self.nodes_metrics_polling,
+            settings.nodes_metrics_polling_freq,
+        );
+        self.app_settings = settings;
+    }
+
+    fn parse_token_addr_and_rpc_url(&self) -> (Option<Address>, Option<Url>) {
+        let addr = match self.app_settings.token_contract_address.parse::<Address>() {
+            Err(err) => {
+                logging::log!("Rewards balance check disabled. Invalid configured token contract address: {err}");
+                None
+            }
+            Ok(token_address) => Some(token_address),
+        };
+        let url = match self.app_settings.l2_network_rpc_url.parse::<Url>() {
+            Err(err) => {
+                logging::log!("Rewards balance check disabled. Invalid configured RPC URL: {err}");
+                None
+            }
+            Ok(rpc_url) => Some(rpc_url),
+        };
+
+        (addr, url)
+    }
+}
 
 // Spawn any required background tasks
 pub fn spawn_bg_tasks(
@@ -65,34 +120,53 @@ pub fn spawn_bg_tasks(
     db_client: DbClient,
     server_api_hit: Arc<Mutex<bool>>,
     node_status_locked: Arc<Mutex<HashSet<ContainerId>>>,
+    mut updated_settings_rx: mpsc::Receiver<AppSettings>,
+    settings: AppSettings,
 ) {
-    let mut formica_image_pulling = interval(FORMICA_IMAGE_PULLING_FREQ);
-    let mut node_bin_version_check = interval(BIN_VERSION_POLLING_FREQ);
-    let mut balances_retrieval = interval(REWARDS_BALANCES_RETRIEVAL);
-    let mut metrics_pruning = interval(METRICS_PRUNING_FREQ);
-    let mut nodes_metrics_polling = interval(NODES_METRICS_POLLING_FREQ);
+    logging::log!("App settings to use: {settings:#?}");
+    let mut ctx = TasksContext::from(settings);
 
-    // we start a counter to stop polling RPC API when there is no active client
-    let mut poll_rpc_counter = 5;
+    // we start a count down to stop polling RPC API when there is no active client
+    let mut poll_rpc_countdown = 5;
 
-    // FIXME: remove unwrap calls
-    let token_address: Address = ANT_TOKEN_CONTRACT_ADDR.parse().unwrap();
-    let provider = ProviderBuilder::new().on_http(L2_RPC_URL.parse().unwrap());
-    let token_contract = TokenContract::new(token_address, provider);
+    // helper which create a new contract if the new configured values are valid.
+    let update_token_contract = |ctx: &TasksContext| match ctx.parse_token_addr_and_rpc_url() {
+        (Some(token_address), Some(rpc_url)) => {
+            let provider = ProviderBuilder::new().on_http(rpc_url);
+            let token_contract = TokenContract::new(token_address, provider);
+            Some(token_contract)
+        }
+        _ => None,
+    };
+
+    // Token contract used to query rewards balances.
+    let mut token_contract = update_token_contract(&ctx);
 
     tokio::spawn(async move {
         loop {
             select! {
-                _ = formica_image_pulling.tick() => {
-                    let docker_client_clone = docker_client.clone();
+                settings = updated_settings_rx.recv() => {
+                    if let Some(s) = settings {
+                        let prev_addr = ctx.app_settings.token_contract_address.clone();
+                        let prev_url = ctx.app_settings.l2_network_rpc_url.clone();
+                        ctx.apply_settings(s);
+
+                        if prev_addr != ctx.app_settings.token_contract_address
+                            || prev_url != ctx.app_settings.l2_network_rpc_url {
+                            token_contract = update_token_contract(&ctx);
+                        }
+                    }
+                },
+                _ = ctx.formica_image_pulling.tick() => {
+                    let docker_client = docker_client.clone();
                     tokio::spawn(async move {
                         logging::log!("Pulling formica node image ...");
-                        if let Err(err) = docker_client_clone.pull_formica_image().await {
+                        if let Err(err) = docker_client.pull_formica_image().await {
                             logging::log!("Failed to pull node image from the periodic task: {err}");
                         }
                     });
                 },
-                _ = node_bin_version_check.tick() => {
+                _ = ctx.node_bin_version_check.tick() => {
                     tokio::spawn(check_node_bin_version(
                         docker_client.clone(),
                         latest_bin_version.clone(),
@@ -100,43 +174,46 @@ pub fn spawn_bg_tasks(
                         node_status_locked.clone(),
                     ));
                 },
-                _ = balances_retrieval.tick() => {
-                    tokio::spawn(retrieve_current_rewards_balances(
-                        token_contract.clone(),
-                        docker_client.clone(),
-                        db_client.clone()
-                    ));
+                _ = ctx.balances_retrieval.tick() => match token_contract {
+                    Some(ref contract) => {
+                        tokio::spawn(retrieve_current_rewards_balances(
+                            contract.clone(),
+                            docker_client.clone(),
+                            db_client.clone()
+                        ));
+                    },
+                    None => logging::log!("Skipping balances retrieval due to invalid settings")
                 },
-                _ = metrics_pruning.tick() => {
+                _ = ctx.metrics_pruning.tick() => {
                     tokio::spawn(prune_metrics(
                         docker_client.clone(),
                         db_client.clone()
                     ));
                 },
-                _ = nodes_metrics_polling.tick() => {
+                _ = ctx.nodes_metrics_polling.tick() => {
                     if *server_api_hit.lock().await {
                         // reset the countdown to five more cycles
-                        poll_rpc_counter = 5;
+                        poll_rpc_countdown = 5;
                         *server_api_hit.lock().await = false;
-                    } else if poll_rpc_counter > 0 {
-                        poll_rpc_counter -= 1;
+                    } else if poll_rpc_countdown > 0 {
+                        poll_rpc_countdown -= 1;
                     }
-                    let poll_rpc_api = poll_rpc_counter > 0;
+                    let poll_rpc_api = poll_rpc_countdown > 0;
 
                     // we don't spawn a task for this one just in case it's taking
                     // too long to complete and we may start overwhelming the backend
                     // with multiple overlapping tasks being launched.
                     // TODO: update also inactive nodes only the first time to get up to date node status.
                     update_nodes_info(
-                        docker_client.clone(),
-                        nodes_metrics.clone(),
-                        db_client.clone(),
-                        node_status_locked.clone(),
+                        &docker_client,
+                        &nodes_metrics,
+                        &db_client,
+                        &node_status_locked,
                         poll_rpc_api
                     ).await;
-                    // reset timer to start next period from this instant,
+                    // reset interval to start next period from this instant,
                     // regardless how long the above polling task lasted.
-                    nodes_metrics_polling.reset_after(NODES_METRICS_POLLING_FREQ);
+                    ctx.nodes_metrics_polling.reset_after(ctx.nodes_metrics_polling.period());
                 }
             }
         }
@@ -183,9 +260,7 @@ async fn check_node_bin_version(
                         logging::log!("Failed to auto-upgrade node binary for node instance {container_id}: {err:?}.");
                     }
 
-                    let delay = Duration::from_secs(
-                        db_client.get_settings().await.nodes_auto_upgrade_delay_secs,
-                    );
+                    let delay = db_client.get_settings().await.nodes_auto_upgrade_delay;
                     sleep(delay).await;
                 }
                 Ok(None) => break, // all nodes are up to date
@@ -239,10 +314,10 @@ async fn latest_version_available() -> Option<String> {
 //    - Nodes' RPC API to get binary version and peer id.
 //    - Nodes' exposed metrics server to obtain stats.
 async fn update_nodes_info(
-    docker_client: DockerClient,
-    nodes_metrics: Arc<Mutex<NodesMetrics>>,
-    db_client: DbClient,
-    node_status_locked: Arc<Mutex<HashSet<ContainerId>>>,
+    docker_client: &DockerClient,
+    nodes_metrics: &Arc<Mutex<NodesMetrics>>,
+    db_client: &DbClient,
+    node_status_locked: &Arc<Mutex<HashSet<ContainerId>>>,
     poll_rpc_api: bool,
 ) {
     let containers = match docker_client.get_containers_list(false).await {
@@ -350,30 +425,36 @@ async fn retrieve_current_rewards_balances<T: Transport + Clone, P: Provider<T, 
             .map(|addr| addr.parse::<Address>())
         {
             let new_balance = if let Some(balance) = updated_balances.get(&address) {
-                *balance
+                balance.to_string()
             } else {
                 // query the balance to the ERC20 contract
                 logging::log!("Querying rewards balance for node {node_short_id} ...");
-                match token_contract.balanceOf(address).call().await {
-                    Ok(balance) => {
+                match timeout(
+                    BALANCE_QUERY_TIMEOUT,
+                    token_contract.balanceOf(address).call(),
+                )
+                .await
+                {
+                    Ok(Ok(balance)) => {
                         let balance = balance._0;
                         updated_balances.insert(address, balance);
-                        balance
+                        balance.to_string()
                     }
-                    Err(err) => {
+                    Ok(Err(err)) => {
                         logging::log!(
                             "Failed to query rewards balance for node {node_short_id}: {err}"
                         );
-                        continue;
+                        "".to_string()
+                    }
+                    Err(_) => {
+                        logging::log!("Timeout ({BALANCE_QUERY_TIMEOUT:?}) while querying rewards balance for node {node_short_id}.");
+                        "".to_string()
                     }
                 }
             };
 
             db_client
-                .update_node_metadata_fields(
-                    &node_info.container_id,
-                    &[("balance", &new_balance.to_string())],
-                )
+                .update_node_metadata_fields(&node_info.container_id, &[("balance", &new_balance)])
                 .await;
         } else {
             logging::log!("No valid rewards address set for node {node_short_id}.");

@@ -43,7 +43,7 @@ tonic = { version = "0.6.2", default-features = false, features = ["tls"], optio
 tokio = { version = "1", default-features = false, features = ["rt-multi-thread"], optional = true }
 tower = { version = "0.4", optional = true }
 tower-http = { version = "0.5", default-features = false, features = ["fs"], optional = true }
-url = { version = "2", optional = true }
+url = "2"
 wasm-bindgen = "=0.2.95"
 wasm-bindgen-futures = "0.4"
 
@@ -69,7 +69,6 @@ ssr = [
     "dep:tokio",
     "dep:tower",
     "dep:tower-http",
-    "dep:url",
     "leptos/ssr",
     "leptos_meta/ssr",
     "leptos_router/ssr",

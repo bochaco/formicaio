@@ -18,6 +18,7 @@ use std::{
     path::Path,
     str::FromStr,
     sync::Arc,
+    time::Duration,
 };
 use thiserror::Error;
 use tokio::sync::Mutex;
@@ -40,15 +41,11 @@ const DEFAULT_DB_PATH: &str = "./";
 struct CachedSettings {
     nodes_auto_upgrade: bool,
     nodes_auto_upgrade_delay_secs: u64,
-}
-
-impl Default for CachedSettings {
-    fn default() -> Self {
-        Self {
-            nodes_auto_upgrade: false,
-            nodes_auto_upgrade_delay_secs: 10,
-        }
-    }
+    node_bin_version_polling_freq_secs: u64,
+    nodes_metrics_polling_freq_secs: u64,
+    rewards_balances_retrieval_freq_secs: u64,
+    l2_network_rpc_url: String,
+    token_contract_address: String,
 }
 
 // Struct stored on the DB caching nodes metadata.
@@ -437,36 +434,55 @@ impl DbClient {
             .await
             .map(|s| s.get(0).cloned())
         {
-            Ok(Some(settings)) => AppSettings {
-                nodes_auto_upgrade: settings.nodes_auto_upgrade,
-                nodes_auto_upgrade_delay_secs: settings.nodes_auto_upgrade_delay_secs,
+            Ok(Some(s)) => AppSettings {
+                nodes_auto_upgrade: s.nodes_auto_upgrade,
+                nodes_auto_upgrade_delay: Duration::from_secs(s.nodes_auto_upgrade_delay_secs),
+                node_bin_version_polling_freq: Duration::from_secs(
+                    s.node_bin_version_polling_freq_secs,
+                ),
+                nodes_metrics_polling_freq: Duration::from_secs(s.nodes_metrics_polling_freq_secs),
+                rewards_balances_retrieval_freq: Duration::from_secs(
+                    s.rewards_balances_retrieval_freq_secs,
+                ),
+                l2_network_rpc_url: s.l2_network_rpc_url,
+                token_contract_address: s.token_contract_address,
             },
             Ok(None) => {
-                logging::log!("No settings found in DB, using defaults.");
+                logging::log!("No settings found in DB, we'll be using defaults.");
                 AppSettings::default()
             }
             Err(err) => {
-                logging::log!("Sqlite query error on settings: {err}. Using defaults.");
+                logging::log!("Sqlite query error on settings: {err}. We'll be using defaults.");
                 AppSettings::default()
             }
         }
     }
 
     // Update the settings values
-    pub async fn update_settings(&self, settings: AppSettings) -> Result<(), DbError> {
+    pub async fn update_settings(&self, settings: &AppSettings) -> Result<(), DbError> {
         let db_lock = self.db.lock().await;
         match sqlx::query(
             "UPDATE settings SET \
             nodes_auto_upgrade = ?, \
-            nodes_auto_upgrade_delay_secs = ?",
+            nodes_auto_upgrade_delay_secs = ?, \
+            node_bin_version_polling_freq_secs = ?, \
+            nodes_metrics_polling_freq_secs = ?, \
+            rewards_balances_retrieval_freq_secs = ?, \
+            l2_network_rpc_url = ?, \
+            token_contract_address = ?",
         )
         .bind(settings.nodes_auto_upgrade)
-        .bind(settings.nodes_auto_upgrade_delay_secs as i64)
+        .bind(settings.nodes_auto_upgrade_delay.as_secs() as i64)
+        .bind(settings.node_bin_version_polling_freq.as_secs() as i64)
+        .bind(settings.nodes_metrics_polling_freq.as_secs() as i64)
+        .bind(settings.rewards_balances_retrieval_freq.as_secs() as i64)
+        .bind(settings.l2_network_rpc_url.clone())
+        .bind(settings.token_contract_address.clone())
         .execute(&*db_lock)
         .await
         {
             Ok(_) => {
-                logging::log!("Settings updated in DB cache with: {settings:#?}");
+                logging::log!("New app settings updated in DB cache.");
                 Ok(())
             }
             Err(err) => {

@@ -9,7 +9,7 @@ async fn main() {
     use leptos::*;
     use leptos_axum::{generate_route_list, LeptosRoutes};
     use std::{collections::HashSet, sync::Arc};
-    use tokio::sync::Mutex;
+    use tokio::sync::{mpsc, Mutex};
 
     logging::log!("Starting Formicaio v{} ...", env!("CARGO_PKG_VERSION"));
 
@@ -35,6 +35,11 @@ async fn main() {
     // List of nodes which are currently being upgraded
     let node_status_locked = Arc::new(Mutex::new(HashSet::new()));
 
+    // Channel to send updates on app settings so they can be applied in the bg tasks
+    let (updated_settings_tx, updated_settings_rx) = mpsc::channel::<AppSettings>(3);
+    // Let's read currently cached settings to use and push it to channel
+    let settings = db_client.get_settings().await;
+
     spawn_bg_tasks(
         docker_client.clone(),
         latest_bin_version.clone(),
@@ -42,6 +47,8 @@ async fn main() {
         db_client.clone(),
         server_api_hit.clone(),
         node_status_locked.clone(),
+        updated_settings_rx,
+        settings,
     );
 
     let app_state = ServerGlobalState {
@@ -52,6 +59,7 @@ async fn main() {
         nodes_metrics,
         server_api_hit,
         node_status_locked,
+        updated_settings_tx,
     };
 
     let app = Router::new()

@@ -271,6 +271,7 @@ pub async fn get_settings() -> Result<super::app::AppSettings, ServerFnError> {
 #[server(UpdateSettings, "/api", "Url", "/update_settings")]
 pub async fn update_settings(settings: super::app::AppSettings) -> Result<(), ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
-    context.db_client.update_settings(settings).await?;
+    context.db_client.update_settings(&settings).await?;
+    context.updated_settings_tx.send(settings).await?;
     Ok(())
 }
