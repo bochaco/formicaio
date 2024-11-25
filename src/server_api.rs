@@ -198,6 +198,11 @@ pub(crate) async fn helper_upgrade_node_instance(
     let res = docker_client.upgrade_node_in_container(container_id).await;
 
     if let Ok(ref new_version) = res {
+        logging::log!(
+            "Node binary upgraded to v{} in container {container_id}.",
+            new_version.as_deref().unwrap_or("[unknown]")
+        );
+
         // set bin_version to new version obtained
         db_client
             .update_node_metadata_fields(
