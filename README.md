@@ -55,6 +55,35 @@ For stopping the Formicaio app and services simply run:
 $ docker compose down
 ```
 
+## Displaying nodes stats on external LCD device
+
+When running Formicaio on a Raspberry Pi, it is possible to connect an external LCD display and have Formicaio to show nodes stats on it.
+
+You can follow the instructions in this [Raspberry Pi4 LCD setup guide](https://medium.com/@thedyslexiccoder/how-to-set-up-a-raspberry-pi-4-with-lcd-display-using-i2c-backpack-189a0760ae15) for enabling the I2C interface which is the one Formicaio supports/uses to communicate with the LCD device (you can ignore the step related to running a python example app).
+
+As part of the setup, take note of both the configured I2C device path, e.g. '/dev/i2c-1', and the I2C address backpack detected with the `i2cdetect` tool/cmd (usually 0x27 or 0x3F), you'll need them to set up Formicaio through its settings panel.
+
+Note that the above may not work if you are using UmbrelOS, as it has the boot path mounted as read-only. This means the tool cannot overwrite it to enable the I2C interface. The following is a workaround to this limitation, but please be aware that attempting this may pose significant risks and leave your UmbrelOS in a non-functional state. If you choose to proceed with the following workaround, be advised that it involves advanced technical commands and should only be attempted by those with a strong understanding of system configurations and potential consequences. Proceed with caution and at your own risk specially if you have important data and/or application on the device:
+```
+$ sudo apt install raspi-config
+
+$ sudo umount /boot
+
+$ sudo mount /dev/<boot-fs-device> /boot -t vfat -o rw,relatime,fmask=0022,dmask=0022,codepage=437,iocharset=ascii,shortname=mixed,errors=remount-ro
+
+$ sudo raspi-config
+```
+
+Replacing `<boot-fs-device>` with the partition name where the /boot is originally mounted on, you can find out by running the following cmd:
+
+```
+$ mount | grep /boot
+
+/dev/mmcblk0p2 on /boot type vfat (ro,relatime,fmask=0022,dmask=0022,codepage=437,iocharset=ascii,shortname=mixed,errors=remount-ro)
+```
+
+Once I2c was successfully enabled through `raspi-config`, reboot the Rasberry Pi, and then enable the LCD display in Formicaio through its settings panel.
+
 ## Disclaimer
 
 Please be aware that the Formicaio backend application, as well as the `safenode` binary running within each user-created node instance, utilizes third-party RPC services to retrieve information related to the Arbitrum L2 ledger.
