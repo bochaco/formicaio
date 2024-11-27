@@ -1,11 +1,14 @@
 use i2cdev::core::I2CDevice;
 use i2cdev::linux::{LinuxI2CDevice, LinuxI2CError};
-use lcd::{Delay, Display, Hardware};
+use lcd::{Delay, Hardware};
 use leptos::*;
 use std::{collections::HashMap, sync::Arc, thread, thread::sleep, time::Duration};
 use tokio::sync::Mutex;
 
-// <bus> is the number of /dev/i2c-<bus> to open");
+// Delay between each stat shown on the LCD device.
+const LCD_DELAY_SECS: u64 = 4;
+
+// Attempt to setup I2C communication to external LCD device.
 pub fn setup_lcd() -> Result<Arc<Mutex<HashMap<String, String>>>, eyre::Error> {
     let stats = Arc::new(Mutex::new(HashMap::<String, String>::new()));
 
@@ -19,36 +22,43 @@ pub fn setup_lcd() -> Result<Arc<Mutex<HashMap<String, String>>>, eyre::Error> {
         eyre::eyre!("Cannot display stats in LCD. Invalid I2C address 0x{i2c_addr_hex}: {err}")
     })?;
 
-    let dev = Pcf8574::new(i2c_bus_number, i2c_addr)
+    let pcf_8574 = Pcf8574::new(i2c_bus_number, i2c_addr)
     .map_err(|err| eyre::eyre!("Cannot display stats in LCD with I2C device /dev/i2c-{i2c_bus_str} and address 0x{i2c_addr}: {err}"))?;
 
-    let mut display = lcd::Display::new(dev);
-    display.init(lcd::FunctionLine::Line2, lcd::FunctionDots::Dots5x8);
-    display.display(
-        lcd::DisplayMode::DisplayOn,
-        lcd::DisplayCursor::CursorOff,
-        lcd::DisplayBlink::BlinkOff,
-    );
-
-    tokio::spawn(display_stats_on_lcd(display, stats.clone()));
+    tokio::spawn(display_stats_on_lcd(pcf_8574, stats.clone()));
 
     Ok(stats)
 }
 
-pub async fn display_stats_on_lcd<HW: Hardware + Delay>(
-    mut display: Display<HW>,
-    stats: Arc<Mutex<HashMap<String, String>>>,
-) {
+// Watch the stats and display them on the external LCD device.
+async fn display_stats_on_lcd(pcf_8574: Pcf8574, stats: Arc<Mutex<HashMap<String, String>>>) {
+    let mut display = lcd::Display::new(pcf_8574);
+    display.init(lcd::FunctionLine::Line2, lcd::FunctionDots::Dots5x8);
+
     loop {
         let stats_clone = { stats.lock().await.clone() };
         logging::log!("Updating stats on LCD display...");
+        if stats_clone.is_empty() {
+            display.display(
+                lcd::DisplayMode::DisplayOff,
+                lcd::DisplayCursor::CursorOff,
+                lcd::DisplayBlink::BlinkOff,
+            );
+        } else {
+            display.display(
+                lcd::DisplayMode::DisplayOn,
+                lcd::DisplayCursor::CursorOff,
+                lcd::DisplayBlink::BlinkOff,
+            );
+        }
+
         for (k, v) in stats_clone.iter() {
             display.clear();
             display.home();
             display.print(&k);
             display.position(15 - v.len() as u8, 1);
             display.print(&v);
-            sleep(std::time::Duration::from_secs(3));
+            sleep(std::time::Duration::from_secs(LCD_DELAY_SECS));
         }
     }
 }
