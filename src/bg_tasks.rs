@@ -2,6 +2,7 @@ use super::{
     app::{AppSettings, METRICS_MAX_SIZE_PER_CONTAINER},
     db_client::DbClient,
     docker_client::DockerClient,
+    lcd::setup_lcd,
     metrics_client::{NodeMetricsClient, NodesMetrics},
     node_instance::{ContainerId, NodeInstanceInfo},
     node_rpc_client::NodeRpcClient,
@@ -33,6 +34,12 @@ const FORMICA_IMAGE_PULLING_FREQ: Duration = Duration::from_secs(60 * 60 * 6); /
 
 // Timeout duration when querying for each rewards balance.
 const BALANCE_QUERY_TIMEOUT: Duration = Duration::from_secs(10);
+
+const LCD_LABEL_NET_SIZE: &str = "Network size:";
+const LCD_LABEL_ACTIVE_NODES: &str = "Active nodes:";
+const LCD_LABEL_STORED_RECORDS: &str = "Stored records:";
+const LCD_LABEL_BIN_VERSION: &str = "Binary version:";
+const LCD_LABEL_BALANCE: &str = "Total balance:";
 
 // ERC20 token contract ABI
 sol!(
@@ -142,7 +149,7 @@ pub fn spawn_bg_tasks(
     // Token contract used to query rewards balances.
     let mut token_contract = update_token_contract(&ctx);
 
-    let stats = match super::lcd::setup_lcd() {
+    let stats = match setup_lcd() {
         Ok(s) => s,
         Err(err) => {
             logging::log!("[ERROR]: Failed to setup LCD display: {err:?}");
@@ -179,8 +186,7 @@ pub fn spawn_bg_tasks(
                         docker_client.clone(),
                         latest_bin_version.clone(),
                         db_client.clone(),
-                        node_status_locked.clone(),
-                        stats.clone()
+                        node_status_locked.clone()
                     ));
                 },
                 _ = ctx.balances_retrieval.tick() => match token_contract {
@@ -238,16 +244,10 @@ async fn check_node_bin_version(
     latest_bin_version: Arc<Mutex<Option<String>>>,
     db_client: DbClient,
     node_status_locked: Arc<Mutex<HashSet<ContainerId>>>,
-    stats: Arc<Mutex<HashMap<String, String>>>,
 ) {
     if let Some(version) = latest_version_available().await {
         logging::log!("Latest version of node binary available: {version}");
         *latest_bin_version.lock().await = Some(version.clone());
-
-        stats
-            .lock()
-            .await
-            .insert("Binary version:".to_string(), version.to_string());
 
         loop {
             let auto_upgrade = db_client.get_settings().await.nodes_auto_upgrade;
@@ -342,10 +342,30 @@ async fn update_nodes_info(
         Ok(containers) if !containers.is_empty() => containers,
         Err(err) => {
             logging::log!("Failed to get containers list: {err}");
+            remove_lcd_stats(
+                stats,
+                &[
+                    LCD_LABEL_NET_SIZE,
+                    LCD_LABEL_ACTIVE_NODES,
+                    LCD_LABEL_STORED_RECORDS,
+                    LCD_LABEL_BIN_VERSION,
+                ],
+            )
+            .await;
             return;
         }
         _ => {
             logging::log!("No nodes to retrieve metrics from...");
+            remove_lcd_stats(
+                stats,
+                &[
+                    LCD_LABEL_NET_SIZE,
+                    LCD_LABEL_ACTIVE_NODES,
+                    LCD_LABEL_STORED_RECORDS,
+                    LCD_LABEL_BIN_VERSION,
+                ],
+            )
+            .await;
             return;
         }
     };
@@ -355,6 +375,7 @@ async fn update_nodes_info(
     let mut weights = 0;
     let num_nodes = containers.len();
     let mut records = 0;
+    let mut bin_version = HashSet::<String>::new();
 
     logging::log!(
         "Fetching status and metrics from {} node/s ...",
@@ -397,6 +418,9 @@ async fn update_nodes_info(
             node_info.connected_peers.unwrap_or_default() * node_info.net_size.unwrap_or_default();
         weights += node_info.connected_peers.unwrap_or_default();
         records += node_info.records.unwrap_or_default();
+        if let Some(ref version) = node_info.bin_version {
+            bin_version.insert(version.clone());
+        }
 
         let update_status = !node_status_locked
             .lock()
@@ -408,18 +432,18 @@ async fn update_nodes_info(
     }
 
     let weighted_avg = if weights == 0 { 0 } else { net_size / weights };
-    stats
-        .lock()
-        .await
-        .insert("Network size:".to_string(), weighted_avg.to_string());
-    stats
-        .lock()
-        .await
-        .insert("Active nodes:".to_string(), num_nodes.to_string());
-    stats
-        .lock()
-        .await
-        .insert("Stored records:".to_string(), records.to_string());
+    let bin_versions = bin_version.into_iter().collect::<Vec<_>>().join(",");
+
+    update_lcd_stats(
+        stats,
+        &[
+            (LCD_LABEL_NET_SIZE, weighted_avg.to_string()),
+            (LCD_LABEL_ACTIVE_NODES, num_nodes.to_string()),
+            (LCD_LABEL_STORED_RECORDS, records.to_string()),
+            (LCD_LABEL_BIN_VERSION, bin_versions),
+        ],
+    )
+    .await;
 }
 
 // Prune metrics records from the cache DB to always keep the number of records within a limit.
@@ -461,9 +485,13 @@ async fn retrieve_current_rewards_balances<T: Transport + Clone, P: Provider<T, 
         Ok(containers) if !containers.is_empty() => containers,
         Err(err) => {
             logging::log!("Failed to get containers list: {err}");
+            remove_lcd_stats(&stats, &[LCD_LABEL_BALANCE]).await;
             return;
         }
-        _ => return,
+        _ => {
+            remove_lcd_stats(&stats, &[LCD_LABEL_BALANCE]).await;
+            return;
+        }
     };
 
     for container in containers.into_iter() {
@@ -512,9 +540,24 @@ async fn retrieve_current_rewards_balances<T: Transport + Clone, P: Provider<T, 
     }
 
     let balance: U256 = updated_balances.iter().map(|(_, b)| b).sum();
+    update_lcd_stats(&stats, &[(LCD_LABEL_BALANCE, balance.to_string())]).await;
+}
 
-    stats
-        .lock()
-        .await
-        .insert("Total balance:".to_string(), balance.to_string());
+// Helper to add/update stats to be disaplyed on external LCD device
+async fn update_lcd_stats(
+    stats: &Arc<Mutex<HashMap<String, String>>>,
+    labels_vals: &[(&str, String)],
+) {
+    let mut s = stats.lock().await;
+    labels_vals.into_iter().for_each(|(label, value)| {
+        let _ = s.insert(label.to_string(), value.clone());
+    });
+}
+
+// Helper to remove stats being displayed on external LCD device
+async fn remove_lcd_stats(stats: &Arc<Mutex<HashMap<String, String>>>, labels: &[&str]) {
+    let mut s = stats.lock().await;
+    labels.into_iter().for_each(|label| {
+        let _ = s.remove(*label);
+    });
 }
