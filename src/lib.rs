@@ -16,6 +16,8 @@ pub mod error_template;
 pub mod fileserv;
 mod helpers;
 mod icons;
+#[cfg(feature = "ssr")]
+mod lcd;
 mod metrics;
 #[cfg(feature = "ssr")]
 pub mod metrics_client;

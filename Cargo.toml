@@ -26,6 +26,8 @@ http = "1"
 http-body-util = { version = "0.1.2", optional = true }
 hyper = { version = "1.4.1", features = ["client","http1"], optional = true }
 hyper-util = { version = "0.1.9", optional = true }
+i2cdev = { version = "0.5.0", optional = true }
+lcd = { version = "0.4.1", optional = true }
 leptos = { version = "0.6" }
 leptos_axum = { version = "0.6", optional = true }
 leptos_meta = { version = "0.6" }
@@ -59,6 +61,8 @@ ssr = [
     "dep:http-body-util",
     "dep:hyper",
     "dep:hyper-util",
+    "dep:i2cdev",
+    "dep:lcd",
     "dep:leptos_axum",
     "dep:reqwest",
     "dep:semver",

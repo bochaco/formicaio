@@ -142,6 +142,14 @@ pub fn spawn_bg_tasks(
     // Token contract used to query rewards balances.
     let mut token_contract = update_token_contract(&ctx);
 
+    let stats = match super::lcd::setup_lcd() {
+        Ok(s) => s,
+        Err(err) => {
+            logging::log!("[ERROR]: Failed to setup LCD display: {err:?}");
+            Arc::new(Mutex::new(HashMap::default()))
+        }
+    };
+
     tokio::spawn(async move {
         loop {
             select! {
@@ -172,6 +180,7 @@ pub fn spawn_bg_tasks(
                         latest_bin_version.clone(),
                         db_client.clone(),
                         node_status_locked.clone(),
+                        stats.clone()
                     ));
                 },
                 _ = ctx.balances_retrieval.tick() => match token_contract {
@@ -179,7 +188,8 @@ pub fn spawn_bg_tasks(
                         tokio::spawn(retrieve_current_rewards_balances(
                             contract.clone(),
                             docker_client.clone(),
-                            db_client.clone()
+                            db_client.clone(),
+                            stats.clone()
                         ));
                     },
                     None => logging::log!("Skipping balances retrieval due to invalid settings")
@@ -209,7 +219,8 @@ pub fn spawn_bg_tasks(
                         &nodes_metrics,
                         &db_client,
                         &node_status_locked,
-                        poll_rpc_api
+                        poll_rpc_api,
+                        &stats
                     ).await;
                     // reset interval to start next period from this instant,
                     // regardless how long the above polling task lasted.
@@ -227,10 +238,16 @@ async fn check_node_bin_version(
     latest_bin_version: Arc<Mutex<Option<String>>>,
     db_client: DbClient,
     node_status_locked: Arc<Mutex<HashSet<ContainerId>>>,
+    stats: Arc<Mutex<HashMap<String, String>>>,
 ) {
     if let Some(version) = latest_version_available().await {
         logging::log!("Latest version of node binary available: {version}");
         *latest_bin_version.lock().await = Some(version.clone());
+
+        stats
+            .lock()
+            .await
+            .insert("Binary version:".to_string(), version.to_string());
 
         loop {
             let auto_upgrade = db_client.get_settings().await.nodes_auto_upgrade;
@@ -319,6 +336,7 @@ async fn update_nodes_info(
     db_client: &DbClient,
     node_status_locked: &Arc<Mutex<HashSet<ContainerId>>>,
     poll_rpc_api: bool,
+    stats: &Arc<Mutex<HashMap<String, String>>>,
 ) {
     let containers = match docker_client.get_containers_list(true).await {
         Ok(containers) if !containers.is_empty() => containers,
@@ -331,6 +349,12 @@ async fn update_nodes_info(
             return;
         }
     };
+
+    let mut balance = alloy::primitives::U256::from(0);
+    let mut net_size = 0;
+    let mut weights = 0;
+    let num_nodes = containers.len();
+    let mut records = 0;
 
     logging::log!(
         "Fetching status and metrics from {} node/s ...",
@@ -368,6 +392,12 @@ async fn update_nodes_info(
             }
         }
 
+        balance += node_info.balance.unwrap_or_default();
+        net_size +=
+            node_info.connected_peers.unwrap_or_default() * node_info.net_size.unwrap_or_default();
+        weights += node_info.connected_peers.unwrap_or_default();
+        records += node_info.records.unwrap_or_default();
+
         let update_status = !node_status_locked
             .lock()
             .await
@@ -376,6 +406,20 @@ async fn update_nodes_info(
             .update_node_metadata(&node_info, update_status)
             .await;
     }
+
+    let weighted_avg = if weights == 0 { 0 } else { net_size / weights };
+    stats
+        .lock()
+        .await
+        .insert("Network size:".to_string(), weighted_avg.to_string());
+    stats
+        .lock()
+        .await
+        .insert("Active nodes:".to_string(), num_nodes.to_string());
+    stats
+        .lock()
+        .await
+        .insert("Stored records:".to_string(), records.to_string());
 }
 
 // Prune metrics records from the cache DB to always keep the number of records within a limit.
@@ -408,6 +452,7 @@ async fn retrieve_current_rewards_balances<T: Transport + Clone, P: Provider<T, 
     token_contract: TokenContract::TokenContractInstance<T, P, N>,
     docker_client: DockerClient,
     db_client: DbClient,
+    stats: Arc<Mutex<HashMap<String, String>>>,
 ) {
     // cache retrieved rewards balances to not query more than once per reward address
     let mut updated_balances = HashMap::<Address, U256>::new();
@@ -465,4 +510,11 @@ async fn retrieve_current_rewards_balances<T: Transport + Clone, P: Provider<T, 
             logging::log!("No valid rewards address set for node {node_short_id}.");
         }
     }
+
+    let balance: U256 = updated_balances.iter().map(|(_, b)| b).sum();
+
+    stats
+        .lock()
+        .await
+        .insert("Total balance:".to_string(), balance.to_string());
 }
