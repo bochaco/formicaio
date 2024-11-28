@@ -18,7 +18,7 @@ use axum::extract::FromRef;
 #[cfg(feature = "ssr")]
 use std::{collections::HashSet, sync::Arc};
 #[cfg(feature = "ssr")]
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::{broadcast, Mutex};
 
 #[cfg(feature = "hydrate")]
 use gloo_timers::future::TimeoutFuture;
@@ -44,6 +44,9 @@ pub struct AppSettings {
     pub rewards_balances_retrieval_freq: Duration,
     pub l2_network_rpc_url: String,
     pub token_contract_address: String,
+    pub lcd_display_enabled: bool,
+    pub lcd_device: String,
+    pub lcd_addr: String,
 }
 
 impl Default for AppSettings {
@@ -63,6 +66,12 @@ impl Default for AppSettings {
             l2_network_rpc_url: "https://sepolia-rollup.arbitrum.io/rpc".to_string(),
             // ANT token contract on Arbitrum Sepolia testnet.
             token_contract_address: "0xBE1802c27C324a28aeBcd7eeC7D734246C807194".to_string(),
+            // External LCD device disabled.
+            lcd_display_enabled: false,
+            // I2C bus number 1, i.e. device at /dev/i2c-1.
+            lcd_device: "1".to_string(),
+            // I2C backpack address 0x27, another common addr is: 0x3f. Check it out with 'sudo ic2detect -y <bus-number>'.
+            lcd_addr: "0x27".to_string(),
         }
     }
 }
@@ -83,7 +92,7 @@ pub struct ServerGlobalState {
     pub nodes_metrics: Arc<Mutex<super::metrics_client::NodesMetrics>>,
     pub server_api_hit: Arc<Mutex<bool>>,
     pub node_status_locked: Arc<Mutex<HashSet<super::node_instance::ContainerId>>>,
-    pub updated_settings_tx: mpsc::Sender<AppSettings>,
+    pub updated_settings_tx: broadcast::Sender<AppSettings>,
 }
 
 // Struct to use client side as a global context/state

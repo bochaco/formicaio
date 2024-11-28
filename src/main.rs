@@ -9,7 +9,7 @@ async fn main() {
     use leptos::*;
     use leptos_axum::{generate_route_list, LeptosRoutes};
     use std::{collections::HashSet, sync::Arc};
-    use tokio::sync::{mpsc, Mutex};
+    use tokio::sync::{broadcast, Mutex};
 
     logging::log!("Starting Formicaio v{} ...", env!("CARGO_PKG_VERSION"));
 
@@ -36,7 +36,7 @@ async fn main() {
     let node_status_locked = Arc::new(Mutex::new(HashSet::new()));
 
     // Channel to send updates on app settings so they can be applied in the bg tasks
-    let (updated_settings_tx, updated_settings_rx) = mpsc::channel::<AppSettings>(3);
+    let (updated_settings_tx, updated_settings_rx) = broadcast::channel::<AppSettings>(3);
     // Let's read currently cached settings to use and push it to channel
     let settings = db_client.get_settings().await;
 
