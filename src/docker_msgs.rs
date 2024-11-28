@@ -185,6 +185,7 @@ pub struct ContainerUpdate {
 #[allow(non_snake_case)]
 pub struct RestartPolicy {
     pub Name: String,
+    pub MaximumRetryCount: Option<u8>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

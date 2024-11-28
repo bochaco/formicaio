@@ -372,6 +372,11 @@ impl DbClient {
         container_id: ContainerId,
         metrics: impl IntoIterator<Item = &NodeMetric>,
     ) {
+        let metrics = metrics.into_iter().collect::<Vec<_>>();
+        if metrics.is_empty() {
+            return;
+        }
+
         let db_lock = self.db.lock().await;
         let mut query_builder =
             QueryBuilder::new("INSERT INTO nodes_metrics (container_id, timestamp, key, value) ");
@@ -385,7 +390,7 @@ impl DbClient {
 
         match query_builder.build().execute(&*db_lock).await {
             Ok(_) => {}
-            Err(err) => logging::log!("Sqlite insert query error: {err}"),
+            Err(err) => logging::log!("Sqlite insert query error: {err}."),
         }
     }
 

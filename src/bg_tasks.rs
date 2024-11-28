@@ -320,46 +320,51 @@ async fn update_nodes_info(
     node_status_locked: &Arc<Mutex<HashSet<ContainerId>>>,
     poll_rpc_api: bool,
 ) {
-    let containers = match docker_client.get_containers_list(false).await {
+    let containers = match docker_client.get_containers_list(true).await {
         Ok(containers) if !containers.is_empty() => containers,
         Err(err) => {
             logging::log!("Failed to get containers list: {err}");
             return;
         }
         _ => {
-            logging::log!("No active nodes to retrieve metrics from...");
+            logging::log!("No nodes to retrieve metrics from...");
             return;
         }
     };
 
-    logging::log!("Fetching metrics from {} node/s ...", containers.len());
+    logging::log!(
+        "Fetching status and metrics from {} node/s ...",
+        containers.len()
+    );
     for container in containers.into_iter() {
         let mut node_info: NodeInstanceInfo = container.into();
 
-        if poll_rpc_api {
-            // let's fetch up to date info using its RPC API
-            if let Some(port) = node_info.rpc_api_port {
-                match NodeRpcClient::new(&node_info.node_ip, port) {
-                    Ok(node_rpc_client) => {
-                        node_rpc_client.update_node_info(&mut node_info).await;
-                    }
-                    Err(err) => {
-                        logging::log!("Failed to connect to RPC API endpoint: {err}")
+        if node_info.status.is_active() {
+            if poll_rpc_api {
+                // let's fetch up to date info using its RPC API
+                if let Some(port) = node_info.rpc_api_port {
+                    match NodeRpcClient::new(&node_info.node_ip, port) {
+                        Ok(node_rpc_client) => {
+                            node_rpc_client.update_node_info(&mut node_info).await;
+                        }
+                        Err(err) => {
+                            logging::log!("Failed to connect to RPC API endpoint: {err}")
+                        }
                     }
                 }
             }
-        }
 
-        if let Some(metrics_port) = node_info.metrics_port {
-            // let's now collect metrics from the node
-            let metrics_client = NodeMetricsClient::new(&node_info.node_ip, metrics_port);
-            match metrics_client.fetch_metrics().await {
-                Ok(metrics) => {
-                    let mut node_metrics = nodes_metrics.lock().await;
-                    node_metrics.store(&node_info.container_id, &metrics).await;
-                    node_metrics.update_node_info(&mut node_info);
+            if let Some(metrics_port) = node_info.metrics_port {
+                // let's now collect metrics from the node
+                let metrics_client = NodeMetricsClient::new(&node_info.node_ip, metrics_port);
+                match metrics_client.fetch_metrics().await {
+                    Ok(metrics) => {
+                        let mut node_metrics = nodes_metrics.lock().await;
+                        node_metrics.store(&node_info.container_id, &metrics).await;
+                        node_metrics.update_node_info(&mut node_info);
+                    }
+                    Err(err) => logging::log!("Failed to fetch node metrics: {err}"),
                 }
-                Err(err) => logging::log!("Failed to fetch node metrics: {err}"),
             }
         }
 

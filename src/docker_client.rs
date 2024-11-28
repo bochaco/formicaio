@@ -179,7 +179,8 @@ impl DockerClient {
         );
         let container_update_req = ContainerUpdate {
             RestartPolicy: Some(RestartPolicy {
-                Name: "unless-stopped".to_string(),
+                Name: "on-failure".to_string(),
+                MaximumRetryCount: Some(5),
             }),
         };
         self.send_request(ReqMethod::Post, &url, &[], &container_update_req)
