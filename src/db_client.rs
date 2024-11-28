@@ -46,6 +46,9 @@ struct CachedSettings {
     rewards_balances_retrieval_freq_secs: u64,
     l2_network_rpc_url: String,
     token_contract_address: String,
+    lcd_display_enabled: bool,
+    lcd_device: String,
+    lcd_addr: String,
 }
 
 // Struct stored on the DB caching nodes metadata.
@@ -451,6 +454,9 @@ impl DbClient {
                 ),
                 l2_network_rpc_url: s.l2_network_rpc_url,
                 token_contract_address: s.token_contract_address,
+                lcd_display_enabled: s.lcd_display_enabled,
+                lcd_device: s.lcd_device,
+                lcd_addr: s.lcd_addr,
             },
             Ok(None) => {
                 logging::log!("No settings found in DB, we'll be using defaults.");
@@ -474,7 +480,10 @@ impl DbClient {
             nodes_metrics_polling_freq_secs = ?, \
             rewards_balances_retrieval_freq_secs = ?, \
             l2_network_rpc_url = ?, \
-            token_contract_address = ?",
+            token_contract_address = ?, \
+            lcd_display_enabled = ?, \
+            lcd_device = ?, \
+            lcd_addr = ?",
         )
         .bind(settings.nodes_auto_upgrade)
         .bind(settings.nodes_auto_upgrade_delay.as_secs() as i64)
@@ -483,6 +492,9 @@ impl DbClient {
         .bind(settings.rewards_balances_retrieval_freq.as_secs() as i64)
         .bind(settings.l2_network_rpc_url.clone())
         .bind(settings.token_contract_address.clone())
+        .bind(settings.lcd_display_enabled)
+        .bind(settings.lcd_device.clone())
+        .bind(settings.lcd_addr.clone())
         .execute(&*db_lock)
         .await
         {

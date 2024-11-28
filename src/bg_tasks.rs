@@ -21,7 +21,7 @@ use std::{
 };
 use tokio::{
     select,
-    sync::{mpsc, Mutex},
+    sync::{broadcast, Mutex},
     time::{interval, sleep, timeout, Duration, Interval},
 };
 use url::Url;
@@ -127,7 +127,7 @@ pub fn spawn_bg_tasks(
     db_client: DbClient,
     server_api_hit: Arc<Mutex<bool>>,
     node_status_locked: Arc<Mutex<HashSet<ContainerId>>>,
-    mut updated_settings_rx: mpsc::Receiver<AppSettings>,
+    mut updated_settings_rx: broadcast::Receiver<AppSettings>,
     settings: AppSettings,
 ) {
     logging::log!("App settings to use: {settings:#?}");
@@ -149,19 +149,13 @@ pub fn spawn_bg_tasks(
     // Token contract used to query rewards balances.
     let mut token_contract = update_token_contract(&ctx);
 
-    let stats = match setup_lcd() {
-        Ok(s) => s,
-        Err(err) => {
-            logging::log!("[ERROR]: Failed to setup LCD display: {err:?}");
-            Arc::new(Mutex::new(HashMap::default()))
-        }
-    };
+    let stats = setup_lcd(ctx.app_settings.clone(), updated_settings_rx.resubscribe());
 
     tokio::spawn(async move {
         loop {
             select! {
                 settings = updated_settings_rx.recv() => {
-                    if let Some(s) = settings {
+                    if let Ok(s) = settings {
                         let prev_addr = ctx.app_settings.token_contract_address.clone();
                         let prev_url = ctx.app_settings.l2_network_rpc_url.clone();
                         ctx.apply_settings(s);

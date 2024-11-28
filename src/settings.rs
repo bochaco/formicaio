@@ -67,6 +67,9 @@ pub fn SettingsForm(
     let metrics_polling_freq = create_rw_signal(Ok(0));
     let l2_network_rpc_url = create_rw_signal(Ok("".to_string()));
     let token_contract_address = create_rw_signal(Ok("".to_string()));
+    let lcd_enabled = create_rw_signal(false);
+    let lcd_device = create_rw_signal(Ok("".to_string()));
+    let lcd_addr = create_rw_signal(Ok("".to_string()));
 
     let update_settings_action = create_action(move |settings: &AppSettings| {
         let settings = settings.clone();
@@ -157,6 +160,45 @@ pub fn SettingsForm(
                     validator=|v| { v.parse::<Address>().map_err(|err| err.to_string()).map(|_| v) }
                 />
 
+                <div class="flex items-center">
+                    <input
+                        checked=move || {
+                            let current = current_values
+                                .get()
+                                .map(|s| s.lcd_display_enabled)
+                                .unwrap_or_default();
+                            lcd_enabled.set(current);
+                            current
+                        }
+                        id="lcd_enabled"
+                        type="checkbox"
+                        on:change=move |ev| { lcd_enabled.set(event_target_checked(&ev)) }
+                        class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                    />
+                    <label
+                        for="lcd_enabled"
+                        class="ms-2 text-sm font-medium text-gray-900 dark:text-gray-300"
+                    >
+                        "Display nodes stats in external LCD device"
+                    </label>
+                </div>
+                <TextInput
+                    signal=lcd_device
+                    default=current_values.get().map(|s| s.lcd_device).unwrap_or_default()
+                    label="LCD display bus number:"
+                    validator=|v| { v.parse::<u8>().map_err(|err| err.to_string()).map(|_| v) }
+                />
+                <TextInput
+                    signal=lcd_addr
+                    default=current_values.get().map(|s| s.lcd_addr).unwrap_or_default()
+                    label="LCD display address:"
+                    validator=|v| {
+                        u16::from_str_radix(&v.strip_prefix("0x").unwrap_or(&v), 16)
+                            .map_err(|err| err.to_string())
+                            .map(|_| v)
+                    }
+                />
+
                 <button
                     type="button"
                     disabled=move || {
@@ -175,8 +217,10 @@ pub fn SettingsForm(
                             metrics_polling_freq.get_untracked(),
                             l2_network_rpc_url.get_untracked(),
                             token_contract_address.get_untracked(),
+                            lcd_device.get_untracked(),
+                            lcd_addr.get_untracked(),
                         );
-                        if let (Ok(v1), Ok(v2), Ok(v3), Ok(v4), Ok(v5), Ok(v6)) = values {
+                        if let (Ok(v1), Ok(v2), Ok(v3), Ok(v4), Ok(v5), Ok(v6), Ok(v7), Ok(v8)) = values {
                             update_settings_action
                                 .dispatch(AppSettings {
                                     nodes_auto_upgrade: auto_upgrade.get_untracked(),
@@ -186,6 +230,9 @@ pub fn SettingsForm(
                                     nodes_metrics_polling_freq: Duration::from_secs(v4),
                                     l2_network_rpc_url: v5,
                                     token_contract_address: v6,
+                                    lcd_display_enabled: lcd_enabled.get_untracked(),
+                                    lcd_device: v7,
+                                    lcd_addr: v8,
                                 });
                         }
                     }
