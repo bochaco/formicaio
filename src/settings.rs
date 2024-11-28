@@ -159,7 +159,14 @@ pub fn SettingsForm(
 
                 <button
                     type="button"
-                    disabled=move || auto_upgrade_delay.get().is_err()
+                    disabled=move || {
+                        auto_upgrade_delay.get().is_err() || bin_version_polling_freq.get().is_err()
+                            || balances_retrieval_freq.get().is_err()
+                            || metrics_polling_freq.get().is_err()
+                            || l2_network_rpc_url.get().is_err()
+                            || token_contract_address.get().is_err()
+                    }
+
                     on:click=move |_| {
                         let values = (
                             auto_upgrade_delay.get_untracked(),
