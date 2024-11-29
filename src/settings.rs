@@ -16,6 +16,7 @@ pub fn SettingsView(settings_panel: RwSignal<bool>) -> impl IntoView {
         move || settings_panel.get() == true,
         |_| async move { get_settings().await.unwrap_or_default() },
     );
+    let active_tab = create_rw_signal(0);
 
     view! {
         <div
@@ -32,7 +33,7 @@ pub fn SettingsView(settings_panel: RwSignal<bool>) -> impl IntoView {
         >
             <div class="relative p-4 w-full max-w-lg max-h-full">
                 <div class="relative bg-white rounded-lg shadow dark:bg-gray-700">
-                    <div class="flex items-center justify-between p-4 md:p-5 border-b rounded-t dark:border-gray-600">
+                    <div class="flex items-center justify-between p-4 md:p-5 rounded-t dark:border-gray-600">
                         <h3 class="text-xl font-semibold text-gray-900 dark:text-white">
                             Settings
                         </h3>
@@ -46,8 +47,43 @@ pub fn SettingsView(settings_panel: RwSignal<bool>) -> impl IntoView {
                         </button>
                     </div>
 
+                    <div class="border-b text-sm font-medium text-center text-gray-500 border-b border-gray-200 dark:text-gray-400 dark:border-gray-700">
+                        <ul class="flex flex-wrap -mb-px">
+                            <li class="me-2">
+                                <a
+                                    href="#"
+                                    on:click=move |_| active_tab.set(0)
+                                    class=move || {
+                                        if active_tab.get() == 0 {
+                                            "settings-active-tab"
+                                        } else {
+                                            "settings-tab"
+                                        }
+                                    }
+                                >
+                                    General
+                                </a>
+                            </li>
+                            <li class="me-2">
+                                <a
+                                    href="#"
+                                    on:click=move |_| active_tab.set(1)
+                                    class=move || {
+                                        if active_tab.get() == 1 {
+                                            "settings-active-tab"
+                                        } else {
+                                            "settings-tab"
+                                        }
+                                    }
+                                >
+                                    LCD device setup
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+
                     <div class="p-4 md:p-5">
-                        <SettingsForm current_values settings_panel />
+                        <SettingsForm current_values settings_panel active_tab />
                     </div>
                 </div>
             </div>
@@ -59,6 +95,7 @@ pub fn SettingsView(settings_panel: RwSignal<bool>) -> impl IntoView {
 pub fn SettingsForm(
     current_values: Resource<bool, AppSettings>,
     settings_panel: RwSignal<bool>,
+    active_tab: RwSignal<u8>,
 ) -> impl IntoView {
     let auto_upgrade = create_rw_signal(false);
     let auto_upgrade_delay = create_rw_signal(Ok(0));
@@ -85,163 +122,173 @@ pub fn SettingsForm(
 
     view! {
         <Suspense fallback=move || view! { <p>"Loading..."</p> }>
-            <form class="space-y-4">
-                <div class="flex items-center">
-                    <input
-                        checked=move || {
-                            let current = current_values
-                                .get()
-                                .map(|s| s.nodes_auto_upgrade)
-                                .unwrap_or_default();
-                            auto_upgrade.set(current);
-                            current
-                        }
-                        id="auto_upgrade"
-                        type="checkbox"
-                        on:change=move |ev| { auto_upgrade.set(event_target_checked(&ev)) }
-                        class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+
+            <span hidden=move || active_tab.get() != 0>
+                <form class="space-y-4">
+                    <div class="flex items-center">
+                        <input
+                            checked=move || {
+                                let current = current_values
+                                    .get()
+                                    .map(|s| s.nodes_auto_upgrade)
+                                    .unwrap_or_default();
+                                auto_upgrade.set(current);
+                                current
+                            }
+                            id="auto_upgrade"
+                            type="checkbox"
+                            on:change=move |ev| { auto_upgrade.set(event_target_checked(&ev)) }
+                            class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                        />
+                        <label
+                            for="auto_upgrade"
+                            class="ms-2 text-sm font-medium text-gray-900 dark:text-gray-300"
+                        >
+                            "Nodes auto-upgrading"
+                        </label>
+                    </div>
+                    <NumberInput
+                        signal=auto_upgrade_delay
+                        default=current_values
+                            .get()
+                            .map(|s| s.nodes_auto_upgrade_delay.as_secs())
+                            .unwrap_or_default()
+                        min=0
+                        label="Delay (in seconds) between nodes upgrading when auto-upgrading is enabled"
                     />
-                    <label
-                        for="auto_upgrade"
-                        class="ms-2 text-sm font-medium text-gray-900 dark:text-gray-300"
-                    >
-                        "Nodes auto-upgrading"
-                    </label>
-                </div>
-                <NumberInput
-                    signal=auto_upgrade_delay
-                    default=current_values
-                        .get()
-                        .map(|s| s.nodes_auto_upgrade_delay.as_secs())
-                        .unwrap_or_default()
-                    min=0
-                    label="Delay (in seconds) between nodes upgrading when auto-upgrading is enabled"
-                />
-                <NumberInput
-                    signal=bin_version_polling_freq
-                    default=current_values
-                        .get()
-                        .map(|s| s.node_bin_version_polling_freq.as_secs())
-                        .unwrap_or_default()
-                    min=3600
-                    label="How often (in seconds) to check which is the latest version of the node binary"
-                />
-                <NumberInput
-                    signal=balances_retrieval_freq
-                    default=current_values
-                        .get()
-                        .map(|s| s.rewards_balances_retrieval_freq.as_secs())
-                        .unwrap_or_default()
-                    min=600
-                    label="How often (in seconds) to query balances from the ledger using the configured L2 network RPC URL and token contract address"
-                />
-                <NumberInput
-                    signal=metrics_polling_freq
-                    default=current_values
-                        .get()
-                        .map(|s| s.nodes_metrics_polling_freq.as_secs())
-                        .unwrap_or_default()
-                    min=5
-                    label="How often (in seconds) to fetch metrics and node info from active/running nodes"
-                />
-                <TextInput
-                    signal=l2_network_rpc_url
-                    default=current_values.get().map(|s| s.l2_network_rpc_url).unwrap_or_default()
-                    label="RPC URL to send queries to get rewards addresses balances from L2 network:"
-                    validator=|v| { v.parse::<Url>().map_err(|err| err.to_string()).map(|_| v) }
-                />
-                <TextInput
-                    signal=token_contract_address
-                    default=current_values
-                        .get()
-                        .map(|s| s.token_contract_address)
-                        .unwrap_or_default()
-                    label="ERC20 token contract address:"
-                    validator=|v| { v.parse::<Address>().map_err(|err| err.to_string()).map(|_| v) }
-                />
-
-                <div class="flex items-center">
-                    <input
-                        checked=move || {
-                            let current = current_values
-                                .get()
-                                .map(|s| s.lcd_display_enabled)
-                                .unwrap_or_default();
-                            lcd_enabled.set(current);
-                            current
-                        }
-                        id="lcd_enabled"
-                        type="checkbox"
-                        on:change=move |ev| { lcd_enabled.set(event_target_checked(&ev)) }
-                        class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                    <NumberInput
+                        signal=bin_version_polling_freq
+                        default=current_values
+                            .get()
+                            .map(|s| s.node_bin_version_polling_freq.as_secs())
+                            .unwrap_or_default()
+                        min=3600
+                        label="How often (in seconds) to check which is the latest version of the node binary"
                     />
-                    <label
-                        for="lcd_enabled"
-                        class="ms-2 text-sm font-medium text-gray-900 dark:text-gray-300"
-                    >
-                        "Display nodes stats in external LCD device"
-                    </label>
-                </div>
-                <TextInput
-                    signal=lcd_device
-                    default=current_values.get().map(|s| s.lcd_device).unwrap_or_default()
-                    label="LCD display bus number:"
-                    validator=|v| { v.parse::<u8>().map_err(|err| err.to_string()).map(|_| v) }
-                />
-                <TextInput
-                    signal=lcd_addr
-                    default=current_values.get().map(|s| s.lcd_addr).unwrap_or_default()
-                    label="LCD display address:"
-                    validator=|v| {
-                        u16::from_str_radix(&v.strip_prefix("0x").unwrap_or(&v), 16)
-                            .map_err(|err| err.to_string())
-                            .map(|_| v)
-                    }
-                />
-
-                <button
-                    type="button"
-                    disabled=move || {
-                        auto_upgrade_delay.get().is_err() || bin_version_polling_freq.get().is_err()
-                            || balances_retrieval_freq.get().is_err()
-                            || metrics_polling_freq.get().is_err()
-                            || l2_network_rpc_url.get().is_err()
-                            || token_contract_address.get().is_err()
-                    }
-
-                    on:click=move |_| {
-                        let values = (
-                            auto_upgrade_delay.get_untracked(),
-                            bin_version_polling_freq.get_untracked(),
-                            balances_retrieval_freq.get_untracked(),
-                            metrics_polling_freq.get_untracked(),
-                            l2_network_rpc_url.get_untracked(),
-                            token_contract_address.get_untracked(),
-                            lcd_device.get_untracked(),
-                            lcd_addr.get_untracked(),
-                        );
-                        if let (Ok(v1), Ok(v2), Ok(v3), Ok(v4), Ok(v5), Ok(v6), Ok(v7), Ok(v8)) = values {
-                            update_settings_action
-                                .dispatch(AppSettings {
-                                    nodes_auto_upgrade: auto_upgrade.get_untracked(),
-                                    nodes_auto_upgrade_delay: Duration::from_secs(v1),
-                                    node_bin_version_polling_freq: Duration::from_secs(v2),
-                                    rewards_balances_retrieval_freq: Duration::from_secs(v3),
-                                    nodes_metrics_polling_freq: Duration::from_secs(v4),
-                                    l2_network_rpc_url: v5,
-                                    token_contract_address: v6,
-                                    lcd_display_enabled: lcd_enabled.get_untracked(),
-                                    lcd_device: v7,
-                                    lcd_addr: v8,
-                                });
+                    <NumberInput
+                        signal=balances_retrieval_freq
+                        default=current_values
+                            .get()
+                            .map(|s| s.rewards_balances_retrieval_freq.as_secs())
+                            .unwrap_or_default()
+                        min=600
+                        label="How often (in seconds) to query balances from the ledger using the configured L2 network RPC URL and token contract address"
+                    />
+                    <NumberInput
+                        signal=metrics_polling_freq
+                        default=current_values
+                            .get()
+                            .map(|s| s.nodes_metrics_polling_freq.as_secs())
+                            .unwrap_or_default()
+                        min=5
+                        label="How often (in seconds) to fetch metrics and node info from active/running nodes"
+                    />
+                    <TextInput
+                        signal=l2_network_rpc_url
+                        default=current_values
+                            .get()
+                            .map(|s| s.l2_network_rpc_url)
+                            .unwrap_or_default()
+                        label="RPC URL to send queries to get rewards addresses balances from L2 network:"
+                        validator=|v| { v.parse::<Url>().map_err(|err| err.to_string()).map(|_| v) }
+                    />
+                    <TextInput
+                        signal=token_contract_address
+                        default=current_values
+                            .get()
+                            .map(|s| s.token_contract_address)
+                            .unwrap_or_default()
+                        label="ERC20 token contract address:"
+                        validator=|v| {
+                            v.parse::<Address>().map_err(|err| err.to_string()).map(|_| v)
                         }
-                    }
-                    class="text-white bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-4 focus:ring-gray-300 font-medium rounded-lg text-sm px-5 py-2.5 me-2 mb-2 dark:bg-gray-800 dark:hover:bg-gray-700 dark:focus:ring-gray-700 dark:border-gray-700"
-                >
-                    Save
-                </button>
+                    />
+                </form>
+            </span>
 
-            </form>
+            <span hidden=move || active_tab.get() != 1>
+                <form class="space-y-4">
+                    <div class="flex items-center">
+                        <input
+                            checked=move || {
+                                let current = current_values
+                                    .get()
+                                    .map(|s| s.lcd_display_enabled)
+                                    .unwrap_or_default();
+                                lcd_enabled.set(current);
+                                current
+                            }
+                            id="lcd_enabled"
+                            type="checkbox"
+                            on:change=move |ev| { lcd_enabled.set(event_target_checked(&ev)) }
+                            class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                        />
+                        <label
+                            for="lcd_enabled"
+                            class="ms-2 text-sm font-medium text-gray-900 dark:text-gray-300"
+                        >
+                            "Display nodes stats in external LCD device"
+                        </label>
+                    </div>
+                    <TextInput
+                        signal=lcd_device
+                        default=current_values.get().map(|s| s.lcd_device).unwrap_or_default()
+                        label="LCD display bus number:"
+                        validator=|v| { v.parse::<u8>().map_err(|err| err.to_string()).map(|_| v) }
+                    />
+                    <TextInput
+                        signal=lcd_addr
+                        default=current_values.get().map(|s| s.lcd_addr).unwrap_or_default()
+                        label="LCD display address:"
+                        validator=|v| {
+                            u16::from_str_radix(&v.strip_prefix("0x").unwrap_or(&v), 16)
+                                .map_err(|err| err.to_string())
+                                .map(|_| v)
+                        }
+                    />
+                </form>
+            </span>
+            <button
+                type="button"
+                disabled=move || {
+                    auto_upgrade_delay.get().is_err() || bin_version_polling_freq.get().is_err()
+                        || balances_retrieval_freq.get().is_err()
+                        || metrics_polling_freq.get().is_err() || l2_network_rpc_url.get().is_err()
+                        || token_contract_address.get().is_err()
+                }
+
+                on:click=move |_| {
+                    let values = (
+                        auto_upgrade_delay.get_untracked(),
+                        bin_version_polling_freq.get_untracked(),
+                        balances_retrieval_freq.get_untracked(),
+                        metrics_polling_freq.get_untracked(),
+                        l2_network_rpc_url.get_untracked(),
+                        token_contract_address.get_untracked(),
+                        lcd_device.get_untracked(),
+                        lcd_addr.get_untracked(),
+                    );
+                    if let (Ok(v1), Ok(v2), Ok(v3), Ok(v4), Ok(v5), Ok(v6), Ok(v7), Ok(v8)) = values {
+                        update_settings_action
+                            .dispatch(AppSettings {
+                                nodes_auto_upgrade: auto_upgrade.get_untracked(),
+                                nodes_auto_upgrade_delay: Duration::from_secs(v1),
+                                node_bin_version_polling_freq: Duration::from_secs(v2),
+                                rewards_balances_retrieval_freq: Duration::from_secs(v3),
+                                nodes_metrics_polling_freq: Duration::from_secs(v4),
+                                l2_network_rpc_url: v5,
+                                token_contract_address: v6,
+                                lcd_display_enabled: lcd_enabled.get_untracked(),
+                                lcd_device: v7,
+                                lcd_addr: v8,
+                            });
+                    }
+                }
+                class="text-white bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-4 focus:ring-gray-300 font-medium rounded-lg text-sm px-5 py-2.5 me-2 mb-2 dark:bg-gray-800 dark:hover:bg-gray-700 dark:focus:ring-gray-700 dark:border-gray-700"
+            >
+                Save
+            </button>
+
         </Suspense>
     }
 }
