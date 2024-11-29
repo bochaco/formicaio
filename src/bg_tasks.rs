@@ -2,7 +2,7 @@ use super::{
     app::{AppSettings, METRICS_MAX_SIZE_PER_CONTAINER},
     db_client::DbClient,
     docker_client::DockerClient,
-    lcd::setup_lcd,
+    lcd::display_stats_on_lcd,
     metrics_client::{NodeMetricsClient, NodesMetrics},
     node_instance::{ContainerId, NodeInstanceInfo},
     node_rpc_client::NodeRpcClient,
@@ -149,8 +149,22 @@ pub fn spawn_bg_tasks(
     // Token contract used to query rewards balances.
     let mut token_contract = update_token_contract(&ctx);
 
+    let stats: HashMap<String, String> = [(
+        "Formicaio".to_string(),
+        format!("v{}", env!("CARGO_PKG_VERSION")),
+    )]
+    .into_iter()
+    .collect();
+    let lcd_stats = Arc::new(Mutex::new(stats));
+
     // Based on settings, setup LCD external device to display stats.
-    let lcd_stats = setup_lcd(ctx.app_settings.clone(), updated_settings_rx.resubscribe());
+    if ctx.app_settings.lcd_display_enabled {
+        tokio::spawn(display_stats_on_lcd(
+            ctx.app_settings.clone(),
+            updated_settings_rx.resubscribe(),
+            lcd_stats.clone(),
+        ));
+    }
 
     tokio::spawn(async move {
         loop {
@@ -159,10 +173,26 @@ pub fn spawn_bg_tasks(
                     if let Ok(s) = settings {
                         let prev_addr = ctx.app_settings.token_contract_address.clone();
                         let prev_url = ctx.app_settings.l2_network_rpc_url.clone();
+
+                        if s.lcd_display_enabled && (!ctx.app_settings.lcd_display_enabled
+                            || ctx.app_settings.lcd_device != s.lcd_device
+                            || ctx.app_settings.lcd_addr != s.lcd_addr)
+                        {
+                            logging::log!("Setting up LCD display with new device parameters...");
+                            // TODO: when it fails, send error back to the client,
+                            // perhaps we need websockets for errors like this one.
+                            tokio::spawn(display_stats_on_lcd(
+                                s.clone(),
+                                updated_settings_rx.resubscribe(),
+                                lcd_stats.clone()
+                            ));
+                        }
+
                         ctx.apply_settings(s);
 
                         if prev_addr != ctx.app_settings.token_contract_address
-                            || prev_url != ctx.app_settings.l2_network_rpc_url {
+                            || prev_url != ctx.app_settings.l2_network_rpc_url
+                        {
                             token_contract = update_token_contract(&ctx);
                         }
                     }
@@ -332,53 +362,33 @@ async fn update_nodes_info(
     poll_rpc_api: bool,
     lcd_stats: &Arc<Mutex<HashMap<String, String>>>,
 ) {
-    let containers = match docker_client.get_containers_list(true).await {
-        Ok(containers) if !containers.is_empty() => containers,
-        Err(err) => {
+    let containers = docker_client
+        .get_containers_list(true)
+        .await
+        .unwrap_or_else(|err| {
             logging::log!("Failed to get containers list: {err}");
-            remove_lcd_stats(
-                lcd_stats,
-                &[
-                    LCD_LABEL_NET_SIZE,
-                    LCD_LABEL_ACTIVE_NODES,
-                    LCD_LABEL_STORED_RECORDS,
-                    LCD_LABEL_BIN_VERSION,
-                ],
-            )
-            .await;
-            return;
-        }
-        _ => {
-            logging::log!("No nodes to retrieve metrics from...");
-            remove_lcd_stats(
-                lcd_stats,
-                &[
-                    LCD_LABEL_NET_SIZE,
-                    LCD_LABEL_ACTIVE_NODES,
-                    LCD_LABEL_STORED_RECORDS,
-                    LCD_LABEL_BIN_VERSION,
-                ],
-            )
-            .await;
-            return;
-        }
-    };
+            vec![]
+        });
 
+    let num_nodes = containers.len();
+    if num_nodes > 0 {
+        logging::log!("Fetching status and metrics from {num_nodes} node/s ...");
+    }
+
+    // let's collect stats to update LCD (if enabled)
     let mut balance = alloy::primitives::U256::from(0);
     let mut net_size = 0;
     let mut weights = 0;
-    let num_nodes = containers.len();
+    let mut num_active_nodes = 0;
     let mut records = 0;
     let mut bin_version = HashSet::<String>::new();
 
-    logging::log!(
-        "Fetching status and metrics from {} node/s ...",
-        containers.len()
-    );
     for container in containers.into_iter() {
         let mut node_info: NodeInstanceInfo = container.into();
 
         if node_info.status.is_active() {
+            num_active_nodes += 1;
+
             if poll_rpc_api {
                 // let's fetch up to date info using its RPC API
                 if let Some(port) = node_info.rpc_api_port {
@@ -425,19 +435,33 @@ async fn update_nodes_info(
             .await;
     }
 
-    let weighted_avg = if weights == 0 { 0 } else { net_size / weights };
-    let bin_versions = bin_version.into_iter().collect::<Vec<_>>().join(",");
+    let mut updated_vals = vec![(
+        LCD_LABEL_ACTIVE_NODES,
+        format!("{num_active_nodes}/{num_nodes}"),
+    )];
+    if num_active_nodes > 0 {
+        let weighted_avg = if weights > 0 { net_size / weights } else { 0 };
+        let bin_versions = bin_version.into_iter().collect::<Vec<_>>().join(",");
 
-    update_lcd_stats(
-        lcd_stats,
-        &[
+        updated_vals.extend([
             (LCD_LABEL_NET_SIZE, weighted_avg.to_string()),
-            (LCD_LABEL_ACTIVE_NODES, num_nodes.to_string()),
             (LCD_LABEL_STORED_RECORDS, records.to_string()),
             (LCD_LABEL_BIN_VERSION, bin_versions),
-        ],
-    )
-    .await;
+        ]);
+    } else {
+        logging::log!("No active nodes to retrieve metrics from...");
+        remove_lcd_stats(
+            lcd_stats,
+            &[
+                LCD_LABEL_NET_SIZE,
+                LCD_LABEL_STORED_RECORDS,
+                LCD_LABEL_BIN_VERSION,
+            ],
+        )
+        .await;
+    };
+
+    update_lcd_stats(lcd_stats, &updated_vals).await;
 }
 
 // Prune metrics records from the cache DB to always keep the number of records within a limit.

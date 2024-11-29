@@ -1,5 +1,6 @@
 use super::app::AppSettings;
 
+use eyre::eyre;
 use i2cdev::{
     core::I2CDevice,
     linux::{LinuxI2CDevice, LinuxI2CError},
@@ -16,67 +17,26 @@ use tokio::{
 // Delay between each stat shown on the LCD device.
 const LCD_DELAY_SECS: u64 = 4;
 
-// Setup communication with external LCD device if enabled in app settings.
-pub fn setup_lcd(
-    settings: AppSettings,
-    updated_settings_rx: broadcast::Receiver<AppSettings>,
-) -> Arc<Mutex<HashMap<String, String>>> {
-    let stats = Arc::new(Mutex::new(HashMap::<String, String>::new()));
-    tokio::spawn(display_stats_on_lcd(
-        settings,
-        updated_settings_rx,
-        stats.clone(),
-    ));
-
-    stats
-}
-
 // Helper to setup I2C interface with given I2C bus number and address.
-fn setup_i2c(settings: &AppSettings) -> Option<Display<Pcf8574>> {
-    if !settings.lcd_display_enabled {
-        return None;
-    }
+fn setup_i2c(settings: &AppSettings) -> Result<Display<Pcf8574>, eyre::Error> {
+    let i2c_bus_str = &settings.lcd_device;
+    let i2c_bus_number = u8::from_str_radix(i2c_bus_str, 10).map_err(|err| {
+        eyre!("Failed to setup LCD display. Invalid I2C bus number {i2c_bus_str}: {err}")
+    })?;
 
-    let i2c_bus_str = settings.lcd_device.clone();
     let i2c_addr_str = settings
         .lcd_addr
         .strip_prefix("0x")
         .unwrap_or(&settings.lcd_addr)
         .to_string();
+    let i2c_addr = u16::from_str_radix(&i2c_addr_str, 16).map_err(|err| {
+        eyre!("Failed to setup LCD display. Invalid I2C address 0x{i2c_addr_str}: {err}")
+    })?;
 
-    let i2c_bus_number = match u8::from_str_radix(&i2c_bus_str, 10) {
-        Ok(n) => n,
-        Err(err) => {
-            logging::log!(
-                "[ERROR] Failed to setup LCD display. Invalid I2C bus number {i2c_bus_str}: {err}"
-            );
-            return None;
-        }
-    };
+    let pcf_8574 = Pcf8574::new(i2c_bus_number, i2c_addr) .map_err(|err| {
+        eyre!("Failed to setup LCD display with I2C device /dev/i2c-{i2c_bus_number} and address 0x{i2c_addr_str}: {err}")
+    })?;
 
-    let i2c_addr = match u16::from_str_radix(&i2c_addr_str, 16) {
-        Ok(n) => n,
-        Err(err) => {
-            logging::log!(
-                "[ERROR] Failed to setup LCD display. Invalid I2C address 0x{i2c_addr_str}: {err}"
-            );
-            return None;
-        }
-    };
-
-    let pcf_8574 = match Pcf8574::new(i2c_bus_number, i2c_addr) {
-        Ok(n) => n,
-        Err(err) => {
-            logging::log!(
-                "[ERROR] Failed to setup LCD display with I2C device /dev/i2c-{i2c_bus_number} and address 0x{i2c_addr_str}: {err}"
-            );
-            return None;
-        }
-    };
-
-    println!(
-        "LCD device configured with I2C device: /dev/i2c-{i2c_bus_number}, address: 0x{i2c_addr_str}."
-    );
     let mut display = lcd::Display::new(pcf_8574);
     display.init(lcd::FunctionLine::Line2, lcd::FunctionDots::Dots5x8);
     display.display(
@@ -85,18 +45,29 @@ fn setup_i2c(settings: &AppSettings) -> Option<Display<Pcf8574>> {
         lcd::DisplayBlink::BlinkOff,
     );
 
-    Some(display)
+    Ok(display)
 }
 
 // Watch the stats and display them on the external LCD device.
-async fn display_stats_on_lcd(
+pub async fn display_stats_on_lcd(
     settings: AppSettings,
     mut updated_settings_rx: broadcast::Receiver<AppSettings>,
     stats: Arc<Mutex<HashMap<String, String>>>,
 ) {
-    let mut cur_bus = settings.lcd_device.clone();
-    let mut cur_addr = settings.lcd_addr.clone();
-    let mut display = setup_i2c(&settings);
+    let cur_lcd_device = settings.lcd_device.clone();
+    let cur_lcd_addr = settings.lcd_addr.clone();
+    let mut display = match setup_i2c(&settings) {
+        Ok(d) => {
+            logging::log!(
+                "LCD device configured with I2C device: /dev/i2c-{cur_lcd_device}, address: 0x{cur_lcd_addr}."
+            );
+            d
+        }
+        Err(err) => {
+            logging::log!("[ERROR] {err}");
+            return;
+        }
+    };
 
     let delay = Duration::from_secs(LCD_DELAY_SECS);
     let mut update_lcd = interval(delay);
@@ -105,40 +76,30 @@ async fn display_stats_on_lcd(
         select! {
             settings = updated_settings_rx.recv() => {
                 if let Ok(s) = settings {
-                    if !s.lcd_display_enabled {
-                        if let Some(d) = display {
-                            logging::log!("Disabling LCD display...");
-                            let mut pcf_8574: Pcf8574 = d.unwrap();
-                            pcf_8574.backlight(false);
-                            display = None;
-                        }
-                    } else if display.is_none() || cur_bus != s.lcd_device
-                        || cur_addr != s.lcd_addr {
-                        logging::log!("Setting up LCD display with new device parameters...");
-                        // TODO: when it fails, send error back to the client,
-                        // perhaps we need websockets for errors like this one.
-                        display = setup_i2c(&s);
+                    if !s.lcd_display_enabled
+                        || cur_lcd_device != s.lcd_device
+                        || cur_lcd_addr != s.lcd_addr
+                    {
+                        logging::log!("Disabling LCD device on /dev/i2c-{cur_lcd_device}, address: 0x{cur_lcd_addr}...");
+                        let mut pcf_8574: Pcf8574 = display.unwrap();
+                        pcf_8574.backlight(false);
+                        return;
                     }
-
-                    cur_bus = s.lcd_device.clone();
-                    cur_addr = s.lcd_addr.clone();
                 }
             },
             _ = update_lcd.tick() => {
-                if let Some(ref mut display) = display {
-                    let stats_clone = { stats.lock().await.clone() };
-                    logging::log!("Updating stats on LCD display...");
-                    for (k, v) in stats_clone.iter() {
-                        display.clear();
-                        display.home();
-                        display.print(&k);
-                        display.position(15 - v.len() as u8, 1);
-                        display.print(&v);
-                        sleep(delay).await;
-                    }
-
-                    update_lcd.reset_after(update_lcd.period());
+                let stats_clone = { stats.lock().await.clone() };
+                logging::log!("Updating stats on LCD device...");
+                for (k, v) in stats_clone.iter() {
+                    display.clear();
+                    display.home();
+                    display.print(&k);
+                    display.position(15 - v.len() as u8, 1);
+                    display.print(&v);
+                    sleep(delay).await;
                 }
+
+                update_lcd.reset_after(update_lcd.period());
             }
         }
     }
