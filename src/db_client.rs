@@ -173,7 +173,14 @@ impl DbClient {
             .fetch_all(&*db_lock)
             .await
         {
-            Ok(records) => records.first().map(|r| r.get("bin_version")),
+            Ok(records) => records.first().and_then(|r| {
+                let v: String = r.get("bin_version");
+                if v.is_empty() {
+                    None
+                } else {
+                    Some(v)
+                }
+            }),
             Err(err) => {
                 logging::log!("Sqlite bin version query error: {err}");
                 None
