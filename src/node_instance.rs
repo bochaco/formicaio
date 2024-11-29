@@ -86,7 +86,6 @@ pub struct NodeInstanceInfo {
     pub status_info: String,
     pub bin_version: Option<String>,
     pub port: Option<u16>,
-    pub rpc_api_port: Option<u16>,
     pub metrics_port: Option<u16>,
     pub node_ip: Option<String>,
     pub balance: Option<U256>,

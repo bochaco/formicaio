@@ -22,8 +22,6 @@ use url::form_urlencoded;
 // Label's key to set to each container created, so we can then use as
 // filter when fetching the list of them.
 const LABEL_KEY_VERSION: &str = "formica_version";
-// Label's key to cache node's RPC API port number
-pub const LABEL_KEY_RPC_PORT: &str = "rpc_api_port";
 // Label's key to cache node's port number
 pub const LABEL_KEY_NODE_PORT: &str = "node_port";
 // Label's key to cache node's metrics port number
@@ -168,7 +166,10 @@ impl DockerClient {
     }
 
     // Request the Docker server to START a container matching the given id
-    pub async fn start_container(&self, id: &ContainerId) -> Result<(), DockerClientError> {
+    pub async fn start_container(
+        &self,
+        id: &ContainerId,
+    ) -> Result<(Option<String>, Option<String>), DockerClientError> {
         let url = format!("{DOCKER_CONTAINERS_API}/{id}/start");
         logging::log!("[START] Sending Docker request to START a container: {url} ...");
         self.send_request(ReqMethod::Post, &url, &[], &()).await?;
@@ -186,7 +187,8 @@ impl DockerClient {
         self.send_request(ReqMethod::Post, &url, &[], &container_update_req)
             .await?;
 
-        Ok(())
+        // let's try to retrieve new version, forget it if there is any error
+        self.get_node_version_and_peer_id(id).await
     }
 
     // Request the Docker server to STOP a container matching the given id
@@ -201,21 +203,21 @@ impl DockerClient {
     pub async fn create_new_container(
         &self,
         port: u16,
-        rpc_api_port: u16,
         metrics_port: u16,
         rewards_addr: String,
     ) -> Result<ContainerId, DockerClientError> {
         let url = format!("{DOCKER_CONTAINERS_API}/create");
-        let mapped_ports = vec![port, rpc_api_port];
+        // we don't expose/map the metrics_port from here since we had to expose it
+        // with nginx from within the dockerfile.
+        let mapped_ports = vec![port];
+
         let mut labels = vec![
             (LABEL_KEY_VERSION.to_string(), self.node_image_tag.clone()),
-            (LABEL_KEY_RPC_PORT.to_string(), rpc_api_port.to_string()),
             (LABEL_KEY_NODE_PORT.to_string(), port.to_string()),
             (LABEL_KEY_METRICS_PORT.to_string(), metrics_port.to_string()),
         ];
         let mut env_vars = vec![
             format!("NODE_PORT={port}"),
-            format!("RPC_PORT={rpc_api_port}"),
             format!("METRICS_PORT={metrics_port}"),
         ];
         if !rewards_addr.is_empty() {
@@ -339,7 +341,10 @@ impl DockerClient {
         }
 
         // let's try to retrieve new version, forget it if there is any error
-        let new_version = self.get_node_bin_version(id).await.unwrap_or_default();
+        let (new_version, _) = self
+            .get_node_version_and_peer_id(id)
+            .await
+            .unwrap_or_default();
 
         // restart container to run with new node version
         let url = format!("{DOCKER_CONTAINERS_API}/{id}/restart");
@@ -349,11 +354,11 @@ impl DockerClient {
         Ok(new_version)
     }
 
-    // Retrieve version of the node binary
-    async fn get_node_bin_version(
+    // Retrieve version of the node binary and its peer id
+    async fn get_node_version_and_peer_id(
         &self,
         id: &ContainerId,
-    ) -> Result<Option<String>, DockerClientError> {
+    ) -> Result<(Option<String>, Option<String>), DockerClientError> {
         let cmd = "/app/safenode --version | grep -oE 'Autonomi Node v[0-9]+\\.[0-9]+\\.[0-9]+'"
             .to_string();
         let (_, resp_str) = self
@@ -365,9 +370,21 @@ impl DockerClient {
         } else {
             None
         };
-
         logging::log!("Node bin version in container {id}: {version:?}");
-        Ok(version)
+
+        let cmd = "cat node_data/secret-key | od -A n -t x1 | tr -d ' \n'".to_string();
+        let (_, resp_str) = self.exec_in_container(id, cmd, "get node peer id").await?;
+
+        let peer_id = if let Ok(keypair) =
+            libp2p_identity::Keypair::ed25519_from_bytes(hex::decode(resp_str).unwrap_or_default())
+        {
+            Some(libp2p_identity::PeerId::from(keypair.public()).to_string())
+        } else {
+            None
+        };
+        logging::log!("Node peer id in container {id}: {peer_id:?}");
+
+        Ok((version, peer_id))
     }
 
     // Helper to execute a cmd in a given container

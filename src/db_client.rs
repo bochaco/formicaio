@@ -59,7 +59,6 @@ struct CachedNodeMetadata {
     peer_id: String,
     bin_version: String,
     port: u16,
-    rpc_api_port: u16,
     rewards: String,
     balance: String,
     records: String,
@@ -82,9 +81,6 @@ impl CachedNodeMetadata {
         }
         if self.port > 0 {
             info.port = Some(self.port);
-        }
-        if self.rpc_api_port > 0 {
-            info.rpc_api_port = Some(self.rpc_api_port);
         }
         if !self.rewards.is_empty() {
             if let Ok(v) = U256::from_str(&self.rewards) {
@@ -169,6 +165,22 @@ impl DbClient {
         }
     }
 
+    // Retrieve node binary version from local cache DB
+    pub async fn get_node_bin_version(&self, container_id: &str) -> Option<String> {
+        let db_lock = self.db.lock().await;
+        match sqlx::query("SELECT bin_version FROM nodes WHERE container_id=?")
+            .bind(container_id)
+            .fetch_all(&*db_lock)
+            .await
+        {
+            Ok(records) => records.first().map(|r| r.get("bin_version")),
+            Err(err) => {
+                logging::log!("Sqlite bin version query error: {err}");
+                None
+            }
+        }
+    }
+
     // Retrieve the list of nodes which have a binary version not matching the provided version
     // TODO: use semantic version to make the comparison.
     pub async fn get_outdated_nodes_list(
@@ -177,7 +189,7 @@ impl DbClient {
     ) -> Result<Vec<(ContainerId, String)>, DbError> {
         let db_lock = self.db.lock().await;
         let data = sqlx::query(
-            "SELECT container_id,bin_version FROM nodes WHERE status = ? AND bin_version != ?",
+            "SELECT container_id, bin_version FROM nodes WHERE status = ? AND bin_version != ?",
         )
         .bind(json!(NodeStatus::Active).to_string())
         .bind(version)
@@ -198,16 +210,14 @@ impl DbClient {
         let query_str = format!(
             "INSERT OR REPLACE INTO nodes (\
                 container_id, status, port, \
-                rpc_api_port, records, \
-                connected_peers, kbuckets_peers \
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)"
+                records, connected_peers, kbuckets_peers \
+            ) VALUES (?, ?, ?, ?, ?, ?)"
         );
 
         match sqlx::query(&query_str)
             .bind(info.container_id.clone())
             .bind(json!(info.status).to_string())
             .bind(info.port.clone())
-            .bind(info.rpc_api_port.clone())
             .bind(info.records.map_or("".to_string(), |v| v.to_string()))
             .bind(
                 info.connected_peers

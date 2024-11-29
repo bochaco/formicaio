@@ -5,7 +5,6 @@ use super::{
     lcd::display_stats_on_lcd,
     metrics_client::{NodeMetricsClient, NodesMetrics},
     node_instance::{ContainerId, NodeInstanceInfo},
-    node_rpc_client::NodeRpcClient,
     server_api::helper_upgrade_node_instance,
 };
 use alloy::{
@@ -125,16 +124,12 @@ pub fn spawn_bg_tasks(
     latest_bin_version: Arc<Mutex<Option<String>>>,
     nodes_metrics: Arc<Mutex<NodesMetrics>>,
     db_client: DbClient,
-    server_api_hit: Arc<Mutex<bool>>,
     node_status_locked: Arc<Mutex<HashSet<ContainerId>>>,
     mut updated_settings_rx: broadcast::Receiver<AppSettings>,
     settings: AppSettings,
 ) {
     logging::log!("App settings to use: {settings:#?}");
     let mut ctx = TasksContext::from(settings);
-
-    // we start a count down to stop polling RPC API when there is no active client
-    let mut poll_rpc_countdown = 5;
 
     // helper which create a new contract if the new configured values are valid.
     let update_token_contract = |ctx: &TasksContext| match ctx.parse_token_addr_and_rpc_url() {
@@ -232,14 +227,7 @@ pub fn spawn_bg_tasks(
                     ));
                 },
                 _ = ctx.nodes_metrics_polling.tick() => {
-                    if *server_api_hit.lock().await {
-                        // reset the countdown to five more cycles
-                        poll_rpc_countdown = 5;
-                        *server_api_hit.lock().await = false;
-                    } else if poll_rpc_countdown > 0 {
-                        poll_rpc_countdown -= 1;
-                    }
-                    let poll_rpc_api = poll_rpc_countdown > 0;
+                    let query_bin_version = ctx.app_settings.lcd_display_enabled;
 
                     // we don't spawn a task for this one just in case it's taking
                     // too long to complete and we may start overwhelming the backend
@@ -249,7 +237,7 @@ pub fn spawn_bg_tasks(
                         &nodes_metrics,
                         &db_client,
                         &node_status_locked,
-                        poll_rpc_api,
+                        query_bin_version,
                         &lcd_stats
                     ).await;
                     // reset interval to start next period from this instant,
@@ -359,7 +347,7 @@ async fn update_nodes_info(
     nodes_metrics: &Arc<Mutex<NodesMetrics>>,
     db_client: &DbClient,
     node_status_locked: &Arc<Mutex<HashSet<ContainerId>>>,
-    poll_rpc_api: bool,
+    query_bin_version: bool,
     lcd_stats: &Arc<Mutex<HashMap<String, String>>>,
 ) {
     let containers = docker_client
@@ -376,7 +364,6 @@ async fn update_nodes_info(
     }
 
     // let's collect stats to update LCD (if enabled)
-    let mut balance = alloy::primitives::U256::from(0);
     let mut net_size = 0;
     let mut weights = 0;
     let mut num_active_nodes = 0;
@@ -388,20 +375,6 @@ async fn update_nodes_info(
 
         if node_info.status.is_active() {
             num_active_nodes += 1;
-
-            if poll_rpc_api {
-                // let's fetch up to date info using its RPC API
-                if let Some(port) = node_info.rpc_api_port {
-                    match NodeRpcClient::new(&node_info.node_ip, port) {
-                        Ok(node_rpc_client) => {
-                            node_rpc_client.update_node_info(&mut node_info).await;
-                        }
-                        Err(err) => {
-                            logging::log!("Failed to connect to RPC API endpoint: {err}")
-                        }
-                    }
-                }
-            }
 
             if let Some(metrics_port) = node_info.metrics_port {
                 // let's now collect metrics from the node
@@ -417,15 +390,6 @@ async fn update_nodes_info(
             }
         }
 
-        balance += node_info.balance.unwrap_or_default();
-        net_size +=
-            node_info.connected_peers.unwrap_or_default() * node_info.net_size.unwrap_or_default();
-        weights += node_info.connected_peers.unwrap_or_default();
-        records += node_info.records.unwrap_or_default();
-        if let Some(ref version) = node_info.bin_version {
-            bin_version.insert(version.clone());
-        }
-
         let update_status = !node_status_locked
             .lock()
             .await
@@ -433,6 +397,19 @@ async fn update_nodes_info(
         db_client
             .update_node_metadata(&node_info, update_status)
             .await;
+
+        net_size +=
+            node_info.connected_peers.unwrap_or_default() * node_info.net_size.unwrap_or_default();
+        weights += node_info.connected_peers.unwrap_or_default();
+        records += node_info.records.unwrap_or_default();
+        if query_bin_version {
+            if let Some(ref version) = db_client
+                .get_node_bin_version(&node_info.container_id)
+                .await
+            {
+                bin_version.insert(version.clone());
+            }
+        }
     }
 
     let mut updated_vals = vec![(

@@ -30,7 +30,6 @@ pub struct NodesInstancesInfo {
 #[server(ListNodeInstances, "/api", "Url", "/list_nodes")]
 pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
-    *context.server_api_hit.lock().await = true;
     let latest_bin_version = context.latest_bin_version.lock().await.clone();
     let containers = context.docker_client.get_containers_list(true).await?;
 
@@ -65,15 +64,14 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
 #[server(CreateNodeInstance, "/api", "Url", "/create_node")]
 pub async fn create_node_instance(
     port: u16,
-    rpc_api_port: u16,
     metrics_port: u16,
     rewards_addr: String,
 ) -> Result<NodeInstanceInfo, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
-    logging::log!("Creating new node container with port {port}, RPC API port {rpc_api_port} ...");
+    logging::log!("Creating new node container with port {port} ...");
     let container_id = context
         .docker_client
-        .create_new_container(port, rpc_api_port, metrics_port, rewards_addr.clone())
+        .create_new_container(port, metrics_port, rewards_addr.clone())
         .await?;
     logging::log!("New node container Id: {container_id} ...");
 
@@ -118,7 +116,18 @@ pub async fn start_node_instance(container_id: ContainerId) -> Result<(), Server
         .db_client
         .update_node_status(&container_id, NodeStatus::Restarting)
         .await;
-    context.docker_client.start_container(&container_id).await?;
+
+    let (version, peer_id) = context.docker_client.start_container(&container_id).await?;
+    context
+        .db_client
+        .update_node_metadata_fields(
+            &container_id,
+            &[
+                ("bin_version", &version.unwrap_or_default()),
+                ("peer_id", &peer_id.unwrap_or_default()),
+            ],
+        )
+        .await;
 
     Ok(())
 }

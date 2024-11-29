@@ -10,7 +10,6 @@ use std::num::ParseIntError;
 
 // TODO: find next available port numbers by looking at already used ones
 const DEFAULT_NODE_PORT: u16 = 12000;
-const DEFAULT_RPC_API_PORT: u16 = 13000;
 const DEFAULT_METRICS_PORT: u16 = 14000;
 
 // Expected length of entered hex-encoded rewards address.
@@ -19,23 +18,21 @@ const REWARDS_ADDR_LENGTH: usize = 40;
 #[component]
 pub fn AddNodeView() -> impl IntoView {
     let port = create_rw_signal(Ok(DEFAULT_NODE_PORT));
-    let rpc_port = create_rw_signal(Ok(DEFAULT_RPC_API_PORT));
     let metrics_port = create_rw_signal(Ok(DEFAULT_METRICS_PORT));
     let rewards_addr = create_rw_signal(Err((
         "Enter a rewards address".to_string(),
         "0x".to_string(),
     )));
     let add_node = create_action(
-        move |(port, rpc_port, metrics_port, rewards_addr): &(u16, u16, u16, String)| {
+        move |(port, metrics_port, rewards_addr): &(u16, u16, String)| {
             let port = *port;
-            let rpc_port = *rpc_port;
             let metrics_port = *metrics_port;
             let rewards_addr = rewards_addr
                 .strip_prefix("0x")
                 .unwrap_or(rewards_addr)
                 .to_string();
             async move {
-                let _ = add_node_instance(port, rpc_port, metrics_port, rewards_addr).await;
+                let _ = add_node_instance(port, metrics_port, rewards_addr).await;
             }
         },
     );
@@ -84,11 +81,6 @@ pub fn AddNodeView() -> impl IntoView {
                                     label="Port number:"
                                 />
                                 <PortNumberInput
-                                    signal=rpc_port
-                                    default=DEFAULT_RPC_API_PORT
-                                    label="RPC API port number:"
-                                />
-                                <PortNumberInput
                                     signal=metrics_port
                                     default=DEFAULT_METRICS_PORT
                                     label="Node metrics port number:"
@@ -98,19 +90,17 @@ pub fn AddNodeView() -> impl IntoView {
                                 <button
                                     type="button"
                                     disabled=move || {
-                                        port.get().is_err() || rpc_port.get().is_err()
-                                            || metrics_port.get().is_err()
+                                        port.get().is_err() || metrics_port.get().is_err()
                                             || rewards_addr.get().is_err()
                                     }
                                     on:click=move |_| {
                                         modal_visibility.set(false);
-                                        if let (Ok(p), Ok(r), Ok(m), Ok(addr)) = (
+                                        if let (Ok(p), Ok(m), Ok(addr)) = (
                                             port.get(),
-                                            rpc_port.get(),
                                             metrics_port.get(),
                                             rewards_addr.get(),
                                         ) {
-                                            add_node.dispatch((p, r, m, addr));
+                                            add_node.dispatch((p, m, addr));
                                         }
                                     }
                                     class="text-white bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-4 focus:ring-gray-300 font-medium rounded-lg text-sm px-5 py-2.5 me-2 mb-2 dark:bg-gray-800 dark:hover:bg-gray-700 dark:focus:ring-gray-700 dark:border-gray-700"

@@ -213,20 +213,14 @@ fn NodeInstanceView(
                             }}
                         </div>
                         <div class="basis-2/3">
-                            <span class="node-info-item">"RPC API Port: "</span>
+                            <span class="node-info-item">"Node metrics Port: "</span>
                             {move || {
                                 info.get()
-                                    .rpc_api_port
+                                    .metrics_port
                                     .map_or("unknown".to_string(), |v| v.to_string())
                             }}
                         </div>
                     </div>
-                </p>
-                <p>
-                    <span class="node-info-item">"Node metrics Port: "</span>
-                    {move || {
-                        info.get().metrics_port.map_or("unknown".to_string(), |v| v.to_string())
-                    }}
                 </p>
                 <p>
                     <span class="node-info-item">"Store cost: "</span>

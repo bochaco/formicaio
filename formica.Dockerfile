@@ -29,6 +29,7 @@ RUN /app/safenode --version
 # Set any required env variables
 # Set default port numbers for node and its RPC API
 ENV NODE_PORT=12000
+# RPC API usage is deprecated
 ENV RPC_PORT=13000
 ENV METRICS_PORT=14000
 
@@ -37,6 +38,7 @@ ENV METRICS_PORT=14000
 ENV REWARDS_ADDR_ARG=''
 
 EXPOSE $NODE_PORT
+# RPC API usage is deprecated
 EXPOSE $RPC_PORT
 EXPOSE $METRICS_PORT
 
