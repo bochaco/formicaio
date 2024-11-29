@@ -20,6 +20,7 @@ services:
 
   formicaio:
     image: bochaco/formicaio:latest
+    privileged: true
     depends_on:
       - docker
     stop_grace_period: 5s
@@ -32,3 +33,5 @@ services:
     volumes:
       - ./docker_volumes/formicaio:/data
       - ./docker_volumes/docker:/var/run
+    devices:
+      - /dev:/dev

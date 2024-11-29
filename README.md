@@ -57,12 +57,14 @@ $ docker compose down
 
 ## Displaying nodes stats on external LCD device
 
+<img src="img/lcd_00.png" width="350" height="263" />
 <img src="img/lcd_01.png" width="350" height="263" />
 <img src="img/lcd_02.png" width="350" height="263" />
 
 When running Formicaio on a Raspberry Pi, it is possible to connect an external LCD display and have Formicaio to show nodes stats on it, currently the following stats are shown:
+- Formicaio version
 - Estimated network size
-- Number of active/running nodes
+- Number of running nodes
 - Total number of stored records
 - Node binary version
 - Total rewards balance
