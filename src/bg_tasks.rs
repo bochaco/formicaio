@@ -149,7 +149,8 @@ pub fn spawn_bg_tasks(
     // Token contract used to query rewards balances.
     let mut token_contract = update_token_contract(&ctx);
 
-    let stats = setup_lcd(ctx.app_settings.clone(), updated_settings_rx.resubscribe());
+    // Based on settings, setup LCD external device to display stats.
+    let lcd_stats = setup_lcd(ctx.app_settings.clone(), updated_settings_rx.resubscribe());
 
     tokio::spawn(async move {
         loop {
@@ -189,7 +190,7 @@ pub fn spawn_bg_tasks(
                             contract.clone(),
                             docker_client.clone(),
                             db_client.clone(),
-                            stats.clone()
+                            lcd_stats.clone()
                         ));
                     },
                     None => logging::log!("Skipping balances retrieval due to invalid settings")
@@ -213,14 +214,13 @@ pub fn spawn_bg_tasks(
                     // we don't spawn a task for this one just in case it's taking
                     // too long to complete and we may start overwhelming the backend
                     // with multiple overlapping tasks being launched.
-                    // TODO: update also inactive nodes only the first time to get up to date node status.
                     update_nodes_info(
                         &docker_client,
                         &nodes_metrics,
                         &db_client,
                         &node_status_locked,
                         poll_rpc_api,
-                        &stats
+                        &lcd_stats
                     ).await;
                     // reset interval to start next period from this instant,
                     // regardless how long the above polling task lasted.
@@ -330,14 +330,14 @@ async fn update_nodes_info(
     db_client: &DbClient,
     node_status_locked: &Arc<Mutex<HashSet<ContainerId>>>,
     poll_rpc_api: bool,
-    stats: &Arc<Mutex<HashMap<String, String>>>,
+    lcd_stats: &Arc<Mutex<HashMap<String, String>>>,
 ) {
     let containers = match docker_client.get_containers_list(true).await {
         Ok(containers) if !containers.is_empty() => containers,
         Err(err) => {
             logging::log!("Failed to get containers list: {err}");
             remove_lcd_stats(
-                stats,
+                lcd_stats,
                 &[
                     LCD_LABEL_NET_SIZE,
                     LCD_LABEL_ACTIVE_NODES,
@@ -351,7 +351,7 @@ async fn update_nodes_info(
         _ => {
             logging::log!("No nodes to retrieve metrics from...");
             remove_lcd_stats(
-                stats,
+                lcd_stats,
                 &[
                     LCD_LABEL_NET_SIZE,
                     LCD_LABEL_ACTIVE_NODES,
@@ -429,7 +429,7 @@ async fn update_nodes_info(
     let bin_versions = bin_version.into_iter().collect::<Vec<_>>().join(",");
 
     update_lcd_stats(
-        stats,
+        lcd_stats,
         &[
             (LCD_LABEL_NET_SIZE, weighted_avg.to_string()),
             (LCD_LABEL_ACTIVE_NODES, num_nodes.to_string()),
@@ -470,7 +470,7 @@ async fn retrieve_current_rewards_balances<T: Transport + Clone, P: Provider<T, 
     token_contract: TokenContract::TokenContractInstance<T, P, N>,
     docker_client: DockerClient,
     db_client: DbClient,
-    stats: Arc<Mutex<HashMap<String, String>>>,
+    lcd_stats: Arc<Mutex<HashMap<String, String>>>,
 ) {
     // cache retrieved rewards balances to not query more than once per reward address
     let mut updated_balances = HashMap::<Address, U256>::new();
@@ -479,11 +479,11 @@ async fn retrieve_current_rewards_balances<T: Transport + Clone, P: Provider<T, 
         Ok(containers) if !containers.is_empty() => containers,
         Err(err) => {
             logging::log!("Failed to get containers list: {err}");
-            remove_lcd_stats(&stats, &[LCD_LABEL_BALANCE]).await;
+            remove_lcd_stats(&lcd_stats, &[LCD_LABEL_BALANCE]).await;
             return;
         }
         _ => {
-            remove_lcd_stats(&stats, &[LCD_LABEL_BALANCE]).await;
+            remove_lcd_stats(&lcd_stats, &[LCD_LABEL_BALANCE]).await;
             return;
         }
     };
@@ -534,23 +534,26 @@ async fn retrieve_current_rewards_balances<T: Transport + Clone, P: Provider<T, 
     }
 
     let balance: U256 = updated_balances.iter().map(|(_, b)| b).sum();
-    update_lcd_stats(&stats, &[(LCD_LABEL_BALANCE, balance.to_string())]).await;
+    update_lcd_stats(&lcd_stats, &[(LCD_LABEL_BALANCE, balance.to_string())]).await;
 }
 
 // Helper to add/update stats to be disaplyed on external LCD device
 async fn update_lcd_stats(
-    stats: &Arc<Mutex<HashMap<String, String>>>,
+    lcd_stats: &Arc<Mutex<HashMap<String, String>>>,
     labels_vals: &[(&str, String)],
 ) {
-    let mut s = stats.lock().await;
-    labels_vals.into_iter().for_each(|(label, value)| {
-        let _ = s.insert(label.to_string(), value.clone());
-    });
+    let mut s = lcd_stats.lock().await;
+    labels_vals
+        .into_iter()
+        .filter(|(l, v)| !l.is_empty() && !v.is_empty())
+        .for_each(|(label, value)| {
+            let _ = s.insert(label.to_string(), value.clone());
+        });
 }
 
 // Helper to remove stats being displayed on external LCD device
-async fn remove_lcd_stats(stats: &Arc<Mutex<HashMap<String, String>>>, labels: &[&str]) {
-    let mut s = stats.lock().await;
+async fn remove_lcd_stats(lcd_stats: &Arc<Mutex<HashMap<String, String>>>, labels: &[&str]) {
+    let mut s = lcd_stats.lock().await;
     labels.into_iter().for_each(|label| {
         let _ = s.remove(*label);
     });
