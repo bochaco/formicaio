@@ -227,19 +227,19 @@ pub fn SettingsForm(
                             for="lcd_enabled"
                             class="ms-2 text-sm font-medium text-gray-900 dark:text-gray-300"
                         >
-                            "Display nodes stats in external LCD device"
+                            "Display nodes stats in external LCD display device (connected with an I2C backpack/interface)"
                         </label>
                     </div>
                     <TextInput
                         signal=lcd_device
                         default=current_values.get().map(|s| s.lcd_device).unwrap_or_default()
-                        label="LCD display bus number:"
+                        label="I2C bus number (e.g. if the device path is configured at /dev/i2c-1, the bus number is 1):"
                         validator=|v| { v.parse::<u8>().map_err(|err| err.to_string()).map(|_| v) }
                     />
                     <TextInput
                         signal=lcd_addr
                         default=current_values.get().map(|s| s.lcd_addr).unwrap_or_default()
-                        label="LCD display address:"
+                        label="I2C backpack address (usually 0x27 or 0x3F):"
                         validator=|v| {
                             u16::from_str_radix(&v.strip_prefix("0x").unwrap_or(&v), 16)
                                 .map_err(|err| err.to_string())
