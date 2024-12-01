@@ -8,11 +8,11 @@ use super::{
     node_instance::NodeStatus,
 };
 
+use self::server_fn::codec::{ByteStream, Streaming};
 #[cfg(feature = "ssr")]
 use futures_util::StreamExt;
 use leptos::*;
 use serde::{Deserialize, Serialize};
-use server_fn::codec::{ByteStream, Streaming};
 use std::collections::HashMap;
 
 #[cfg(feature = "ssr")]
