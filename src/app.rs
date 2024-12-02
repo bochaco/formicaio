@@ -15,6 +15,8 @@ use super::{
 
 #[cfg(feature = "ssr")]
 use axum::extract::FromRef;
+#[cfg(feature = "hydrate")]
+use leptos::{logging, task::spawn_local};
 #[cfg(feature = "ssr")]
 use std::{collections::HashSet, sync::Arc};
 #[cfg(feature = "ssr")]
@@ -22,9 +24,12 @@ use tokio::sync::{broadcast, Mutex};
 
 #[cfg(feature = "hydrate")]
 use gloo_timers::future::TimeoutFuture;
-use leptos::*;
-use leptos_meta::*;
-use leptos_router::*;
+use leptos::prelude::*;
+use leptos_meta::{provide_meta_context, MetaTags, Script, Stylesheet, Title};
+use leptos_router::{
+    components::{Route, Router, Routes},
+    StaticSegment,
+};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, time::Duration};
 use wasm_bindgen::{prelude::*, JsValue};
@@ -125,6 +130,25 @@ pub struct ClientGlobalState {
     pub batch_in_progress: RwSignal<Option<BatchInProgress>>,
 }
 
+pub fn shell(options: LeptosOptions) -> impl IntoView {
+    view! {
+        <!DOCTYPE html>
+        <html lang="en">
+            <head>
+                <meta charset="utf-8" />
+                <meta name="viewport" content="width=device-width, initial-scale=1" />
+                <AutoReload options=options.clone() />
+                <HydrationScripts options />
+                <MetaTags />
+            </head>
+
+            <body>
+                <App />
+            </body>
+        </html>
+    }
+}
+
 #[component]
 pub fn App() -> impl IntoView {
     // Provides context that manages stylesheets, titles, meta tags, etc.
@@ -132,12 +156,12 @@ pub fn App() -> impl IntoView {
 
     // Provide context to manage all client side states that need to be used globally
     provide_context(ClientGlobalState {
-        nodes: create_rw_signal(HashMap::default()),
-        logs_stream_on_for: create_rw_signal(None),
-        metrics_update_on_for: create_rw_signal(None),
-        latest_bin_version: create_rw_signal(None),
-        alerts: create_rw_signal(vec![]),
-        batch_in_progress: create_rw_signal(None),
+        nodes: RwSignal::new(HashMap::default()),
+        logs_stream_on_for: RwSignal::new(None),
+        metrics_update_on_for: RwSignal::new(None),
+        latest_bin_version: RwSignal::new(None),
+        alerts: RwSignal::new(vec![]),
+        batch_in_progress: RwSignal::new(None),
     });
 
     // spawn poller task only on client side
@@ -145,26 +169,24 @@ pub fn App() -> impl IntoView {
     spawn_nodes_list_polling();
 
     view! {
-        <html>
-            <Stylesheet id="leptos" href="/pkg/formicaio.css" />
-            <Script src="https://cdn.jsdelivr.net/npm/flowbite@2.5.1/dist/flowbite.min.js" />
+        <Router>
+            <main>
+                <Stylesheet id="leptos" href="/pkg/formicaio.css" />
+                <Script src="https://cdn.jsdelivr.net/npm/flowbite@2.5.1/dist/flowbite.min.js" />
 
-            <Title text="Formicaio" />
+                <Title text="Formicaio" />
 
-            <Router fallback=|| {
-                let mut outside_errors = Errors::default();
-                outside_errors.insert_with_default_key(AppError::NotFound);
-                view! { <ErrorTemplate outside_errors /> }.into_view()
-            }>
                 <NavBar />
-                <main>
-                    <Routes>
-                        <Route path="/" view=HomeScreenView />
-                        <Route path="/about" view=AboutView />
-                    </Routes>
-                </main>
-            </Router>
-        </html>
+                <Routes fallback=|| {
+                    let mut outside_errors = Errors::default();
+                    outside_errors.insert_with_default_key(AppError::NotFound);
+                    view! { <ErrorTemplate outside_errors /> }.into_view()
+                }>
+                    <Route path=StaticSegment("/") view=HomeScreenView />
+                    <Route path=StaticSegment("/about") view=AboutView />
+                </Routes>
+            </main>
+        </Router>
     }
 }
 
@@ -225,7 +247,7 @@ fn spawn_nodes_list_polling() {
                         .filter(|(id, _)| !context.nodes.get_untracked().contains_key(id))
                         .for_each(|(id, new_node)| {
                             context.nodes.update(|nodes| {
-                                let _ = nodes.insert(id.clone(), create_rw_signal(new_node));
+                                let _ = nodes.insert(id.clone(), RwSignal::new(new_node));
                             })
                         });
                 }

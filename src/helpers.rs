@@ -10,7 +10,7 @@ use super::{
 };
 
 use gloo_timers::future::TimeoutFuture;
-use leptos::*;
+use leptos::{logging, prelude::*, task::spawn_local};
 use rand::Rng;
 
 // Duration of each alert message shows in the UI
@@ -51,7 +51,7 @@ pub async fn add_node_instances(
         ..Default::default()
     };
     context.nodes.update(|items| {
-        items.insert(tmp_container_id.clone(), create_rw_signal(tmp_container));
+        items.insert(tmp_container_id.clone(), RwSignal::new(tmp_container));
     });
 
     if count > 1 {
@@ -83,7 +83,7 @@ pub async fn add_node_instances(
         let node_info = create_node_instance(port, metrics_port, rewards_addr, auto_start).await?;
         context.nodes.update(|items| {
             items.remove(&tmp_container_id);
-            items.insert(node_info.container_id.clone(), create_rw_signal(node_info));
+            items.insert(node_info.container_id.clone(), RwSignal::new(node_info));
         });
     };
 

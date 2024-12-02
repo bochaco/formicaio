@@ -6,17 +6,17 @@ use super::{
 };
 
 use alloy::primitives::Address;
-use leptos::*;
+use leptos::{logging, prelude::*};
 use std::time::Duration;
 use url::Url;
 
 #[component]
 pub fn SettingsView(settings_panel: RwSignal<bool>) -> impl IntoView {
-    let current_settings = create_resource(
+    let current_settings = Resource::new(
         move || settings_panel.get() == true,
         |_| async move { get_settings().await.unwrap_or_default() },
     );
-    let active_tab = create_rw_signal(0);
+    let active_tab = RwSignal::new(0);
 
     view! {
         <div
@@ -83,12 +83,18 @@ pub fn SettingsView(settings_panel: RwSignal<bool>) -> impl IntoView {
                     </div>
 
                     <div class="p-4 md:p-5">
-                        <Suspense fallback=move || view! { <p>"Loading..."</p> }>
-                            <SettingsForm
-                                curr=current_settings.get().unwrap_or_default()
-                                settings_panel
-                                active_tab
-                            />
+                        <Suspense fallback=move || {
+                            view! { <p>"Loading..."</p> }
+                        }>
+                            {move || Suspend::new(async move {
+                                view! {
+                                    <SettingsForm
+                                        curr=current_settings.await
+                                        settings_panel
+                                        active_tab
+                                    />
+                                }
+                            })}
                         </Suspense>
                     </div>
                 </div>
@@ -114,7 +120,7 @@ pub fn SettingsForm(
     let lcd_device = RwSignal::new(Ok(curr.lcd_device.clone()));
     let lcd_addr = RwSignal::new(Ok(curr.lcd_addr.clone()));
 
-    let update_settings_action = create_action(move |settings: &AppSettings| {
+    let update_settings_action = Action::new(move |settings: &AppSettings| {
         let settings = settings.clone();
         async move {
             if let Err(err) = update_settings(settings).await {

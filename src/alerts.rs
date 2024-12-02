@@ -1,6 +1,6 @@
 use super::{app::ClientGlobalState, icons::IconAlertMsgError};
 
-use leptos::*;
+use leptos::prelude::*;
 
 #[component]
 pub fn AlertMsg() -> impl IntoView {

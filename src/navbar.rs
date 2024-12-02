@@ -1,4 +1,4 @@
-use leptos::*;
+use leptos::prelude::*;
 
 use super::{
     icons::{IconHamburguer, IconSettings},
@@ -13,8 +13,8 @@ pub enum AppScreen {
 
 #[component]
 pub fn NavBar() -> impl IntoView {
-    let settings_panel = create_rw_signal(false);
-    let active_screen = create_rw_signal(AppScreen::Nodes);
+    let settings_panel = RwSignal::new(false);
+    let active_screen = RwSignal::new(AppScreen::Nodes);
     let menu_item_class = move |p: AppScreen| {
         if active_screen.get() == p {
             "block py-2 px-3 text-white bg-blue-700 rounded md:bg-transparent md:text-blue-700 md:p-0 dark:text-white md:dark:text-blue-500"

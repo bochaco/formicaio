@@ -5,7 +5,7 @@ use super::{
 };
 
 use alloy::primitives::Address;
-use leptos::*;
+use leptos::{prelude::*, task::spawn_local};
 use std::num::ParseIntError;
 
 // TODO: find next available port numbers by looking at already used ones
@@ -17,7 +17,7 @@ const REWARDS_ADDR_LENGTH: usize = 40;
 
 #[component]
 pub fn AddNodeView() -> impl IntoView {
-    let modal_visibility = create_rw_signal(false);
+    let modal_visibility = RwSignal::new(false);
 
     view! {
         <div class="divider divider-center">
@@ -65,17 +65,17 @@ pub fn AddNodeView() -> impl IntoView {
 
 #[component]
 fn AddNodesForm(modal_visibility: RwSignal<bool>) -> impl IntoView {
-    let port = create_rw_signal(Ok(DEFAULT_NODE_PORT));
-    let metrics_port = create_rw_signal(Ok(DEFAULT_METRICS_PORT));
-    let count = create_rw_signal(Ok(1));
-    let rewards_addr = create_rw_signal(Err((
+    let port = RwSignal::new(Ok(DEFAULT_NODE_PORT));
+    let metrics_port = RwSignal::new(Ok(DEFAULT_METRICS_PORT));
+    let count = RwSignal::new(Ok(1));
+    let rewards_addr = RwSignal::new(Err((
         "Enter a rewards address".to_string(),
         "0x".to_string(),
     )));
-    let auto_start = create_rw_signal(false);
-    let interval = create_rw_signal(Ok(60));
+    let auto_start = RwSignal::new(false);
+    let interval = RwSignal::new(Ok(60));
 
-    let add_node = create_action(
+    let add_node = Action::new(
         move |(port, metrics_port, count, rewards_addr, auto_start, interval): &(
             u16,
             u16,

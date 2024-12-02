@@ -15,18 +15,18 @@ use super::{
 };
 
 use chrono::{DateTime, Utc};
-use leptos::*;
+use leptos::{logging, prelude::*, task::spawn_local};
 
 #[component]
 pub fn NodesListView() -> impl IntoView {
     // we use the context to switch on/off the streaming of logs
     let context = expect_context::<ClientGlobalState>();
     // this signal keeps the reactive list of log entries
-    let (logs, set_logs) = create_signal(Vec::new());
-    let (chart_data, set_chart_data) = create_signal((vec![], vec![]));
+    let (logs, set_logs) = signal(Vec::new());
+    let (chart_data, set_chart_data) = signal((vec![], vec![]));
 
     // we display the instances sorted by creation time, newest to oldest
-    let sorted_nodes = create_memo(move |_| {
+    let sorted_nodes = Memo::new(move |_| {
         let mut sorted = context.nodes.get().into_iter().collect::<Vec<_>>();
         sorted.sort_by(|a, b| b.1.get().created.cmp(&a.1.get().created));
         sorted
@@ -394,7 +394,7 @@ fn NodeLogs(info: RwSignal<NodeInstanceInfo>, set_logs: WriteSignal<Vec<String>>
     let context = expect_context::<ClientGlobalState>();
 
     // action to trigger the streaming of logs from the node to the 'set_logs' signal
-    let start_logs_stream = create_action(move |id: &String| {
+    let start_logs_stream = Action::new(move |id: &String| {
         context.logs_stream_on_for.set(Some(id.clone()));
         let id = id.clone();
         async move {
@@ -436,16 +436,15 @@ fn NodeChartShow(
     let context = expect_context::<ClientGlobalState>();
 
     // action to trigger the update of nodes metrics charts
-    let start_metrics_update = create_action(move |id: &String| {
+    let start_metrics_update = move |id: String| {
         context.metrics_update_on_for.set(Some(id.clone()));
-        let id = id.clone();
-        async move {
+        leptos::task::spawn_local(async move {
             if let Err(err) = super::chart_view::node_metrics_update(id, set_chart_data).await {
                 logging::log!("Failed to start updating metrics charts: {err:?}");
                 show_alert_msg(err.to_string());
             }
-        }
-    });
+        });
+    };
 
     view! {
         <div class="tooltip tooltip-bottom tooltip-info" data-tip="mem & cpu">
@@ -459,7 +458,7 @@ fn NodeChartShow(
                     }
                 }
                 on:click=move |_| {
-                    start_metrics_update.dispatch(info.get_untracked().container_id.clone());
+                    start_metrics_update(info.get_untracked().container_id.clone());
                 }
             >
                 <IconShowChart />

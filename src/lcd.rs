@@ -6,7 +6,7 @@ use i2cdev::{
     linux::{LinuxI2CDevice, LinuxI2CError},
 };
 use lcd::{Delay, Display, Hardware};
-use leptos::*;
+use leptos::{logging, prelude::*};
 use std::{collections::HashMap, sync::Arc, thread, time::Duration};
 use tokio::{
     select,

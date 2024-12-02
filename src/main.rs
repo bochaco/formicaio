@@ -4,9 +4,9 @@ async fn main() {
     use axum::Router;
     use formicaio::{
         app::*, bg_tasks::spawn_bg_tasks, db_client::DbClient, docker_client::DockerClient,
-        fileserv::file_and_error_handler, metrics_client::NodesMetrics,
+        metrics_client::NodesMetrics,
     };
-    use leptos::*;
+    use leptos::{logging, prelude::*};
     use leptos_axum::{generate_route_list, LeptosRoutes};
     use std::{collections::HashSet, sync::Arc};
     use tokio::sync::{broadcast, Mutex};
@@ -18,7 +18,7 @@ async fn main() {
     // <https://github.com/leptos-rs/start-axum#executing-a-server-on-a-remote-machine-without-the-toolchain>
     // Alternately a file can be specified such as Some("Cargo.toml")
     // The file would need to be included with the executable when moved to deployment
-    let conf = get_configuration(None).await.unwrap();
+    let conf = get_configuration(None).unwrap();
     let leptos_options = conf.leptos_options;
     let addr = leptos_options.site_addr;
     let routes = generate_route_list(App);
@@ -50,7 +50,7 @@ async fn main() {
     );
 
     let app_state = ServerGlobalState {
-        leptos_options,
+        leptos_options: leptos_options.clone(),
         db_client,
         docker_client,
         latest_bin_version,
@@ -61,8 +61,13 @@ async fn main() {
     };
 
     let app = Router::new()
-        .leptos_routes(&app_state, routes, App)
-        .fallback(file_and_error_handler)
+        .leptos_routes(&app_state, routes, {
+            let leptos_options = leptos_options.clone();
+            move || shell(leptos_options.clone())
+        })
+        .fallback(leptos_axum::file_and_error_handler::<ServerGlobalState, _>(
+            shell,
+        ))
         .with_state(app_state);
 
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();

@@ -11,8 +11,9 @@ use super::{
 use apexcharts_rs::prelude::ApexChart;
 use gloo_timers::future::TimeoutFuture;
 use gloo_utils::format::JsValueSerdeExt;
-use leptos::*;
+use leptos::{logging, prelude::*};
 use serde_json::Value;
+use std::rc::Rc;
 use wasm_bindgen::JsValue;
 
 pub type ChartSeriesData = (Vec<[i64; 2]>, Vec<[i64; 2]>);
@@ -105,22 +106,22 @@ pub fn NodeChartView(chart_data: ReadSignal<ChartSeriesData>) -> impl IntoView {
         }}"##
     );
 
-    let chart = create_rw_signal(None);
+    let chart = RwSignal::new_local(None);
 
     let options = serde_json::from_str::<Value>(&metrics_chart_options)
         .unwrap_or_else(|_| panic!("Invalid JSON: {}", metrics_chart_options));
 
     let opts_clone = options.clone();
     let chart_id_clone = chart_id.clone();
-    create_effect(move |_| {
+    Effect::new(move |_| {
         let opt = serde_json::to_string(&opts_clone).unwrap_or("".to_string());
         let c = ApexChart::new(&JsValue::from_str(&opt));
         c.render(&chart_id_clone);
-        chart.set(Some(c));
+        chart.set(Some(Rc::new(c)));
     });
 
     let opts_clone = options.clone();
-    create_effect(move |_| {
+    Effect::new(move |_| {
         let mut opts_clone = opts_clone.clone();
         chart.with(|c| {
             if let Some(chart) = c {

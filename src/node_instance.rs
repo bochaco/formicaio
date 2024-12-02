@@ -1,7 +1,7 @@
 use super::app::ClientGlobalState;
 
 use alloy::primitives::U256;
-use leptos::*;
+use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 

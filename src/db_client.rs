@@ -5,7 +5,7 @@ use super::{
 };
 
 use alloy::primitives::U256;
-use leptos::*;
+use leptos::{logging, prelude::*};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::{
