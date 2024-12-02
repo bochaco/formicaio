@@ -44,7 +44,7 @@ To see the logs you can simply use the following command:
 $ docker compose logs -f
 ```
 
-Upgrading the application (without stopping the running nodes instances) can be simply achieved by pulling the new Formicaio image and restarting the service:
+Upgrading the application (without stopping the running node instances) can be simply achieved by pulling the new Formicaio image and restarting the service:
 ```
 $ docker compose pull formicaio
 $ docker compose down formicaio

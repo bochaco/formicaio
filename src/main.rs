@@ -62,7 +62,6 @@ async fn main() {
 
     let app = Router::new()
         .leptos_routes(&app_state, routes, {
-            let leptos_options = leptos_options.clone();
             move || shell(leptos_options.clone())
         })
         .fallback(leptos_axum::file_and_error_handler::<ServerGlobalState, _>(
