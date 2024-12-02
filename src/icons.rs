@@ -57,7 +57,7 @@ pub fn IconCloseModal() -> impl IntoView {
 }
 
 #[component]
-pub fn IconRemoveNode() -> impl IntoView {
+pub fn IconRemove() -> impl IntoView {
     view! {
         <svg
             xmlns="http://www.w3.org/2000/svg"

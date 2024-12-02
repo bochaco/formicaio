@@ -138,3 +138,15 @@ impl NodeInstanceInfo {
         })
     }
 }
+
+// Information of a batch of node intances creation
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct NodeInstancesBatch {
+    pub port_start: u16,
+    pub metrics_port_start: u16,
+    pub created: u16,
+    pub total: u16,
+    pub rewards_addr: String,
+    pub auto_start: bool,
+    pub interval_secs: u64,
+}

@@ -36,6 +36,8 @@ async fn main() {
     let (updated_settings_tx, updated_settings_rx) = broadcast::channel::<AppSettings>(3);
     // Let's read currently cached settings to use and push it to channel
     let settings = db_client.get_settings().await;
+    // List of node instaces batches currently in progress
+    let node_instaces_batches = Arc::new(Mutex::new((broadcast::channel(3).0, Vec::new())));
 
     spawn_bg_tasks(
         docker_client.clone(),
@@ -55,6 +57,7 @@ async fn main() {
         nodes_metrics,
         node_status_locked,
         updated_settings_tx,
+        node_instaces_batches,
     };
 
     let app = Router::new()

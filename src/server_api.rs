@@ -1,29 +1,36 @@
-use super::node_instance::{ContainerId, NodeInstanceInfo};
+use super::{
+    app::BatchInProgress,
+    node_instance::{ContainerId, NodeInstanceInfo},
+};
+
+use self::server_fn::codec::{ByteStream, Streaming};
+use leptos::*;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[cfg(feature = "ssr")]
 use super::{
     app::ServerGlobalState,
     db_client::DbClient,
     docker_client::{DockerClient, DockerClientError},
-    node_instance::NodeStatus,
+    node_instance::{NodeInstancesBatch, NodeStatus},
 };
-
-use self::server_fn::codec::{ByteStream, Streaming};
 #[cfg(feature = "ssr")]
 use futures_util::StreamExt;
-use leptos::*;
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-
 #[cfg(feature = "ssr")]
-use std::{collections::HashSet, sync::Arc};
+use std::{collections::HashSet, sync::Arc, time::Duration};
 #[cfg(feature = "ssr")]
-use tokio::sync::Mutex;
+use tokio::{
+    select,
+    sync::{broadcast, Mutex},
+    time::sleep,
+};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct NodesInstancesInfo {
     pub latest_bin_version: Option<String>,
     pub nodes: HashMap<String, NodeInstanceInfo>,
+    pub batch_in_progress: Option<BatchInProgress>,
 }
 
 // Obtain the list of existing nodes instances with their info
@@ -54,9 +61,26 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
         nodes.insert(node_info.container_id.clone(), node_info);
     }
 
+    let batches = &context.node_instaces_batches.lock().await.1;
+    let batch_in_progress = if let Some(b) = batches.get(0) {
+        let init = BatchInProgress {
+            auto_start: b.auto_start,
+            interval_secs: b.interval_secs,
+            ..Default::default()
+        };
+        Some(batches.iter().fold(init, |mut acc, b| {
+            acc.created += b.created;
+            acc.total += b.total;
+            acc
+        }))
+    } else {
+        None
+    };
+
     Ok(NodesInstancesInfo {
         latest_bin_version,
         nodes,
+        batch_in_progress,
     })
 }
 
@@ -66,23 +90,50 @@ pub async fn create_node_instance(
     port: u16,
     metrics_port: u16,
     rewards_addr: String,
+    auto_start: bool,
 ) -> Result<NodeInstanceInfo, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
+    helper_create_node_instance(
+        port,
+        metrics_port,
+        rewards_addr,
+        auto_start,
+        &context.db_client,
+        &context.docker_client,
+    )
+    .await
+}
+
+/// Helper to create a node instance
+#[cfg(feature = "ssr")]
+async fn helper_create_node_instance(
+    port: u16,
+    metrics_port: u16,
+    rewards_addr: String,
+    auto_start: bool,
+    db_client: &DbClient,
+    docker_client: &DockerClient,
+) -> Result<NodeInstanceInfo, ServerFnError> {
     logging::log!("Creating new node container with port {port} ...");
-    let container_id = context
-        .docker_client
-        .create_new_container(port, metrics_port, rewards_addr.clone())
+    let container_id = docker_client
+        .create_new_container(port, metrics_port, rewards_addr)
         .await?;
     logging::log!("New node container Id: {container_id} ...");
 
-    let container = context
-        .docker_client
-        .get_container_info(&container_id)
-        .await?;
+    let container = docker_client.get_container_info(&container_id).await?;
     logging::log!("New node container created: {container:?}");
 
-    let node_info = container.into();
-    context.db_client.insert_node_metadata(&node_info).await;
+    let mut node_info = container.into();
+    db_client.insert_node_metadata(&node_info).await;
+
+    // FIXME!!!
+    if auto_start {
+        helper_start_node_instance(container_id.clone(), db_client, docker_client).await?;
+        node_info = docker_client
+            .get_container_info(&container_id)
+            .await?
+            .into();
+    }
 
     Ok(node_info)
 }
@@ -110,16 +161,25 @@ pub async fn delete_node_instance(container_id: ContainerId) -> Result<(), Serve
 // Start a node instance with given id
 #[server(StartNodeInstance, "/api", "Url", "/start_node")]
 pub async fn start_node_instance(container_id: ContainerId) -> Result<(), ServerFnError> {
-    logging::log!("Starting node container with Id: {container_id} ...");
     let context = expect_context::<ServerGlobalState>();
-    context
-        .db_client
+    helper_start_node_instance(container_id, &context.db_client, &context.docker_client).await
+}
+
+// Helper to start a node instance with given id
+#[cfg(feature = "ssr")]
+async fn helper_start_node_instance(
+    container_id: ContainerId,
+    db_client: &DbClient,
+    docker_client: &DockerClient,
+) -> Result<(), ServerFnError> {
+    logging::log!("Starting node container with Id: {container_id} ...");
+
+    db_client
         .update_node_status(&container_id, NodeStatus::Restarting)
         .await;
 
-    let (version, peer_id) = context.docker_client.start_container(&container_id).await?;
-    context
-        .db_client
+    let (version, peer_id) = docker_client.start_container(&container_id).await?;
+    db_client
         .update_node_metadata_fields(
             &container_id,
             &[
@@ -281,5 +341,113 @@ pub async fn update_settings(settings: super::app::AppSettings) -> Result<(), Se
     let context = expect_context::<ServerGlobalState>();
     context.db_client.update_settings(&settings).await?;
     context.updated_settings_tx.send(settings)?;
+    Ok(())
+}
+
+// Prepare a batch of node instances creation
+#[server(
+    PrepareNodeInstancesBatch,
+    "/api",
+    "Url",
+    "/prepare_node_instances_batch"
+)]
+pub async fn prepare_node_instances_batch(
+    port_start: u16,
+    metrics_port_start: u16,
+    count: u16,
+    rewards_addr: String,
+    auto_start: bool,
+    interval_secs: u64,
+) -> Result<(), ServerFnError> {
+    let context = expect_context::<ServerGlobalState>();
+    logging::log!(
+        "Creating new batch of {count} nodes with port range starting at {port_start} ..."
+    );
+
+    let batch_info = NodeInstancesBatch {
+        port_start,
+        metrics_port_start,
+        created: 0,
+        total: count,
+        rewards_addr,
+        auto_start,
+        interval_secs,
+    };
+    logging::log!("New batch created: {batch_info:?}");
+    let batches = &mut context.node_instaces_batches.lock().await.1;
+    batches.push(batch_info);
+    if batches.len() == 1 {
+        tokio::spawn(run_batches(
+            context.node_instaces_batches.clone(),
+            context.db_client.clone(),
+            context.docker_client.clone(),
+        ));
+    }
+
+    Ok(())
+}
+
+#[cfg(feature = "ssr")]
+async fn run_batches(
+    batches: Arc<Mutex<(broadcast::Sender<()>, Vec<NodeInstancesBatch>)>>,
+    db_client: DbClient,
+    docker_client: DockerClient,
+) {
+    let mut cancel_rx = batches.lock().await.0.subscribe();
+
+    loop {
+        let next_batch = batches.lock().await.1.get(0).cloned();
+
+        if let Some(batch_info) = next_batch {
+            let total = batch_info.total;
+            logging::log!("Started node instances creation batch of {total} nodes ...");
+            for i in 0..total {
+                select! {
+                    _ = cancel_rx.recv() => return,
+                    _ = sleep(Duration::from_secs(batch_info.interval_secs)) => {
+                        if let Err(err) = helper_create_node_instance(
+                            batch_info.port_start + i,
+                            batch_info.metrics_port_start + i,
+                            batch_info.rewards_addr.clone(),
+                            batch_info.auto_start,
+                            &db_client,
+                            &docker_client,
+                        )
+                        .await
+                        {
+                            logging::log!(
+                                "Failed to create node instance {i}/{total} as part of a batch: {err}"
+                            );
+                        }
+
+                        batches.lock().await.1.get_mut(0).map(|b| {
+                            b.created += 1;
+                        });
+                    }
+                }
+            }
+
+            let _ = batches.lock().await.1.remove(0);
+        } else {
+            return;
+        }
+    }
+}
+
+// Cancel all node instances creation batches
+#[server(
+    CancelNodeInstancesBatch,
+    "/api",
+    "Url",
+    "/cancel_node_instances_batch"
+)]
+pub async fn cancel_node_instances_batch() -> Result<(), ServerFnError> {
+    let context = expect_context::<ServerGlobalState>();
+    logging::log!("Cancelling all node instances creation batches ...");
+
+    let mut guard = context.node_instaces_batches.lock().await;
+    guard.0.send(())?;
+    guard.1.clear();
+
     Ok(())
 }

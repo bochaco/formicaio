@@ -1,13 +1,17 @@
+use crate::app::BatchInProgress;
+
 use super::{
     app::ClientGlobalState,
     chart_view::{ChartSeriesData, NodeChartView},
     helpers::{node_logs_stream, remove_node_instance, show_alert_msg},
     icons::{
-        IconCloseModal, IconRemoveNode, IconShowChart, IconShowLogs, IconStartNode, IconStopNode,
+        IconCloseModal, IconRemove, IconShowChart, IconShowLogs, IconStartNode, IconStopNode,
         IconUpgradeNode,
     },
     node_instance::{NodeInstanceInfo, NodeStatus},
-    server_api::{start_node_instance, stop_node_instance, upgrade_node_instance},
+    server_api::{
+        cancel_node_instances_batch, start_node_instance, stop_node_instance, upgrade_node_instance,
+    },
 };
 
 use chrono::{DateTime, Utc};
@@ -30,6 +34,8 @@ pub fn NodesListView() -> impl IntoView {
 
     view! {
         <div class="flex flex-wrap">
+            <BatchInProgressView batch_info=context.batch_in_progress />
+
             <For
                 each=move || sorted_nodes.get()
                 key=|(container_id, _)| container_id.clone()
@@ -110,6 +116,87 @@ fn CreatingNodeInstanceView() -> impl IntoView {
                 <div class="skeleton h-4 w-56"></div>
             </div>
         </div>
+    }
+}
+
+#[component]
+fn BatchInProgressView(batch_info: RwSignal<Option<BatchInProgress>>) -> impl IntoView {
+    let done = move || {
+        (batch_info.get().unwrap_or_default().created * 100)
+            / batch_info.get().unwrap_or_default().total
+    };
+
+    view! {
+        <Show when=move || batch_info.get().is_some() fallback=move || { view! {}.into_view() }>
+            <div class="max-w-sm w-80 m-2 p-4 bg-white border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700">
+                <div class="flex justify-end">
+                    <div class="tooltip tooltip-bottom tooltip-info" data-tip="cancel">
+                        <button
+                            class="btn-node-action"
+                            on:click=move |_| spawn_local({
+                                batch_info.update(|info| *info = None);
+                                async move {
+                                    if let Err(err) = cancel_node_instances_batch().await {
+                                        logging::log!(
+                                            "Failed to cancel nodes creation batch: {err:?}"
+                                        );
+                                        show_alert_msg(err.to_string());
+                                    }
+                                }
+                            })
+                        >
+                            <IconRemove />
+                        </button>
+                    </div>
+                </div>
+
+                <h2 class="mb-2 text-lg font-semibold text-gray-900 dark:text-white">
+                    Batch in progress:
+                </h2>
+                <ul class="max-w-md space-y-1 text-gray-500 list-disc list-inside dark:text-gray-400">
+                    <li>
+                        "Total number of nodes to create: "
+                        {batch_info.get().unwrap_or_default().total}
+                    </li>
+                    <li>
+                        "Delay between the creation of each node: "
+                        {batch_info.get().unwrap_or_default().interval_secs} " secs."
+                    </li>
+                    <li>
+                        "Auto-start nodes upon creation: "
+                        {if batch_info.get().unwrap_or_default().auto_start { "Yes" } else { "No" }}
+                    </li>
+                </ul>
+
+                <div class="mt-12">
+                    <div class="flex justify-between mb-1">
+                        <span class="text-base font-medium text-purple-700 dark:text-purple-500">
+                            Nodes creation batch
+                        </span>
+                        <span class="text-sm font-medium text-purple-700 dark:text-purple-500">
+                            {move || {
+                                format!(
+                                    "{}/{}",
+                                    batch_info.get().unwrap_or_default().created,
+                                    batch_info.get().unwrap_or_default().total,
+                                )
+                            }}
+
+                        </span>
+                    </div>
+                    <div class="w-full bg-purple-300 rounded-full h-6 dark:bg-gray-700">
+                        <div
+                            class="bg-purple-600 h-6 text-center text-purple-100 rounded-full dark:bg-purple-500"
+                            style=move || format!("width: {}%", done())
+                        >
+                            {move || done()}
+                            "%"
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </Show>
     }
 }
 
@@ -521,7 +608,7 @@ fn ButtonRemove(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                     }
                 })
             >
-                <IconRemoveNode />
+                <IconRemove />
             </button>
         </div>
     }

@@ -92,6 +92,20 @@ pub struct ServerGlobalState {
     pub nodes_metrics: Arc<Mutex<super::metrics_client::NodesMetrics>>,
     pub node_status_locked: Arc<Mutex<HashSet<super::node_instance::ContainerId>>>,
     pub updated_settings_tx: broadcast::Sender<AppSettings>,
+    pub node_instaces_batches: Arc<
+        Mutex<(
+            broadcast::Sender<()>,
+            Vec<super::node_instance::NodeInstancesBatch>,
+        )>,
+    >,
+}
+
+#[derive(Clone, Default, Serialize, Deserialize)]
+pub struct BatchInProgress {
+    pub created: u16,
+    pub total: u16,
+    pub auto_start: bool,
+    pub interval_secs: u64,
 }
 
 // Struct to use client side as a global context/state
@@ -107,6 +121,8 @@ pub struct ClientGlobalState {
     pub latest_bin_version: RwSignal<Option<String>>,
     // List of alerts to be shown in the UI
     pub alerts: RwSignal<Vec<(u64, String)>>,
+    // Information about node instances batch currently in progress
+    pub batch_in_progress: RwSignal<Option<BatchInProgress>>,
 }
 
 #[component]
@@ -121,6 +137,7 @@ pub fn App() -> impl IntoView {
         metrics_update_on_for: create_rw_signal(None),
         latest_bin_version: create_rw_signal(None),
         alerts: create_rw_signal(vec![]),
+        batch_in_progress: create_rw_signal(None),
     });
 
     // spawn poller task only on client side
@@ -131,7 +148,6 @@ pub fn App() -> impl IntoView {
         <html>
             <Stylesheet id="leptos" href="/pkg/formicaio.css" />
             <Script src="https://cdn.jsdelivr.net/npm/flowbite@2.5.1/dist/flowbite.min.js" />
-            // <Script src="/flowbite.min.js" />
 
             <Title text="Formicaio" />
 
@@ -180,6 +196,11 @@ fn spawn_nodes_list_polling() {
                     if info.latest_bin_version.is_some() {
                         context.latest_bin_version.set(info.latest_bin_version);
                     }
+
+                    // update info about node instances batch in progress
+                    context
+                        .batch_in_progress
+                        .update(|b| *b = info.batch_in_progress);
 
                     // first let's get rid of those removed remotely
                     context.nodes.update(|cx_nodes| {

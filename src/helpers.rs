@@ -1,9 +1,12 @@
-use crate::node_instance::ContainerId;
+use crate::app::BatchInProgress;
 
 use super::{
     app::ClientGlobalState,
-    node_instance::NodeInstanceInfo,
-    server_api::{create_node_instance, delete_node_instance, start_node_logs_stream},
+    node_instance::{ContainerId, NodeInstanceInfo},
+    server_api::{
+        create_node_instance, delete_node_instance, prepare_node_instances_batch,
+        start_node_logs_stream,
+    },
 };
 
 use gloo_timers::future::TimeoutFuture;
@@ -29,11 +32,14 @@ pub fn show_alert_msg(msg: String) {
     });
 }
 
-// Creates and add a new node instance updating the given signal
-pub async fn add_node_instance(
+// Creates and add new node instances
+pub async fn add_node_instances(
     port: u16,
     metrics_port: u16,
+    count: u16,
     rewards_addr: String,
+    auto_start: bool,
+    interval_secs: u64,
 ) -> Result<(), ServerFnError> {
     let context = expect_context::<ClientGlobalState>();
 
@@ -48,12 +54,38 @@ pub async fn add_node_instance(
         items.insert(tmp_container_id.clone(), create_rw_signal(tmp_container));
     });
 
-    let info = create_node_instance(port, metrics_port, rewards_addr).await?;
-
-    context.nodes.update(|items| {
-        items.remove(&tmp_container_id);
-        items.insert(info.container_id.clone(), create_rw_signal(info));
-    });
+    if count > 1 {
+        prepare_node_instances_batch(
+            port,
+            metrics_port,
+            count,
+            rewards_addr,
+            auto_start,
+            interval_secs,
+        )
+        .await?;
+        context.nodes.update(|items| {
+            items.remove(&tmp_container_id);
+        });
+        context.batch_in_progress.update(|info| {
+            if let Some(b) = info {
+                b.total += count;
+            } else {
+                *info = Some(BatchInProgress {
+                    created: 0,
+                    total: count,
+                    auto_start,
+                    interval_secs,
+                });
+            }
+        })
+    } else {
+        let node_info = create_node_instance(port, metrics_port, rewards_addr, auto_start).await?;
+        context.nodes.update(|items| {
+            items.remove(&tmp_container_id);
+            items.insert(node_info.container_id.clone(), create_rw_signal(node_info));
+        });
+    };
 
     Ok(())
 }
