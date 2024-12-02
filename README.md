@@ -17,7 +17,7 @@ from third-party sources, all within a single, user-friendly interface.
 <img src="img/screenshot_01.png" width="800" height="436" />
 <img src="img/screenshot_02.png" width="597" height="563" />
 <img src="img/screenshot_03.png" width="800" height="438" />
-<img src="img/screenshot_04.png" width="600" height="734" />
+<img src="img/screenshot_04.png" width="600" height="735" />
 
 ## How to use:
 
