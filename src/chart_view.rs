@@ -22,7 +22,10 @@ const CHART_MEM_SERIES_NAME: &str = "Memory (MB)";
 const CHART_CPU_SERIES_NAME: &str = "CPU (%)";
 
 #[component]
-pub fn NodeChartView(chart_data: ReadSignal<ChartSeriesData>) -> impl IntoView {
+pub fn NodeChartView(
+    is_render_chart: ReadSignal<bool>,
+    chart_data: ReadSignal<ChartSeriesData>,
+) -> impl IntoView {
     let chart_id = "metrics_chart".to_string();
 
     let metrics_chart_options = format!(
@@ -117,6 +120,10 @@ pub fn NodeChartView(chart_data: ReadSignal<ChartSeriesData>) -> impl IntoView {
     let opts_clone = options.clone();
     let chart_id_clone = chart_id.clone();
     Effect::new(move |_| {
+        if !*is_render_chart.read() {
+            return;
+        }
+
         let opt = serde_json::to_string(&opts_clone).unwrap_or("".to_string());
         let c = ApexChart::new(&JsValue::from_str(&opt));
         c.render(&chart_id_clone);
@@ -125,6 +132,10 @@ pub fn NodeChartView(chart_data: ReadSignal<ChartSeriesData>) -> impl IntoView {
 
     let opts_clone = options.clone();
     Effect::new(move |_| {
+        if !*is_render_chart.read() {
+            return;
+        }
+
         let mut opts_clone = opts_clone.clone();
         chart.with(|c| {
             if let Some(chart) = c {

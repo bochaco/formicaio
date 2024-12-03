@@ -24,6 +24,7 @@ pub fn NodesListView() -> impl IntoView {
     // this signal keeps the reactive list of log entries
     let (logs, set_logs) = signal(Vec::new());
     let (chart_data, set_chart_data) = signal((vec![], vec![]));
+    let (is_render_chart, set_render_chart) = signal(false);
 
     // we display the instances sorted by creation time, newest to oldest
     let sorted_nodes = Memo::new(move |_| {
@@ -45,7 +46,7 @@ pub fn NodesListView() -> impl IntoView {
                     when=move || !child.1.read().status.is_creating()
                     fallback=move || { view! { <CreatingNodeInstanceView /> }.into_view() }
                 >
-                    <NodeInstanceView info=child.1 set_logs set_chart_data />
+                    <NodeInstanceView info=child.1 set_logs set_render_chart set_chart_data />
                 </Show>
             </For>
         </div>
@@ -83,14 +84,17 @@ pub fn NodesListView() -> impl IntoView {
             <div class="modal-box border border-solid border-slate-50 w-4/5 max-w-full h-3/5 max-h-full overflow-y-auto">
                 <h3 class="text-sm font-bold">"Node Mem & CPU"</h3>
                 <div class="border-transparent h-full">
-                    <NodeChartView chart_data />
+                    <NodeChartView is_render_chart chart_data />
                 </div>
 
                 <div class="modal-action">
                     <label
                         for="node_chart_modal"
                         class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
-                        on:click=move |_| context.metrics_update_on_for.set(None)
+                        on:click=move |_| {
+                            set_render_chart.set(false);
+                            context.metrics_update_on_for.set(None);
+                        }
                     >
                         <IconCloseModal />
                     </label>
@@ -204,6 +208,7 @@ fn BatchInProgressView(batch_info: RwSignal<Option<BatchInProgress>>) -> impl In
 fn NodeInstanceView(
     info: RwSignal<NodeInstanceInfo>,
     set_logs: WriteSignal<Vec<String>>,
+    set_render_chart: WriteSignal<bool>,
     set_chart_data: WriteSignal<ChartSeriesData>,
 ) -> impl IntoView {
     let container_id = info.read_untracked().short_container_id();
@@ -250,7 +255,7 @@ fn NodeInstanceView(
                 </Show>
 
                 <NodeLogs info set_logs />
-                <NodeChartShow info set_chart_data />
+                <NodeChartShow info set_render_chart set_chart_data />
                 <ButtonStopStart info />
                 <ButtonRemove info />
             </div>
@@ -430,6 +435,7 @@ fn NodeLogs(info: RwSignal<NodeInstanceInfo>, set_logs: WriteSignal<Vec<String>>
 #[component]
 fn NodeChartShow(
     info: RwSignal<NodeInstanceInfo>,
+    set_render_chart: WriteSignal<bool>,
     set_chart_data: WriteSignal<ChartSeriesData>,
 ) -> impl IntoView {
     // we use the context to switch on/off the update of metrics charts
@@ -437,6 +443,7 @@ fn NodeChartShow(
 
     // action to trigger the update of nodes metrics charts
     let start_metrics_update = move |id: String| {
+        set_render_chart.set(true);
         context.metrics_update_on_for.set(Some(id.clone()));
         leptos::task::spawn_local(async move {
             if let Err(err) = super::chart_view::node_metrics_update(id, set_chart_data).await {
