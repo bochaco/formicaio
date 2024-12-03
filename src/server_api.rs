@@ -128,7 +128,6 @@ async fn helper_create_node_instance(
     let mut node_info = container.into();
     db_client.insert_node_metadata(&node_info).await;
 
-    // FIXME!!!
     if auto_start {
         helper_start_node_instance(container_id.clone(), db_client, docker_client).await?;
         node_info = docker_client
@@ -199,38 +198,46 @@ async fn helper_start_node_instance(
 pub async fn stop_node_instance(container_id: ContainerId) -> Result<(), ServerFnError> {
     logging::log!("Stopping node container with Id: {container_id} ...");
     let context = expect_context::<ServerGlobalState>();
-    context
-        .node_status_locked
-        .lock()
-        .await
-        .insert(container_id.clone());
-    context
-        .db_client
-        .update_node_status(&container_id, NodeStatus::Stopping)
-        .await;
+    helper_stop_node_instance(
+        container_id,
+        &context.node_status_locked,
+        &context.db_client,
+        &context.docker_client,
+        NodeStatus::Stopping,
+    )
+    .await
+}
 
-    let res = context.docker_client.stop_container(&container_id).await;
+// Helper to stop a node instance with given id
+#[cfg(feature = "ssr")]
+async fn helper_stop_node_instance(
+    container_id: ContainerId,
+    node_status_locked: &Arc<Mutex<HashSet<ContainerId>>>,
+    db_client: &DbClient,
+    docker_client: &DockerClient,
+    status: NodeStatus,
+) -> Result<(), ServerFnError> {
+    use crate::node_instance::NodeStatus;
+
+    node_status_locked.lock().await.insert(container_id.clone());
+    db_client.update_node_status(&container_id, status).await;
+
+    let res = docker_client.stop_container(&container_id).await;
 
     if matches!(res, Ok(())) {
         // set connected/kbucket peers back to 0 and update cache
-        context
-            .db_client
+        db_client
             .update_node_metadata_fields(
                 &container_id,
                 &[("connected_peers", "0"), ("kbuckets_peers", "0")],
             )
             .await;
-        context
-            .db_client
+        db_client
             .update_node_status(&container_id, NodeStatus::Inactive)
             .await;
     }
 
-    context
-        .node_status_locked
-        .lock()
-        .await
-        .remove(&container_id);
+    node_status_locked.lock().await.remove(&container_id);
 
     Ok(res?)
 }
@@ -344,6 +351,28 @@ pub async fn update_settings(settings: super::app::AppSettings) -> Result<(), Se
     context.db_client.update_settings(&settings).await?;
     context.updated_settings_tx.send(settings)?;
     Ok(())
+}
+
+// Recycle a node instance by restarting it with a new node peer-id
+#[server(RecycleNodeInstances, "/api", "Url", "/recycle_node_instance")]
+pub async fn recycle_node_instance(container_id: ContainerId) -> Result<(), ServerFnError> {
+    let context = expect_context::<ServerGlobalState>();
+    logging::log!("Recycling node instance with Id: {container_id} ...");
+
+    context
+        .docker_client
+        .clear_peer_id_in_container(&container_id)
+        .await?;
+
+    helper_stop_node_instance(
+        container_id.clone(),
+        &context.node_status_locked,
+        &context.db_client,
+        &context.docker_client,
+        NodeStatus::Recycling,
+    )
+    .await?;
+    helper_start_node_instance(container_id, &context.db_client, &context.docker_client).await
 }
 
 // Prepare a batch of node instances creation

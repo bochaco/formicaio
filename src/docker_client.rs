@@ -385,6 +385,21 @@ impl DockerClient {
         Ok((version, peer_id))
     }
 
+    // Clears the node's PeerId within the containver with given id
+    pub async fn clear_peer_id_in_container(
+        &self,
+        id: &ContainerId,
+    ) -> Result<(), DockerClientError> {
+        logging::log!("[RECYCLE] Recycling container by clearing node's peer-id ...");
+
+        let cmd = "rm ./node_data/secret-key".to_string();
+        let _ = self
+            .exec_in_container(id, cmd, "clear node peer-id")
+            .await?;
+        logging::log!("Finished removing node's peer-id in container: {id}");
+        Ok(())
+    }
+
     // Helper to execute a cmd in a given container
     async fn exec_in_container(
         &self,

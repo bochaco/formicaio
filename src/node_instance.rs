@@ -30,6 +30,8 @@ pub enum NodeStatus {
     Shunned, // TODO: include suspected reason as to why others shunned it ...??
     Removing,
     Upgrading,
+    // The node's peer-id is cleared and restarted with a fresh new one
+    Recycling,
     // This is a special state just to provide a good UX, after going thru some status
     // change, e.g. Restarting, Upgrading, we set to this state till we get actual state
     // from the server during our polling cycle. The string describes the type of transition.
@@ -49,6 +51,9 @@ impl NodeStatus {
     pub fn is_shunned(&self) -> bool {
         matches!(self, Self::Shunned)
     }
+    pub fn is_recycling(&self) -> bool {
+        matches!(self, Self::Recycling)
+    }
     pub fn is_upgrading(&self) -> bool {
         matches!(self, Self::Upgrading)
     }
@@ -60,6 +65,7 @@ impl NodeStatus {
                 | Self::Stopping
                 | Self::Removing
                 | Self::Upgrading
+                | Self::Recycling
                 | Self::Transitioned(_)
         )
     }

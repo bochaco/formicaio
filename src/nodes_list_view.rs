@@ -1,16 +1,15 @@
-use crate::app::BatchInProgress;
-
 use super::{
-    app::ClientGlobalState,
+    app::{BatchInProgress, ClientGlobalState},
     chart_view::{ChartSeriesData, NodeChartView},
     helpers::{node_logs_stream, remove_node_instance, show_alert_msg},
     icons::{
-        IconCloseModal, IconRemove, IconShowChart, IconShowLogs, IconStartNode, IconStopNode,
-        IconUpgradeNode,
+        IconCloseModal, IconRecycle, IconRemove, IconShowChart, IconShowLogs, IconStartNode,
+        IconStopNode, IconUpgradeNode,
     },
     node_instance::{NodeInstanceInfo, NodeStatus},
     server_api::{
-        cancel_node_instances_batch, start_node_instance, stop_node_instance, upgrade_node_instance,
+        cancel_node_instances_batch, recycle_node_instance, start_node_instance,
+        stop_node_instance, upgrade_node_instance,
     },
 };
 
@@ -257,6 +256,7 @@ fn NodeInstanceView(
                 <NodeLogs info set_logs />
                 <NodeChartShow info set_render_chart set_chart_data />
                 <ButtonStopStart info />
+                <ButtonRecycle info />
                 <ButtonRemove info />
             </div>
             <div class="mt-2">
@@ -266,7 +266,13 @@ fn NodeInstanceView(
                 </p>
                 <p>
                     <span class="node-info-item">"Peer Id: "</span>
-                    {move || peer_id}
+                    {move || {
+                        if info.read().status.is_recycling() {
+                            "... generating new peer-id ...".to_string()
+                        } else {
+                            peer_id()
+                        }
+                    }}
                 </p>
                 <p>
                     <span class="node-info-item">"Status: "</span>
@@ -592,6 +598,35 @@ fn ButtonUpgrade(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                 })
             >
                 <IconUpgradeNode />
+            </button>
+        </div>
+    }
+}
+
+#[component]
+fn ButtonRecycle(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
+    view! {
+        <div class="tooltip tooltip-bottom tooltip-info" data-tip="recycle">
+            <button
+                class=move || {
+                    if info.read().status.is_active() {
+                        "btn-node-action"
+                    } else {
+                        "btn-disabled-node-action"
+                    }
+                }
+                on:click=move |_| spawn_local({
+                    info.update(|info| info.status = NodeStatus::Recycling);
+                    let container_id = info.read().container_id.clone();
+                    async move {
+                        if let Err(err) = recycle_node_instance(container_id).await {
+                            logging::log!("Failed to recycle node: {err:?}");
+                            show_alert_msg(err.to_string());
+                        }
+                    }
+                })
+            >
+                <IconRecycle />
             </button>
         </div>
     }
