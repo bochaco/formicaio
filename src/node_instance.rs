@@ -105,9 +105,9 @@ pub struct NodeInstanceInfo {
 impl NodeInstanceInfo {
     pub fn upgrade_available(&self) -> bool {
         let context = expect_context::<ClientGlobalState>();
-        context.latest_bin_version.get().is_some()
+        context.latest_bin_version.read().is_some()
             && self.bin_version.is_some()
-            && context.latest_bin_version.get() != self.bin_version
+            && context.latest_bin_version.read() != self.bin_version
     }
 
     pub fn upgradeable(&self) -> bool {

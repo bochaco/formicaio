@@ -149,8 +149,8 @@ fn AddNodesForm(modal_visibility: RwSignal<bool>) -> impl IntoView {
             <button
                 type="button"
                 disabled=move || {
-                    port.get().is_err() || metrics_port.get().is_err() || count.get().is_err()
-                        || rewards_addr.get().is_err() || interval.get().is_err()
+                    port.read().is_err() || metrics_port.read().is_err() || count.read().is_err()
+                        || rewards_addr.read().is_err() || interval.read().is_err()
                 }
                 on:click=move |_| {
                     if let (Ok(p), Ok(m), Ok(c), Ok(addr), Ok(i)) = (
@@ -203,7 +203,7 @@ fn PortNumberInput(
             />
         </div>
         <div>
-            <Show when=move || signal.get().is_err() fallback=move || view! { "" }.into_view()>
+            <Show when=move || signal.read().is_err() fallback=move || view! { "" }.into_view()>
                 <p class="mt-2 text-sm text-red-600 dark:text-red-500">Not a valid port number</p>
             </Show>
         </div>
@@ -243,7 +243,7 @@ pub fn NumberInput(
             </div>
         </div>
         <div>
-            <Show when=move || signal.get().is_err() fallback=move || view! { "" }.into_view()>
+            <Show when=move || signal.read().is_err() fallback=move || view! { "" }.into_view()>
                 <p class="ml-2 text-sm text-red-600 dark:text-red-500">
                     "Invalid value: " {signal.get().err()}
                 </p>
@@ -348,7 +348,7 @@ pub fn RewardsAddrInput(
                 </div>
             </div>
 
-            <Show when=move || signal.get().is_err() fallback=move || view! { "" }.into_view()>
+            <Show when=move || signal.read().is_err() fallback=move || view! { "" }.into_view()>
                 <p class="mt-2 text-sm text-red-600 dark:text-red-500">
                     {signal.get().err().map(|(e, _)| e)}
                 </p>

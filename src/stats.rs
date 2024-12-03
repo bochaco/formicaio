@@ -8,30 +8,34 @@ use std::collections::HashMap;
 pub fn AggregatedStatsView() -> impl IntoView {
     let context = expect_context::<ClientGlobalState>();
 
-    let total_nodes = move || context.nodes.get().len();
+    let total_nodes = move || context.nodes.read().len();
     let active_nodes = move || {
         context
             .nodes
-            .get()
+            .read()
             .values()
-            .filter(|n| n.get().status.is_active())
+            .filter(|n| n.read().status.is_active())
             .count()
     };
     let inactive_nodes = move || {
         context
             .nodes
-            .get()
+            .read()
             .values()
-            .filter(|n| n.get().status.is_inactive())
+            .filter(|n| n.read().status.is_inactive())
             .count()
     };
     let balance = move || {
         let mut total = U256::ZERO;
         let seen = context
             .nodes
-            .get()
+            .read()
             .values()
-            .filter_map(|n| n.get().balance.map(|v| (n.get_untracked().rewards_addr, v)))
+            .filter_map(|n| {
+                n.read()
+                    .balance
+                    .map(|v| (n.get_untracked().rewards_addr, v))
+            })
             .fold(HashMap::new(), |mut acc, (addr, v)| {
                 acc.insert(addr, v);
                 acc
@@ -46,35 +50,35 @@ pub fn AggregatedStatsView() -> impl IntoView {
     let connected_peers = move || {
         context
             .nodes
-            .get()
+            .read()
             .values()
-            .map(|n| n.get().connected_peers.unwrap_or_default())
+            .map(|n| n.read().connected_peers.unwrap_or_default())
             .sum::<usize>()
     };
     let shunned_by = move || {
         context
             .nodes
-            .get()
+            .read()
             .values()
-            .map(|n| n.get().shunned_count.unwrap_or_default())
+            .map(|n| n.read().shunned_count.unwrap_or_default())
             .sum::<usize>()
     };
     let estimated_net_size = move || {
         let weighted_estimations = context
             .nodes
-            .get()
+            .read()
             .values()
-            .filter(|n| n.get().status.is_active())
+            .filter(|n| n.read().status.is_active())
             .map(|n| {
-                n.get().connected_peers.unwrap_or_default() * n.get().net_size.unwrap_or_default()
+                n.read().connected_peers.unwrap_or_default() * n.read().net_size.unwrap_or_default()
             })
             .sum::<usize>();
         let weights = context
             .nodes
-            .get()
+            .read()
             .values()
-            .filter(|n| n.get().status.is_active())
-            .map(|n| n.get().connected_peers.unwrap_or_default())
+            .filter(|n| n.read().status.is_active())
+            .map(|n| n.read().connected_peers.unwrap_or_default())
             .sum::<usize>();
 
         if weights > 0 {
@@ -86,11 +90,11 @@ pub fn AggregatedStatsView() -> impl IntoView {
     let stored_records = move || {
         context
             .nodes
-            .get()
+            .read()
             .values()
             .map(|n| {
-                if n.get().status.is_active() {
-                    n.get().records.unwrap_or_default()
+                if n.read().status.is_active() {
+                    n.read().records.unwrap_or_default()
                 } else {
                     0
                 }
@@ -100,11 +104,11 @@ pub fn AggregatedStatsView() -> impl IntoView {
     let inactive_records = move || {
         context
             .nodes
-            .get()
+            .read()
             .values()
             .map(|n| {
-                if n.get().status.is_inactive() {
-                    n.get().records.unwrap_or_default()
+                if n.read().status.is_inactive() {
+                    n.read().records.unwrap_or_default()
                 } else {
                     0
                 }
@@ -114,11 +118,11 @@ pub fn AggregatedStatsView() -> impl IntoView {
     let relevant_records = move || {
         context
             .nodes
-            .get()
+            .read()
             .values()
             .map(|n| {
-                if n.get().status.is_active() {
-                    n.get().relevant_records.unwrap_or_default()
+                if n.read().status.is_active() {
+                    n.read().relevant_records.unwrap_or_default()
                 } else {
                     0
                 }

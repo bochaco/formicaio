@@ -227,7 +227,7 @@ fn spawn_nodes_list_polling() {
                     // first let's get rid of those removed remotely
                     context.nodes.update(|cx_nodes| {
                         cx_nodes.retain(|id, node_info| {
-                            node_info.get_untracked().status.is_creating()
+                            node_info.read_untracked().status.is_creating()
                                 || info.nodes.contains_key(id)
                         })
                     });
@@ -235,8 +235,8 @@ fn spawn_nodes_list_polling() {
                     context.nodes.with_untracked(|cx_nodes| {
                         for (id, cn) in cx_nodes {
                             if let Some(updated) = info.nodes.get(id) {
-                                if cn.get_untracked() != *updated {
-                                    cn.set(updated.clone());
+                                if cn.read_untracked() != *updated {
+                                    cn.update(|cn| *cn = updated.clone());
                                 }
                             }
                         }
@@ -244,7 +244,7 @@ fn spawn_nodes_list_polling() {
                     // we can add any new node created remotely, perhaps by another instance of the app
                     info.nodes
                         .into_iter()
-                        .filter(|(id, _)| !context.nodes.get_untracked().contains_key(id))
+                        .filter(|(id, _)| !context.nodes.read_untracked().contains_key(id))
                         .for_each(|(id, new_node)| {
                             context.nodes.update(|nodes| {
                                 let _ = nodes.insert(id.clone(), RwSignal::new(new_node));

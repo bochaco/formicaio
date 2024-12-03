@@ -117,7 +117,7 @@ pub fn NodeChartView(chart_data: ReadSignal<ChartSeriesData>) -> impl IntoView {
         let opt = serde_json::to_string(&opts_clone).unwrap_or("".to_string());
         let c = ApexChart::new(&JsValue::from_str(&opt));
         c.render(&chart_id_clone);
-        chart.set(Some(Rc::new(c)));
+        chart.update(|chart| *chart = Some(Rc::new(c)));
     });
 
     let opts_clone = options.clone();
@@ -160,7 +160,7 @@ pub async fn node_metrics_update(
     // use context to check if we should stop retrieving the metrics
     let context = expect_context::<ClientGlobalState>();
     let mut since = None;
-    set_chart_data.set((vec![], vec![]));
+    set_chart_data.update(|data| *data = (vec![], vec![]));
 
     while let Some(true) = context
         .metrics_update_on_for

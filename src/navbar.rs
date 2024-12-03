@@ -16,7 +16,7 @@ pub fn NavBar() -> impl IntoView {
     let settings_panel = RwSignal::new(false);
     let active_screen = RwSignal::new(AppScreen::Nodes);
     let menu_item_class = move |p: AppScreen| {
-        if active_screen.get() == p {
+        if active_screen.read() == p {
             "block py-2 px-3 text-white bg-blue-700 rounded md:bg-transparent md:text-blue-700 md:p-0 dark:text-white md:dark:text-blue-500"
         } else {
             "block py-2 px-3 text-gray-900 rounded hover:bg-gray-100 md:hover:bg-transparent md:border-0 md:hover:text-blue-700 md:p-0 dark:text-white md:dark:hover:text-blue-500 dark:hover:bg-gray-700 dark:hover:text-white md:dark:hover:bg-transparent"
@@ -59,7 +59,7 @@ pub fn NavBar() -> impl IntoView {
                         <li>
                             <a
                                 href="/"
-                                on:click=move |_| active_screen.set(AppScreen::Nodes)
+                                on:click=move |_| active_screen.update(|a| *a = AppScreen::Nodes)
                                 class=move || menu_item_class(AppScreen::Nodes)
                                 aria-current="page"
                             >
@@ -69,7 +69,7 @@ pub fn NavBar() -> impl IntoView {
                         <li>
                             <a
                                 href="/about"
-                                on:click=move |_| active_screen.set(AppScreen::About)
+                                on:click=move |_| active_screen.update(|a| *a = AppScreen::About)
                                 class=move || menu_item_class(AppScreen::About)
                             >
                                 About

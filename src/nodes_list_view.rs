@@ -28,7 +28,7 @@ pub fn NodesListView() -> impl IntoView {
     // we display the instances sorted by creation time, newest to oldest
     let sorted_nodes = Memo::new(move |_| {
         let mut sorted = context.nodes.get().into_iter().collect::<Vec<_>>();
-        sorted.sort_by(|a, b| b.1.get().created.cmp(&a.1.get().created));
+        sorted.sort_by(|a, b| b.1.read().created.cmp(&a.1.read().created));
         sorted
     });
 
@@ -42,7 +42,7 @@ pub fn NodesListView() -> impl IntoView {
                 let:child
             >
                 <Show
-                    when=move || !child.1.get().status.is_creating()
+                    when=move || !child.1.read().status.is_creating()
                     fallback=move || { view! { <CreatingNodeInstanceView /> }.into_view() }
                 >
                     <NodeInstanceView info=child.1 set_logs set_chart_data />
@@ -127,7 +127,7 @@ fn BatchInProgressView(batch_info: RwSignal<Option<BatchInProgress>>) -> impl In
     };
 
     view! {
-        <Show when=move || batch_info.get().is_some() fallback=move || { view! {}.into_view() }>
+        <Show when=move || batch_info.read().is_some() fallback=move || { view! {}.into_view() }>
             <div class="max-w-sm w-80 m-2 p-4 bg-white border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700">
                 <div class="flex justify-end">
                     <div class="tooltip tooltip-bottom tooltip-info" data-tip="cancel">
@@ -206,7 +206,7 @@ fn NodeInstanceView(
     set_logs: WriteSignal<Vec<String>>,
     set_chart_data: WriteSignal<ChartSeriesData>,
 ) -> impl IntoView {
-    let container_id = info.get_untracked().short_container_id();
+    let container_id = info.read_untracked().short_container_id();
 
     let spinner_msg = move || {
         let status = info.get().status;
@@ -218,13 +218,13 @@ fn NodeInstanceView(
     };
 
     let peer_id = move || {
-        info.get()
+        info.read()
             .short_peer_id()
             .unwrap_or_else(|| "unknown".to_string())
     };
 
     let rewards_addr = move || {
-        info.get()
+        info.read()
             .short_rewards_addr()
             .unwrap_or_else(|| "unknown".to_string())
     };
@@ -233,7 +233,7 @@ fn NodeInstanceView(
         <div class="max-w-sm m-2 p-4 bg-gray-50 border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700">
             <div class="flex justify-end">
                 <Show
-                    when=move || info.get().status.is_transitioning()
+                    when=move || info.read().status.is_transitioning()
                     fallback=move || view! { "" }.into_view()
                 >
                     <div>
@@ -243,7 +243,7 @@ fn NodeInstanceView(
                 </Show>
 
                 <Show
-                    when=move || info.get().upgradeable()
+                    when=move || info.read().upgradeable()
                     fallback=move || view! { "" }.into_view()
                 >
                     <ButtonUpgrade info />
@@ -265,7 +265,7 @@ fn NodeInstanceView(
                 </p>
                 <p>
                     <span class="node-info-item">"Status: "</span>
-                    {move || format!("{}, {}", info.get().status, info.get().status_info)}
+                    {move || format!("{}, {}", info.read().status, info.read().status_info)}
                 </p>
                 <p>
                     <span class="node-info-item">"Version: "</span>
@@ -276,13 +276,13 @@ fn NodeInstanceView(
                         <div class="basis-1/2">
                             <span class="node-info-item">"Balance: "</span>
                             {move || {
-                                info.get().balance.map_or("unknown".to_string(), |v| v.to_string())
+                                info.read().balance.map_or("unknown".to_string(), |v| v.to_string())
                             }}
                         </div>
                         <div class="basis-1/2">
                             <span class="node-info-item">"Rewards: "</span>
                             {move || {
-                                info.get().rewards.map_or("unknown".to_string(), |v| v.to_string())
+                                info.read().rewards.map_or("unknown".to_string(), |v| v.to_string())
                             }}
                         </div>
                     </div>
@@ -296,13 +296,13 @@ fn NodeInstanceView(
                         <div class="basis-1/3">
                             <span class="node-info-item">"Port: "</span>
                             {move || {
-                                info.get().port.map_or("unknown".to_string(), |v| v.to_string())
+                                info.read().port.map_or("unknown".to_string(), |v| v.to_string())
                             }}
                         </div>
                         <div class="basis-2/3">
                             <span class="node-info-item">"Node metrics Port: "</span>
                             {move || {
-                                info.get()
+                                info.read()
                                     .metrics_port
                                     .map_or("unknown".to_string(), |v| v.to_string())
                             }}
@@ -312,7 +312,7 @@ fn NodeInstanceView(
                 <p>
                     <span class="node-info-item">"Store cost: "</span>
                     {move || {
-                        info.get().store_cost.map_or("unknown".to_string(), |v| v.to_string())
+                        info.read().store_cost.map_or("unknown".to_string(), |v| v.to_string())
                     }}
                 </p>
                 <p>
@@ -320,13 +320,13 @@ fn NodeInstanceView(
                         <div class="basis-1/2">
                             <span class="node-info-item">"Records: "</span>
                             {move || {
-                                info.get().records.map_or("unknown".to_string(), |v| v.to_string())
+                                info.read().records.map_or("unknown".to_string(), |v| v.to_string())
                             }}
                         </div>
                         <div class="basis-1/2">
                             <span class="node-info-item">"Relevant: "</span>
                             {move || {
-                                info.get()
+                                info.read()
                                     .relevant_records
                                     .map_or("unknown".to_string(), |v| v.to_string())
                             }}
@@ -338,7 +338,7 @@ fn NodeInstanceView(
                         <div class="basis-1/2">
                             <span class="node-info-item">"Conn. peers: "</span>
                             {move || {
-                                info.get()
+                                info.read()
                                     .connected_peers
                                     .map_or("unknown".to_string(), |v| v.to_string())
                             }}
@@ -346,7 +346,7 @@ fn NodeInstanceView(
                         <div class="basis-1/2">
                             <span class="node-info-item">"Shunned by: "</span>
                             {move || {
-                                info.get()
+                                info.read()
                                     .shunned_count
                                     .map_or("unknown".to_string(), |v| v.to_string())
                             }}
@@ -356,7 +356,7 @@ fn NodeInstanceView(
                 <p>
                     <span class="node-info-item">"kBuckets peers: "</span>
                     {move || {
-                        info.get().kbuckets_peers.map_or("unknown".to_string(), |v| v.to_string())
+                        info.read().kbuckets_peers.map_or("unknown".to_string(), |v| v.to_string())
                     }}
                 </p>
                 <p>
@@ -364,7 +364,7 @@ fn NodeInstanceView(
                         <div class="basis-2/3">
                             <span class="node-info-item">"Memory used: "</span>
                             {move || {
-                                info.get().mem_used.map_or("".to_string(), |v| format!("{v} MB"))
+                                info.read().mem_used.map_or("".to_string(), |v| format!("{v} MB"))
                             }}
                         </div>
                         <div class="basis-1/3">
@@ -378,7 +378,7 @@ fn NodeInstanceView(
                 <p>
                     <span class="node-info-item">"Created: "</span>
                     {move || {
-                        DateTime::<Utc>::from_timestamp(info.get().created as i64, 0)
+                        DateTime::<Utc>::from_timestamp(info.read().created as i64, 0)
                             .unwrap()
                             .to_string()
                     }}
@@ -410,7 +410,7 @@ fn NodeLogs(info: RwSignal<NodeInstanceInfo>, set_logs: WriteSignal<Vec<String>>
             <label
                 for="logs_stream_modal"
                 class=move || {
-                    if info.get().status.is_transitioning() || info.get().status.is_inactive() {
+                    if info.read().status.is_transitioning() || info.read().status.is_inactive() {
                         "btn-disabled-node-action"
                     } else {
                         "btn-node-action"
@@ -418,7 +418,7 @@ fn NodeLogs(info: RwSignal<NodeInstanceInfo>, set_logs: WriteSignal<Vec<String>>
                 }
                 on:click=move |_| {
                     set_logs.set(vec![]);
-                    start_logs_stream.dispatch(info.get_untracked().container_id.clone());
+                    start_logs_stream.dispatch(info.read_untracked().container_id.clone());
                 }
             >
                 <IconShowLogs />
@@ -451,14 +451,14 @@ fn NodeChartShow(
             <label
                 for="node_chart_modal"
                 class=move || {
-                    if info.get().status.is_transitioning() || info.get().status.is_inactive() {
+                    if info.read().status.is_transitioning() || info.read().status.is_inactive() {
                         "btn-disabled-node-action"
                     } else {
                         "btn-node-action"
                     }
                 }
                 on:click=move |_| {
-                    start_metrics_update(info.get_untracked().container_id.clone());
+                    start_metrics_update(info.read_untracked().container_id.clone());
                 }
             >
                 <IconShowChart />
@@ -470,7 +470,7 @@ fn NodeChartShow(
 #[component]
 fn ButtonStopStart(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
     let tip = move || {
-        if info.get().status.is_inactive() {
+        if info.read().status.is_inactive() {
             "start"
         } else {
             "stop"
@@ -481,14 +481,14 @@ fn ButtonStopStart(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
         <div class="tooltip tooltip-bottom tooltip-info" data-tip=tip>
             <button
                 class=move || {
-                    if info.get().status.is_transitioning() {
+                    if info.read().status.is_transitioning() {
                         "btn-disabled-node-action"
                     } else {
                         "btn-node-action"
                     }
                 }
                 on:click=move |_| {
-                    let container_id = info.get().container_id.clone();
+                    let container_id = info.read().container_id.clone();
                     let previous_status = info.get().status;
                     if previous_status.is_inactive() {
                         info.update(|node| node.status = NodeStatus::Restarting);
@@ -532,7 +532,7 @@ fn ButtonStopStart(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                 }
             >
                 <Show
-                    when=move || info.get().status.is_inactive()
+                    when=move || info.read().status.is_inactive()
                     fallback=|| view! { <IconStopNode /> }
                 >
                     <IconStartNode />
@@ -557,7 +557,7 @@ fn ButtonUpgrade(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
             <button
                 type="button"
                 class=move || {
-                    if info.get().status.is_transitioning() {
+                    if info.read().status.is_transitioning() {
                         "btn-disabled-node-action"
                     } else {
                         "btn-node-action"
@@ -566,7 +566,7 @@ fn ButtonUpgrade(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                 on:click=move |_| spawn_local({
                     let previous_status = info.get().status;
                     info.update(|info| info.status = NodeStatus::Upgrading);
-                    let container_id = info.get().container_id.clone();
+                    let container_id = info.read().container_id.clone();
                     async move {
                         match upgrade_node_instance(container_id).await {
                             Ok(()) => {
@@ -598,7 +598,7 @@ fn ButtonRemove(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                 class="btn-node-action"
                 on:click=move |_| spawn_local({
                     info.update(|info| info.status = NodeStatus::Removing);
-                    let container_id = info.get().container_id.clone();
+                    let container_id = info.read().container_id.clone();
                     async move {
                         if let Err(err) = remove_node_instance(container_id).await {
                             logging::log!("Failed to remove node: {err:?}");

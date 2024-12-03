@@ -13,7 +13,7 @@ use url::Url;
 #[component]
 pub fn SettingsView(settings_panel: RwSignal<bool>) -> impl IntoView {
     let current_settings = Resource::new(
-        move || settings_panel.get() == true,
+        move || settings_panel.read() == true,
         |_| async move { get_settings().await.unwrap_or_default() },
     );
     let active_tab = RwSignal::new(0);
@@ -24,7 +24,7 @@ pub fn SettingsView(settings_panel: RwSignal<bool>) -> impl IntoView {
             tabindex="-1"
             aria-hidden="true"
             class=move || {
-                if settings_panel.get() {
+                if *settings_panel.read() {
                     "overflow-y-auto overflow-x-hidden fixed inset-0 flex z-50 justify-center items-center w-full md:inset-0 h-[calc(100%-1rem)] max-h-full"
                 } else {
                     "hidden"
@@ -54,7 +54,7 @@ pub fn SettingsView(settings_panel: RwSignal<bool>) -> impl IntoView {
                                     href="#"
                                     on:click=move |_| active_tab.set(0)
                                     class=move || {
-                                        if active_tab.get() == 0 {
+                                        if active_tab.read() == 0 {
                                             "settings-active-tab"
                                         } else {
                                             "settings-tab"
@@ -69,7 +69,7 @@ pub fn SettingsView(settings_panel: RwSignal<bool>) -> impl IntoView {
                                     href="#"
                                     on:click=move |_| active_tab.set(1)
                                     class=move || {
-                                        if active_tab.get() == 1 {
+                                        if active_tab.read() == 1 {
                                             "settings-active-tab"
                                         } else {
                                             "settings-tab"
@@ -133,7 +133,7 @@ pub fn SettingsForm(
     });
 
     view! {
-        <span hidden=move || active_tab.get() != 0>
+        <span hidden=move || active_tab.read() != 0>
             <form class="space-y-4">
                 <div class="flex items-center">
                     <input
@@ -183,7 +183,7 @@ pub fn SettingsForm(
             </form>
         </span>
 
-        <span hidden=move || active_tab.get() != 1>
+        <span hidden=move || active_tab.read() != 1>
             <form class="space-y-4">
                 <div class="flex items-center">
                     <input
@@ -223,9 +223,10 @@ pub fn SettingsForm(
         <button
             type="button"
             disabled=move || {
-                auto_upgrade_delay.get().is_err() || bin_version_polling_freq.get().is_err()
-                    || balances_retrieval_freq.get().is_err() || metrics_polling_freq.get().is_err()
-                    || l2_network_rpc_url.get().is_err() || token_contract_address.get().is_err()
+                auto_upgrade_delay.read().is_err() || bin_version_polling_freq.read().is_err()
+                    || balances_retrieval_freq.read().is_err()
+                    || metrics_polling_freq.read().is_err() || l2_network_rpc_url.read().is_err()
+                    || token_contract_address.read().is_err()
             }
 
             on:click=move |_| {
@@ -295,7 +296,7 @@ pub fn NumberInput(
             </div>
         </div>
         <div>
-            <Show when=move || signal.get().is_err() fallback=move || view! { "" }.into_view()>
+            <Show when=move || signal.read().is_err() fallback=move || view! { "" }.into_view()>
                 <p class="ml-2 text-sm text-red-600 dark:text-red-500">
                     "Invalid value: " {signal.get().err()}
                 </p>
@@ -334,7 +335,7 @@ pub fn TextInput(
             />
         </div>
         <div>
-            <Show when=move || signal.get().is_err() fallback=move || view! { "" }.into_view()>
+            <Show when=move || signal.read().is_err() fallback=move || view! { "" }.into_view()>
                 <p class="ml-2 text-sm text-red-600 dark:text-red-500">
                     "Invalid value: " {signal.get().err()}
                 </p>
