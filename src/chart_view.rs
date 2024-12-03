@@ -18,6 +18,9 @@ use wasm_bindgen::JsValue;
 
 pub type ChartSeriesData = (Vec<[i64; 2]>, Vec<[i64; 2]>);
 
+const CHART_MEM_SERIES_NAME: &str = "Memory (MB)";
+const CHART_CPU_SERIES_NAME: &str = "CPU (%)";
+
 #[component]
 pub fn NodeChartView(chart_data: ReadSignal<ChartSeriesData>) -> impl IntoView {
     let chart_id = "metrics_chart".to_string();
@@ -79,7 +82,7 @@ pub fn NodeChartView(chart_data: ReadSignal<ChartSeriesData>) -> impl IntoView {
                 }}
               }},
               "title": {{
-                "text": "Memory (MB)",
+                "text": "{CHART_MEM_SERIES_NAME}",
                 "style": {{
                   "color": "#F98080"
                 }}
@@ -93,7 +96,7 @@ pub fn NodeChartView(chart_data: ReadSignal<ChartSeriesData>) -> impl IntoView {
                 }}
               }},
               "title": {{
-                "text": "CPU (%)",
+                "text": "{CHART_CPU_SERIES_NAME}",
                 "style": {{
                   "color": "#3F83F8"
                 }}
@@ -128,11 +131,11 @@ pub fn NodeChartView(chart_data: ReadSignal<ChartSeriesData>) -> impl IntoView {
                 let (mem_data, cpu_data) = chart_data.get();
                 opts_clone["series"] = serde_json::json!([
                     {
-                      "name": "Memory (MB)",
+                      "name": CHART_MEM_SERIES_NAME,
                       "data": mem_data
                     },
                     {
-                      "name": "CPU (%)",
+                      "name": CHART_CPU_SERIES_NAME,
                       "data": cpu_data
                     }
                 ]);
