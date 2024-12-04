@@ -124,8 +124,9 @@ pub fn SettingsForm(
         let settings = settings.clone();
         async move {
             if let Err(err) = update_settings(settings).await {
-                logging::log!("Failed to update settings: {err:?}");
-                show_alert_msg(err.to_string());
+                let msg = format!("Failed to update settings: {err:?}");
+                logging::log!("{msg}");
+                show_alert_msg(msg);
             } else {
                 settings_panel.set(false);
             }

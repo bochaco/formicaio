@@ -12,7 +12,7 @@ alloy-sol-types = { version = "0.8", default-features = false, features = ["json
 alloy-contract = { version = "0.7", default-features = false, optional = true }
 apexcharts-rs = { version = "0.1", features = ["leptos"] }
 async-stream = { version = "0.3", optional = true }
-axum = { version = "0.7", optional = true, features = ["macros"] }
+axum = { version = "0.7", optional = true, features = ["macros","http2"] }
 bs58 = { version = "0.5", optional = true }
 bytes = "1"
 chrono = "0.4"

@@ -1,6 +1,6 @@
 use super::{
     app::{BatchInProgress, ClientGlobalState},
-    chart_view::{ChartSeriesData, NodeChartView},
+    chart_view::{node_metrics_update, ChartSeriesData, NodeChartView},
     helpers::{node_logs_stream, remove_node_instance, show_alert_msg},
     icons::{
         IconCloseModal, IconRecycle, IconRemove, IconShowChart, IconShowLogs, IconStartNode,
@@ -124,7 +124,7 @@ fn CreatingNodeInstanceView() -> impl IntoView {
 
 #[component]
 fn BatchInProgressView(batch_info: RwSignal<Option<BatchInProgress>>) -> impl IntoView {
-    let done = move || {
+    let progress = move || {
         (batch_info.get().unwrap_or_default().created * 100)
             / batch_info.get().unwrap_or_default().total
     };
@@ -140,10 +140,11 @@ fn BatchInProgressView(batch_info: RwSignal<Option<BatchInProgress>>) -> impl In
                                 batch_info.update(|info| *info = None);
                                 async move {
                                     if let Err(err) = cancel_node_instances_batch().await {
-                                        logging::log!(
-                                            "Failed to cancel nodes creation batch: {err:?}"
+                                        let msg = format!(
+                                            "Failed to cancel nodes creation batch: {err:?}",
                                         );
-                                        show_alert_msg(err.to_string());
+                                        logging::log!("{msg}");
+                                        show_alert_msg(msg);
                                     }
                                 }
                             })
@@ -190,9 +191,9 @@ fn BatchInProgressView(batch_info: RwSignal<Option<BatchInProgress>>) -> impl In
                     <div class="w-full bg-purple-300 rounded-full h-6 dark:bg-gray-700">
                         <div
                             class="bg-purple-600 h-6 text-center text-purple-100 rounded-full dark:bg-purple-500"
-                            style=move || format!("width: {}%", done())
+                            style=move || format!("width: {}%", progress())
                         >
-                            {move || done()}
+                            {move || progress()}
                             "%"
                         </div>
                     </div>
@@ -409,9 +410,10 @@ fn NodeLogs(info: RwSignal<NodeInstanceInfo>, set_logs: WriteSignal<Vec<String>>
         context.logs_stream_on_for.set(Some(id.clone()));
         let id = id.clone();
         async move {
-            if let Err(err) = node_logs_stream(id, set_logs).await {
-                logging::log!("Failed to start logs stream: {err:?}");
-                show_alert_msg(err.to_string());
+            if let Err(err) = node_logs_stream(id.clone(), set_logs).await {
+                let msg = format!("Failed to start logs stream for node {id}: {err:?}");
+                logging::log!("{msg}");
+                show_alert_msg(msg);
             }
         }
     });
@@ -452,9 +454,10 @@ fn NodeChartShow(
         set_render_chart.set(true);
         context.metrics_update_on_for.set(Some(id.clone()));
         leptos::task::spawn_local(async move {
-            if let Err(err) = super::chart_view::node_metrics_update(id, set_chart_data).await {
-                logging::log!("Failed to start updating metrics charts: {err:?}");
-                show_alert_msg(err.to_string());
+            if let Err(err) = node_metrics_update(id.clone(), set_chart_data).await {
+                let msg = format!("Failed to start updating metrics chart for node {id}: {err:?}");
+                logging::log!("{msg}");
+                show_alert_msg(msg);
             }
         });
     };
@@ -501,12 +504,12 @@ fn ButtonStopStart(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                     }
                 }
                 on:click=move |_| {
-                    let container_id = info.read().container_id.clone();
-                    let previous_status = info.get().status;
+                    let container_id = info.read_untracked().container_id.clone();
+                    let previous_status = info.read_untracked().status.clone();
                     if previous_status.is_inactive() {
                         info.update(|node| node.status = NodeStatus::Restarting);
                         spawn_local(async move {
-                            match start_node_instance(container_id).await {
+                            match start_node_instance(container_id.clone()).await {
                                 Ok(()) => {
                                     info.update(|node| {
                                         node.status = NodeStatus::Transitioned(
@@ -515,8 +518,11 @@ fn ButtonStopStart(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                                     })
                                 }
                                 Err(err) => {
-                                    logging::log!("Failed to start node: {err:?}");
-                                    show_alert_msg(err.to_string());
+                                    let msg = format!(
+                                        "Failed to start node {container_id}: {err:?}",
+                                    );
+                                    logging::log!("{msg}");
+                                    show_alert_msg(msg);
                                     info.update(|node| node.status = previous_status);
                                 }
                             }
@@ -524,7 +530,7 @@ fn ButtonStopStart(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                     } else {
                         info.update(|node| node.status = NodeStatus::Stopping);
                         spawn_local(async move {
-                            match stop_node_instance(container_id).await {
+                            match stop_node_instance(container_id.clone()).await {
                                 Ok(()) => {
                                     info.update(|node| {
                                         node.connected_peers = Some(0);
@@ -535,8 +541,11 @@ fn ButtonStopStart(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                                     })
                                 }
                                 Err(err) => {
-                                    logging::log!("Failed to stop node: {err:?}");
-                                    show_alert_msg(err.to_string());
+                                    let msg = format!(
+                                        "Failed to stop node {container_id}: {err:?}",
+                                    );
+                                    logging::log!("{msg}");
+                                    show_alert_msg(msg);
                                     info.update(|node| node.status = previous_status);
                                 }
                             }
@@ -577,11 +586,11 @@ fn ButtonUpgrade(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                     }
                 }
                 on:click=move |_| spawn_local({
-                    let previous_status = info.get().status;
+                    let previous_status = info.read_untracked().status.clone();
                     info.update(|info| info.status = NodeStatus::Upgrading);
-                    let container_id = info.read().container_id.clone();
+                    let container_id = info.read_untracked().container_id.clone();
                     async move {
-                        match upgrade_node_instance(container_id).await {
+                        match upgrade_node_instance(container_id.clone()).await {
                             Ok(()) => {
                                 info.update(|node| {
                                     node.status = NodeStatus::Transitioned("Upgraded".to_string());
@@ -589,8 +598,9 @@ fn ButtonUpgrade(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                                 })
                             }
                             Err(err) => {
-                                logging::log!("Failed to upgrade node: {err:?}");
-                                show_alert_msg(err.to_string());
+                                let msg = format!("Failed to upgrade node {container_id}: {err:?}");
+                                logging::log!("{msg}");
+                                show_alert_msg(msg);
                                 info.update(|node| node.status = previous_status);
                             }
                         }
@@ -617,11 +627,12 @@ fn ButtonRecycle(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                 }
                 on:click=move |_| spawn_local({
                     info.update(|info| info.status = NodeStatus::Recycling);
-                    let container_id = info.read().container_id.clone();
+                    let container_id = info.read_untracked().container_id.clone();
                     async move {
-                        if let Err(err) = recycle_node_instance(container_id).await {
-                            logging::log!("Failed to recycle node: {err:?}");
-                            show_alert_msg(err.to_string());
+                        if let Err(err) = recycle_node_instance(container_id.clone()).await {
+                            let msg = format!("Failed to recycle node {container_id}: {err:?}");
+                            logging::log!("{msg}");
+                            show_alert_msg(msg);
                         }
                     }
                 })
@@ -640,11 +651,12 @@ fn ButtonRemove(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                 class="btn-node-action"
                 on:click=move |_| spawn_local({
                     info.update(|info| info.status = NodeStatus::Removing);
-                    let container_id = info.read().container_id.clone();
+                    let container_id = info.read_untracked().container_id.clone();
                     async move {
-                        if let Err(err) = remove_node_instance(container_id).await {
-                            logging::log!("Failed to remove node: {err:?}");
-                            show_alert_msg(err.to_string());
+                        if let Err(err) = remove_node_instance(container_id.clone()).await {
+                            let msg = format!("Failed to remove node {container_id}: {err:?}");
+                            logging::log!("{msg}");
+                            show_alert_msg(msg);
                         }
                     }
                 })
