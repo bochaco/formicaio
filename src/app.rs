@@ -18,9 +18,12 @@ use axum::extract::FromRef;
 #[cfg(feature = "hydrate")]
 use leptos::{logging, task::spawn_local};
 #[cfg(feature = "ssr")]
-use std::{collections::HashSet, sync::Arc};
+use std::sync::Arc;
 #[cfg(feature = "ssr")]
-use tokio::sync::{broadcast, Mutex};
+use tokio::{
+    sync::{broadcast, Mutex},
+    time::Instant,
+};
 
 #[cfg(feature = "hydrate")]
 use gloo_timers::future::TimeoutFuture;
@@ -95,7 +98,7 @@ pub struct ServerGlobalState {
     pub docker_client: super::docker_client::DockerClient,
     pub latest_bin_version: Arc<Mutex<Option<String>>>,
     pub nodes_metrics: Arc<Mutex<super::metrics_client::NodesMetrics>>,
-    pub node_status_locked: Arc<Mutex<HashSet<super::node_instance::ContainerId>>>,
+    pub node_status_locked: ImmutableNodeStatus,
     pub updated_settings_tx: broadcast::Sender<AppSettings>,
     pub node_instaces_batches: Arc<
         Mutex<(
@@ -111,6 +114,49 @@ pub struct BatchInProgress {
     pub total: u16,
     pub auto_start: bool,
     pub interval_secs: u64,
+}
+
+// List of nodes which status is temporarily immutable/locked,
+// along with expiration information for when it should be unlocked.
+#[cfg(feature = "ssr")]
+#[derive(Clone, Debug)]
+pub struct ImmutableNodeStatus(
+    Arc<Mutex<HashMap<super::node_instance::ContainerId, (Instant, Duration)>>>,
+);
+
+#[cfg(feature = "ssr")]
+impl ImmutableNodeStatus {
+    pub fn new() -> Self {
+        Self(Arc::new(Mutex::new(HashMap::new())))
+    }
+
+    pub async fn insert(&self, container_id: ContainerId, expiration: Duration) {
+        self.0
+            .lock()
+            .await
+            .insert(container_id, (Instant::now(), expiration));
+    }
+
+    pub async fn remove(&self, container_id: &ContainerId) {
+        self.0.lock().await.remove(container_id);
+    }
+
+    // Check if the container id is still in the list, but also check if
+    // its expiration has already passed and therefore has to be removed from the list.
+    pub async fn is_still_locked(&self, container_id: &ContainerId) -> bool {
+        let info = self.0.lock().await.get(container_id).cloned();
+        match info {
+            None => false,
+            Some((instant, expiration)) => {
+                if instant.elapsed() >= expiration {
+                    self.remove(container_id).await;
+                    false
+                } else {
+                    true
+                }
+            }
+        }
+    }
 }
 
 // Struct to use client side as a global context/state

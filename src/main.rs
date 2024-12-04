@@ -8,7 +8,7 @@ async fn main() {
     };
     use leptos::{logging, prelude::*};
     use leptos_axum::{generate_route_list, LeptosRoutes};
-    use std::{collections::HashSet, sync::Arc};
+    use std::sync::Arc;
     use tokio::sync::{broadcast, Mutex};
 
     logging::log!("Starting Formicaio v{} ...", env!("CARGO_PKG_VERSION"));
@@ -29,8 +29,8 @@ async fn main() {
 
     let latest_bin_version = Arc::new(Mutex::new(None));
     let nodes_metrics = Arc::new(Mutex::new(NodesMetrics::new(db_client.clone())));
-    // List of nodes which are currently being upgraded
-    let node_status_locked = Arc::new(Mutex::new(HashSet::new()));
+    // List of nodes which status is temporarily immutable
+    let node_status_locked = ImmutableNodeStatus::new();
 
     // Channel to send updates on app settings so they can be applied in the bg tasks
     let (updated_settings_tx, updated_settings_rx) = broadcast::channel::<AppSettings>(3);

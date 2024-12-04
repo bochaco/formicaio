@@ -1,10 +1,10 @@
 use super::{
-    app::{AppSettings, METRICS_MAX_SIZE_PER_CONTAINER},
+    app::{AppSettings, ImmutableNodeStatus, METRICS_MAX_SIZE_PER_CONTAINER},
     db_client::DbClient,
     docker_client::DockerClient,
     lcd::display_stats_on_lcd,
     metrics_client::{NodeMetricsClient, NodesMetrics},
-    node_instance::{ContainerId, NodeInstanceInfo},
+    node_instance::NodeInstanceInfo,
     server_api::helper_upgrade_node_instance,
 };
 use alloy::{
@@ -124,7 +124,7 @@ pub fn spawn_bg_tasks(
     latest_bin_version: Arc<Mutex<Option<String>>>,
     nodes_metrics: Arc<Mutex<NodesMetrics>>,
     db_client: DbClient,
-    node_status_locked: Arc<Mutex<HashSet<ContainerId>>>,
+    node_status_locked: ImmutableNodeStatus,
     mut updated_settings_rx: broadcast::Receiver<AppSettings>,
     settings: AppSettings,
 ) {
@@ -255,7 +255,7 @@ async fn check_node_bin_version(
     docker_client: DockerClient,
     latest_bin_version: Arc<Mutex<Option<String>>>,
     db_client: DbClient,
-    node_status_locked: Arc<Mutex<HashSet<ContainerId>>>,
+    node_status_locked: ImmutableNodeStatus,
 ) {
     if let Some(version) = latest_version_available().await {
         logging::log!("Latest version of node binary available: {version}");
@@ -346,7 +346,7 @@ async fn update_nodes_info(
     docker_client: &DockerClient,
     nodes_metrics: &Arc<Mutex<NodesMetrics>>,
     db_client: &DbClient,
-    node_status_locked: &Arc<Mutex<HashSet<ContainerId>>>,
+    node_status_locked: &ImmutableNodeStatus,
     query_bin_version: bool,
     lcd_stats: &Arc<Mutex<HashMap<String, String>>>,
 ) {
@@ -391,9 +391,8 @@ async fn update_nodes_info(
         }
 
         let update_status = !node_status_locked
-            .lock()
-            .await
-            .contains(&node_info.container_id);
+            .is_still_locked(&node_info.container_id)
+            .await;
         db_client
             .update_node_metadata(&node_info, update_status)
             .await;

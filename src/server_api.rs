@@ -10,9 +10,9 @@ use std::collections::HashMap;
 
 #[cfg(feature = "ssr")]
 use super::{
-    app::ServerGlobalState,
+    app::{ImmutableNodeStatus, ServerGlobalState},
     db_client::DbClient,
-    docker_client::{DockerClient, DockerClientError},
+    docker_client::{DockerClient, DockerClientError, UPGRADE_NODE_BIN_TIMEOUT_SECS},
     node_instance::{NodeInstancesBatch, NodeStatus},
 };
 #[cfg(feature = "ssr")]
@@ -20,7 +20,7 @@ use futures_util::StreamExt;
 #[cfg(feature = "ssr")]
 use leptos::logging;
 #[cfg(feature = "ssr")]
-use std::{collections::HashSet, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 #[cfg(feature = "ssr")]
 use tokio::{
     select,
@@ -212,14 +212,14 @@ pub async fn stop_node_instance(container_id: ContainerId) -> Result<(), ServerF
 #[cfg(feature = "ssr")]
 async fn helper_stop_node_instance(
     container_id: ContainerId,
-    node_status_locked: &Arc<Mutex<HashSet<ContainerId>>>,
+    node_status_locked: &ImmutableNodeStatus,
     db_client: &DbClient,
     docker_client: &DockerClient,
     status: NodeStatus,
 ) -> Result<(), ServerFnError> {
-    use crate::node_instance::NodeStatus;
-
-    node_status_locked.lock().await.insert(container_id.clone());
+    node_status_locked
+        .insert(container_id.clone(), Duration::from_secs(20))
+        .await;
     db_client.update_node_status(&container_id, status).await;
 
     let res = docker_client.stop_container(&container_id).await;
@@ -237,7 +237,7 @@ async fn helper_stop_node_instance(
             .await;
     }
 
-    node_status_locked.lock().await.remove(&container_id);
+    node_status_locked.remove(&container_id).await;
 
     Ok(res?)
 }
@@ -263,12 +263,17 @@ pub async fn upgrade_node_instance(container_id: ContainerId) -> Result<(), Serv
 #[cfg(feature = "ssr")]
 pub(crate) async fn helper_upgrade_node_instance(
     container_id: &ContainerId,
-    node_status_locked: &Arc<Mutex<HashSet<ContainerId>>>,
+    node_status_locked: &ImmutableNodeStatus,
     db_client: &DbClient,
     docker_client: &DockerClient,
 ) -> Result<Option<String>, DockerClientError> {
     // TODO: use docker 'extract' api to simply copy the new node binary into the container.
-    node_status_locked.lock().await.insert(container_id.clone());
+    node_status_locked
+        .insert(
+            container_id.clone(),
+            Duration::from_secs(UPGRADE_NODE_BIN_TIMEOUT_SECS),
+        )
+        .await;
     db_client
         .update_node_status(container_id, NodeStatus::Upgrading)
         .await;
@@ -296,7 +301,7 @@ pub(crate) async fn helper_upgrade_node_instance(
             .await;
     }
 
-    node_status_locked.lock().await.remove(container_id);
+    node_status_locked.remove(container_id).await;
 
     Ok(res?)
 }
