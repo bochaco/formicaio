@@ -269,9 +269,14 @@ fn NodeInstanceView(
                     <span class="node-info-item">"Peer Id: "</span>
                     {move || {
                         if info.read().status.is_recycling() {
-                            "... generating new peer-id ...".to_string()
+                            view! {
+                                <span class="bg-indigo-100 text-indigo-800 text-xs font-medium me-2 px-2.5 py-0.5 rounded dark:bg-indigo-900 dark:text-indigo-300">
+                                    "... generating new node peer-id ..."
+                                </span>
+                            }
+                                .into_any()
                         } else {
-                            peer_id()
+                            peer_id().into_any()
                         }
                     }}
                 </p>
