@@ -15,22 +15,22 @@ pub struct NodeMetric {
 pub type Metrics = HashMap<String, Vec<NodeMetric>>;
 
 // The number of Nanos in the node reward wallet.
-pub const METRIC_KEY_BALANCE: &str = "sn_node_current_reward_wallet_balance";
+pub const METRIC_KEY_BALANCE: &str = "ant_node_current_reward_wallet_balance";
 // The store cost of the node.
-pub const METRIC_KEY_STORE_COST: &str = "sn_networking_store_cost";
+pub const METRIC_KEY_STORE_COST: &str = "ant_networking_store_cost";
 // Memory used by the process in MegaBytes.
-pub const METRIC_KEY_MEM_USED_MB: &str = "sn_networking_process_memory_used_mb";
+pub const METRIC_KEY_MEM_USED_MB: &str = "ant_networking_process_memory_used_mb";
 // The percentage of CPU used by the process. Value is from 0-100.
-pub const METRIC_KEY_CPU_USEAGE: &str = "sn_networking_process_cpu_usage_percentage";
+pub const METRIC_KEY_CPU_USEAGE: &str = "ant_networking_process_cpu_usage_percentage";
 // The number of records stored locally.
-pub const METRIC_KEY_RECORDS: &str = "sn_networking_records_stored";
+pub const METRIC_KEY_RECORDS: &str = "ant_networking_records_stored";
 // The number of records that we're responsible for. This is used to calculate the store cost.
-pub const METRIC_KEY_RELEVANT_RECORDS: &str = "sn_networking_relevant_records";
+pub const METRIC_KEY_RELEVANT_RECORDS: &str = "ant_networking_relevant_records";
 // The number of peers that we are currently connected to.
-pub const METRIC_KEY_CONNECTED_PEERS: &str = "sn_networking_connected_peers";
+pub const METRIC_KEY_CONNECTED_PEERS: &str = "ant_networking_connected_peers";
 // The total number of peers in our routing table.
-pub const METRIC_KEY_PEERS_IN_RT: &str = "sn_networking_peers_in_routing_table";
+pub const METRIC_KEY_PEERS_IN_RT: &str = "ant_networking_peers_in_routing_table";
 // Number of peers that have shunned our node.
-pub const METRIC_KEY_SHUNNED_COUNT: &str = "sn_networking_shunned_count_total";
+pub const METRIC_KEY_SHUNNED_COUNT: &str = "ant_networking_shunned_count_total";
 // The estimated number of nodes in the network calculated by the peers in our RT.
-pub const METRIC_KEY_NET_SIZE: &str = "sn_networking_estimated_network_size";
+pub const METRIC_KEY_NET_SIZE: &str = "ant_networking_estimated_network_size";

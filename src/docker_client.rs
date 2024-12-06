@@ -287,7 +287,7 @@ impl DockerClient {
             Cmd: Some(vec![
                 "sh".to_string(),
                 "-c".to_string(),
-                "tail -s 7 -f /app/node_data/logs/safenode.log".to_string(),
+                "tail -s 7 -f /app/node_data/logs/antnode.log".to_string(),
             ]),
             Tty: Some(false),
         };
@@ -357,7 +357,7 @@ impl DockerClient {
         &self,
         id: &ContainerId,
     ) -> Result<(Option<String>, Option<String>), DockerClientError> {
-        let cmd = "/app/safenode --version | grep -oE 'Autonomi Node v[0-9]+\\.[0-9]+\\.[0-9]+'"
+        let cmd = "/app/antnode --version | grep -oE 'Autonomi Node v[0-9]+\\.[0-9]+\\.[0-9]+'"
             .to_string();
         let (_, resp_str) = self
             .exec_in_container(id, cmd, "get node bin version")
