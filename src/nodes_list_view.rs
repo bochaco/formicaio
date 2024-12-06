@@ -514,22 +514,11 @@ fn ButtonStopStart(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                     if previous_status.is_inactive() {
                         info.update(|node| node.status = NodeStatus::Restarting);
                         spawn_local(async move {
-                            match start_node_instance(container_id.clone()).await {
-                                Ok(()) => {
-                                    info.update(|node| {
-                                        node.status = NodeStatus::Transitioned(
-                                            "Restarted".to_string(),
-                                        );
-                                    })
-                                }
-                                Err(err) => {
-                                    let msg = format!(
-                                        "Failed to start node {container_id}: {err:?}",
-                                    );
-                                    logging::log!("{msg}");
-                                    show_alert_msg(msg);
-                                    info.update(|node| node.status = previous_status);
-                                }
+                            if let Err(err) = start_node_instance(container_id.clone()).await {
+                                let msg = format!("Failed to start node {container_id}: {err:?}");
+                                logging::log!("{msg}");
+                                show_alert_msg(msg);
+                                info.update(|node| node.status = previous_status);
                             }
                         });
                     } else {
@@ -540,9 +529,6 @@ fn ButtonStopStart(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                                     info.update(|node| {
                                         node.connected_peers = Some(0);
                                         node.kbuckets_peers = Some(0);
-                                        node.status = NodeStatus::Transitioned(
-                                            "Stopped".to_string(),
-                                        );
                                     })
                                 }
                                 Err(err) => {
@@ -598,7 +584,6 @@ fn ButtonUpgrade(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                         match upgrade_node_instance(container_id.clone()).await {
                             Ok(()) => {
                                 info.update(|node| {
-                                    node.status = NodeStatus::Transitioned("Upgraded".to_string());
                                     node.bin_version = None;
                                 })
                             }
