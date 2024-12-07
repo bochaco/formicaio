@@ -212,15 +212,7 @@ fn NodeInstanceView(
     set_chart_data: WriteSignal<ChartSeriesData>,
 ) -> impl IntoView {
     let container_id = info.read_untracked().short_container_id();
-
-    let spinner_msg = move || {
-        let status = info.get().status;
-        if status.is_transitioning() {
-            format!("{status}")
-        } else {
-            "".to_string()
-        }
-    };
+    let is_transitioning = move || info.read().status.is_transitioning();
 
     let peer_id = move || {
         info.read()
@@ -235,16 +227,15 @@ fn NodeInstanceView(
     };
 
     view! {
-        <div class="max-w-sm m-2 p-4 bg-gray-50 border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700">
+        <div class="relative max-w-sm m-2 p-4 bg-gray-50 border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700">
             <div class="flex justify-end">
                 <Show
                     when=move || info.read().status.is_transitioning()
                     fallback=move || view! { "" }.into_view()
                 >
                     <div>
-                        <span class="loading loading-spinner mr-2"></span>
+                        <span class="loading loading-spinner absolute left-4"></span>
                     </div>
-                    <div class="mr-6">{spinner_msg}</div>
                 </Show>
 
                 <Show
@@ -262,144 +253,164 @@ fn NodeInstanceView(
             </div>
             <div class="mt-2">
                 <p>
-                    <span class="node-info-item">"Node Id: "</span>
-                    {container_id.clone()}
-                </p>
-                <p>
-                    <span class="node-info-item">"Peer Id: "</span>
+                    <span class="node-info-item">"Status: "</span>
                     {move || {
-                        if info.read().status.is_recycling() {
-                            view! {
-                                <span class="bg-indigo-100 text-indigo-800 text-xs font-medium me-2 px-2.5 py-0.5 rounded dark:bg-indigo-900 dark:text-indigo-300">
-                                    "... generating new node peer-id ..."
-                                </span>
-                            }
-                                .into_any()
+                        if is_transitioning() {
+                            format!("{} ...", info.read().status)
                         } else {
-                            peer_id().into_any()
+                            format!("{}, {}", info.read().status, info.read().status_info)
                         }
                     }}
                 </p>
-                <p>
-                    <span class="node-info-item">"Status: "</span>
-                    {move || format!("{}, {}", info.read().status, info.read().status_info)}
-                </p>
-                <p>
-                    <span class="node-info-item">"Version: "</span>
-                    {move || info.get().bin_version.unwrap_or_else(|| "unknown".to_string())}
-                </p>
-                <p>
-                    <div class="flex flex-row">
-                        <div class="basis-1/2">
-                            <span class="node-info-item">"Balance: "</span>
-                            {move || {
-                                info.read().balance.map_or("unknown".to_string(), |v| v.to_string())
-                            }}
+                <span class=move || { if is_transitioning() { "opacity-60" } else { "" } }>
+                    <p>
+                        <span class="node-info-item">"Node Id: "</span>
+                        {container_id.clone()}
+                    </p>
+                    <p>
+                        <span class="node-info-item">"Peer Id: "</span>
+                        {move || {
+                            if info.read().status.is_recycling() {
+                                view! {
+                                    <span class="bg-indigo-100 text-indigo-800 text-xs font-medium me-2 px-2.5 py-0.5 rounded dark:bg-indigo-900 dark:text-indigo-300">
+                                        "...regenerating peer-id..."
+                                    </span>
+                                }
+                                    .into_any()
+                            } else {
+                                peer_id().into_any()
+                            }
+                        }}
+                    </p>
+                    <p>
+                        <span class="node-info-item">"Version: "</span>
+                        {move || info.get().bin_version.unwrap_or_else(|| "unknown".to_string())}
+                    </p>
+                    <p>
+                        <div class="flex flex-row">
+                            <div class="basis-1/2">
+                                <span class="node-info-item">"Balance: "</span>
+                                {move || {
+                                    info.read()
+                                        .balance
+                                        .map_or("unknown".to_string(), |v| v.to_string())
+                                }}
+                            </div>
+                            <div class="basis-1/2">
+                                <span class="node-info-item">"Rewards: "</span>
+                                {move || {
+                                    info.read()
+                                        .rewards
+                                        .map_or("unknown".to_string(), |v| v.to_string())
+                                }}
+                            </div>
                         </div>
-                        <div class="basis-1/2">
-                            <span class="node-info-item">"Rewards: "</span>
-                            {move || {
-                                info.read().rewards.map_or("unknown".to_string(), |v| v.to_string())
-                            }}
+                    </p>
+                    <p>
+                        <span class="node-info-item">"Rewards addr: "</span>
+                        {move || rewards_addr}
+                    </p>
+                    <p>
+                        <div class="flex flex-row">
+                            <div class="basis-1/3">
+                                <span class="node-info-item">"Port: "</span>
+                                {move || {
+                                    info.read()
+                                        .port
+                                        .map_or("unknown".to_string(), |v| v.to_string())
+                                }}
+                            </div>
+                            <div class="basis-2/3">
+                                <span class="node-info-item">"Node metrics Port: "</span>
+                                {move || {
+                                    info.read()
+                                        .metrics_port
+                                        .map_or("unknown".to_string(), |v| v.to_string())
+                                }}
+                            </div>
                         </div>
-                    </div>
-                </p>
-                <p>
-                    <span class="node-info-item">"Rewards addr: "</span>
-                    {move || rewards_addr}
-                </p>
-                <p>
-                    <div class="flex flex-row">
-                        <div class="basis-1/3">
-                            <span class="node-info-item">"Port: "</span>
-                            {move || {
-                                info.read().port.map_or("unknown".to_string(), |v| v.to_string())
-                            }}
+                    </p>
+                    <p>
+                        <span class="node-info-item">"Store cost: "</span>
+                        {move || {
+                            info.read().store_cost.map_or("unknown".to_string(), |v| v.to_string())
+                        }}
+                    </p>
+                    <p>
+                        <div class="flex flex-row">
+                            <div class="basis-1/2">
+                                <span class="node-info-item">"Records: "</span>
+                                {move || {
+                                    info.read()
+                                        .records
+                                        .map_or("unknown".to_string(), |v| v.to_string())
+                                }}
+                            </div>
+                            <div class="basis-1/2">
+                                <span class="node-info-item">"Relevant: "</span>
+                                {move || {
+                                    info.read()
+                                        .relevant_records
+                                        .map_or("unknown".to_string(), |v| v.to_string())
+                                }}
+                            </div>
                         </div>
-                        <div class="basis-2/3">
-                            <span class="node-info-item">"Node metrics Port: "</span>
-                            {move || {
-                                info.read()
-                                    .metrics_port
-                                    .map_or("unknown".to_string(), |v| v.to_string())
-                            }}
+                    </p>
+                    <p>
+                        <div class="flex flex-row">
+                            <div class="basis-1/2">
+                                <span class="node-info-item">"Conn. peers: "</span>
+                                {move || {
+                                    info.read()
+                                        .connected_peers
+                                        .map_or("unknown".to_string(), |v| v.to_string())
+                                }}
+                            </div>
+                            <div class="basis-1/2">
+                                <span class="node-info-item">"Shunned by: "</span>
+                                {move || {
+                                    info.read()
+                                        .shunned_count
+                                        .map_or("unknown".to_string(), |v| v.to_string())
+                                }}
+                            </div>
                         </div>
-                    </div>
-                </p>
-                <p>
-                    <span class="node-info-item">"Store cost: "</span>
-                    {move || {
-                        info.read().store_cost.map_or("unknown".to_string(), |v| v.to_string())
-                    }}
-                </p>
-                <p>
-                    <div class="flex flex-row">
-                        <div class="basis-1/2">
-                            <span class="node-info-item">"Records: "</span>
-                            {move || {
-                                info.read().records.map_or("unknown".to_string(), |v| v.to_string())
-                            }}
+                    </p>
+                    <p>
+                        <span class="node-info-item">"kBuckets peers: "</span>
+                        {move || {
+                            info.read()
+                                .kbuckets_peers
+                                .map_or("unknown".to_string(), |v| v.to_string())
+                        }}
+                    </p>
+                    <p>
+                        <div class="flex flex-row">
+                            <div class="basis-2/3">
+                                <span class="node-info-item">"Memory used: "</span>
+                                {move || {
+                                    info.read()
+                                        .mem_used
+                                        .map_or("".to_string(), |v| format!("{v} MB"))
+                                }}
+                            </div>
+                            <div class="basis-1/3">
+                                <span class="node-info-item">"CPU: "</span>
+                                {move || {
+                                    info.get().cpu_usage.map_or("".to_string(), |v| format!("{v}%"))
+                                }}
+                            </div>
                         </div>
-                        <div class="basis-1/2">
-                            <span class="node-info-item">"Relevant: "</span>
-                            {move || {
-                                info.read()
-                                    .relevant_records
-                                    .map_or("unknown".to_string(), |v| v.to_string())
-                            }}
-                        </div>
-                    </div>
-                </p>
-                <p>
-                    <div class="flex flex-row">
-                        <div class="basis-1/2">
-                            <span class="node-info-item">"Conn. peers: "</span>
-                            {move || {
-                                info.read()
-                                    .connected_peers
-                                    .map_or("unknown".to_string(), |v| v.to_string())
-                            }}
-                        </div>
-                        <div class="basis-1/2">
-                            <span class="node-info-item">"Shunned by: "</span>
-                            {move || {
-                                info.read()
-                                    .shunned_count
-                                    .map_or("unknown".to_string(), |v| v.to_string())
-                            }}
-                        </div>
-                    </div>
-                </p>
-                <p>
-                    <span class="node-info-item">"kBuckets peers: "</span>
-                    {move || {
-                        info.read().kbuckets_peers.map_or("unknown".to_string(), |v| v.to_string())
-                    }}
-                </p>
-                <p>
-                    <div class="flex flex-row">
-                        <div class="basis-2/3">
-                            <span class="node-info-item">"Memory used: "</span>
-                            {move || {
-                                info.read().mem_used.map_or("".to_string(), |v| format!("{v} MB"))
-                            }}
-                        </div>
-                        <div class="basis-1/3">
-                            <span class="node-info-item">"CPU: "</span>
-                            {move || {
-                                info.get().cpu_usage.map_or("".to_string(), |v| format!("{v}%"))
-                            }}
-                        </div>
-                    </div>
-                </p>
-                <p>
-                    <span class="node-info-item">"Created: "</span>
-                    {move || {
-                        DateTime::<Utc>::from_timestamp(info.read().created as i64, 0)
-                            .unwrap()
-                            .to_string()
-                    }}
-                </p>
+                    </p>
+                    <p>
+                        <span class="node-info-item">"Created: "</span>
+                        {move || {
+                            DateTime::<Utc>::from_timestamp(info.read().created as i64, 0)
+                                .unwrap()
+                                .to_string()
+                        }}
+                    </p>
+                </span>
             </div>
         </div>
     }
