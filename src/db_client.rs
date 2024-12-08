@@ -213,7 +213,6 @@ impl DbClient {
 
     // Insert node metadata onto local cache DB
     pub async fn insert_node_metadata(&self, info: &NodeInstanceInfo) {
-        let db_lock = self.db.lock().await;
         let query_str = format!(
             "INSERT OR REPLACE INTO nodes (\
                 container_id, status, port, \
@@ -221,6 +220,7 @@ impl DbClient {
             ) VALUES (?, ?, ?, ?, ?, ?)"
         );
 
+        let db_lock = self.db.lock().await;
         match sqlx::query(&query_str)
             .bind(info.container_id.clone())
             .bind(json!(info.status).to_string())
@@ -244,8 +244,6 @@ impl DbClient {
 
     // Update node metadata on local cache DB
     pub async fn update_node_metadata(&self, info: &NodeInstanceInfo, update_status: bool) {
-        let db_lock = self.db.lock().await;
-
         let mut updates = Vec::new();
         let mut params = Vec::new();
 
@@ -298,8 +296,15 @@ impl DbClient {
             query = query.bind(p);
         }
 
+        let db_lock = self.db.lock().await;
         match query.execute(&*db_lock).await {
-            Ok(_) => {}
+            Ok(result) => {
+                if result.rows_affected() == 0 {
+                    // insert a new record then
+                    drop(db_lock);
+                    self.insert_node_metadata(info).await;
+                }
+            }
             Err(err) => logging::log!("Sqlite update query error: {err}"),
         }
     }
@@ -323,7 +328,6 @@ impl DbClient {
         container_id: &str,
         fields_values: &[(&str, &str)],
     ) {
-        let db_lock = self.db.lock().await;
         let (updates, mut params) =
             fields_values
                 .iter()
@@ -344,6 +348,7 @@ impl DbClient {
             query = query.bind(p);
         }
 
+        let db_lock = self.db.lock().await;
         match query.execute(&*db_lock).await {
             Ok(_) => {}
             Err(err) => logging::log!("Sqlite update query error: {err}"),
@@ -397,7 +402,6 @@ impl DbClient {
             return;
         }
 
-        let db_lock = self.db.lock().await;
         let mut query_builder =
             QueryBuilder::new("INSERT INTO nodes_metrics (container_id, timestamp, key, value) ");
 
@@ -408,6 +412,7 @@ impl DbClient {
                 .push_bind(metric.value.clone());
         });
 
+        let db_lock = self.db.lock().await;
         match query_builder.build().execute(&*db_lock).await {
             Ok(_) => {}
             Err(err) => logging::log!("Sqlite insert query error: {err}."),
