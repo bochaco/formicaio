@@ -4,10 +4,10 @@ pub use super::metrics::*;
 use super::server_api::nodes_instances;
 use super::{
     about::AboutView,
-    add_node::AddNodeView,
     alerts::AlertMsg,
     error_template::{AppError, ErrorTemplate},
     navbar::NavBar,
+    node_actions::NodesActionsView,
     node_instance::{ContainerId, NodeInstanceInfo},
     nodes_list_view::NodesListView,
     stats::AggregatedStatsView,
@@ -34,7 +34,10 @@ use leptos_router::{
     StaticSegment,
 };
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    time::Duration,
+};
 use wasm_bindgen::{prelude::*, JsValue};
 
 #[wasm_bindgen(module = "/public/metamask.js")]
@@ -174,6 +177,8 @@ pub struct ClientGlobalState {
     pub alerts: RwSignal<Vec<(u64, String)>>,
     // Information about node instances batch currently in progress
     pub batch_in_progress: RwSignal<Option<BatchInProgress>>,
+    // Kepp track of nodes being selected and if selection is on/off
+    pub selecting_nodes: RwSignal<(bool, bool, HashSet<ContainerId>)>,
 }
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
@@ -208,6 +213,7 @@ pub fn App() -> impl IntoView {
         latest_bin_version: RwSignal::new(None),
         alerts: RwSignal::new(vec![]),
         batch_in_progress: RwSignal::new(None),
+        selecting_nodes: RwSignal::new((false, false, HashSet::new())),
     });
 
     // spawn poller task only on client side
@@ -242,7 +248,7 @@ fn HomeScreenView() -> impl IntoView {
         <AlertMsg />
 
         <AggregatedStatsView />
-        <AddNodeView />
+        <NodesActionsView />
         <NodesListView />
     }
 }

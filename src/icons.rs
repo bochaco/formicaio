@@ -150,18 +150,12 @@ pub fn IconShowChart() -> impl IntoView {
 }
 
 #[component]
-pub fn IconUpgradeNode() -> impl IntoView {
+pub fn IconUpgradeNode(color: String) -> impl IntoView {
     view! {
-        <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-6 w-6"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="green"
-        >
-            <circle cx="12" cy="12" r="10" stroke="green" stroke-width="2" />
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10" stroke=color.clone() stroke-width="2" />
             <path
-                stroke="green"
+                stroke=color.clone()
                 stroke-linecap="round"
                 stroke-linejoin="round"
                 stroke-width="2"
@@ -256,6 +250,42 @@ pub fn IconSettings() -> impl IntoView {
                 stroke-width="2"
                 d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"
             />
+        </svg>
+    }
+}
+
+#[component]
+pub fn IconOpenActionsMenu() -> impl IntoView {
+    view! {
+        <svg
+            class="w-5 h-5 transition-transform group-hover:rotate-45"
+            aria-hidden="true"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 18 18"
+        >
+            <path
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9 1v16M1 9h16"
+            />
+        </svg>
+    }
+}
+
+#[component]
+pub fn IconManageNodes() -> impl IntoView {
+    view! {
+        <svg
+            class="w-6 h-6"
+            aria-hidden="true"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="currentColor"
+            viewBox="0 0 20 20"
+        >
+            <path d="m13.835 7.578-.005.007-7.137 7.137 2.139 2.138 7.143-7.142-2.14-2.14Zm-10.696 3.59 2.139 2.14 7.138-7.137.007-.005-2.141-2.141-7.143 7.143Zm1.433 4.261L2 12.852.051 18.684a1 1 0 0 0 1.265 1.264L7.147 18l-2.575-2.571Zm14.249-14.25a4.03 4.03 0 0 0-5.693 0L11.7 2.611 17.389 8.3l1.432-1.432a4.029 4.029 0 0 0 0-5.689Z" />
         </svg>
     }
 }

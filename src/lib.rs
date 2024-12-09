@@ -1,5 +1,4 @@
 mod about;
-mod add_node;
 mod alerts;
 pub mod app;
 #[cfg(feature = "ssr")]
@@ -20,6 +19,7 @@ mod metrics;
 #[cfg(feature = "ssr")]
 pub mod metrics_client;
 mod navbar;
+mod node_actions;
 pub mod node_instance;
 mod nodes_list_view;
 mod server_api;

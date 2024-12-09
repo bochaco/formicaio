@@ -1,11 +1,18 @@
 use super::{
-    app::get_addr_from_metamask,
-    helpers::add_node_instances,
-    icons::{IconAddNode, IconCloseModal, IconPasteAddr},
+    app::{get_addr_from_metamask, ClientGlobalState},
+    helpers::{add_node_instances, remove_node_instance, show_alert_msg},
+    icons::{
+        IconAddNode, IconCloseModal, IconManageNodes, IconOpenActionsMenu, IconPasteAddr,
+        IconRecycle, IconRemove, IconStartNode, IconStopNode, IconUpgradeNode,
+    },
+    node_instance::{NodeInstanceInfo, NodeStatus},
+    server_api::{
+        recycle_node_instance, start_node_instance, stop_node_instance, upgrade_node_instance,
+    },
 };
 
 use alloy::primitives::Address;
-use leptos::{prelude::*, task::spawn_local};
+use leptos::{logging, prelude::*, task::spawn_local};
 use std::num::ParseIntError;
 
 // TODO: find next available port numbers by looking at already used ones
@@ -15,17 +22,313 @@ const DEFAULT_METRICS_PORT: u16 = 14000;
 // Expected length of entered hex-encoded rewards address.
 const REWARDS_ADDR_LENGTH: usize = 40;
 
+// Action to apply on a node instance
+#[derive(Clone, Debug)]
+pub enum NodeAction {
+    Start,
+    Stop,
+    Upgrade,
+    Recycle,
+    Remove,
+}
+
+impl NodeAction {
+    // Apply the action to the given node instance
+    pub async fn apply(&self, info: &RwSignal<NodeInstanceInfo>) {
+        let container_id = info.read_untracked().container_id.clone();
+        let previous_status = info.read_untracked().status.clone();
+        let res = match self {
+            Self::Start => {
+                if !previous_status.is_inactive() {
+                    return;
+                }
+                info.update(|node| node.status = NodeStatus::Restarting);
+                start_node_instance(container_id.clone()).await
+            }
+            Self::Stop => {
+                if !previous_status.is_active() {
+                    return;
+                }
+                info.update(|node| node.status = NodeStatus::Stopping);
+                let res = stop_node_instance(container_id.clone()).await;
+
+                if matches!(res, Ok(())) {
+                    info.update(|node| {
+                        node.connected_peers = Some(0);
+                        node.kbuckets_peers = Some(0);
+                    })
+                }
+
+                res
+            }
+            Self::Upgrade => {
+                if !previous_status.is_active() {
+                    return;
+                }
+                info.update(|node| node.status = NodeStatus::Upgrading);
+                let res = upgrade_node_instance(container_id.clone()).await;
+
+                if matches!(res, Ok(())) {
+                    info.update(|node| {
+                        node.bin_version = None;
+                    })
+                }
+
+                res
+            }
+            Self::Recycle => {
+                if !previous_status.is_active() {
+                    return;
+                }
+                info.update(|node| node.status = NodeStatus::Recycling);
+                recycle_node_instance(container_id.clone()).await
+            }
+            Self::Remove => {
+                info.update(|node| node.status = NodeStatus::Removing);
+                remove_node_instance(container_id.clone()).await
+            }
+        };
+
+        if let Err(err) = res {
+            let msg = format!(
+                "Failed to {self:?} node {}: {err:?}",
+                info.read_untracked().short_container_id()
+            );
+            logging::log!("{msg}");
+            show_alert_msg(msg);
+            info.update(|node| node.status = previous_status);
+        }
+    }
+}
+
 #[component]
-pub fn AddNodeView() -> impl IntoView {
+pub fn NodesActionsView() -> impl IntoView {
+    let context = expect_context::<ClientGlobalState>();
+    let is_selecting_nodes = move || context.selecting_nodes.read().0;
+    let show_actions_menu = RwSignal::new(false);
+    let actions_class = move || {
+        if !is_selecting_nodes() {
+            "hidden"
+        } else if context.selecting_nodes.read().2.is_empty() {
+            "btn-manage-nodes-action btn-disabled"
+        } else {
+            "btn-manage-nodes-action"
+        }
+    };
+
+    let apply_on_selected = Action::new(move |action: &NodeAction| {
+        show_actions_menu.set(false);
+        let action = action.clone();
+        context.selecting_nodes.update(|(_, g, _)| *g = false);
+        let selected = context.selecting_nodes.get_untracked().2;
+        let nodes = context
+            .nodes
+            .read_untracked()
+            .values()
+            .filter(|n| selected.contains(&n.read_untracked().container_id))
+            .cloned()
+            .collect::<Vec<_>>();
+
+        async move {
+            for info in nodes {
+                action.apply(&info).await;
+                context.selecting_nodes.update(|(_, _, s)| {
+                    s.remove(&info.read_untracked().container_id);
+                })
+            }
+            context.selecting_nodes.update(|(f, _, _)| {
+                *f = false;
+            });
+        }
+    });
+
+    // signal to switch the panel to add nodes
     let modal_visibility = RwSignal::new(false);
 
     view! {
-        <div class="divider divider-center">
-            <button type="button" class="btn-add-node" on:click=move |_| modal_visibility.set(true)>
-                <IconAddNode />
-                Add nodes
+        <div class="fixed end-6 bottom-6 group z-10">
+            <div class=move || {
+                if *show_actions_menu.read() {
+                    "flex flex-col items-center mb-4 space-y-2"
+                } else {
+                    "hidden"
+                }
+            }>
+
+                <button
+                    type="button"
+                    on:click=move |_| {
+                        let is_selecting = context.selecting_nodes.read_untracked().0;
+                        context
+                            .selecting_nodes
+                            .update(|(f, g, _)| {
+                                *f = !is_selecting;
+                                *g = true;
+                            });
+                    }
+                    data-tooltip-target="tooltip-manage"
+                    data-tooltip-placement="left"
+                    class=move || {
+                        if is_selecting_nodes() {
+                            "btn-manage-nodes-action ring-4 ring-gray-300 outline-none dark:ring-gray-400"
+                        } else {
+                            "btn-manage-nodes-action"
+                        }
+                    }
+                >
+                    <IconManageNodes />
+                    <span class="sr-only">Manage</span>
+                </button>
+                <div
+                    id="tooltip-manage"
+                    role="tooltip"
+                    class="absolute z-10 invisible inline-block w-auto px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700"
+                >
+                    Manage
+                    <div class="tooltip-arrow" data-popper-arrow></div>
+                </div>
+
+                <button
+                    type="button"
+                    on:click=move |_| {
+                        apply_on_selected.dispatch(NodeAction::Start);
+                    }
+                    data-tooltip-target="tooltip-start"
+                    data-tooltip-placement="left"
+                    class=move || actions_class()
+                >
+                    <IconStartNode />
+                    <span class="sr-only">Start selected</span>
+                </button>
+                <div
+                    id="tooltip-start"
+                    role="tooltip"
+                    class="absolute z-10 invisible inline-block w-auto px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700"
+                >
+                    Start selected
+                    <div class="tooltip-arrow" data-popper-arrow></div>
+                </div>
+
+                <button
+                    type="button"
+                    on:click=move |_| {
+                        apply_on_selected.dispatch(NodeAction::Stop);
+                    }
+                    data-tooltip-target="tooltip-stop"
+                    data-tooltip-placement="left"
+                    class=move || actions_class()
+                >
+                    <IconStopNode />
+                    <span class="sr-only">Stop selected</span>
+                </button>
+                <div
+                    id="tooltip-stop"
+                    role="tooltip"
+                    class="absolute z-10 invisible inline-block w-auto px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700"
+                >
+                    Stop selected
+                    <div class="tooltip-arrow" data-popper-arrow></div>
+                </div>
+
+                <button
+                    type="button"
+                    on:click=move |_| {
+                        apply_on_selected.dispatch(NodeAction::Upgrade);
+                    }
+                    data-tooltip-target="tooltip-upgrade"
+                    data-tooltip-placement="left"
+                    class=move || actions_class()
+                >
+                    <IconUpgradeNode color="currentColor".to_string() />
+                    <span class="sr-only">Upgrade selected</span>
+                </button>
+                <div
+                    id="tooltip-upgrade"
+                    role="tooltip"
+                    class="absolute z-10 invisible inline-block w-auto px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700"
+                >
+                    Upgrade selected
+                    <div class="tooltip-arrow" data-popper-arrow></div>
+                </div>
+
+                <button
+                    type="button"
+                    on:click=move |_| {
+                        apply_on_selected.dispatch(NodeAction::Recycle);
+                    }
+                    data-tooltip-target="tooltip-recycle"
+                    data-tooltip-placement="left"
+                    class=move || actions_class()
+                >
+                    <IconRecycle />
+                    <span class="sr-only">Recycle selected</span>
+                </button>
+                <div
+                    id="tooltip-recycle"
+                    role="tooltip"
+                    class="absolute z-10 invisible inline-block w-auto px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700"
+                >
+                    Recycle selected
+                    <div class="tooltip-arrow" data-popper-arrow></div>
+                </div>
+
+                <button
+                    type="button"
+                    on:click=move |_| {
+                        apply_on_selected.dispatch(NodeAction::Remove);
+                    }
+                    data-tooltip-target="tooltip-remove"
+                    data-tooltip-placement="left"
+                    class=move || actions_class()
+                >
+                    <IconRemove />
+                    <span class="sr-only">Remove selected</span>
+                </button>
+                <div
+                    id="tooltip-remove"
+                    role="tooltip"
+                    class="absolute z-10 invisible inline-block w-auto px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700"
+                >
+                    Remove selected
+                    <div class="tooltip-arrow" data-popper-arrow></div>
+                </div>
+
+                <button
+                    type="button"
+                    on:click=move |_| {
+                        show_actions_menu.set(false);
+                        modal_visibility.set(true);
+                    }
+                    data-tooltip-target="tooltip-add-nodes"
+                    data-tooltip-placement="left"
+                    class="btn-manage-nodes-action"
+                >
+                    <IconAddNode />
+                    <span class="sr-only">Add nodes</span>
+                </button>
+                <div
+                    id="tooltip-add-nodes"
+                    role="tooltip"
+                    class="absolute z-10 invisible inline-block w-auto px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700"
+                >
+                    Add nodes
+                    <div class="tooltip-arrow" data-popper-arrow></div>
+                </div>
+            </div>
+
+            <button
+                type="button"
+                on:click=move |_| {
+                    let showing = *show_actions_menu.read_untracked();
+                    show_actions_menu.set(!showing);
+                }
+                class="flex items-center justify-center text-white bg-blue-700 rounded-full w-14 h-14 hover:bg-blue-800 dark:bg-blue-600 dark:hover:bg-blue-700 focus:ring-4 focus:ring-blue-300 focus:outline-none dark:focus:ring-blue-800"
+            >
+                <IconOpenActionsMenu />
+                <span class="sr-only">Open actions menu</span>
             </button>
         </div>
+
         <div
             id="add_node_modal"
             tabindex="-1"

@@ -1,16 +1,14 @@
 use super::{
     app::{BatchInProgress, ClientGlobalState},
     chart_view::{node_metrics_update, ChartSeriesData, NodeChartView},
-    helpers::{node_logs_stream, remove_node_instance, show_alert_msg},
+    helpers::{node_logs_stream, show_alert_msg},
     icons::{
         IconCloseModal, IconRecycle, IconRemove, IconShowChart, IconShowLogs, IconStartNode,
         IconStopNode, IconUpgradeNode,
     },
-    node_instance::{NodeInstanceInfo, NodeStatus},
-    server_api::{
-        cancel_node_instances_batch, recycle_node_instance, start_node_instance,
-        stop_node_instance, upgrade_node_instance,
-    },
+    node_actions::NodeAction,
+    node_instance::NodeInstanceInfo,
+    server_api::cancel_node_instances_batch,
 };
 
 use chrono::{DateTime, Utc};
@@ -211,7 +209,8 @@ fn NodeInstanceView(
     set_render_chart: WriteSignal<bool>,
     set_chart_data: WriteSignal<ChartSeriesData>,
 ) -> impl IntoView {
-    let container_id = info.read_untracked().short_container_id();
+    let context = expect_context::<ClientGlobalState>();
+    let is_selecting_nodes = move || context.selecting_nodes.read().0;
     let is_transitioning = move || info.read().status.is_transitioning();
 
     let peer_id = move || {
@@ -229,10 +228,44 @@ fn NodeInstanceView(
     view! {
         <div class="relative max-w-sm m-2 p-4 bg-gray-50 border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700">
             <div class="flex justify-end">
-                <Show
-                    when=move || info.read().status.is_transitioning()
-                    fallback=move || view! { "" }.into_view()
-                >
+                <Show when=move || is_selecting_nodes() fallback=move || view! { "" }.into_view()>
+                    <div>
+                        <span class=" absolute left-4">
+                            <input
+                                type="checkbox"
+                                checked=context
+                                    .selecting_nodes
+                                    .read()
+                                    .2
+                                    .contains(&info.read_untracked().container_id)
+                                disabled=move || !context.selecting_nodes.read().1
+                                on:change=move |ev| {
+                                    if event_target_checked(&ev) {
+                                        context
+                                            .selecting_nodes
+                                            .update(|(_, _, s)| {
+                                                s.insert(info.read_untracked().container_id.clone());
+                                            })
+                                    } else {
+                                        context
+                                            .selecting_nodes
+                                            .update(|(_, _, s)| {
+                                                s.remove(&info.read_untracked().container_id);
+                                            })
+                                    }
+                                }
+                                class=move || {
+                                    if is_transitioning() {
+                                        "hidden"
+                                    } else {
+                                        "w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                                    }
+                                }
+                            />
+                        </span>
+                    </div>
+                </Show>
+                <Show when=move || is_transitioning() fallback=move || view! { "" }.into_view()>
                     <div>
                         <span class="loading loading-spinner absolute left-4"></span>
                     </div>
@@ -265,7 +298,7 @@ fn NodeInstanceView(
                 <span class=move || { if is_transitioning() { "opacity-60" } else { "" } }>
                     <p>
                         <span class="node-info-item">"Node Id: "</span>
-                        {container_id.clone()}
+                        {info.read_untracked().short_container_id()}
                     </p>
                     <p>
                         <span class="node-info-item">"Peer Id: "</span>
@@ -420,6 +453,7 @@ fn NodeInstanceView(
 fn NodeLogs(info: RwSignal<NodeInstanceInfo>, set_logs: WriteSignal<Vec<String>>) -> impl IntoView {
     // we use the context to switch on/off the streaming of logs
     let context = expect_context::<ClientGlobalState>();
+    let is_selecting_nodes = move || context.selecting_nodes.read().0;
 
     // action to trigger the streaming of logs from the node to the 'set_logs' signal
     let start_logs_stream = Action::new(move |id: &String| {
@@ -439,7 +473,9 @@ fn NodeLogs(info: RwSignal<NodeInstanceInfo>, set_logs: WriteSignal<Vec<String>>
             <label
                 for="logs_stream_modal"
                 class=move || {
-                    if info.read().status.is_transitioning() || info.read().status.is_inactive() {
+                    if is_selecting_nodes() || info.read().status.is_transitioning()
+                        || info.read().status.is_inactive()
+                    {
                         "btn-disabled-node-action"
                     } else {
                         "btn-node-action"
@@ -464,6 +500,7 @@ fn NodeChartShow(
 ) -> impl IntoView {
     // we use the context to switch on/off the update of metrics charts
     let context = expect_context::<ClientGlobalState>();
+    let is_selecting_nodes = move || context.selecting_nodes.read().0;
 
     // action to trigger the update of nodes metrics charts
     let start_metrics_update = move |id: String| {
@@ -483,7 +520,9 @@ fn NodeChartShow(
             <label
                 for="node_chart_modal"
                 class=move || {
-                    if info.read().status.is_transitioning() || info.read().status.is_inactive() {
+                    if is_selecting_nodes() || info.read().status.is_transitioning()
+                        || info.read().status.is_inactive()
+                    {
                         "btn-disabled-node-action"
                     } else {
                         "btn-node-action"
@@ -501,6 +540,8 @@ fn NodeChartShow(
 
 #[component]
 fn ButtonStopStart(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
+    let context = expect_context::<ClientGlobalState>();
+    let is_selecting_nodes = move || context.selecting_nodes.read().0;
     let tip = move || {
         if info.read().status.is_inactive() {
             "start"
@@ -513,48 +554,21 @@ fn ButtonStopStart(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
         <div class="tooltip tooltip-bottom tooltip-info" data-tip=tip>
             <button
                 class=move || {
-                    if info.read().status.is_transitioning() {
+                    if is_selecting_nodes() || info.read().status.is_transitioning() {
                         "btn-disabled-node-action"
                     } else {
                         "btn-node-action"
                     }
                 }
-                on:click=move |_| {
-                    let container_id = info.read_untracked().container_id.clone();
-                    let previous_status = info.read_untracked().status.clone();
-                    if previous_status.is_inactive() {
-                        info.update(|node| node.status = NodeStatus::Restarting);
-                        spawn_local(async move {
-                            if let Err(err) = start_node_instance(container_id.clone()).await {
-                                let msg = format!("Failed to start node {container_id}: {err:?}");
-                                logging::log!("{msg}");
-                                show_alert_msg(msg);
-                                info.update(|node| node.status = previous_status);
-                            }
-                        });
+                on:click=move |_| spawn_local(async move {
+                    if info.read_untracked().status.is_inactive() {
+                        NodeAction::Start.apply(&info).await;
                     } else {
-                        info.update(|node| node.status = NodeStatus::Stopping);
-                        spawn_local(async move {
-                            match stop_node_instance(container_id.clone()).await {
-                                Ok(()) => {
-                                    info.update(|node| {
-                                        node.connected_peers = Some(0);
-                                        node.kbuckets_peers = Some(0);
-                                    })
-                                }
-                                Err(err) => {
-                                    let msg = format!(
-                                        "Failed to stop node {container_id}: {err:?}",
-                                    );
-                                    logging::log!("{msg}");
-                                    show_alert_msg(msg);
-                                    info.update(|node| node.status = previous_status);
-                                }
-                            }
-                        });
+                        NodeAction::Stop.apply(&info).await;
                     }
-                }
+                })
             >
+
                 <Show
                     when=move || info.read().status.is_inactive()
                     fallback=|| view! { <IconStopNode /> }
@@ -569,6 +583,7 @@ fn ButtonStopStart(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
 #[component]
 fn ButtonUpgrade(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
     let context = expect_context::<ClientGlobalState>();
+    let is_selecting_nodes = move || context.selecting_nodes.read().0;
     let tip = move || {
         if let Some(v) = context.latest_bin_version.get() {
             format!("upgrade to v{v} and restart")
@@ -581,34 +596,17 @@ fn ButtonUpgrade(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
             <button
                 type="button"
                 class=move || {
-                    if info.read().status.is_transitioning() {
+                    if is_selecting_nodes() || info.read().status.is_transitioning() {
                         "btn-disabled-node-action"
                     } else {
                         "btn-node-action"
                     }
                 }
-                on:click=move |_| spawn_local({
-                    let previous_status = info.read_untracked().status.clone();
-                    info.update(|info| info.status = NodeStatus::Upgrading);
-                    let container_id = info.read_untracked().container_id.clone();
-                    async move {
-                        match upgrade_node_instance(container_id.clone()).await {
-                            Ok(()) => {
-                                info.update(|node| {
-                                    node.bin_version = None;
-                                })
-                            }
-                            Err(err) => {
-                                let msg = format!("Failed to upgrade node {container_id}: {err:?}");
-                                logging::log!("{msg}");
-                                show_alert_msg(msg);
-                                info.update(|node| node.status = previous_status);
-                            }
-                        }
-                    }
+                on:click=move |_| spawn_local(async move {
+                    NodeAction::Upgrade.apply(&info).await;
                 })
             >
-                <IconUpgradeNode />
+                <IconUpgradeNode color="green".to_string() />
             </button>
         </div>
     }
@@ -616,26 +614,21 @@ fn ButtonUpgrade(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
 
 #[component]
 fn ButtonRecycle(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
+    let context = expect_context::<ClientGlobalState>();
+    let is_selecting_nodes = move || context.selecting_nodes.read().0;
+
     view! {
         <div class="tooltip tooltip-bottom tooltip-info" data-tip="recycle">
             <button
                 class=move || {
-                    if info.read().status.is_active() {
+                    if !is_selecting_nodes() && info.read().status.is_active() {
                         "btn-node-action"
                     } else {
                         "btn-disabled-node-action"
                     }
                 }
-                on:click=move |_| spawn_local({
-                    info.update(|info| info.status = NodeStatus::Recycling);
-                    let container_id = info.read_untracked().container_id.clone();
-                    async move {
-                        if let Err(err) = recycle_node_instance(container_id.clone()).await {
-                            let msg = format!("Failed to recycle node {container_id}: {err:?}");
-                            logging::log!("{msg}");
-                            show_alert_msg(msg);
-                        }
-                    }
+                on:click=move |_| spawn_local(async move {
+                    NodeAction::Recycle.apply(&info).await;
                 })
             >
                 <IconRecycle />
@@ -646,22 +639,23 @@ fn ButtonRecycle(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
 
 #[component]
 fn ButtonRemove(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
+    let context = expect_context::<ClientGlobalState>();
+
     view! {
         <div class="tooltip tooltip-bottom tooltip-info" data-tip="remove">
             <button
-                class="btn-node-action"
-                on:click=move |_| spawn_local({
-                    info.update(|info| info.status = NodeStatus::Removing);
-                    let container_id = info.read_untracked().container_id.clone();
-                    async move {
-                        if let Err(err) = remove_node_instance(container_id.clone()).await {
-                            let msg = format!("Failed to remove node {container_id}: {err:?}");
-                            logging::log!("{msg}");
-                            show_alert_msg(msg);
-                        }
+                class=move || {
+                    if context.selecting_nodes.read().0 {
+                        "btn-disabled-node-action"
+                    } else {
+                        "btn-node-action"
                     }
+                }
+                on:click=move |_| spawn_local(async move {
+                    NodeAction::Remove.apply(&info).await;
                 })
             >
+
                 <IconRemove />
             </button>
         </div>
