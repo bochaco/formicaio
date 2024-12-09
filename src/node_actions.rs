@@ -24,7 +24,7 @@ const DEFAULT_METRICS_PORT: u16 = 14000;
 const REWARDS_ADDR_LENGTH: usize = 40;
 
 // Action to apply on a node instance
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum NodeAction {
     Start,
     Stop,
@@ -141,7 +141,12 @@ pub fn NodesActionsView() -> impl IntoView {
                 }
 
                 action.apply(&info).await;
-                while !was_cancelled() && info.read().status.is_transitioning() {
+
+                // let's await for it to finish transitioning unless it was a removal action
+                while action != NodeAction::Remove
+                    && !was_cancelled()
+                    && info.read().status.is_transitioning()
+                {
                     sleep(Duration::from_millis(NODES_LIST_POLLING_FREQ_MILLIS)).await;
                 }
             }
