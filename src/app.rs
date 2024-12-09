@@ -176,7 +176,7 @@ pub struct ClientGlobalState {
     pub alerts: RwSignal<Vec<(u64, String)>>,
     // Information about node instances batch currently in progress
     pub batch_in_progress: RwSignal<Option<BatchInProgress>>,
-    // Kepp track of nodes being selected and if selection is on/off
+    // Keep track of nodes being selected and if selection is on/off
     pub selecting_nodes: RwSignal<(bool, bool, HashSet<ContainerId>)>,
 }
 
