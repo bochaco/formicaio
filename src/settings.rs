@@ -1,7 +1,7 @@
 use super::{
     app::AppSettings,
     helpers::show_alert_msg,
-    icons::IconCloseModal,
+    icons::IconCancel,
     server_api::{get_settings, update_settings},
 };
 
@@ -42,7 +42,7 @@ pub fn SettingsView(settings_panel: RwSignal<bool>) -> impl IntoView {
                             class="end-2.5 text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 ms-auto inline-flex justify-center items-center dark:hover:bg-gray-600 dark:hover:text-white"
                             on:click=move |_| settings_panel.set(false)
                         >
-                            <IconCloseModal />
+                            <IconCancel />
                             <span class="sr-only">Cancel</span>
                         </button>
                     </div>

@@ -36,7 +36,7 @@ pub fn IconShowLogs() -> impl IntoView {
 }
 
 #[component]
-pub fn IconCloseModal() -> impl IntoView {
+pub fn IconCancel() -> impl IntoView {
     view! {
         <svg
             class="w-3 h-3"
@@ -80,17 +80,20 @@ pub fn IconRecycle() -> impl IntoView {
 pub fn IconRemove() -> impl IntoView {
     view! {
         <svg
+            class="w-6 h-6"
+            aria-hidden="true"
             xmlns="http://www.w3.org/2000/svg"
-            class="h-6 w-6"
+            width="24"
+            height="24"
             fill="none"
             viewBox="0 0 24 24"
-            stroke="currentColor"
         >
             <path
+                stroke="currentColor"
                 stroke-linecap="round"
                 stroke-linejoin="round"
                 stroke-width="2"
-                d="M6 18L18 6M6 6l12 12"
+                d="M5 7h14m-9 3v8m4-8v8M10 3h4a1 1 0 0 1 1 1v3H9V4a1 1 0 0 1 1-1ZM6 7h12v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V7Z"
             />
         </svg>
     }

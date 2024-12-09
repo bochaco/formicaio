@@ -3,7 +3,7 @@ use super::{
     chart_view::{node_metrics_update, ChartSeriesData, NodeChartView},
     helpers::{node_logs_stream, show_alert_msg},
     icons::{
-        IconCloseModal, IconRecycle, IconRemove, IconShowChart, IconShowLogs, IconStartNode,
+        IconCancel, IconRecycle, IconRemove, IconShowChart, IconShowLogs, IconStartNode,
         IconStopNode, IconUpgradeNode,
     },
     node_actions::NodeAction,
@@ -70,7 +70,7 @@ pub fn NodesListView() -> impl IntoView {
                         class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
                         on:click=move |_| context.logs_stream_on_for.set(None)
                     >
-                        <IconCloseModal />
+                        <IconCancel />
                     </label>
                 </div>
             </div>
@@ -93,7 +93,7 @@ pub fn NodesListView() -> impl IntoView {
                             context.metrics_update_on_for.set(None);
                         }
                     >
-                        <IconCloseModal />
+                        <IconCancel />
                     </label>
                 </div>
             </div>
@@ -147,7 +147,7 @@ fn BatchInProgressView(batch_info: RwSignal<Option<BatchInProgress>>) -> impl In
                                 }
                             })
                         >
-                            <IconRemove />
+                            <IconCancel />
                         </button>
                     </div>
                 </div>
@@ -238,7 +238,7 @@ fn NodeInstanceView(
                                     .read()
                                     .2
                                     .contains(&info.read_untracked().container_id)
-                                disabled=move || !context.selecting_nodes.read().1
+                                disabled=move || context.selecting_nodes.read().1
                                 on:change=move |ev| {
                                     if event_target_checked(&ev) {
                                         context

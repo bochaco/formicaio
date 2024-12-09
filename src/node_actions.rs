@@ -1,9 +1,9 @@
 use super::{
-    app::{get_addr_from_metamask, ClientGlobalState},
+    app::{get_addr_from_metamask, ClientGlobalState, NODES_LIST_POLLING_FREQ_MILLIS},
     helpers::{add_node_instances, remove_node_instance, show_alert_msg},
     icons::{
-        IconAddNode, IconCloseModal, IconManageNodes, IconOpenActionsMenu, IconPasteAddr,
-        IconRecycle, IconRemove, IconStartNode, IconStopNode, IconUpgradeNode,
+        IconAddNode, IconCancel, IconManageNodes, IconOpenActionsMenu, IconPasteAddr, IconRecycle,
+        IconRemove, IconStartNode, IconStopNode, IconUpgradeNode,
     },
     node_instance::{NodeInstanceInfo, NodeStatus},
     server_api::{
@@ -12,8 +12,9 @@ use super::{
 };
 
 use alloy::primitives::Address;
+use gloo_timers::future::sleep;
 use leptos::{logging, prelude::*, task::spawn_local};
-use std::num::ParseIntError;
+use std::{num::ParseIntError, time::Duration};
 
 // TODO: find next available port numbers by looking at already used ones
 const DEFAULT_NODE_PORT: u16 = 12000;
@@ -62,7 +63,7 @@ impl NodeAction {
                 res
             }
             Self::Upgrade => {
-                if !previous_status.is_active() {
+                if !info.read_untracked().upgradeable() {
                     return;
                 }
                 info.update(|node| node.status = NodeStatus::Upgrading);
@@ -105,21 +106,24 @@ impl NodeAction {
 pub fn NodesActionsView() -> impl IntoView {
     let context = expect_context::<ClientGlobalState>();
     let is_selecting_nodes = move || context.selecting_nodes.read().0;
+    let is_selection_executing = move || context.selecting_nodes.read().1;
     let show_actions_menu = RwSignal::new(false);
     let actions_class = move || {
         if !is_selecting_nodes() {
             "hidden"
-        } else if context.selecting_nodes.read().2.is_empty() {
+        } else if is_selection_executing() || context.selecting_nodes.read().2.is_empty() {
             "btn-manage-nodes-action btn-disabled"
         } else {
             "btn-manage-nodes-action"
         }
     };
 
-    let apply_on_selected = Action::new(move |action: &NodeAction| {
+    let apply_on_selected = move |action: NodeAction| {
         show_actions_menu.set(false);
         let action = action.clone();
-        context.selecting_nodes.update(|(_, g, _)| *g = false);
+        context
+            .selecting_nodes
+            .update(|(_, executing, _)| *executing = true);
         let selected = context.selecting_nodes.get_untracked().2;
         let nodes = context
             .nodes
@@ -129,18 +133,26 @@ pub fn NodesActionsView() -> impl IntoView {
             .cloned()
             .collect::<Vec<_>>();
 
-        async move {
+        spawn_local(async move {
+            let was_cancelled = move || !context.selecting_nodes.read_untracked().0;
             for info in nodes {
+                if was_cancelled() {
+                    break;
+                }
+
                 action.apply(&info).await;
-                context.selecting_nodes.update(|(_, _, s)| {
-                    s.remove(&info.read_untracked().container_id);
-                })
+                while !was_cancelled() && info.read().status.is_transitioning() {
+                    sleep(Duration::from_millis(NODES_LIST_POLLING_FREQ_MILLIS)).await;
+                }
             }
-            context.selecting_nodes.update(|(f, _, _)| {
+
+            context.selecting_nodes.update(|(f, executing, s)| {
                 *f = false;
+                *executing = false;
+                s.clear();
             });
-        }
-    });
+        });
+    };
 
     // signal to switch the panel to add nodes
     let modal_visibility = RwSignal::new(false);
@@ -158,22 +170,45 @@ pub fn NodesActionsView() -> impl IntoView {
                 <button
                     type="button"
                     on:click=move |_| {
-                        let is_selecting = context.selecting_nodes.read_untracked().0;
                         context
                             .selecting_nodes
-                            .update(|(f, g, _)| {
-                                *f = !is_selecting;
-                                *g = true;
-                            });
+                            .update(|(f, g, s)| {
+                                s.clear();
+                                *f = false;
+                                *g = false;
+                            })
                     }
-                    data-tooltip-target="tooltip-manage"
+                    data-tooltip-target="tooltip-cancel"
                     data-tooltip-placement="left"
                     class=move || {
                         if is_selecting_nodes() {
                             "btn-manage-nodes-action ring-4 ring-gray-300 outline-none dark:ring-gray-400"
                         } else {
-                            "btn-manage-nodes-action"
+                            "hidden"
                         }
+                    }
+                >
+                    <IconCancel />
+                    <span class="sr-only">Cancel</span>
+                </button>
+                <div
+                    id="tooltip-cancel"
+                    role="tooltip"
+                    class="absolute z-10 invisible inline-block w-auto px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700"
+                >
+                    Cancel
+                    <div class="tooltip-arrow" data-popper-arrow></div>
+                </div>
+
+                <button
+                    type="button"
+                    on:click=move |_| {
+                        context.selecting_nodes.update(|(f, _, _)| *f = true);
+                    }
+                    data-tooltip-target="tooltip-manage"
+                    data-tooltip-placement="left"
+                    class=move || {
+                        if is_selecting_nodes() { "hidden" } else { "btn-manage-nodes-action" }
                     }
                 >
                     <IconManageNodes />
@@ -191,7 +226,7 @@ pub fn NodesActionsView() -> impl IntoView {
                 <button
                     type="button"
                     on:click=move |_| {
-                        apply_on_selected.dispatch(NodeAction::Start);
+                        apply_on_selected(NodeAction::Start);
                     }
                     data-tooltip-target="tooltip-start"
                     data-tooltip-placement="left"
@@ -212,7 +247,7 @@ pub fn NodesActionsView() -> impl IntoView {
                 <button
                     type="button"
                     on:click=move |_| {
-                        apply_on_selected.dispatch(NodeAction::Stop);
+                        apply_on_selected(NodeAction::Stop);
                     }
                     data-tooltip-target="tooltip-stop"
                     data-tooltip-placement="left"
@@ -233,7 +268,7 @@ pub fn NodesActionsView() -> impl IntoView {
                 <button
                     type="button"
                     on:click=move |_| {
-                        apply_on_selected.dispatch(NodeAction::Upgrade);
+                        apply_on_selected(NodeAction::Upgrade);
                     }
                     data-tooltip-target="tooltip-upgrade"
                     data-tooltip-placement="left"
@@ -254,7 +289,7 @@ pub fn NodesActionsView() -> impl IntoView {
                 <button
                     type="button"
                     on:click=move |_| {
-                        apply_on_selected.dispatch(NodeAction::Recycle);
+                        apply_on_selected(NodeAction::Recycle);
                     }
                     data-tooltip-target="tooltip-recycle"
                     data-tooltip-placement="left"
@@ -275,7 +310,7 @@ pub fn NodesActionsView() -> impl IntoView {
                 <button
                     type="button"
                     on:click=move |_| {
-                        apply_on_selected.dispatch(NodeAction::Remove);
+                        apply_on_selected(NodeAction::Remove);
                     }
                     data-tooltip-target="tooltip-remove"
                     data-tooltip-placement="left"
@@ -301,7 +336,9 @@ pub fn NodesActionsView() -> impl IntoView {
                     }
                     data-tooltip-target="tooltip-add-nodes"
                     data-tooltip-placement="left"
-                    class="btn-manage-nodes-action"
+                    class=move || {
+                        if is_selecting_nodes() { "hidden" } else { "btn-manage-nodes-action" }
+                    }
                 >
                     <IconAddNode />
                     <span class="sr-only">Add nodes</span>
@@ -352,7 +389,7 @@ pub fn NodesActionsView() -> impl IntoView {
                             class="end-2.5 text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 ms-auto inline-flex justify-center items-center dark:hover:bg-gray-600 dark:hover:text-white"
                             on:click=move |_| modal_visibility.set(false)
                         >
-                            <IconCloseModal />
+                            <IconCancel />
                             <span class="sr-only">Cancel</span>
                         </button>
                     </div>

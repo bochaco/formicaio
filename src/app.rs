@@ -26,7 +26,7 @@ use tokio::{
 };
 
 #[cfg(feature = "hydrate")]
-use gloo_timers::future::TimeoutFuture;
+use gloo_timers::future::sleep;
 use leptos::prelude::*;
 use leptos_meta::{provide_meta_context, MetaTags, Script, Stylesheet, Title};
 use leptos_router::{
@@ -89,9 +89,8 @@ impl Default for AppSettings {
 
 // Maximum number of metrics data points to be kept per node on DB cache.
 pub const METRICS_MAX_SIZE_PER_CONTAINER: usize = 5_000;
-
-#[cfg(feature = "hydrate")]
-const NODES_LIST_POLLING_FREQ_MILLIS: u32 = 5_500;
+// How often we poll the backedn to retrieve an up to date list of node instances.
+pub const NODES_LIST_POLLING_FREQ_MILLIS: u64 = 5_500;
 
 #[cfg(feature = "ssr")]
 #[derive(Clone, FromRef, Debug)]
@@ -305,7 +304,7 @@ fn spawn_nodes_list_polling() {
                 }
             }
 
-            TimeoutFuture::new(NODES_LIST_POLLING_FREQ_MILLIS).await;
+            sleep(Duration::from_millis(NODES_LIST_POLLING_FREQ_MILLIS)).await;
         }
     });
 }
