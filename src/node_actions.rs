@@ -215,7 +215,9 @@ pub fn NodesActionsView() -> impl IntoView {
                     data-tooltip-target="tooltip-manage"
                     data-tooltip-placement="left"
                     class=move || {
-                        if is_selecting_nodes() || is_selection_executing() {
+                        if context.nodes.read().is_empty() || is_selecting_nodes()
+                            || is_selection_executing()
+                        {
                             "hidden"
                         } else {
                             "btn-manage-nodes-action"

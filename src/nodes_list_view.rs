@@ -236,8 +236,25 @@ fn NodeInstanceView(
             .unwrap_or_else(|| "unknown".to_string())
     };
 
+    let node_card_clicked = move || {
+        if is_selection_on() {
+            if is_selected() {
+                context.selecting_nodes.update(|(_, _, s)| {
+                    s.remove(&info.read_untracked().container_id);
+                })
+            } else {
+                context.selecting_nodes.update(|(_, _, s)| {
+                    s.insert(info.read_untracked().container_id.clone());
+                })
+            }
+        }
+    };
+
     view! {
-        <div class=move || { if is_selected() { "node-card-selected" } else { "node-card" } }>
+        <div
+            on:click=move |_| node_card_clicked()
+            class=move || { if is_selected() { "node-card-selected" } else { "node-card" } }
+        >
             <div class="flex justify-end">
                 <Show when=move || is_selection_on() fallback=move || view! { "" }.into_view()>
                     <NodeSelection info />
