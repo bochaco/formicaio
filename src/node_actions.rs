@@ -124,7 +124,7 @@ pub fn NodesActionsView() -> impl IntoView {
         context
             .selecting_nodes
             .update(|(_, executing, _)| *executing = true);
-        let selected = context.selecting_nodes.get_untracked().2;
+        let selected = &context.selecting_nodes.read_untracked().2;
         let nodes = context
             .nodes
             .read_untracked()
@@ -178,6 +178,7 @@ pub fn NodesActionsView() -> impl IntoView {
                 <button
                     type="button"
                     on:click=move |_| {
+                        show_actions_menu.set(false);
                         context
                             .selecting_nodes
                             .update(|(f, _, s)| {

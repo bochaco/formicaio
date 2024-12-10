@@ -253,8 +253,14 @@ fn NodeInstanceView(
     view! {
         <div
             on:click=move |_| node_card_clicked()
-            class=move || { if is_selected() { "node-card-selected" } else { "node-card" } }
+            class=move || match (is_selected(), info.read().status.is_active()) {
+                (true, true) => "node-card-selected node-card-active",
+                (true, false) => "node-card-selected node-card-inactive",
+                (false, true) => "node-card node-card-active",
+                (false, false) => "node-card node-card-inactive",
+            }
         >
+
             <div class="flex justify-end">
                 <Show when=move || is_selection_on() fallback=move || view! { "" }.into_view()>
                     <NodeSelection info />
@@ -585,12 +591,14 @@ fn ButtonStopStart(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
     view! {
         <div class="tooltip tooltip-bottom tooltip-info" data-tip=tip>
             <button
-                class=move || {
-                    if is_selecting_nodes() || info.read().status.is_transitioning() {
-                        "btn-disabled-node-action"
-                    } else {
-                        "btn-node-action"
-                    }
+                class=move || match (
+                    is_selecting_nodes() || info.read().status.is_transitioning(),
+                    info.read().status.is_active(),
+                ) {
+                    (true, true) => "btn-disabled-node-action btn-node-action-active",
+                    (true, false) => "btn-disabled-node-action btn-node-action-inactive",
+                    (false, true) => "btn-node-action btn-node-action-active",
+                    (false, false) => "btn-node-action btn-node-action-inactive",
                 }
                 on:click=move |_| spawn_local(async move {
                     if info.read_untracked().status.is_inactive() {

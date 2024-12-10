@@ -7,19 +7,35 @@
 }
 
 .btn-node-action {
-    @apply inline-flex items-center ml-1 px-1 py-1 text-xs font-medium text-gray-900 bg-white border border-gray-200 rounded hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-2 focus:ring-blue-700 focus:text-blue-700 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-700 dark:focus:ring-blue-500 dark:focus:text-white;
+    @apply inline-flex items-center ml-1 px-1 py-1 text-xs font-medium text-gray-900 border border-gray-200 rounded hover:text-blue-700 focus:z-10 focus:ring-2 focus:ring-blue-700 focus:text-blue-700 dark:border-gray-700 dark:text-gray-400 dark:hover:text-white dark:focus:ring-blue-500 dark:focus:text-white;
 }
 
 .btn-disabled-node-action {
-    @apply btn-disabled inline-flex items-center ml-1 px-1 py-1 text-xs font-medium text-gray-200 bg-white border border-gray-200 rounded hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-2 focus:ring-blue-700 focus:text-blue-700 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-700 dark:hover:text-white dark:hover:bg-gray-700 dark:focus:ring-blue-500 dark:focus:text-white;
+    @apply btn-disabled inline-flex items-center ml-1 px-1 py-1 text-xs font-medium text-gray-200 border border-gray-200 rounded hover:text-blue-700 focus:z-10 focus:ring-2 focus:ring-blue-700 focus:text-blue-700 dark:border-gray-700 dark:text-gray-700 dark:hover:text-white dark:focus:ring-blue-500 dark:focus:text-white;
+}
+
+.btn-node-action-active {
+    @apply bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700;
+}
+
+.btn-node-action-inactive {
+    @apply bg-gray-50 hover:bg-gray-200 dark:bg-gray-900 dark:hover:bg-gray-800;
 }
 
 .node-card {
-    @apply relative max-w-sm m-2 p-4 bg-gray-50 border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700;
+    @apply relative max-w-sm m-2 p-4 border border-gray-200 rounded-lg shadow dark:border-gray-700;
 }
 
 .node-card-selected {
-    @apply relative max-w-sm m-2 p-4 bg-gray-50 border border-blue-700 rounded-lg shadow dark:bg-gray-800 dark:border-blue-400;
+    @apply relative max-w-sm m-2 p-4 border border-blue-700 rounded-lg shadow dark:border-blue-400;
+}
+
+.node-card-active {
+    @apply bg-gray-100 dark:bg-gray-800;
+}
+
+.node-card-inactive {
+    @apply bg-gray-50 dark:bg-gray-900;
 }
 
 .node-info-item {
