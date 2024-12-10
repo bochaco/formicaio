@@ -227,13 +227,13 @@ fn NodeInstanceView(
     let peer_id = move || {
         info.read()
             .short_peer_id()
-            .unwrap_or_else(|| "unknown".to_string())
+            .unwrap_or_else(|| " -".to_string())
     };
 
     let rewards_addr = move || {
         info.read()
             .short_rewards_addr()
-            .unwrap_or_else(|| "unknown".to_string())
+            .unwrap_or_else(|| " -".to_string())
     };
 
     let node_card_clicked = move || {
@@ -312,24 +312,20 @@ fn NodeInstanceView(
                     </p>
                     <p>
                         <span class="node-info-item">"Version: "</span>
-                        {move || info.get().bin_version.unwrap_or_else(|| "unknown".to_string())}
+                        {move || info.get().bin_version.unwrap_or_else(|| " -".to_string())}
                     </p>
                     <p>
                         <div class="flex flex-row">
                             <div class="basis-1/2">
                                 <span class="node-info-item">"Balance: "</span>
                                 {move || {
-                                    info.read()
-                                        .balance
-                                        .map_or("unknown".to_string(), |v| v.to_string())
+                                    info.read().balance.map_or(" -".to_string(), |v| v.to_string())
                                 }}
                             </div>
                             <div class="basis-1/2">
                                 <span class="node-info-item">"Rewards: "</span>
                                 {move || {
-                                    info.read()
-                                        .rewards
-                                        .map_or("unknown".to_string(), |v| v.to_string())
+                                    info.read().rewards.map_or(" -".to_string(), |v| v.to_string())
                                 }}
                             </div>
                         </div>
@@ -343,9 +339,7 @@ fn NodeInstanceView(
                             <div class="basis-1/3">
                                 <span class="node-info-item">"Port: "</span>
                                 {move || {
-                                    info.read()
-                                        .port
-                                        .map_or("unknown".to_string(), |v| v.to_string())
+                                    info.read().port.map_or(" -".to_string(), |v| v.to_string())
                                 }}
                             </div>
                             <div class="basis-2/3">
@@ -353,7 +347,7 @@ fn NodeInstanceView(
                                 {move || {
                                     info.read()
                                         .metrics_port
-                                        .map_or("unknown".to_string(), |v| v.to_string())
+                                        .map_or(" -".to_string(), |v| v.to_string())
                                 }}
                             </div>
                         </div>
@@ -361,7 +355,7 @@ fn NodeInstanceView(
                     <p>
                         <span class="node-info-item">"Store cost: "</span>
                         {move || {
-                            info.read().store_cost.map_or("unknown".to_string(), |v| v.to_string())
+                            info.read().store_cost.map_or(" -".to_string(), |v| v.to_string())
                         }}
                     </p>
                     <p>
@@ -369,9 +363,7 @@ fn NodeInstanceView(
                             <div class="basis-1/2">
                                 <span class="node-info-item">"Records: "</span>
                                 {move || {
-                                    info.read()
-                                        .records
-                                        .map_or("unknown".to_string(), |v| v.to_string())
+                                    info.read().records.map_or(" -".to_string(), |v| v.to_string())
                                 }}
                             </div>
                             <div class="basis-1/2">
@@ -379,7 +371,7 @@ fn NodeInstanceView(
                                 {move || {
                                     info.read()
                                         .relevant_records
-                                        .map_or("unknown".to_string(), |v| v.to_string())
+                                        .map_or(" -".to_string(), |v| v.to_string())
                                 }}
                             </div>
                         </div>
@@ -391,7 +383,7 @@ fn NodeInstanceView(
                                 {move || {
                                     info.read()
                                         .connected_peers
-                                        .map_or("unknown".to_string(), |v| v.to_string())
+                                        .map_or(" -".to_string(), |v| v.to_string())
                                 }}
                             </div>
                             <div class="basis-1/2">
@@ -399,7 +391,7 @@ fn NodeInstanceView(
                                 {move || {
                                     info.read()
                                         .shunned_count
-                                        .map_or("unknown".to_string(), |v| v.to_string())
+                                        .map_or(" -".to_string(), |v| v.to_string())
                                 }}
                             </div>
                         </div>
@@ -407,9 +399,7 @@ fn NodeInstanceView(
                     <p>
                         <span class="node-info-item">"kBuckets peers: "</span>
                         {move || {
-                            info.read()
-                                .kbuckets_peers
-                                .map_or("unknown".to_string(), |v| v.to_string())
+                            info.read().kbuckets_peers.map_or(" -".to_string(), |v| v.to_string())
                         }}
                     </p>
                     <p>
