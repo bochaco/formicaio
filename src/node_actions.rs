@@ -141,11 +141,14 @@ pub fn NodesActionsView() -> impl IntoView {
                 }
 
                 action.apply(&info).await;
+                context.selecting_nodes.update(|(_, _, s)| {
+                    s.remove(&info.read_untracked().container_id);
+                });
 
                 // let's await for it to finish transitioning unless it was a removal action
                 while action != NodeAction::Remove
                     && !was_cancelled()
-                    && info.read().status.is_transitioning()
+                    && info.read_untracked().status.is_transitioning()
                 {
                     sleep(Duration::from_millis(NODES_LIST_POLLING_FREQ_MILLIS)).await;
                 }
@@ -177,10 +180,9 @@ pub fn NodesActionsView() -> impl IntoView {
                     on:click=move |_| {
                         context
                             .selecting_nodes
-                            .update(|(f, g, s)| {
+                            .update(|(f, _, s)| {
                                 s.clear();
                                 *f = false;
-                                *g = false;
                             })
                     }
                     data-tooltip-target="tooltip-cancel"
@@ -213,7 +215,11 @@ pub fn NodesActionsView() -> impl IntoView {
                     data-tooltip-target="tooltip-manage"
                     data-tooltip-placement="left"
                     class=move || {
-                        if is_selecting_nodes() { "hidden" } else { "btn-manage-nodes-action" }
+                        if is_selecting_nodes() || is_selection_executing() {
+                            "hidden"
+                        } else {
+                            "btn-manage-nodes-action"
+                        }
                     }
                 >
                     <IconManageNodes />

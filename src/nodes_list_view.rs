@@ -210,7 +210,18 @@ fn NodeInstanceView(
     set_chart_data: WriteSignal<ChartSeriesData>,
 ) -> impl IntoView {
     let context = expect_context::<ClientGlobalState>();
-    let is_selecting_nodes = move || context.selecting_nodes.read().0;
+    let is_selected = move || {
+        context
+            .selecting_nodes
+            .read()
+            .2
+            .contains(&info.read_untracked().container_id)
+    };
+    let is_selection_on = move || {
+        let (is_selecting_nodes, is_selection_executing, _) = *context.selecting_nodes.read();
+        is_selecting_nodes && (!is_selection_executing || is_selected())
+    };
+
     let is_transitioning = move || info.read().status.is_transitioning();
 
     let peer_id = move || {
@@ -226,45 +237,12 @@ fn NodeInstanceView(
     };
 
     view! {
-        <div class="relative max-w-sm m-2 p-4 bg-gray-50 border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700">
+        <div class=move || { if is_selected() { "node-card-selected" } else { "node-card" } }>
             <div class="flex justify-end">
-                <Show when=move || is_selecting_nodes() fallback=move || view! { "" }.into_view()>
-                    <div>
-                        <span class=" absolute left-4">
-                            <input
-                                type="checkbox"
-                                checked=context
-                                    .selecting_nodes
-                                    .read()
-                                    .2
-                                    .contains(&info.read_untracked().container_id)
-                                disabled=move || context.selecting_nodes.read().1
-                                on:change=move |ev| {
-                                    if event_target_checked(&ev) {
-                                        context
-                                            .selecting_nodes
-                                            .update(|(_, _, s)| {
-                                                s.insert(info.read_untracked().container_id.clone());
-                                            })
-                                    } else {
-                                        context
-                                            .selecting_nodes
-                                            .update(|(_, _, s)| {
-                                                s.remove(&info.read_untracked().container_id);
-                                            })
-                                    }
-                                }
-                                class=move || {
-                                    if is_transitioning() {
-                                        "hidden"
-                                    } else {
-                                        "w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-                                    }
-                                }
-                            />
-                        </span>
-                    </div>
+                <Show when=move || is_selection_on() fallback=move || view! { "" }.into_view()>
+                    <NodeSelection info />
                 </Show>
+
                 <Show when=move || is_transitioning() fallback=move || view! { "" }.into_view()>
                     <div>
                         <span class="loading loading-spinner absolute left-4"></span>
@@ -445,6 +423,53 @@ fn NodeInstanceView(
                     </p>
                 </span>
             </div>
+        </div>
+    }
+}
+
+#[component]
+fn NodeSelection(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
+    let context = expect_context::<ClientGlobalState>();
+    let is_selection_executing = move || context.selecting_nodes.read().1;
+    let is_selected = move || {
+        context
+            .selecting_nodes
+            .read()
+            .2
+            .contains(&info.read_untracked().container_id)
+    };
+
+    view! {
+        <div>
+            <span class="absolute left-4">
+                <input
+                    type="checkbox"
+                    checked=move || is_selected()
+                    disabled=move || is_selection_executing()
+                    on:change=move |ev| {
+                        if event_target_checked(&ev) {
+                            context
+                                .selecting_nodes
+                                .update(|(_, _, s)| {
+                                    s.insert(info.read_untracked().container_id.clone());
+                                })
+                        } else {
+                            context
+                                .selecting_nodes
+                                .update(|(_, _, s)| {
+                                    s.remove(&info.read_untracked().container_id);
+                                })
+                        }
+                    }
+                    class=move || {
+                        if info.read().status.is_transitioning() {
+                            "hidden"
+                        } else {
+                            "w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                        }
+                    }
+                />
+            </span>
         </div>
     }
 }
