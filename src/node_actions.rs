@@ -3,7 +3,7 @@ use super::{
     helpers::{add_node_instances, remove_node_instance, show_alert_msg},
     icons::{
         IconAddNode, IconCancel, IconManageNodes, IconOpenActionsMenu, IconPasteAddr, IconRecycle,
-        IconRemove, IconStartNode, IconStopNode, IconUpgradeNode,
+        IconRemove, IconSelectAll, IconStartNode, IconStopNode, IconUpgradeNode,
     },
     node_instance::{NodeInstanceInfo, NodeStatus},
     server_api::{
@@ -205,6 +205,46 @@ pub fn NodesActionsView() -> impl IntoView {
                     class="absolute z-10 invisible inline-block w-auto px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700"
                 >
                     Cancel
+                    <div class="tooltip-arrow" data-popper-arrow></div>
+                </div>
+
+                <button
+                    type="button"
+                    on:click=move |_| {
+                        context
+                            .selecting_nodes
+                            .update(|(f, _, s)| {
+                                *f = true;
+                                context
+                                    .nodes
+                                    .read()
+                                    .keys()
+                                    .for_each(|id| {
+                                        s.insert(id.clone());
+                                    });
+                            });
+                    }
+                    data-tooltip-target="tooltip-select-all"
+                    data-tooltip-placement="left"
+                    class=move || {
+                        if context.nodes.read().is_empty() || is_selecting_nodes()
+                            || is_selection_executing()
+                        {
+                            "hidden"
+                        } else {
+                            "btn-manage-nodes-action"
+                        }
+                    }
+                >
+                    <IconSelectAll />
+                    <span class="sr-only">Select all</span>
+                </button>
+                <div
+                    id="tooltip-select-all"
+                    role="tooltip"
+                    class="absolute z-10 invisible inline-block w-auto px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700"
+                >
+                    Select all
                     <div class="tooltip-arrow" data-popper-arrow></div>
                 </div>
 
