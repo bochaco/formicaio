@@ -10,6 +10,7 @@ use super::{
     node_actions::NodesActionsView,
     node_instance::{ContainerId, NodeInstanceInfo},
     nodes_list_view::NodesListView,
+    sort_nodes::{NodesSortStrategy, SortStrategyView},
     stats::AggregatedStatsView,
 };
 
@@ -178,6 +179,8 @@ pub struct ClientGlobalState {
     pub batch_in_progress: RwSignal<Option<BatchInProgress>>,
     // Keep track of nodes being selected and if selection is on/off
     pub selecting_nodes: RwSignal<(bool, bool, HashSet<ContainerId>)>,
+    // How to sort nodes to display them on the list
+    pub nodes_sort_strategy: RwSignal<NodesSortStrategy>,
 }
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
@@ -213,6 +216,7 @@ pub fn App() -> impl IntoView {
         alerts: RwSignal::new(vec![]),
         batch_in_progress: RwSignal::new(None),
         selecting_nodes: RwSignal::new((false, false, HashSet::new())),
+        nodes_sort_strategy: RwSignal::new(NodesSortStrategy::ByCreationDate(true)),
     });
 
     // spawn poller task only on client side
@@ -248,6 +252,8 @@ fn HomeScreenView() -> impl IntoView {
 
         <AggregatedStatsView />
         <NodesActionsView />
+
+        <SortStrategyView />
         <NodesListView />
     }
 }

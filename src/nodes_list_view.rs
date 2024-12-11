@@ -26,7 +26,7 @@ pub fn NodesListView() -> impl IntoView {
     // we display the instances sorted by creation time, newest to oldest
     let sorted_nodes = Memo::new(move |_| {
         let mut sorted = context.nodes.get().into_iter().collect::<Vec<_>>();
-        sorted.sort_by(|a, b| b.1.read().created.cmp(&a.1.read().created));
+        context.nodes_sort_strategy.read().sort_items(&mut sorted);
         sorted
     });
 

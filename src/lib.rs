@@ -24,6 +24,7 @@ pub mod node_instance;
 mod nodes_list_view;
 mod server_api;
 mod settings;
+mod sort_nodes;
 mod stats;
 
 #[cfg(feature = "hydrate")]
