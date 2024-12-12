@@ -28,7 +28,7 @@ This application has not yet been published on the official UmbrelOS app store. 
 
 https://user-images.githubusercontent.com/10330103/197889452-e5cd7e96-3233-4a09-b475-94b754adc7a3.mp4
 
-### Linux (amd64/arm64)
+### Linux (amd64/arm64) with Docker
 
 This application can also be launched on a Linux (amd64/arm64) machine using Docker Compose with the following commands:
 
@@ -55,6 +55,50 @@ $ docker compose up formicaio -d
 For stopping the Formicaio app and services simply run:
 ```
 $ docker compose down
+```
+
+### Linux/Windows/MacOS (amd64/arm64) with Podman
+
+Formicaio can be deployed and run using [Podman](https://podman.io/) instead of Docker on Linux, Windows, or macOS. To get started, you'll need to install Podman by following the instructions available at https://podman.io/docs/installation.
+You can choose to install either Podman Desktop or just the command-line interface (CLI), depending on your preference and the installation options available for your platform.
+Be sure to follow the installation guide specific to your operating system, which will include executing the following two commands to initialize and start the Podman machine:
+```
+$ podman machine init
+```
+...and this second command (which may or may not be necessary):
+```
+$ podman machine start
+```
+
+After the above steps are done, you can run Formicaio with the following commands:
+```
+$ git clone https://github.com/bochaco/formicaio
+$ cd formicaio/deploy/local/k8s
+$ podman play kube formicaio-pod.yaml
+```
+
+Once Podman has completed pulling the images and starting the containers, the app will be running in the background, and you can access the Formicaio app from a web browser at `localhost:52100`
+
+To see the logs you can simply use the following command:
+```
+$ podman logs -f formicaio-pod-formicaio 
+```
+
+Upgrading the application (without stopping the running node instances) can be simply achieved by pulling the new Formicaio image and restarting the service:
+```
+$ podman pull docker.io/bochaco/formicaio:latest
+$ podman stop formicaio-pod-formicaio
+$ podman start formicaio-pod-formicaio
+```
+
+For stopping the Formicaio app and services simply run:
+```
+$ podman pod stop formicaio-pod
+```
+
+...and for starting them back again:
+```
+$ podman pod start formicaio-pod
 ```
 
 ## Displaying nodes stats on external LCD device
