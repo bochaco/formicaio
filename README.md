@@ -60,7 +60,7 @@ $ docker compose down
 ### Linux/Windows/MacOS (amd64/arm64) with Podman
 
 Formicaio can be deployed and run using [Podman](https://podman.io/) instead of Docker on Linux, Windows, or macOS. To get started, you'll need to install Podman by following the instructions available at https://podman.io/docs/installation.
-You can choose to install either Podman Desktop or just the command-line interface (CLI), depending on your preference and the installation options available for your platform.
+You can choose to install either [Podman Desktop](https://podman-desktop.io/downloads) (perhaps the easiest way since it has a GUI) or just the command-line interface (CLI), depending on your preference and the installation options available for your platform.
 Be sure to follow the installation guide specific to your operating system, which will include executing the following two commands to initialize and start the Podman machine:
 ```
 $ podman machine init
