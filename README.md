@@ -77,7 +77,7 @@ $ cd formicaio/deploy/local/k8s
 $ podman play kube formicaio-pod.yaml
 ```
 
-Once Podman has completed pulling the images and starting the containers, the app will be running in the background, and you can access the Formicaio app from a web browser at `localhost:52100`
+Once Podman has completed pulling the images and starting the containers, the app will be running in the background, and you can access the Formicaio app from a web browser at `localhost:52100`. Please note that instantiating the very first node could take a few seconds to finish since it needs to pull the node image from the internet, subsequent nodes will be much faster to instantiate afterwards.
 
 To see the logs you can simply use the following command:
 ```
@@ -87,8 +87,8 @@ $ podman logs -f formicaio-pod-formicaio
 Upgrading the application (without stopping the running node instances) can be simply achieved by pulling the new Formicaio image and restarting the service:
 ```
 $ podman pull docker.io/bochaco/formicaio:latest
-$ podman stop formicaio-pod-formicaio
-$ podman start formicaio-pod-formicaio
+$ podman rm formicaio-pod-formicaio -f
+$ podman run --name formicaio-pod-formicaio -dt -v pod_volume_formicaio:/var/run -v pod_volume_formicaio:/data -e DB_PATH=/data -e DOCKER_SOCKET_PATH=/var/run/docker.sock -e NODE_CONTAINER_IMAGE_TAG=latest --pod formicaio-pod docker.io/bochaco/formicaio:latest
 ```
 
 For stopping the Formicaio app and services simply run:
