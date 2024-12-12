@@ -5,14 +5,23 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  creationTimestamp: "2024-12-12T07:19:57Z"
+  creationTimestamp: "2024-12-12T20:22:42Z"
   labels:
     app: formicaio-pod
   name: formicaio-pod
 spec:
   automountServiceAccountToken: false
   containers:
-  - image: docker.io/library/docker@sha256:f9f72ad901a78f27be922b2d320bbc263174f12919c1b37e6a01f828fa904565
+  - args:
+    - --data-root
+    - /data/docker
+    - --exec-root
+    - /data/docker/exec
+    - --host
+    - unix:///var/run/docker.sock
+    - --pidfile
+    - /data/docker/docker.pid
+    image: docker.io/library/docker@sha256:f9f72ad901a78f27be922b2d320bbc263174f12919c1b37e6a01f828fa904565
     name: docker
     ports:
     - containerPort: 8080
@@ -22,17 +31,19 @@ spec:
       privileged: true
     tty: true
     volumeMounts:
-    - mountPath: /var/lib
+    - mountPath: /data
+      name: pod_volume_formicaio-pvc
+    - mountPath: /var/lib/docker
       name: pod_volume_formicaio-pvc
     - mountPath: /var/run
       name: pod_volume_formicaio-pvc
-    - mountPath: /var/lib/docker
-      name: d55aa4edce241c00d1a5af5cd894aed7ee14b5c91ee231198c290d36f099f6b8-pvc
   - env:
-    - name: DB_PATH
-      value: /data
     - name: DOCKER_SOCKET_PATH
       value: /var/run/docker.sock
+    - name: NODE_CONTAINER_IMAGE_TAG
+      value: latest
+    - name: DB_PATH
+      value: /data
     image: docker.io/bochaco/formicaio:latest
     name: formicaio
     resources: {}
@@ -44,9 +55,9 @@ spec:
         - CAP_AUDIT_WRITE
     tty: true
     volumeMounts:
-    - mountPath: /var/run
-      name: pod_volume_formicaio-pvc
     - mountPath: /data
+      name: pod_volume_formicaio-pvc
+    - mountPath: /var/run
       name: pod_volume_formicaio-pvc
   enableServiceLinks: false
   hostname: formicaio-pod
@@ -55,8 +66,5 @@ spec:
   - name: pod_volume_formicaio-pvc
     persistentVolumeClaim:
       claimName: pod_volume_formicaio
-  - name: d55aa4edce241c00d1a5af5cd894aed7ee14b5c91ee231198c290d36f099f6b8-pvc
-    persistentVolumeClaim:
-      claimName: d55aa4edce241c00d1a5af5cd894aed7ee14b5c91ee231198c290d36f099f6b8
 status: {}
 
