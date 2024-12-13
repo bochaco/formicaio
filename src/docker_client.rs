@@ -357,7 +357,7 @@ impl DockerClient {
         &self,
         id: &ContainerId,
     ) -> Result<(Option<String>, Option<String>), DockerClientError> {
-        let cmd = "/app/antnode --version | grep -oE 'Autonomi Node v[0-9]+\\.[0-9]+\\.[0-9]+'"
+        let cmd = "/app/antnode --version | grep -oE 'Autonomi Node v[0-9]+\\.[0-9]+\\.[0-9]+.*$'"
             .to_string();
         let (_, resp_str) = self
             .exec_in_container(id, cmd, "get node bin version")

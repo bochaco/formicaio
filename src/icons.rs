@@ -312,6 +312,7 @@ pub fn IconSelectAll() -> impl IntoView {
                 stroke-width="2"
                 d="M5 11.917 9.724 16.5 19 7.5"
             />
+            <rect stroke="currentColor" width="22" height="22" x="1" y="1" stroke-width="2" />
         </svg>
     }
 }
