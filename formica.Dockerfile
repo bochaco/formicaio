@@ -7,8 +7,8 @@ RUN mkdir -p /app
 WORKDIR /app
 
 # Install node binary
-RUN curl -sSL https://raw.githubusercontent.com/maidsafe/safeup/main/install.sh | bash
-RUN /usr/local/bin/safeup node -p /app
+RUN curl -sSL https://raw.githubusercontent.com/maidsafe/antup/main/install.sh | bash
+RUN /usr/local/bin/antup node -p /app
 
 FROM debian:bookworm-slim AS runtime
 WORKDIR /app
@@ -20,7 +20,7 @@ RUN apt-get update -y \
   && rm -rf /var/lib/apt/lists/*
 
 # Copy safeup binary to the /app directory
-COPY --from=builder /usr/local/bin/safeup /app/
+COPY --from=builder /usr/local/bin/antup /app/
 
 # Copy the node binary to the /app directory
 COPY --from=builder /app/antnode /app/

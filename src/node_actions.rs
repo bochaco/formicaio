@@ -106,63 +106,9 @@ impl NodeAction {
 pub fn NodesActionsView() -> impl IntoView {
     let context = expect_context::<ClientGlobalState>();
     let is_selecting_nodes = move || context.selecting_nodes.read().0;
-    let is_selection_executing = move || context.selecting_nodes.read().1;
     let show_actions_menu = RwSignal::new(false);
-    let actions_class = move || {
-        if !is_selecting_nodes() {
-            "hidden"
-        } else if is_selection_executing() || context.selecting_nodes.read().2.is_empty() {
-            "btn-manage-nodes-action btn-disabled"
-        } else {
-            "btn-manage-nodes-action"
-        }
-    };
 
-    let apply_on_selected = move |action: NodeAction| {
-        show_actions_menu.set(false);
-        let action = action.clone();
-        context
-            .selecting_nodes
-            .update(|(_, executing, _)| *executing = true);
-        let selected = &context.selecting_nodes.read_untracked().2;
-        let nodes = context
-            .nodes
-            .read_untracked()
-            .values()
-            .filter(|n| selected.contains(&n.read_untracked().container_id))
-            .cloned()
-            .collect::<Vec<_>>();
-
-        spawn_local(async move {
-            let was_cancelled = move || !context.selecting_nodes.read_untracked().0;
-            for info in nodes {
-                if was_cancelled() {
-                    break;
-                }
-
-                action.apply(&info).await;
-                context.selecting_nodes.update(|(_, _, s)| {
-                    s.remove(&info.read_untracked().container_id);
-                });
-
-                // let's await for it to finish transitioning unless it was a removal action
-                while action != NodeAction::Remove
-                    && !was_cancelled()
-                    && info.read_untracked().status.is_transitioning()
-                {
-                    sleep(Duration::from_millis(NODES_LIST_POLLING_FREQ_MILLIS)).await;
-                }
-            }
-
-            context.selecting_nodes.update(|(f, executing, s)| {
-                *f = false;
-                *executing = false;
-                s.clear();
-            });
-        });
-    };
-
-    // signal to switch the panel to add nodes
+    // signal to toggle the panel to add nodes
     let modal_visibility = RwSignal::new(false);
 
     view! {
@@ -181,9 +127,9 @@ pub fn NodesActionsView() -> impl IntoView {
                         show_actions_menu.set(false);
                         context
                             .selecting_nodes
-                            .update(|(f, _, s)| {
-                                s.clear();
-                                *f = false;
+                            .update(|(enabled, _, selected)| {
+                                selected.clear();
+                                *enabled = false;
                             })
                     }
                     data-tooltip-target="tooltip-cancel"
@@ -213,24 +159,24 @@ pub fn NodesActionsView() -> impl IntoView {
                     on:click=move |_| {
                         context
                             .selecting_nodes
-                            .update(|(f, _, s)| {
-                                *f = true;
+                            .update(|(enabled, _, selected)| {
+                                *enabled = true;
                                 context
                                     .nodes
                                     .read()
                                     .keys()
                                     .for_each(|id| {
-                                        s.insert(id.clone());
+                                        selected.insert(id.clone());
                                     });
                             });
                     }
                     data-tooltip-target="tooltip-select-all"
                     data-tooltip-placement="left"
                     class=move || {
-                        if context.nodes.read().is_empty() || is_selecting_nodes()
-                            || is_selection_executing()
-                        {
+                        if is_selecting_nodes() {
                             "hidden"
+                        } else if context.nodes.read().is_empty() {
+                            "btn-disabled btn-manage-nodes-action"
                         } else {
                             "btn-manage-nodes-action"
                         }
@@ -251,15 +197,15 @@ pub fn NodesActionsView() -> impl IntoView {
                 <button
                     type="button"
                     on:click=move |_| {
-                        context.selecting_nodes.update(|(f, _, _)| *f = true);
+                        context.selecting_nodes.update(|(enabled, _, _)| *enabled = true);
                     }
                     data-tooltip-target="tooltip-manage"
                     data-tooltip-placement="left"
                     class=move || {
-                        if context.nodes.read().is_empty() || is_selecting_nodes()
-                            || is_selection_executing()
-                        {
+                        if is_selecting_nodes() {
                             "hidden"
+                        } else if context.nodes.read().is_empty() {
+                            "btn-disabled btn-manage-nodes-action"
                         } else {
                             "btn-manage-nodes-action"
                         }
@@ -277,110 +223,7 @@ pub fn NodesActionsView() -> impl IntoView {
                     <div class="tooltip-arrow" data-popper-arrow></div>
                 </div>
 
-                <button
-                    type="button"
-                    on:click=move |_| {
-                        apply_on_selected(NodeAction::Start);
-                    }
-                    data-tooltip-target="tooltip-start"
-                    data-tooltip-placement="left"
-                    class=move || actions_class()
-                >
-                    <IconStartNode />
-                    <span class="sr-only">Start selected</span>
-                </button>
-                <div
-                    id="tooltip-start"
-                    role="tooltip"
-                    class="absolute z-10 invisible inline-block w-auto px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700"
-                >
-                    Start selected
-                    <div class="tooltip-arrow" data-popper-arrow></div>
-                </div>
-
-                <button
-                    type="button"
-                    on:click=move |_| {
-                        apply_on_selected(NodeAction::Stop);
-                    }
-                    data-tooltip-target="tooltip-stop"
-                    data-tooltip-placement="left"
-                    class=move || actions_class()
-                >
-                    <IconStopNode />
-                    <span class="sr-only">Stop selected</span>
-                </button>
-                <div
-                    id="tooltip-stop"
-                    role="tooltip"
-                    class="absolute z-10 invisible inline-block w-auto px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700"
-                >
-                    Stop selected
-                    <div class="tooltip-arrow" data-popper-arrow></div>
-                </div>
-
-                <button
-                    type="button"
-                    on:click=move |_| {
-                        apply_on_selected(NodeAction::Upgrade);
-                    }
-                    data-tooltip-target="tooltip-upgrade"
-                    data-tooltip-placement="left"
-                    class=move || actions_class()
-                >
-                    <IconUpgradeNode color="currentColor".to_string() />
-                    <span class="sr-only">Upgrade selected</span>
-                </button>
-                <div
-                    id="tooltip-upgrade"
-                    role="tooltip"
-                    class="absolute z-10 invisible inline-block w-auto px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700"
-                >
-                    Upgrade selected
-                    <div class="tooltip-arrow" data-popper-arrow></div>
-                </div>
-
-                <button
-                    type="button"
-                    on:click=move |_| {
-                        apply_on_selected(NodeAction::Recycle);
-                    }
-                    data-tooltip-target="tooltip-recycle"
-                    data-tooltip-placement="left"
-                    class=move || actions_class()
-                >
-                    <IconRecycle />
-                    <span class="sr-only">Recycle selected</span>
-                </button>
-                <div
-                    id="tooltip-recycle"
-                    role="tooltip"
-                    class="absolute z-10 invisible inline-block w-auto px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700"
-                >
-                    Recycle selected
-                    <div class="tooltip-arrow" data-popper-arrow></div>
-                </div>
-
-                <button
-                    type="button"
-                    on:click=move |_| {
-                        apply_on_selected(NodeAction::Remove);
-                    }
-                    data-tooltip-target="tooltip-remove"
-                    data-tooltip-placement="left"
-                    class=move || actions_class()
-                >
-                    <IconRemove />
-                    <span class="sr-only">Remove selected</span>
-                </button>
-                <div
-                    id="tooltip-remove"
-                    role="tooltip"
-                    class="absolute z-10 invisible inline-block w-auto px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700"
-                >
-                    Remove selected
-                    <div class="tooltip-arrow" data-popper-arrow></div>
-                </div>
+                <ActionsOnSelected show_actions_menu />
 
                 <button
                     type="button"
@@ -747,6 +590,176 @@ pub fn RewardsAddrInput(
                     {signal.get().err().map(|(e, _)| e)}
                 </p>
             </Show>
+        </div>
+    }
+}
+
+#[component]
+fn ActionsOnSelected(show_actions_menu: RwSignal<bool>) -> impl IntoView {
+    let context = expect_context::<ClientGlobalState>();
+    let is_selecting_nodes = move || context.selecting_nodes.read().0;
+    let is_selection_executing = move || context.selecting_nodes.read().1;
+
+    let actions_class = move || {
+        if !is_selecting_nodes() {
+            "hidden"
+        } else if is_selection_executing() || context.selecting_nodes.read().2.is_empty() {
+            "btn-manage-nodes-action btn-disabled"
+        } else {
+            "btn-manage-nodes-action"
+        }
+    };
+
+    let apply_on_selected = move |action: NodeAction| {
+        show_actions_menu.set(false);
+        let action = action.clone();
+        context
+            .selecting_nodes
+            .update(|(_, executing, _)| *executing = true);
+        let selected = &context.selecting_nodes.read_untracked().2;
+        let nodes = context
+            .nodes
+            .read_untracked()
+            .values()
+            .filter(|n| selected.contains(&n.read_untracked().container_id))
+            .cloned()
+            .collect::<Vec<_>>();
+
+        spawn_local(async move {
+            let was_cancelled = move || !context.selecting_nodes.read_untracked().0;
+            for info in nodes {
+                if was_cancelled() {
+                    break;
+                }
+
+                action.apply(&info).await;
+                context.selecting_nodes.update(|(_, _, selected)| {
+                    selected.remove(&info.read_untracked().container_id);
+                });
+
+                // let's await for it to finish transitioning unless it was a removal action
+                while action != NodeAction::Remove
+                    && !was_cancelled()
+                    && info.read_untracked().status.is_transitioning()
+                {
+                    sleep(Duration::from_millis(NODES_LIST_POLLING_FREQ_MILLIS)).await;
+                }
+            }
+
+            context
+                .selecting_nodes
+                .update(|(enabled, executing, selected)| {
+                    *enabled = false;
+                    *executing = false;
+                    selected.clear();
+                });
+        });
+    };
+
+    view! {
+        <button
+            type="button"
+            on:click=move |_| {
+                apply_on_selected(NodeAction::Start);
+            }
+            data-tooltip-target="tooltip-start"
+            data-tooltip-placement="left"
+            class=move || actions_class()
+        >
+            <IconStartNode />
+            <span class="sr-only">Start selected</span>
+        </button>
+        <div
+            id="tooltip-start"
+            role="tooltip"
+            class="absolute z-10 invisible inline-block w-auto px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700"
+        >
+            Start selected
+            <div class="tooltip-arrow" data-popper-arrow></div>
+        </div>
+
+        <button
+            type="button"
+            on:click=move |_| {
+                apply_on_selected(NodeAction::Stop);
+            }
+            data-tooltip-target="tooltip-stop"
+            data-tooltip-placement="left"
+            class=move || actions_class()
+        >
+            <IconStopNode />
+            <span class="sr-only">Stop selected</span>
+        </button>
+        <div
+            id="tooltip-stop"
+            role="tooltip"
+            class="absolute z-10 invisible inline-block w-auto px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700"
+        >
+            Stop selected
+            <div class="tooltip-arrow" data-popper-arrow></div>
+        </div>
+
+        <button
+            type="button"
+            on:click=move |_| {
+                apply_on_selected(NodeAction::Upgrade);
+            }
+            data-tooltip-target="tooltip-upgrade"
+            data-tooltip-placement="left"
+            class=move || actions_class()
+        >
+            <IconUpgradeNode color="currentColor".to_string() />
+            <span class="sr-only">Upgrade selected</span>
+        </button>
+        <div
+            id="tooltip-upgrade"
+            role="tooltip"
+            class="absolute z-10 invisible inline-block w-auto px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700"
+        >
+            Upgrade selected
+            <div class="tooltip-arrow" data-popper-arrow></div>
+        </div>
+
+        <button
+            type="button"
+            on:click=move |_| {
+                apply_on_selected(NodeAction::Recycle);
+            }
+            data-tooltip-target="tooltip-recycle"
+            data-tooltip-placement="left"
+            class=move || actions_class()
+        >
+            <IconRecycle />
+            <span class="sr-only">Recycle selected</span>
+        </button>
+        <div
+            id="tooltip-recycle"
+            role="tooltip"
+            class="absolute z-10 invisible inline-block w-auto px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700"
+        >
+            Recycle selected
+            <div class="tooltip-arrow" data-popper-arrow></div>
+        </div>
+
+        <button
+            type="button"
+            on:click=move |_| {
+                apply_on_selected(NodeAction::Remove);
+            }
+            data-tooltip-target="tooltip-remove"
+            data-tooltip-placement="left"
+            class=move || actions_class()
+        >
+            <IconRemove />
+            <span class="sr-only">Remove selected</span>
+        </button>
+        <div
+            id="tooltip-remove"
+            role="tooltip"
+            class="absolute z-10 invisible inline-block w-auto px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700"
+        >
+            Remove selected
+            <div class="tooltip-arrow" data-popper-arrow></div>
         </div>
     }
 }

@@ -316,7 +316,7 @@ impl DockerClient {
     ) -> Result<Option<String>, DockerClientError> {
         logging::log!("[UPGRADE] Sending Docker request to UPGRADE node within a container...");
 
-        let cmd = "./safeup node -n -p /app".to_string();
+        let cmd = "./antup node -n -p /app".to_string();
         let exec_cmd = self.exec_in_container(id, cmd, "upgrade node binary");
         let timeout_duration = Duration::from_secs(UPGRADE_NODE_BIN_TIMEOUT_SECS);
         match timeout(timeout_duration, exec_cmd).await {
