@@ -21,7 +21,7 @@ spec:
     - unix:///var/run/docker.sock
     - --pidfile
     - /data/docker/docker.pid
-    image: docker.io/library/docker@sha256:f9f72ad901a78f27be922b2d320bbc263174f12919c1b37e6a01f828fa904565
+    image: docker.io/library/docker@sha256:b0c1179ea32ad77bdb7b852b037e54b11022304c2f2662af1954ef53869314b2
     name: docker
     ports:
     - containerPort: 8080
