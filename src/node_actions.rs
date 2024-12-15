@@ -106,6 +106,7 @@ impl NodeAction {
 pub fn NodesActionsView() -> impl IntoView {
     let context = expect_context::<ClientGlobalState>();
     let is_selecting_nodes = move || context.selecting_nodes.read().0;
+    let is_selection_executing = move || context.selecting_nodes.read().1;
     let show_actions_menu = RwSignal::new(false);
 
     // signal to toggle the panel to add nodes
@@ -121,38 +122,7 @@ pub fn NodesActionsView() -> impl IntoView {
                 }
             }>
 
-                <button
-                    type="button"
-                    on:click=move |_| {
-                        show_actions_menu.set(false);
-                        context
-                            .selecting_nodes
-                            .update(|(enabled, _, selected)| {
-                                selected.clear();
-                                *enabled = false;
-                            })
-                    }
-                    data-tooltip-target="tooltip-cancel"
-                    data-tooltip-placement="left"
-                    class=move || {
-                        if is_selecting_nodes() {
-                            "btn-manage-nodes-action ring-4 ring-gray-300 outline-none dark:ring-gray-400"
-                        } else {
-                            "hidden"
-                        }
-                    }
-                >
-                    <IconCancel />
-                    <span class="sr-only">Cancel</span>
-                </button>
-                <div
-                    id="tooltip-cancel"
-                    role="tooltip"
-                    class="absolute z-10 invisible inline-block w-auto px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700"
-                >
-                    Cancel
-                    <div class="tooltip-arrow" data-popper-arrow></div>
-                </div>
+                <ActionsOnSelected show_actions_menu />
 
                 <button
                     type="button"
@@ -176,7 +146,7 @@ pub fn NodesActionsView() -> impl IntoView {
                     class=move || {
                         if is_selecting_nodes() {
                             "hidden"
-                        } else if context.nodes.read().1.is_empty() {
+                        } else if is_selection_executing() || context.nodes.read().1.is_empty() {
                             "btn-disabled btn-manage-nodes-action"
                         } else {
                             "btn-manage-nodes-action"
@@ -205,7 +175,7 @@ pub fn NodesActionsView() -> impl IntoView {
                     class=move || {
                         if is_selecting_nodes() {
                             "hidden"
-                        } else if context.nodes.read().1.is_empty() {
+                        } else if is_selection_executing() || context.nodes.read().1.is_empty() {
                             "btn-disabled btn-manage-nodes-action"
                         } else {
                             "btn-manage-nodes-action"
@@ -223,8 +193,6 @@ pub fn NodesActionsView() -> impl IntoView {
                     Manage
                     <div class="tooltip-arrow" data-popper-arrow></div>
                 </div>
-
-                <ActionsOnSelected show_actions_menu />
 
                 <button
                     type="button"
@@ -659,6 +627,39 @@ fn ActionsOnSelected(show_actions_menu: RwSignal<bool>) -> impl IntoView {
     };
 
     view! {
+        <button
+            type="button"
+            on:click=move |_| {
+                show_actions_menu.set(false);
+                context
+                    .selecting_nodes
+                    .update(|(enabled, _, selected)| {
+                        selected.clear();
+                        *enabled = false;
+                    })
+            }
+            data-tooltip-target="tooltip-cancel"
+            data-tooltip-placement="left"
+            class=move || {
+                if is_selecting_nodes() {
+                    "btn-manage-nodes-action ring-4 ring-gray-300 outline-none dark:ring-gray-400"
+                } else {
+                    "hidden"
+                }
+            }
+        >
+            <IconCancel />
+            <span class="sr-only">Cancel</span>
+        </button>
+        <div
+            id="tooltip-cancel"
+            role="tooltip"
+            class="absolute z-10 invisible inline-block w-auto px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700"
+        >
+            Cancel
+            <div class="tooltip-arrow" data-popper-arrow></div>
+        </div>
+
         <button
             type="button"
             on:click=move |_| {
