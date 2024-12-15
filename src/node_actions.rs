@@ -164,6 +164,7 @@ pub fn NodesActionsView() -> impl IntoView {
                                 context
                                     .nodes
                                     .read()
+                                    .1
                                     .keys()
                                     .for_each(|id| {
                                         selected.insert(id.clone());
@@ -175,7 +176,7 @@ pub fn NodesActionsView() -> impl IntoView {
                     class=move || {
                         if is_selecting_nodes() {
                             "hidden"
-                        } else if context.nodes.read().is_empty() {
+                        } else if context.nodes.read().1.is_empty() {
                             "btn-disabled btn-manage-nodes-action"
                         } else {
                             "btn-manage-nodes-action"
@@ -204,7 +205,7 @@ pub fn NodesActionsView() -> impl IntoView {
                     class=move || {
                         if is_selecting_nodes() {
                             "hidden"
-                        } else if context.nodes.read().is_empty() {
+                        } else if context.nodes.read().1.is_empty() {
                             "btn-disabled btn-manage-nodes-action"
                         } else {
                             "btn-manage-nodes-action"
@@ -620,6 +621,7 @@ fn ActionsOnSelected(show_actions_menu: RwSignal<bool>) -> impl IntoView {
         let nodes = context
             .nodes
             .read_untracked()
+            .1
             .values()
             .filter(|n| selected.contains(&n.read_untracked().container_id))
             .cloned()

@@ -51,7 +51,9 @@ pub async fn add_node_instances(
         ..Default::default()
     };
     context.nodes.update(|items| {
-        items.insert(tmp_container_id.clone(), RwSignal::new(tmp_container));
+        items
+            .1
+            .insert(tmp_container_id.clone(), RwSignal::new(tmp_container));
     });
 
     if count > 1 {
@@ -65,7 +67,7 @@ pub async fn add_node_instances(
         )
         .await?;
         context.nodes.update(|items| {
-            items.remove(&tmp_container_id);
+            items.1.remove(&tmp_container_id);
         });
         context.batch_in_progress.update(|info| {
             if let Some(b) = info {
@@ -82,8 +84,10 @@ pub async fn add_node_instances(
     } else {
         let node_info = create_node_instance(port, metrics_port, rewards_addr, auto_start).await?;
         context.nodes.update(|items| {
-            items.remove(&tmp_container_id);
-            items.insert(node_info.container_id.clone(), RwSignal::new(node_info));
+            items.1.remove(&tmp_container_id);
+            items
+                .1
+                .insert(node_info.container_id.clone(), RwSignal::new(node_info));
         });
     };
 
@@ -97,7 +101,7 @@ pub async fn remove_node_instance(container_id: ContainerId) -> Result<(), Serve
     delete_node_instance(container_id.clone()).await?;
 
     context.nodes.update(|nodes| {
-        nodes.remove(&container_id);
+        nodes.1.remove(&container_id);
     });
 
     Ok(())

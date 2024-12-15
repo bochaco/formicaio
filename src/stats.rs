@@ -8,11 +8,12 @@ use std::collections::HashMap;
 pub fn AggregatedStatsView() -> impl IntoView {
     let context = expect_context::<ClientGlobalState>();
 
-    let total_nodes = move || context.nodes.read().len();
+    let total_nodes = move || context.nodes.read().1.len();
     let active_nodes = move || {
         context
             .nodes
             .read()
+            .1
             .values()
             .filter(|n| n.read().status.is_active())
             .count()
@@ -21,6 +22,7 @@ pub fn AggregatedStatsView() -> impl IntoView {
         context
             .nodes
             .read()
+            .1
             .values()
             .filter(|n| n.read().status.is_inactive())
             .count()
@@ -30,6 +32,7 @@ pub fn AggregatedStatsView() -> impl IntoView {
         let seen = context
             .nodes
             .read()
+            .1
             .values()
             .filter_map(|n| {
                 n.read()
@@ -51,6 +54,7 @@ pub fn AggregatedStatsView() -> impl IntoView {
         context
             .nodes
             .read()
+            .1
             .values()
             .map(|n| n.read().connected_peers.unwrap_or_default())
             .sum::<usize>()
@@ -59,6 +63,7 @@ pub fn AggregatedStatsView() -> impl IntoView {
         context
             .nodes
             .read()
+            .1
             .values()
             .map(|n| n.read().shunned_count.unwrap_or_default())
             .sum::<usize>()
@@ -67,6 +72,7 @@ pub fn AggregatedStatsView() -> impl IntoView {
         let weighted_estimations = context
             .nodes
             .read()
+            .1
             .values()
             .filter(|n| n.read().status.is_active())
             .map(|n| {
@@ -76,6 +82,7 @@ pub fn AggregatedStatsView() -> impl IntoView {
         let weights = context
             .nodes
             .read()
+            .1
             .values()
             .filter(|n| n.read().status.is_active())
             .map(|n| n.read().connected_peers.unwrap_or_default())
@@ -91,6 +98,7 @@ pub fn AggregatedStatsView() -> impl IntoView {
         context
             .nodes
             .read()
+            .1
             .values()
             .map(|n| {
                 if n.read().status.is_active() {
@@ -105,6 +113,7 @@ pub fn AggregatedStatsView() -> impl IntoView {
         context
             .nodes
             .read()
+            .1
             .values()
             .map(|n| {
                 if n.read().status.is_inactive() {
@@ -119,6 +128,7 @@ pub fn AggregatedStatsView() -> impl IntoView {
         context
             .nodes
             .read()
+            .1
             .values()
             .map(|n| {
                 if n.read().status.is_active() {

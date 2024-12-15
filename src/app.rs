@@ -166,7 +166,7 @@ impl ImmutableNodeStatus {
 #[derive(Clone, Copy, Debug)]
 pub struct ClientGlobalState {
     // List of nodes instances and their info/state
-    pub nodes: RwSignal<HashMap<String, RwSignal<NodeInstanceInfo>>>,
+    pub nodes: RwSignal<(bool, HashMap<String, RwSignal<NodeInstanceInfo>>)>,
     // Flag to enable/disable nodes' logs stream
     pub logs_stream_on_for: RwSignal<Option<ContainerId>>,
     // Flag to enable/disable nodes' metrics charts update
@@ -209,7 +209,7 @@ pub fn App() -> impl IntoView {
 
     // Provide context to manage all client side states that need to be used globally
     provide_context(ClientGlobalState {
-        nodes: RwSignal::new(HashMap::default()),
+        nodes: RwSignal::new((false, HashMap::default())),
         logs_stream_on_for: RwSignal::new(None),
         metrics_update_on_for: RwSignal::new(None),
         latest_bin_version: RwSignal::new(None),
@@ -282,14 +282,15 @@ fn spawn_nodes_list_polling() {
                         .update(|b| *b = info.batch_in_progress);
 
                     // first let's get rid of those removed remotely
-                    context.nodes.update(|cx_nodes| {
+                    context.nodes.update(|(loaded, cx_nodes)| {
+                        *loaded = true;
                         cx_nodes.retain(|id, node_info| {
                             node_info.read_untracked().status.is_creating()
                                 || info.nodes.contains_key(id)
                         })
                     });
                     // let's now update those with new values
-                    context.nodes.with_untracked(|cx_nodes| {
+                    context.nodes.with_untracked(|(_, cx_nodes)| {
                         for (id, cn) in cx_nodes {
                             if let Some(updated) = info.nodes.get(id) {
                                 if cn.read_untracked() != *updated {
@@ -301,9 +302,9 @@ fn spawn_nodes_list_polling() {
                     // we can add any new node created remotely, perhaps by another instance of the app
                     info.nodes
                         .into_iter()
-                        .filter(|(id, _)| !context.nodes.read_untracked().contains_key(id))
+                        .filter(|(id, _)| !context.nodes.read_untracked().1.contains_key(id))
                         .for_each(|(id, new_node)| {
-                            context.nodes.update(|nodes| {
+                            context.nodes.update(|(_, nodes)| {
                                 let _ = nodes.insert(id.clone(), RwSignal::new(new_node));
                             })
                         });

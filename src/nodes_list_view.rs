@@ -16,37 +16,48 @@ use leptos::{logging, prelude::*, task::spawn_local};
 
 #[component]
 pub fn NodesListView() -> impl IntoView {
-    // we use the context to switch on/off the streaming of logs
     let context = expect_context::<ClientGlobalState>();
     // this signal keeps the reactive list of log entries
     let (logs, set_logs) = signal(Vec::new());
     let (chart_data, set_chart_data) = signal((vec![], vec![]));
     let (is_render_chart, set_render_chart) = signal(false);
 
-    // we display the instances sorted by creation time, newest to oldest
+    // we display the instances sorted with the currently selected strategy
     let sorted_nodes = Memo::new(move |_| {
-        let mut sorted = context.nodes.get().into_iter().collect::<Vec<_>>();
+        let mut sorted = context.nodes.get().1.into_iter().collect::<Vec<_>>();
         context.nodes_sort_strategy.read().sort_items(&mut sorted);
         sorted
     });
 
     view! {
-        <div class="flex flex-wrap">
-            <BatchInProgressView batch_info=context.batch_in_progress />
+        <Show
+            when=move || context.nodes.read().0
+            fallback=move || {
+                view! {
+                    <div class="text-center mt-12">
+                        <span class="loading loading-bars loading-lg">Loading...</span>
+                    </div>
+                }
+            }
+        >
 
-            <For
-                each=move || sorted_nodes.get()
-                key=|(container_id, _)| container_id.clone()
-                let:child
-            >
-                <Show
-                    when=move || !child.1.read().status.is_creating()
-                    fallback=move || { view! { <CreatingNodeInstanceView /> }.into_view() }
+            <div class="flex flex-wrap">
+                <BatchInProgressView batch_info=context.batch_in_progress />
+
+                <For
+                    each=move || sorted_nodes.get()
+                    key=|(container_id, _)| container_id.clone()
+                    let:child
                 >
-                    <NodeInstanceView info=child.1 set_logs set_render_chart set_chart_data />
-                </Show>
-            </For>
-        </div>
+                    <Show
+                        when=move || !child.1.read().status.is_creating()
+                        fallback=move || { view! { <CreatingNodeInstanceView /> }.into_view() }
+                    >
+                        <NodeInstanceView info=child.1 set_logs set_render_chart set_chart_data />
+                    </Show>
+                </For>
+            </div>
+        </Show>
 
         <input type="checkbox" id="logs_stream_modal" class="modal-toggle" />
         <div class="modal" role="dialog">
