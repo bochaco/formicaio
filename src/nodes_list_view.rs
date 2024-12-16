@@ -248,14 +248,15 @@ fn NodeInstanceView(
     };
 
     let node_card_clicked = move || {
-        if is_selection_on() {
+        let (is_selecting, is_executing, _) = *context.selecting_nodes.read();
+        if is_selecting && !is_executing {
             if is_selected() {
-                context.selecting_nodes.update(|(_, _, s)| {
-                    s.remove(&info.read_untracked().container_id);
+                context.selecting_nodes.update(|(_, _, selected)| {
+                    selected.remove(&info.read_untracked().container_id);
                 })
             } else {
-                context.selecting_nodes.update(|(_, _, s)| {
-                    s.insert(info.read_untracked().container_id.clone());
+                context.selecting_nodes.update(|(_, _, selected)| {
+                    selected.insert(info.read_untracked().container_id.clone());
                 })
             }
         }
@@ -468,23 +469,8 @@ fn NodeSelection(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
             <span class="absolute left-4">
                 <input
                     type="checkbox"
-                    checked=move || is_selected()
-                    disabled=move || is_selection_executing()
-                    on:change=move |ev| {
-                        if event_target_checked(&ev) {
-                            context
-                                .selecting_nodes
-                                .update(|(_, _, s)| {
-                                    s.insert(info.read_untracked().container_id.clone());
-                                })
-                        } else {
-                            context
-                                .selecting_nodes
-                                .update(|(_, _, s)| {
-                                    s.remove(&info.read_untracked().container_id);
-                                })
-                        }
-                    }
+                    prop:checked=move || is_selected()
+                    prop:disabled=move || is_selection_executing()
                     class=move || {
                         if info.read().status.is_transitioning() {
                             "hidden"
