@@ -14,9 +14,8 @@ use thiserror::Error;
 const DEFAULT_NODES_METRICS_HOST: &str = "127.0.0.1";
 
 // Predefined set of metrics to monitor and collect.
-const NODE_METRICS_TO_COLLECT: [&str; 10] = [
+const NODE_METRICS_TO_COLLECT: [&str; 9] = [
     METRIC_KEY_BALANCE,
-    METRIC_KEY_STORE_COST,
     METRIC_KEY_MEM_USED_MB,
     METRIC_KEY_CPU_USEAGE,
     METRIC_KEY_RECORDS,
@@ -140,10 +139,6 @@ impl NodesMetrics {
         if let Some(metrics) = self.data.get(&info.container_id) {
             if let Some(metric) = metrics.get(METRIC_KEY_BALANCE) {
                 info.rewards = U256::from_str(&metric.value).ok();
-            }
-
-            if let Some(metric) = metrics.get(METRIC_KEY_STORE_COST) {
-                info.store_cost = metric.value.parse::<u64>().ok();
             }
 
             if let Some(metric) = metrics.get(METRIC_KEY_MEM_USED_MB) {

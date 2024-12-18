@@ -16,8 +16,6 @@ pub type Metrics = HashMap<String, Vec<NodeMetric>>;
 
 // The number of Nanos in the node reward wallet.
 pub const METRIC_KEY_BALANCE: &str = "ant_node_current_reward_wallet_balance";
-// The store cost of the node.
-pub const METRIC_KEY_STORE_COST: &str = "ant_networking_store_cost";
 // Memory used by the process in MegaBytes.
 pub const METRIC_KEY_MEM_USED_MB: &str = "ant_networking_process_memory_used_mb";
 // The percentage of CPU used by the process. Value is from 0-100.

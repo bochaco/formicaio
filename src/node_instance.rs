@@ -99,7 +99,6 @@ pub struct NodeInstanceInfo {
     pub rewards: Option<U256>,
     pub records: Option<usize>,
     pub relevant_records: Option<usize>,
-    pub store_cost: Option<u64>,
     pub mem_used: Option<u64>,
     pub cpu_usage: Option<String>,
     pub connected_peers: Option<usize>,

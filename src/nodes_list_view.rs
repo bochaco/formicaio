@@ -368,12 +368,6 @@ fn NodeInstanceView(
                         </div>
                     </p>
                     <p>
-                        <span class="node-info-item">"Store cost: "</span>
-                        {move || {
-                            info.read().store_cost.map_or(" -".to_string(), |v| v.to_string())
-                        }}
-                    </p>
-                    <p>
                         <div class="flex flex-row">
                             <div class="basis-1/2">
                                 <span class="node-info-item">"Records: "</span>
