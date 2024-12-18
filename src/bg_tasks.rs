@@ -304,7 +304,7 @@ async fn check_node_bin_version(
 
 // Query crates.io to find out latest version available of the node
 async fn latest_version_available() -> Option<String> {
-    let url = format!("https://crates.io/api/v1/crates/{}", "sn_node");
+    let url = "https://crates.io/api/v1/crates/ant-node".to_string();
     let client = reqwest::Client::new();
     const MY_USER_AGENT: &str = "formicaio (https://github.com/bochaco/formicaio)";
 
