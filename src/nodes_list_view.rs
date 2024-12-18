@@ -139,7 +139,7 @@ fn BatchInProgressView(batch_info: RwSignal<Option<BatchInProgress>>) -> impl In
     };
 
     view! {
-        <Show when=move || batch_info.read().is_some() fallback=move || { view! {}.into_view() }>
+        <Show when=move || batch_info.read().is_some()>
             <div class="max-w-sm w-80 m-2 p-4 bg-white border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700">
                 <div class="flex justify-end">
                     <div class="tooltip tooltip-bottom tooltip-info" data-tip="cancel">
@@ -274,20 +274,17 @@ fn NodeInstanceView(
         >
 
             <div class="flex justify-end">
-                <Show when=move || is_selection_on() fallback=move || view! { "" }.into_view()>
+                <Show when=move || is_selection_on()>
                     <NodeSelection info />
                 </Show>
 
-                <Show when=move || is_transitioning() fallback=move || view! { "" }.into_view()>
+                <Show when=move || is_transitioning()>
                     <div>
                         <span class="loading loading-spinner absolute left-4"></span>
                     </div>
                 </Show>
 
-                <Show
-                    when=move || info.read().upgradeable()
-                    fallback=move || view! { "" }.into_view()
-                >
+                <Show when=move || info.read().upgradeable()>
                     <ButtonUpgrade info />
                 </Show>
 

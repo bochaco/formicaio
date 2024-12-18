@@ -153,7 +153,9 @@ pub fn IconShowChart() -> impl IntoView {
 }
 
 #[component]
-pub fn IconUpgradeNode(color: String) -> impl IntoView {
+pub fn IconUpgradeNode(
+    #[prop(default = "currentColor".to_string())] color: String,
+) -> impl IntoView {
     view! {
         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="10" stroke=color.clone() stroke-width="2" />
