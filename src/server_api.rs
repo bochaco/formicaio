@@ -359,25 +359,38 @@ pub async fn update_settings(settings: super::app::AppSettings) -> Result<(), Se
 }
 
 // Recycle a node instance by restarting it with a new node peer-id
-#[server(RecycleNodeInstances, "/api", "Url", "/recycle_node_instance")]
+#[server(RecycleNodeInstance, "/api", "Url", "/recycle_node_instance")]
 pub async fn recycle_node_instance(container_id: ContainerId) -> Result<(), ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
     logging::log!("Recycling node instance with Id: {container_id} ...");
-
     context
+        .node_status_locked
+        .insert(container_id.clone(), Duration::from_secs(20))
+        .await;
+    context
+        .db_client
+        .update_node_status(&container_id, NodeStatus::Recycling)
+        .await;
+
+    let (version, peer_id) = context
         .docker_client
-        .clear_peer_id_in_container(&container_id)
+        .regenerate_peer_id_in_container(&container_id)
         .await?;
 
-    helper_stop_node_instance(
-        container_id.clone(),
-        &context.node_status_locked,
-        &context.db_client,
-        &context.docker_client,
-        NodeStatus::Recycling,
-    )
-    .await?;
-    helper_start_node_instance(container_id, &context.db_client, &context.docker_client).await
+    context
+        .db_client
+        .update_node_metadata_fields(
+            &container_id,
+            &[
+                ("bin_version", &version.unwrap_or_default()),
+                ("peer_id", &peer_id.unwrap_or_default()),
+            ],
+        )
+        .await;
+
+    context.node_status_locked.remove(&container_id).await;
+
+    Ok(())
 }
 
 // Prepare a batch of node instances creation

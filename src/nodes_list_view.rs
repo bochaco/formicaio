@@ -649,7 +649,9 @@ fn ButtonRecycle(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
         <div class="tooltip tooltip-bottom tooltip-info" data-tip="recycle">
             <button
                 class=move || {
-                    if !is_selecting_nodes() && info.read().status.is_active() {
+                    if !is_selecting_nodes() && !info.read().status.is_transitioning()
+                        && info.read().peer_id.is_some()
+                    {
                         "btn-node-action"
                     } else {
                         "btn-disabled-node-action"

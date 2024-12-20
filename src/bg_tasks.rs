@@ -339,9 +339,7 @@ async fn latest_version_available() -> Option<String> {
 }
 
 // Fetch up to date information for each active node instance
-// from different sources caching them in global context:
-//    - Nodes' RPC API to get binary version and peer id.
-//    - Nodes' exposed metrics server to obtain stats.
+// from nodes' exposed metrics server caching them in global context.
 async fn update_nodes_info(
     docker_client: &DockerClient,
     nodes_metrics: &Arc<Mutex<NodesMetrics>>,

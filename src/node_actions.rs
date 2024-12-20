@@ -78,7 +78,7 @@ impl NodeAction {
                 res
             }
             Self::Recycle => {
-                if !previous_status.is_active() {
+                if previous_status.is_transitioning() || info.read_untracked().peer_id.is_none() {
                     return;
                 }
                 info.update(|node| node.status = NodeStatus::Recycling);

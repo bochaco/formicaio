@@ -44,7 +44,9 @@ RUN apt-get -y update && apt-get -y install nginx
 # Run the node
 CMD ["sh", "-c", \
       "echo \"server { listen ${METRICS_PORT}; server_name localhost; location /metrics { proxy_pass http://127.0.0.1:9090/metrics; include /etc/nginx/proxy_params; } }\" > /etc/nginx/sites-available/default \
-      && nginx && /app/antnode --home-network \
+      && nginx \
+      && if [ -e '/app/node_data/secret-key-recycle' ]; then rm -f /app/node_data/secret-key*; fi \
+      && /app/antnode --home-network \
       --port ${NODE_PORT} \
       --metrics-server-port 9090 \
       --root-dir /app/node_data \
