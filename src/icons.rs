@@ -70,7 +70,7 @@ pub fn IconRecycle() -> impl IntoView {
                 stroke-linecap="round"
                 stroke-linejoin="round"
                 stroke-width="2"
-                d="M8 8 L11 3.5 L16 9.5 L13 9 L16.5 7.5 L16 9.5 M18 13.5 L21.5 18 L13 18 L14.5 16 L14.5 20 L13 18 M8.5 18 L2 18 L6 12 L3 12.5 L7 14 L6 12"
+                d="M8 8 L11 3.5 L16 9.5 L13 9 L16.5 7.5 L16 9.5 M17.5 13 L21 18 L13 18 L14.5 16 L14.5 20 L13 18 M8.5 18 L2 18 L6 12 L3 12.5 L7 14 L6 12"
             />
         </svg>
     }
