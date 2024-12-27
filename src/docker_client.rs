@@ -1,9 +1,15 @@
 use super::{docker_msgs::*, node_instance::ContainerId};
 
+use axum::body::Body;
 use bytes::Bytes;
 use futures_util::{pin_mut, Stream, StreamExt};
 use http_body_util::BodyExt;
-use hyper::{body::Incoming, client::conn, Method, Request, Response, StatusCode};
+use hyper::{
+    body::Incoming,
+    client::conn,
+    header::{CONTENT_LENGTH, CONTENT_TYPE},
+    Method, Request, Response, StatusCode,
+};
 use hyper_util::rt::TokioIo;
 use leptos::{logging, prelude::*};
 use serde::Serialize;
@@ -537,7 +543,7 @@ impl DockerClient {
         // consume and await end of response stream, discarding the bytes
         get_response_bytes(resp).await?;
 
-        // FIXME: check if it succeeded and report error if it failed
+        // TODO: check if it succeeded and report error if it failed
         //logging::log!("Formica image {NODE_CONTAINER_IMAGE_NAME} was successfully pulled!");
         Ok(())
     }
@@ -581,19 +587,15 @@ impl DockerClient {
         let req = match method {
             ReqMethod::Post(body_str) => req_builder
                 .method(Method::POST)
-                .header("Content-Type", "application/json")
-                .body(axum::body::Body::from(body_str.clone()))?,
+                .header(CONTENT_TYPE, "application/json")
+                .body(Body::from(body_str.clone()))?,
             ReqMethod::Put(bytes) => req_builder
-                .header(hyper::header::CONTENT_TYPE, "application/octet-stream")
-                .header(hyper::header::CONTENT_LENGTH, bytes.len())
+                .header(CONTENT_TYPE, "application/octet-stream")
+                .header(CONTENT_LENGTH, bytes.len())
                 .method(Method::PUT)
-                .body(axum::body::Body::from(bytes.clone()))?,
-            ReqMethod::Get => req_builder
-                .method(Method::GET)
-                .body(axum::body::Body::from(()))?,
-            ReqMethod::Delete => req_builder
-                .method(Method::DELETE)
-                .body(axum::body::Body::from(()))?,
+                .body(Body::from(bytes.clone()))?,
+            ReqMethod::Get => req_builder.method(Method::GET).body(Body::from(()))?,
+            ReqMethod::Delete => req_builder.method(Method::DELETE).body(Body::from(()))?,
         };
 
         let resp = docker_reqs_sender.send_request(req).await?;
