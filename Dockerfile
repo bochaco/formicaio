@@ -15,8 +15,13 @@ FROM rust:1 AS builder
 
 # Install cargo-binstall, which makes it easier to install other
 # cargo extensions like cargo-leptos
-# Install cargo-binstall for Linux amd64/arm64
-RUN export TARGET="$(uname -m)" && wget -O cargo-binstall-linux-musl.tgz https://github.com/cargo-bins/cargo-binstall/releases/latest/download/cargo-binstall-$TARGET-unknown-linux-musl.tgz
+# Install cargo-binstall for Linux amd64/arm64/armv7
+RUN export TARGET="$(arch)" && if [ "$TARGET" = "armv7l" ]; then \
+  wget -O cargo-binstall-linux-musl.tgz https://github.com/cargo-bins/cargo-binstall/releases/latest/download/cargo-binstall-armv7-unknown-linux-musleabihf.tgz; \
+else \
+  wget -O cargo-binstall-linux-musl.tgz https://github.com/cargo-bins/cargo-binstall/releases/latest/download/cargo-binstall-$TARGET-unknown-linux-musl.tgz; \
+fi
+
 RUN tar -xvf cargo-binstall-linux-musl.tgz
 RUN cp cargo-binstall /usr/local/cargo/bin
 
