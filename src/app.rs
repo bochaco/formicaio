@@ -122,17 +122,13 @@ pub struct BatchInProgress {
 // List of nodes which status is temporarily immutable/locked,
 // along with expiration information for when it should be unlocked.
 #[cfg(feature = "ssr")]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct ImmutableNodeStatus(
     Arc<Mutex<HashMap<super::node_instance::ContainerId, (Instant, Duration)>>>,
 );
 
 #[cfg(feature = "ssr")]
 impl ImmutableNodeStatus {
-    pub fn new() -> Self {
-        Self(Arc::new(Mutex::new(HashMap::new())))
-    }
-
     pub async fn insert(&self, container_id: ContainerId, expiration: Duration) {
         self.0
             .lock()
@@ -216,7 +212,7 @@ pub fn App() -> impl IntoView {
         alerts: RwSignal::new(vec![]),
         batch_in_progress: RwSignal::new(None),
         selecting_nodes: RwSignal::new((false, false, HashSet::new())),
-        nodes_sort_strategy: RwSignal::new(NodesSortStrategy::ByCreationDate(true)),
+        nodes_sort_strategy: RwSignal::new(NodesSortStrategy::CreationDate(true)),
     });
 
     // spawn poller task only on client side

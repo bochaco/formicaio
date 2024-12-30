@@ -32,7 +32,7 @@ async fn main() {
     let latest_bin_version = Arc::new(Mutex::new(None));
     let nodes_metrics = Arc::new(Mutex::new(NodesMetrics::new(db_client.clone())));
     // List of nodes which status is temporarily immutable
-    let node_status_locked = ImmutableNodeStatus::new();
+    let node_status_locked = ImmutableNodeStatus::default();
 
     // Channel to send updates on app settings so they can be applied in the bg tasks
     let (updated_settings_tx, updated_settings_rx) = broadcast::channel::<AppSettings>(3);

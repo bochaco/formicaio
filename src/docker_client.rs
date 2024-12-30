@@ -92,6 +92,84 @@ impl ReqMethod {
     fn post_empty_body() -> Self {
         Self::Post("".to_string())
     }
+
+    // Send request to Docker server
+    async fn try_send_request(
+        &self,
+        base_url: &str,
+        query_params: &[(&str, &str)],
+        socket_path: &Path,
+    ) -> Result<Response<Incoming>, DockerClientError> {
+        let unix_stream = UnixStream::connect(socket_path).await.map_err(|err| {
+            DockerClientError::ClientError(format!(
+                "Failed to connect to Docker socket at {socket_path:?}: {err}"
+            ))
+        })?;
+        let io = TokioIo::new(unix_stream);
+        let (mut docker_reqs_sender, connection) = conn::http1::handshake(io).await?;
+        tokio::spawn(async move {
+            if let Err(err) = connection.await {
+                logging::log!("Error when connecting to Docker: {err}");
+            }
+        });
+
+        // Construct the query string using url::form_urlencoded
+        let query_string = form_urlencoded::Serializer::new(String::new())
+            .extend_pairs(query_params)
+            .finish();
+
+        // Construct the full URL with query parameters
+        let full_url = format!("{base_url}?{query_string}");
+
+        let req_builder = Request::builder()
+            .uri(full_url)
+            // Host added just because http1 requires it
+            .header("Host", "localhost");
+
+        let req = match self {
+            ReqMethod::Post(body_str) => req_builder
+                .method(Method::POST)
+                .header(CONTENT_TYPE, "application/json")
+                .body(Body::from(body_str.clone()))?,
+            ReqMethod::Put(bytes) => req_builder
+                .header(CONTENT_TYPE, "application/octet-stream")
+                .header(CONTENT_LENGTH, bytes.len())
+                .method(Method::PUT)
+                .body(Body::from(bytes.clone()))?,
+            ReqMethod::Get => req_builder.method(Method::GET).body(Body::from(()))?,
+            ReqMethod::Delete => req_builder.method(Method::DELETE).body(Body::from(()))?,
+        };
+
+        let resp = docker_reqs_sender.send_request(req).await?;
+
+        match resp.status() {
+            StatusCode::NO_CONTENT | StatusCode::CREATED | StatusCode::OK => Ok(resp),
+            StatusCode::NOT_FOUND => {
+                let resp_bytes = get_response_bytes(resp).await?;
+                let msg: ServerErrorMessage = serde_json::from_slice(&resp_bytes)?;
+                logging::log!("404 ERROR: {}", msg.message);
+                // TODO: unfortunatelly the API returns different error
+                // msgs instead of different error codes to properly handle them
+                if msg.message.starts_with("No such image") {
+                    Err(DockerClientError::ImageNotFound)
+                } else {
+                    Err(DockerClientError::DockerServerError((
+                        StatusCode::NOT_FOUND.into(),
+                        msg.message,
+                    )))
+                }
+            }
+            other => {
+                let resp_bytes = get_response_bytes(resp).await?;
+                let msg = match serde_json::from_slice::<ServerErrorMessage>(&resp_bytes) {
+                    Ok(msg) => msg.message,
+                    Err(_) => String::from_utf8_lossy(&resp_bytes).to_string(),
+                };
+                logging::log!("ERROR: {other:?} - {msg}");
+                Err(DockerClientError::DockerServerError((other.into(), msg)))
+            }
+        }
+    }
 }
 
 // Client to send requests to a Docker server's API
@@ -226,7 +304,7 @@ impl DockerClient {
         let url = format!("{DOCKER_CONTAINERS_API}/create");
         // we don't expose/map the metrics_port from here since we had to expose it
         // with nginx from within the dockerfile.
-        let mapped_ports = vec![port];
+        let mapped_ports = [port];
 
         let mut labels = vec![
             (LABEL_KEY_VERSION.to_string(), self.node_image_tag.clone()),
@@ -268,13 +346,12 @@ impl DockerClient {
                                 }],
                             )
                         })
-                        .into_iter()
                         .collect::<PortBindings>(),
                 ),
             }),
         };
 
-        let random_name = hex::encode(rand::random::<[u8; 10]>().to_vec());
+        let random_name = hex::encode(rand::random::<[u8; 10]>());
         logging::log!(
             "[CREATE] Sending Docker request to CREATE a new container (named: {random_name}): {url} ..."
         );
@@ -379,11 +456,9 @@ impl DockerClient {
             .exec_in_container(id, cmd, "get node bin version")
             .await?;
 
-        let version = if let Some(v) = resp_str.strip_prefix("Autonomi Node v") {
-            Some(v.replace('\n', "").replace('\r', ""))
-        } else {
-            None
-        };
+        let version = resp_str
+            .strip_prefix("Autonomi Node v")
+            .map(|v| v.replace(['\n', '\r'], ""));
         logging::log!("Node bin version in container {id}: {version:?}");
 
         let cmd = "cat node_data/secret-key | od -A n -t x1 | tr -d ' \n'".to_string();
@@ -484,7 +559,7 @@ impl DockerClient {
         url: &str,
         query: &[(&str, &str)],
     ) -> Result<Vec<u8>, DockerClientError> {
-        let resp = match self.try_send_request(&method, url, query).await {
+        let resp = match method.try_send_request(url, query, &self.socket_path).await {
             Err(DockerClientError::ImageNotFound) => {
                 logging::log!(
                     "We need to pull the formica image: {}.",
@@ -492,7 +567,7 @@ impl DockerClient {
                 );
                 // let's pull the image before retrying
                 self.pull_formica_image().await?;
-                self.try_send_request(&method, url, query).await
+                method.try_send_request(url, query, &self.socket_path).await
             }
             other => other,
         }?;
@@ -508,7 +583,7 @@ impl DockerClient {
         url: &str,
         query: &[(&str, &str)],
     ) -> Result<impl Stream<Item = Result<Bytes, DockerClientError>>, DockerClientError> {
-        let resp = match self.try_send_request(&method, url, query).await {
+        let resp = match method.try_send_request(url, query, &self.socket_path).await {
             Err(DockerClientError::ImageNotFound) => {
                 logging::log!(
                     "We need to pull the formica image: {} ...",
@@ -516,7 +591,7 @@ impl DockerClient {
                 );
                 // let's pull the image before retrying
                 self.pull_formica_image().await?;
-                self.try_send_request(&method, url, query).await
+                method.try_send_request(url, query, &self.socket_path).await
             }
             other => other,
         }?;
@@ -536,8 +611,8 @@ impl DockerClient {
             ("fromImage", self.node_image_name.as_str()),
             ("tag", self.node_image_tag.as_str()),
         ];
-        let resp = self
-            .try_send_request(&ReqMethod::post_empty_body(), &url, query)
+        let resp = ReqMethod::post_empty_body()
+            .try_send_request(&url, query, &self.socket_path)
             .await?;
 
         // consume and await end of response stream, discarding the bytes
@@ -546,87 +621,6 @@ impl DockerClient {
         // TODO: check if it succeeded and report error if it failed
         //logging::log!("Formica image {NODE_CONTAINER_IMAGE_NAME} was successfully pulled!");
         Ok(())
-    }
-
-    // Send request to Docker server
-    async fn try_send_request(
-        &self,
-        method: &ReqMethod,
-        base_url: &str,
-        query_params: &[(&str, &str)],
-    ) -> Result<Response<Incoming>, DockerClientError> {
-        let unix_stream = UnixStream::connect(&self.socket_path)
-            .await
-            .map_err(|err| {
-                DockerClientError::ClientError(format!(
-                    "Failed to connect to Docker socket at {:?}: {err}",
-                    self.socket_path
-                ))
-            })?;
-        let io = TokioIo::new(unix_stream);
-        let (mut docker_reqs_sender, connection) = conn::http1::handshake(io).await?;
-        tokio::spawn(async move {
-            if let Err(err) = connection.await {
-                logging::log!("Error when connecting to Docker: {err}");
-            }
-        });
-
-        // Construct the query string using url::form_urlencoded
-        let query_string = form_urlencoded::Serializer::new(String::new())
-            .extend_pairs(query_params)
-            .finish();
-
-        // Construct the full URL with query parameters
-        let full_url = format!("{base_url}?{query_string}");
-
-        let req_builder = Request::builder()
-            .uri(full_url)
-            // Host added just because http1 requires it
-            .header("Host", "localhost");
-
-        let req = match method {
-            ReqMethod::Post(body_str) => req_builder
-                .method(Method::POST)
-                .header(CONTENT_TYPE, "application/json")
-                .body(Body::from(body_str.clone()))?,
-            ReqMethod::Put(bytes) => req_builder
-                .header(CONTENT_TYPE, "application/octet-stream")
-                .header(CONTENT_LENGTH, bytes.len())
-                .method(Method::PUT)
-                .body(Body::from(bytes.clone()))?,
-            ReqMethod::Get => req_builder.method(Method::GET).body(Body::from(()))?,
-            ReqMethod::Delete => req_builder.method(Method::DELETE).body(Body::from(()))?,
-        };
-
-        let resp = docker_reqs_sender.send_request(req).await?;
-
-        match resp.status() {
-            StatusCode::NO_CONTENT | StatusCode::CREATED | StatusCode::OK => Ok(resp),
-            StatusCode::NOT_FOUND => {
-                let resp_bytes = get_response_bytes(resp).await?;
-                let msg: ServerErrorMessage = serde_json::from_slice(&resp_bytes)?;
-                logging::log!("404 ERROR: {}", msg.message);
-                // TODO: unfortunatelly the API returns different error
-                // msgs instead of different error codes to properly handle them
-                if msg.message.starts_with("No such image") {
-                    Err(DockerClientError::ImageNotFound)
-                } else {
-                    Err(DockerClientError::DockerServerError((
-                        StatusCode::NOT_FOUND.into(),
-                        msg.message,
-                    )))
-                }
-            }
-            other => {
-                let resp_bytes = get_response_bytes(resp).await?;
-                let msg = match serde_json::from_slice::<ServerErrorMessage>(&resp_bytes) {
-                    Ok(msg) => msg.message,
-                    Err(_) => String::from_utf8_lossy(&resp_bytes).to_string(),
-                };
-                logging::log!("ERROR: {other:?} - {msg}");
-                Err(DockerClientError::DockerServerError((other.into(), msg)))
-            }
-        }
     }
 }
 

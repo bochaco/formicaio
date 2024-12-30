@@ -7,29 +7,29 @@ use leptos::prelude::*;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum NodesSortStrategy {
-    ByCreationDate(bool),
-    ByPortNumber(bool),
-    ByRewards(bool),
-    ByShunnedCount(bool),
-    ByNumRecords(bool),
-    ByNumConnPeers(bool),
+    CreationDate(bool),
+    PortNumber(bool),
+    Rewards(bool),
+    ShunnedCount(bool),
+    NumRecords(bool),
+    NumConnPeers(bool),
 }
 
 impl std::fmt::Display for NodesSortStrategy {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let text = match self {
-            Self::ByCreationDate(true) => "creation date ↓",
-            Self::ByCreationDate(false) => "creation date ↑",
-            Self::ByPortNumber(true) => "port number ↓",
-            Self::ByPortNumber(false) => "port number ↑",
-            Self::ByRewards(true) => "rewards count ↓",
-            Self::ByRewards(false) => "rewards count ↑",
-            Self::ByShunnedCount(true) => "shunned count ↓",
-            Self::ByShunnedCount(false) => "shunned count ↑",
-            Self::ByNumRecords(true) => "number of records ↓",
-            Self::ByNumRecords(false) => "number of records ↑",
-            Self::ByNumConnPeers(true) => "connected peers ↓",
-            Self::ByNumConnPeers(false) => "connected peers ↑",
+            Self::CreationDate(true) => "creation date ↓",
+            Self::CreationDate(false) => "creation date ↑",
+            Self::PortNumber(true) => "port number ↓",
+            Self::PortNumber(false) => "port number ↑",
+            Self::Rewards(true) => "rewards count ↓",
+            Self::Rewards(false) => "rewards count ↑",
+            Self::ShunnedCount(true) => "shunned count ↓",
+            Self::ShunnedCount(false) => "shunned count ↑",
+            Self::NumRecords(true) => "number of records ↓",
+            Self::NumRecords(false) => "number of records ↑",
+            Self::NumConnPeers(true) => "connected peers ↓",
+            Self::NumConnPeers(false) => "connected peers ↑",
         };
         write!(f, "{text}")
     }
@@ -38,75 +38,75 @@ impl std::fmt::Display for NodesSortStrategy {
 impl NodesSortStrategy {
     pub fn variants() -> Vec<Self> {
         vec![
-            Self::ByCreationDate(true),
-            Self::ByCreationDate(false),
-            Self::ByPortNumber(true),
-            Self::ByPortNumber(false),
-            Self::ByRewards(true),
-            Self::ByRewards(false),
-            Self::ByShunnedCount(true),
-            Self::ByShunnedCount(false),
-            Self::ByNumRecords(true),
-            Self::ByNumRecords(false),
-            Self::ByNumConnPeers(true),
-            Self::ByNumConnPeers(false),
+            Self::CreationDate(true),
+            Self::CreationDate(false),
+            Self::PortNumber(true),
+            Self::PortNumber(false),
+            Self::Rewards(true),
+            Self::Rewards(false),
+            Self::ShunnedCount(true),
+            Self::ShunnedCount(false),
+            Self::NumRecords(true),
+            Self::NumRecords(false),
+            Self::NumConnPeers(true),
+            Self::NumConnPeers(false),
         ]
     }
 
     pub fn from_str(str: &str) -> Option<Self> {
         match str {
-            "ByCreationDate(true)" => Some(Self::ByCreationDate(true)),
-            "ByCreationDate(false)" => Some(Self::ByCreationDate(false)),
-            "ByPortNumber(true)" => Some(Self::ByPortNumber(true)),
-            "ByPortNumber(false)" => Some(Self::ByPortNumber(false)),
-            "ByRewards(true)" => Some(Self::ByRewards(true)),
-            "ByRewards(false)" => Some(Self::ByRewards(false)),
-            "ByShunnedCount(true)" => Some(Self::ByShunnedCount(true)),
-            "ByShunnedCount(false)" => Some(Self::ByShunnedCount(false)),
-            "ByNumRecords(true)" => Some(Self::ByNumRecords(true)),
-            "ByNumRecords(false)" => Some(Self::ByNumRecords(false)),
-            "ByNumConnPeers(true)" => Some(Self::ByNumConnPeers(true)),
-            "ByNumConnPeers(false)" => Some(Self::ByNumConnPeers(false)),
+            "CreationDate(true)" => Some(Self::CreationDate(true)),
+            "CreationDate(false)" => Some(Self::CreationDate(false)),
+            "PortNumber(true)" => Some(Self::PortNumber(true)),
+            "PortNumber(false)" => Some(Self::PortNumber(false)),
+            "Rewards(true)" => Some(Self::Rewards(true)),
+            "Rewards(false)" => Some(Self::Rewards(false)),
+            "ShunnedCount(true)" => Some(Self::ShunnedCount(true)),
+            "ShunnedCount(false)" => Some(Self::ShunnedCount(false)),
+            "NumRecords(true)" => Some(Self::NumRecords(true)),
+            "NumRecords(false)" => Some(Self::NumRecords(false)),
+            "NumConnPeers(true)" => Some(Self::NumConnPeers(true)),
+            "NumConnPeers(false)" => Some(Self::NumConnPeers(false)),
             _ => None,
         }
     }
 
-    pub fn sort_items(&self, items: &mut Vec<(ContainerId, RwSignal<NodeInstanceInfo>)>) {
+    pub fn sort_items(&self, items: &mut [(ContainerId, RwSignal<NodeInstanceInfo>)]) {
         match self {
-            NodesSortStrategy::ByCreationDate(true) => {
+            NodesSortStrategy::CreationDate(true) => {
                 items.sort_by(|a, b| b.1.read().created.cmp(&a.1.read().created));
             }
-            NodesSortStrategy::ByCreationDate(false) => {
+            NodesSortStrategy::CreationDate(false) => {
                 items.sort_by(|b, a| b.1.read().created.cmp(&a.1.read().created));
             }
-            NodesSortStrategy::ByPortNumber(true) => {
+            NodesSortStrategy::PortNumber(true) => {
                 items.sort_by(|a, b| b.1.read().port.cmp(&a.1.read().port));
             }
-            NodesSortStrategy::ByPortNumber(false) => {
+            NodesSortStrategy::PortNumber(false) => {
                 items.sort_by(|b, a| b.1.read().port.cmp(&a.1.read().port));
             }
-            NodesSortStrategy::ByRewards(true) => {
+            NodesSortStrategy::Rewards(true) => {
                 items.sort_by(|a, b| b.1.read().rewards.cmp(&a.1.read().rewards));
             }
-            NodesSortStrategy::ByRewards(false) => {
+            NodesSortStrategy::Rewards(false) => {
                 items.sort_by(|b, a| b.1.read().rewards.cmp(&a.1.read().rewards));
             }
-            NodesSortStrategy::ByShunnedCount(true) => {
+            NodesSortStrategy::ShunnedCount(true) => {
                 items.sort_by(|a, b| b.1.read().shunned_count.cmp(&a.1.read().shunned_count));
             }
-            NodesSortStrategy::ByShunnedCount(false) => {
+            NodesSortStrategy::ShunnedCount(false) => {
                 items.sort_by(|b, a| b.1.read().shunned_count.cmp(&a.1.read().shunned_count));
             }
-            NodesSortStrategy::ByNumRecords(true) => {
+            NodesSortStrategy::NumRecords(true) => {
                 items.sort_by(|a, b| b.1.read().records.cmp(&a.1.read().records));
             }
-            NodesSortStrategy::ByNumRecords(false) => {
+            NodesSortStrategy::NumRecords(false) => {
                 items.sort_by(|b, a| b.1.read().records.cmp(&a.1.read().records));
             }
-            NodesSortStrategy::ByNumConnPeers(true) => {
+            NodesSortStrategy::NumConnPeers(true) => {
                 items.sort_by(|a, b| b.1.read().connected_peers.cmp(&a.1.read().connected_peers));
             }
-            NodesSortStrategy::ByNumConnPeers(false) => {
+            NodesSortStrategy::NumConnPeers(false) => {
                 items.sort_by(|b, a| b.1.read().connected_peers.cmp(&a.1.read().connected_peers));
             }
         }
@@ -123,8 +123,9 @@ pub fn SortStrategyView() -> impl IntoView {
                 <select
                     class="block py-2.5 px-0 text-sm text-gray-500 bg-transparent border-0 appearance-none dark:text-gray-400 focus:outline-none focus:ring-0 focus:border-gray-200"
                     on:change:target=move |ev| {
-                        NodesSortStrategy::from_str(&ev.target().value())
-                            .map(|v| context.nodes_sort_strategy.set(v));
+                        if let Some(v) = NodesSortStrategy::from_str(&ev.target().value()) {
+                            context.nodes_sort_strategy.set(v);
+                        }
                     }
                 >
                     {NodesSortStrategy::variants()

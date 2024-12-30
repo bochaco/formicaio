@@ -64,7 +64,7 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
     }
 
     let batches = &context.node_instaces_batches.lock().await.1;
-    let batch_in_progress = if let Some(b) = batches.get(0) {
+    let batch_in_progress = if let Some(b) = batches.first() {
         let init = BatchInProgress {
             auto_start: b.auto_start,
             interval_secs: b.interval_secs,
@@ -295,7 +295,7 @@ pub(crate) async fn helper_upgrade_node_instance(
             .await;
         db_client
             .update_node_status(
-                &container_id,
+                container_id,
                 NodeStatus::Transitioned("Upgraded".to_string()),
             )
             .await;
@@ -303,7 +303,7 @@ pub(crate) async fn helper_upgrade_node_instance(
 
     node_status_locked.remove(container_id).await;
 
-    Ok(res?)
+    res
 }
 
 // Start streaming logs from a node instance with given id
@@ -445,7 +445,7 @@ async fn run_batches(
     let mut cancel_rx = batches.lock().await.0.subscribe();
 
     loop {
-        let next_batch = batches.lock().await.1.get(0).cloned();
+        let next_batch = batches.lock().await.1.first().cloned();
 
         if let Some(batch_info) = next_batch {
             let total = batch_info.total;
@@ -469,9 +469,9 @@ async fn run_batches(
                             );
                         }
 
-                        batches.lock().await.1.get_mut(0).map(|b| {
+                        if let Some(b) = batches.lock().await.1.get_mut(0) {
                             b.created += 1;
-                        });
+                        }
                     }
                 }
             }

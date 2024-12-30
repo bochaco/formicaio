@@ -20,7 +20,7 @@ const LCD_DELAY_SECS: u64 = 4;
 // Helper to setup I2C interface with given I2C bus number and address.
 fn setup_i2c(settings: &AppSettings) -> Result<Display<Pcf8574>, eyre::Error> {
     let i2c_bus_str = &settings.lcd_device;
-    let i2c_bus_number = u8::from_str_radix(i2c_bus_str, 10).map_err(|err| {
+    let i2c_bus_number = i2c_bus_str.parse::<u8>().map_err(|err| {
         eyre!("Failed to setup LCD display. Invalid I2C bus number {i2c_bus_str}: {err}")
     })?;
 
@@ -93,9 +93,9 @@ pub async fn display_stats_on_lcd(
                 for (k, v) in stats_clone.iter() {
                     display.clear();
                     display.home();
-                    display.print(&k);
+                    display.print(k);
                     display.position(15 - v.len() as u8, 1);
-                    display.print(&v);
+                    display.print(v);
                     sleep(delay).await;
                 }
 
@@ -115,7 +115,7 @@ struct Pcf8574 {
 impl Pcf8574 {
     // Create a new instance, using the Linux I2C interface for communication. `bus` is the number
     // of `/dev/i2c-<bus>` to use, and `address` is the I2C address of the device.
-    ///
+    //
     // After opening the device, defaults to ignoring all I/O errors; see [`Self::on_error`] and
     // [`ErrorHandling`] for how to change this behavior.
     fn new(bus: u8, address: u16) -> Result<Self, LinuxI2CError> {

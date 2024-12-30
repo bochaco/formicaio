@@ -460,8 +460,8 @@ fn NodeSelection(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
             <span class="absolute left-4">
                 <input
                     type="checkbox"
-                    prop:checked=move || is_selected()
-                    prop:disabled=move || is_selection_executing()
+                    prop:checked=is_selected
+                    prop:disabled=is_selection_executing
                     class=move || {
                         if info.read().status.is_transitioning() {
                             "hidden"

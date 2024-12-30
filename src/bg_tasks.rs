@@ -531,7 +531,7 @@ async fn retrieve_current_rewards_balances<T: Transport + Clone, P: Provider<T, 
         }
     }
 
-    let balance: U256 = updated_balances.iter().map(|(_, b)| b).sum();
+    let balance: U256 = updated_balances.values().sum();
     update_lcd_stats(&lcd_stats, &[(LCD_LABEL_BALANCE, balance.to_string())]).await;
 }
 
@@ -542,7 +542,7 @@ async fn update_lcd_stats(
 ) {
     let mut s = lcd_stats.lock().await;
     labels_vals
-        .into_iter()
+        .iter()
         .filter(|(l, v)| !l.is_empty() && !v.is_empty())
         .for_each(|(label, value)| {
             let _ = s.insert(label.to_string(), value.clone());
@@ -552,7 +552,7 @@ async fn update_lcd_stats(
 // Helper to remove stats being displayed on external LCD device
 async fn remove_lcd_stats(lcd_stats: &Arc<Mutex<HashMap<String, String>>>, labels: &[&str]) {
     let mut s = lcd_stats.lock().await;
-    labels.into_iter().for_each(|label| {
+    labels.iter().for_each(|label| {
         let _ = s.remove(*label);
     });
 }

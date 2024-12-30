@@ -44,17 +44,17 @@ impl Container {
     }
 }
 
-impl Into<NodeInstanceInfo> for Container {
-    fn into(self) -> NodeInstanceInfo {
-        NodeInstanceInfo {
-            container_id: self.Id.clone(),
-            created: self.Created,
-            status: NodeStatus::from(&self.State),
-            status_info: self.Status.clone(),
-            port: self.port(),
-            metrics_port: self.metrics_port(),
-            node_ip: self.node_ip(),
-            rewards_addr: self.Labels.get(LABEL_KEY_REWARDS_ADDR).cloned(),
+impl From<Container> for NodeInstanceInfo {
+    fn from(val: Container) -> Self {
+        Self {
+            container_id: val.Id.clone(),
+            created: val.Created,
+            status: NodeStatus::from(&val.State),
+            status_info: val.Status.clone(),
+            port: val.port(),
+            metrics_port: val.metrics_port(),
+            node_ip: val.node_ip(),
+            rewards_addr: val.Labels.get(LABEL_KEY_REWARDS_ADDR).cloned(),
             ..Default::default()
         }
     }

@@ -484,7 +484,7 @@ pub fn RewardsAddrInput(
             Ok(input_str)
         } else {
             // validate checksum
-            match Address::parse_checksummed(&format!("0x{value}"), None) {
+            match Address::parse_checksummed(format!("0x{value}"), None) {
                 Ok(_) => Ok(input_str),
                 Err(_) => Err(("Checksum validation failed".to_string(), input_str)),
             }
@@ -641,7 +641,6 @@ fn ActionsOnSelected(show_actions_menu: RwSignal<bool>) -> impl IntoView {
 
 // Helper to apply an action on the set of nodes selected by the user
 fn apply_on_selected(action: NodeAction, context: ClientGlobalState) {
-    let action = action.clone();
     context
         .selecting_nodes
         .update(|(_, executing, _)| *executing = true);
@@ -712,11 +711,11 @@ fn NodeActionButton(
             type="button"
             on:click=move |_| {
                 show_actions_menu.set(false);
-                apply_on_selected(action, context.clone());
+                apply_on_selected(action, context);
             }
             data-tooltip-target=id.clone()
             data-tooltip-placement="left"
-            class=move || actions_class()
+            class=actions_class
         >
             {icon}
             <span class="sr-only">{label}</span>

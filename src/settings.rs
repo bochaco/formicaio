@@ -214,7 +214,7 @@ pub fn SettingsForm(
                     signal=lcd_addr
                     label="I2C backpack address (usually 0x27 or 0x3F):"
                     validator=|v| {
-                        u16::from_str_radix(&v.strip_prefix("0x").unwrap_or(&v), 16)
+                        u16::from_str_radix(v.strip_prefix("0x").unwrap_or(&v), 16)
                             .map_err(|err| err.to_string())
                             .map(|_| v)
                     }

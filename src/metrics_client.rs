@@ -112,10 +112,8 @@ impl NodesMetrics {
             .await;
 
         // let's now update our in-memory cache with new metrics values
-        let metrics: HashMap<String, NodeMetric> = metrics
-            .into_iter()
-            .map(|m| (m.key.clone(), m.clone()))
-            .collect();
+        let metrics: HashMap<String, NodeMetric> =
+            metrics.iter().map(|m| (m.key.clone(), m.clone())).collect();
         let _ = self.data.insert(container_id.to_string(), metrics.clone());
     }
 
