@@ -140,7 +140,7 @@ impl NodesMetrics {
             }
 
             if let Some(metric) = metrics.get(METRIC_KEY_MEM_USED_MB) {
-                info.mem_used = metric.value.parse::<u64>().ok();
+                info.mem_used = metric.value.parse::<f64>().ok();
             }
 
             if let Some(metric) = metrics.get(METRIC_KEY_CPU_USEAGE) {
