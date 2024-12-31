@@ -1,25 +1,27 @@
 # Dockerfile for running a node
 
-FROM rust:1.81-bullseye AS builder
+FROM debian:bookworm-slim AS builder
 
-# Make an /app dir, which everything will eventually live in
 RUN mkdir -p /app
 WORKDIR /app
 
 # Install node binary
+RUN apt-get update -y && apt-get install -y curl
 RUN curl -sSL https://raw.githubusercontent.com/maidsafe/antup/main/install.sh | bash
 RUN /usr/local/bin/antup node -p /app
 
 FROM debian:bookworm-slim AS runtime
+# Make an /app dir, which everything will eventually live in
 WORKDIR /app
 
 RUN apt-get update -y \
-  && apt-get install -y --no-install-recommends openssl ca-certificates \
+  # Temporary fix to use nginx since the node metrics server is exposed only at ip 127.0.0.1
+  && apt-get install -y nginx \
   && apt-get autoremove -y \
   && apt-get clean -y \
   && rm -rf /var/lib/apt/lists/*
 
-# Copy safeup binary to the /app directory
+# Copy antup binary to the /app directory
 COPY --from=builder /usr/local/bin/antup /app/
 
 # Copy the node binary to the /app directory
@@ -37,9 +39,6 @@ ENV REWARDS_ADDR_ARG=''
 
 EXPOSE $NODE_PORT
 EXPOSE $METRICS_PORT
-
-# Temporary fix to use nginx since the node metrics server is exposed only at ip 127.0.0.1
-RUN apt-get -y update && apt-get -y install nginx
 
 # Run the node
 CMD ["sh", "-c", \
