@@ -23,6 +23,7 @@ services:
     privileged: true
     depends_on:
       - docker
+    network_mode: bridge
     stop_grace_period: 5s
     ports:
       - "52100:8080"

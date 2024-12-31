@@ -33,6 +33,8 @@ const FORMICA_IMAGE_PULLING_FREQ: Duration = Duration::from_secs(60 * 60 * 6); /
 
 // Timeout duration when querying for each rewards balance.
 const BALANCE_QUERY_TIMEOUT: Duration = Duration::from_secs(10);
+// Timeout duration when querying metrics from each node.
+const NODE_METRICS_QUERY_TIMEOUT: Duration = Duration::from_secs(3);
 
 const LCD_LABEL_NET_SIZE: &str = "Network size:";
 const LCD_LABEL_ACTIVE_NODES: &str = "Active nodes:";
@@ -377,13 +379,20 @@ async fn update_nodes_info(
             if let Some(metrics_port) = node_info.metrics_port {
                 // let's now collect metrics from the node
                 let metrics_client = NodeMetricsClient::new(&node_info.node_ip, metrics_port);
-                match metrics_client.fetch_metrics().await {
-                    Ok(metrics) => {
+                let node_short_id = node_info.short_container_id();
+
+                match timeout(NODE_METRICS_QUERY_TIMEOUT, metrics_client.fetch_metrics()).await {
+                    Ok(Ok(metrics)) => {
                         let mut node_metrics = nodes_metrics.lock().await;
                         node_metrics.store(&node_info.container_id, &metrics).await;
                         node_metrics.update_node_info(&mut node_info);
                     }
-                    Err(err) => logging::log!("Failed to fetch node metrics: {err}"),
+                    Ok(Err(err)) => {
+                        logging::log!("Failed to fetch metrics from node {node_short_id}: {err}");
+                    }
+                    Err(_) => {
+                        logging::log!("Timeout ({NODE_METRICS_QUERY_TIMEOUT:?}) while fetching metrics from node {node_short_id}.");
+                    }
                 }
             }
         }
