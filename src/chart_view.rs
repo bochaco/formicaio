@@ -16,7 +16,7 @@ use serde_json::Value;
 use std::rc::Rc;
 use wasm_bindgen::JsValue;
 
-pub type ChartSeriesData = (Vec<[i64; 2]>, Vec<[i64; 2]>);
+pub type ChartSeriesData = (Vec<(i64, f64)>, Vec<(i64, f64)>);
 
 const CHART_MEM_SERIES_NAME: &str = "Memory (MB)";
 const CHART_CPU_SERIES_NAME: &str = "CPU (%)";
@@ -192,11 +192,11 @@ pub async fn node_metrics_update(
                 set_chart_data.update(|(m, c)| {
                     m.extend(
                         mem.iter()
-                            .map(|v| [v.timestamp, v.value.parse::<i64>().unwrap_or_default()]),
+                            .map(|v| (v.timestamp, v.value.parse::<f64>().unwrap_or_default())),
                     );
                     c.extend(
                         cpu.iter()
-                            .map(|v| [v.timestamp, v.value.parse::<i64>().unwrap_or_default()]),
+                            .map(|v| (v.timestamp, v.value.parse::<f64>().unwrap_or_default())),
                     );
 
                     // remove items if they exceed the max size
