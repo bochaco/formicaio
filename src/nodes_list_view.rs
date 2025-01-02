@@ -418,13 +418,15 @@ fn NodeInstanceView(
                                 {move || {
                                     info.read()
                                         .mem_used
-                                        .map_or("".to_string(), |v| format!("{v} MB"))
+                                        .map_or("".to_string(), |v| format!("{v:.2} MB"))
                                 }}
                             </div>
                             <div class="basis-1/3">
                                 <span class="node-info-item">"CPU: "</span>
                                 {move || {
-                                    info.get().cpu_usage.map_or("".to_string(), |v| format!("{v}%"))
+                                    info.get()
+                                        .cpu_usage
+                                        .map_or("".to_string(), |v| format!("{v:.2}%"))
                                 }}
                             </div>
                         </div>
