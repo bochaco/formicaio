@@ -144,7 +144,7 @@ impl NodesMetrics {
             }
 
             if let Some(metric) = metrics.get(METRIC_KEY_CPU_USEAGE) {
-                info.cpu_usage = Some(metric.value.clone());
+                info.cpu_usage = metric.value.parse::<f64>().ok();
             }
 
             if let Some(metric) = metrics.get(METRIC_KEY_RECORDS) {
