@@ -11,7 +11,7 @@ use super::{
     server_api::cancel_node_instances_batch,
 };
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Local, Utc};
 use leptos::{logging, prelude::*, task::spawn_local};
 
 #[component]
@@ -436,6 +436,7 @@ fn NodeInstanceView(
                         {move || {
                             DateTime::<Utc>::from_timestamp(info.read().created as i64, 0)
                                 .unwrap()
+                                .with_timezone(&Local)
                                 .to_string()
                         }}
                     </p>

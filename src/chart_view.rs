@@ -9,10 +9,10 @@ use super::{
 };
 
 use apexcharts_rs::prelude::ApexChart;
+use chrono::Local;
 use gloo_timers::future::TimeoutFuture;
 use gloo_utils::format::JsValueSerdeExt;
 use leptos::{logging, prelude::*};
-use serde_json::Value;
 use std::rc::Rc;
 use wasm_bindgen::JsValue;
 
@@ -28,96 +28,93 @@ pub fn NodeChartView(
 ) -> impl IntoView {
     let chart_id = "metrics_chart".to_string();
 
-    let metrics_chart_options = format!(
-        r##"{{
+    let metrics_chart_options = serde_json::json!(
+        {
           "series": [],
-          "noData": {{
+          "noData": {
             "text": "Loading..."
-          }},
-          "chart": {{
-            "id": "{chart_id}",
+          },
+          "chart": {
+            "id": chart_id,
             "width": "100%",
             "height": 380,
             "type": "line",
-            "animations": {{
+            "animations": {
               "enabled": true,
               "easing": "linear",
-              "dynamicAnimation": {{
+              "dynamicAnimation": {
                 "speed": 1000
-              }}
-            }},
-            "toolbar": {{
+              }
+            },
+            "toolbar": {
               "show": false
-            }},
-            "zoom": {{
+            },
+            "zoom": {
               "enabled": false
-            }}
-          }},
-          "dataLabels": {{
+            }
+          },
+          "dataLabels": {
             "enabled": false
-          }},
+          },
           "colors": ["#F98080", "#3F83F8"],
-          "stroke": {{
+          "stroke": {
             "curve": "smooth",
             "width": [3, 3]
-          }},
-          "markers": {{
+          },
+          "markers": {
             "size": 0
-          }},
-          "xaxis": {{
+          },
+          "xaxis": {
             "type": "datetime",
             "position": "bottom",
-            "labels": {{
+            "labels": {
               "show": true,
               "rotate": -30,
               "rotateAlways": false,
               "format": "HH:mm:ss",
-              "style": {{
+              "style": {
                 "colors": "#9CA3AF"
-              }}
-            }}
-          }},
+              }
+            }
+          },
           "yaxis": [
-            {{
-              "labels": {{
-                "style": {{
+            {
+              "labels": {
+                "style": {
                   "colors": "#F98080"
-                }}
-              }},
-              "title": {{
-                "text": "{CHART_MEM_SERIES_NAME}",
-                "style": {{
+                }
+              },
+              "title": {
+                "text": CHART_MEM_SERIES_NAME,
+                "style": {
                   "color": "#F98080"
-                }}
-              }}
-            }},
-            {{
+                }
+              }
+            },
+            {
               "opposite": true,
-              "labels": {{
-                "style": {{
+              "labels": {
+                "style": {
                   "colors": "#3F83F8"
-                }}
-              }},
-              "title": {{
-                "text": "{CHART_CPU_SERIES_NAME}",
-                "style": {{
+                }
+              },
+              "title": {
+                "text": CHART_CPU_SERIES_NAME,
+                "style": {
                   "color": "#3F83F8"
-                }}
-              }}
-            }}
+                }
+              }
+            }
           ],
-          "legend": {{
+          "legend": {
             "show": false
-          }}
-        }}"##
+          }
+        }
     );
 
     let chart = RwSignal::new_local(None);
 
-    let options = serde_json::from_str::<Value>(&metrics_chart_options)
-        .unwrap_or_else(|_| panic!("Invalid JSON: {}", metrics_chart_options));
-
-    let opts_clone = options.clone();
+    let opts_clone = metrics_chart_options.clone();
     let chart_id_clone = chart_id.clone();
     Effect::new(move |_| {
         if !*is_render_chart.read() {
@@ -130,7 +127,7 @@ pub fn NodeChartView(
         chart.update(|chart| *chart = Some(Rc::new(c)));
     });
 
-    let opts_clone = options.clone();
+    let opts_clone = metrics_chart_options.clone();
     Effect::new(move |_| {
         if !*is_render_chart.read() {
             return;
@@ -171,6 +168,9 @@ pub async fn node_metrics_update(
     let polling_freq_millis =
         get_settings().await?.nodes_metrics_polling_freq.as_secs() as u32 * 2000;
 
+    // hack to show timestamps with local timezone since apexcharts doesn't expose a way to do it
+    let millis_offset = Local::now().offset().utc_minus_local() as i64 * 1_000;
+
     // use context to check if we should stop retrieving the metrics
     let context = expect_context::<ClientGlobalState>();
     let mut since = None;
@@ -190,14 +190,18 @@ pub async fn node_metrics_update(
             (Some(mem), Some(cpu)) if !mem.is_empty() && !cpu.is_empty() => {
                 since = mem.last().map(|m| m.timestamp);
                 set_chart_data.update(|(m, c)| {
-                    m.extend(
-                        mem.iter()
-                            .map(|v| (v.timestamp, v.value.parse::<f64>().unwrap_or_default())),
-                    );
-                    c.extend(
-                        cpu.iter()
-                            .map(|v| (v.timestamp, v.value.parse::<f64>().unwrap_or_default())),
-                    );
+                    m.extend(mem.iter().map(|v| {
+                        (
+                            v.timestamp - millis_offset,
+                            v.value.parse::<f64>().unwrap_or_default(),
+                        )
+                    }));
+                    c.extend(cpu.iter().map(|v| {
+                        (
+                            v.timestamp - millis_offset,
+                            v.value.parse::<f64>().unwrap_or_default(),
+                        )
+                    }));
 
                     // remove items if they exceed the max size
                     if let Some(delta) = m.len().checked_sub(METRICS_MAX_SIZE_PER_CONTAINER) {
