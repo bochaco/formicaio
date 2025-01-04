@@ -134,6 +134,7 @@ pub struct ContainerCreate {
     pub Labels: Option<HashMap<String, String>>,
     pub Env: Option<Vec<String>>,
     pub ExposedPorts: Option<ExposedPorts>,
+    pub StopTimeout: Option<i64>,
     pub HostConfig: Option<HostConfigCreate>,
 }
 

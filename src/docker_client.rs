@@ -65,8 +65,8 @@ pub enum DockerClientError {
     CointainerNotFound(ContainerId),
     #[error("Image not found locally")]
     ImageNotFound,
-    #[error("Docker server error: {} - {}", 0.0, 0.1)]
-    DockerServerError((u16, String)),
+    #[error("Docker server error with code {0}: {1}")]
+    DockerServerError(u16, String),
     #[error(transparent)]
     SerdeJson(#[from] serde_json::Error),
     #[error(transparent)]
@@ -102,14 +102,14 @@ impl ReqMethod {
     ) -> Result<Response<Incoming>, DockerClientError> {
         let unix_stream = UnixStream::connect(socket_path).await.map_err(|err| {
             DockerClientError::ClientError(format!(
-                "Failed to connect to Docker socket at {socket_path:?}: {err}"
+                "Failed to connect to Docker socket at {socket_path:?}: {err:?}"
             ))
         })?;
         let io = TokioIo::new(unix_stream);
         let (mut docker_reqs_sender, connection) = conn::http1::handshake(io).await?;
         tokio::spawn(async move {
             if let Err(err) = connection.await {
-                logging::log!("Error when connecting to Docker: {err}");
+                logging::log!("Error when connecting to Docker: {err:?}");
             }
         });
 
@@ -147,16 +147,15 @@ impl ReqMethod {
             StatusCode::NOT_FOUND => {
                 let resp_bytes = get_response_bytes(resp).await?;
                 let msg: ServerErrorMessage = serde_json::from_slice(&resp_bytes)?;
-                logging::log!("404 ERROR: {}", msg.message);
-                // TODO: unfortunatelly the API returns different error
-                // msgs instead of different error codes to properly handle them
+                // TODO: unfortunatelly the API returns different error msgs
+                // instead of different error codes to handle them
                 if msg.message.starts_with("No such image") {
                     Err(DockerClientError::ImageNotFound)
                 } else {
-                    Err(DockerClientError::DockerServerError((
+                    Err(DockerClientError::DockerServerError(
                         StatusCode::NOT_FOUND.into(),
                         msg.message,
-                    )))
+                    ))
                 }
             }
             other => {
@@ -165,8 +164,7 @@ impl ReqMethod {
                     Ok(msg) => msg.message,
                     Err(_) => String::from_utf8_lossy(&resp_bytes).to_string(),
                 };
-                logging::log!("ERROR: {other:?} - {msg}");
-                Err(DockerClientError::DockerServerError((other.into(), msg)))
+                Err(DockerClientError::DockerServerError(other.into(), msg))
             }
         }
     }
@@ -331,6 +329,7 @@ impl DockerClient {
                     .map(|p| (format!("{p}/tcp"), HashMap::default()))
                     .collect::<ExposedPorts>(),
             ),
+            StopTimeout: Some(5),
             HostConfig: Some(HostConfigCreate {
                 NetworkMode: None,
                 PublishAllPorts: Some(false),
@@ -428,7 +427,7 @@ impl DockerClient {
                 if exec.ExitCode != 0 {
                     let error_msg = format!("Failed to upgrade node, exit code: {}", exec.ExitCode);
                     logging::log!("{error_msg}");
-                    return Err(DockerClientError::DockerServerError((exec.ExitCode.into(), error_msg)));
+                    return Err(DockerClientError::DockerServerError(exec.ExitCode.into(), error_msg));
                 }
             }
         }
@@ -619,7 +618,12 @@ impl DockerClient {
         get_response_bytes(resp).await?;
 
         // TODO: check if it succeeded and report error if it failed
-        //logging::log!("Formica image {NODE_CONTAINER_IMAGE_NAME} was successfully pulled!");
+        logging::log!(
+            "Formica image {}:{} was successfully pulled!",
+            self.node_image_name,
+            self.node_image_tag
+        );
+
         Ok(())
     }
 }
