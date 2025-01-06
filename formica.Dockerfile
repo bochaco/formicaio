@@ -50,6 +50,7 @@ CMD ["sh", "-c", \
       --metrics-server-port 9090 \
       --root-dir /app/node_data \
       --log-output-dest /app/node_data/logs \
+      --bootstrap-cache-dir /app/node_data \
       ${REWARDS_ADDR_ARG} \
       evm-arbitrum-sepolia" \
     ]
