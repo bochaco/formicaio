@@ -92,6 +92,7 @@ pub async fn create_node_instance(
     port: u16,
     metrics_port: u16,
     rewards_addr: String,
+    home_network: bool,
     auto_start: bool,
 ) -> Result<NodeInstanceInfo, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
@@ -99,6 +100,7 @@ pub async fn create_node_instance(
         port,
         metrics_port,
         rewards_addr,
+        home_network,
         auto_start,
         &context.db_client,
         &context.docker_client,
@@ -112,13 +114,14 @@ async fn helper_create_node_instance(
     port: u16,
     metrics_port: u16,
     rewards_addr: String,
+    home_network: bool,
     auto_start: bool,
     db_client: &DbClient,
     docker_client: &DockerClient,
 ) -> Result<NodeInstanceInfo, ServerFnError> {
     logging::log!("Creating new node container with port {port} ...");
     let container_id = docker_client
-        .create_new_container(port, metrics_port, rewards_addr)
+        .create_new_container(port, metrics_port, rewards_addr, home_network)
         .await?;
     logging::log!("New node container Id: {container_id} ...");
 
@@ -405,6 +408,7 @@ pub async fn prepare_node_instances_batch(
     metrics_port_start: u16,
     count: u16,
     rewards_addr: String,
+    home_network: bool,
     auto_start: bool,
     interval_secs: u64,
 ) -> Result<(), ServerFnError> {
@@ -419,6 +423,7 @@ pub async fn prepare_node_instances_batch(
         created: 0,
         total: count,
         rewards_addr,
+        home_network,
         auto_start,
         interval_secs,
     };
@@ -458,6 +463,7 @@ async fn run_batches(
                             batch_info.port_start + i,
                             batch_info.metrics_port_start + i,
                             batch_info.rewards_addr.clone(),
+                            batch_info.home_network,
                             batch_info.auto_start,
                             &db_client,
                             &docker_client,

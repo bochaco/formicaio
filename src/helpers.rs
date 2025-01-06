@@ -38,6 +38,7 @@ pub async fn add_node_instances(
     metrics_port: u16,
     count: u16,
     rewards_addr: String,
+    home_network: bool,
     auto_start: bool,
     interval_secs: u64,
 ) -> Result<(), ServerFnError> {
@@ -62,6 +63,7 @@ pub async fn add_node_instances(
             metrics_port,
             count,
             rewards_addr,
+            home_network,
             auto_start,
             interval_secs,
         )
@@ -82,7 +84,9 @@ pub async fn add_node_instances(
             }
         })
     } else {
-        let node_info = create_node_instance(port, metrics_port, rewards_addr, auto_start).await?;
+        let node_info =
+            create_node_instance(port, metrics_port, rewards_addr, home_network, auto_start)
+                .await?;
         context.nodes.update(|items| {
             items.1.remove(&tmp_container_id);
             items

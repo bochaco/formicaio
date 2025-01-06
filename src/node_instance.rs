@@ -96,6 +96,7 @@ pub struct NodeInstanceInfo {
     pub node_ip: Option<String>,
     pub balance: Option<U256>,
     pub rewards_addr: Option<String>, // hex-encoded rewards address
+    pub home_network: bool,
     pub rewards: Option<U256>,
     pub records: Option<usize>,
     pub relevant_records: Option<usize>,
@@ -152,6 +153,7 @@ pub struct NodeInstancesBatch {
     pub created: u16,
     pub total: u16,
     pub rewards_addr: String,
+    pub home_network: bool,
     pub auto_start: bool,
     pub interval_secs: u64,
 }

@@ -432,6 +432,10 @@ fn NodeInstanceView(
                         </div>
                     </p>
                     <p>
+                        <span class="node-info-item">"Home-network: "</span>
+                        {move || info.read().home_network}
+                    </p>
+                    <p>
                         <span class="node-info-item">"Created: "</span>
                         {move || {
                             DateTime::<Utc>::from_timestamp(info.read().created as i64, 0)

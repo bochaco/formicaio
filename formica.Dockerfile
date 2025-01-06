@@ -37,6 +37,13 @@ ENV METRICS_PORT=14000
 # that will receive the rewards for the node: --rewards-address <REWARDS_ADDRESS>
 ENV REWARDS_ADDR_ARG=''
 
+# Specify whether the node is operating from a home network and situated
+# behind a NAT without port forwarding capabilities.
+# Setting this flag, activates hole-punching in antnode to facilitate direct
+# connections from other nodes.
+# If this not enabled and the node is behind a NAT, the node is terminated.
+ENV HOME_NETWORK_ARG='--home-network'
+
 EXPOSE $NODE_PORT
 EXPOSE $METRICS_PORT
 
@@ -45,7 +52,8 @@ CMD ["sh", "-c", \
       "echo \"server { listen ${METRICS_PORT}; server_name localhost; location /metrics { proxy_pass http://127.0.0.1:9090/metrics; include /etc/nginx/proxy_params; } }\" > /etc/nginx/sites-available/default \
       && nginx \
       && if [ -e '/app/node_data/secret-key-recycle' ]; then rm -f /app/node_data/secret-key*; fi \
-      && /app/antnode --home-network \
+      && /app/antnode \
+      ${HOME_NETWORK_ARG} \
       --port ${NODE_PORT} \
       --metrics-server-port 9090 \
       --root-dir /app/node_data \

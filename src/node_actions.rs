@@ -278,15 +278,17 @@ fn AddNodesForm(modal_visibility: RwSignal<bool>) -> impl IntoView {
         "Enter a rewards address".to_string(),
         "0x".to_string(),
     )));
+    let home_network = RwSignal::new(true);
     let auto_start = RwSignal::new(false);
     let interval = RwSignal::new(Ok(60));
 
     let add_node = Action::new(
-        move |(port, metrics_port, count, rewards_addr, auto_start, interval): &(
+        move |(port, metrics_port, count, rewards_addr, home_network, auto_start, interval): &(
             u16,
             u16,
             u16,
             String,
+            bool,
             bool,
             u64,
         )| {
@@ -297,6 +299,7 @@ fn AddNodesForm(modal_visibility: RwSignal<bool>) -> impl IntoView {
                 .strip_prefix("0x")
                 .unwrap_or(rewards_addr)
                 .to_string();
+            let home_network = *home_network;
             let auto_start = *auto_start;
             let interval = *interval;
             async move {
@@ -305,6 +308,7 @@ fn AddNodesForm(modal_visibility: RwSignal<bool>) -> impl IntoView {
                     metrics_port,
                     count,
                     rewards_addr,
+                    home_network,
                     auto_start,
                     interval,
                 )
@@ -351,6 +355,25 @@ fn AddNodesForm(modal_visibility: RwSignal<bool>) -> impl IntoView {
                     "Automatically starts nodes upon creation"
                 </label>
             </div>
+            <div class="flex items-center">
+                <input
+                    checked=true
+                    id="home-network"
+                    type="checkbox"
+                    on:change=move |ev| { home_network.set(event_target_checked(&ev)) }
+                    class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                />
+                <label
+                    for="home-network"
+                    class="ms-2 text-sm font-medium text-gray-900 dark:text-gray-300"
+                >
+                    "Home network: the node is operating from a home network and situated behind a NAT without port forwarding capabilities."
+                    <br />
+                    <span class="font-bold dark:font-bold">
+                        "If this is not enabled and you're behind a NAT, the node is terminated."
+                    </span>
+                </label>
+            </div>
 
             <button
                 type="button"
@@ -367,7 +390,16 @@ fn AddNodesForm(modal_visibility: RwSignal<bool>) -> impl IntoView {
                         interval.get(),
                     ) {
                         modal_visibility.set(false);
-                        add_node.dispatch((p, m, c, addr, auto_start.get(), i as u64));
+                        add_node
+                            .dispatch((
+                                p,
+                                m,
+                                c,
+                                addr,
+                                home_network.get(),
+                                auto_start.get(),
+                                i as u64,
+                            ));
                     }
                 }
                 class="text-white bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-4 focus:ring-gray-300 font-medium rounded-lg text-sm px-5 py-2.5 me-2 mb-2 dark:bg-gray-800 dark:hover:bg-gray-700 dark:focus:ring-gray-700 dark:border-gray-700"

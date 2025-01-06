@@ -32,6 +32,8 @@ pub const LABEL_KEY_NODE_PORT: &str = "node_port";
 pub const LABEL_KEY_METRICS_PORT: &str = "metrics_port";
 // Label's key to cache the rewards address set for the node
 pub const LABEL_KEY_REWARDS_ADDR: &str = "rewards_addr";
+// Label's key to cache the flag value set --home-network for the node
+pub const LABEL_KEY_HOME_NETWORK_DISABLED: &str = "home_network_disabled";
 
 // Docker API base paths
 const DOCKER_CONTAINERS_API: &str = "/containers";
@@ -298,6 +300,7 @@ impl DockerClient {
         port: u16,
         metrics_port: u16,
         rewards_addr: String,
+        home_network: bool,
     ) -> Result<ContainerId, DockerClientError> {
         let url = format!("{DOCKER_CONTAINERS_API}/create");
         // we don't expose/map the metrics_port from here since we had to expose it
@@ -316,6 +319,13 @@ impl DockerClient {
         if !rewards_addr.is_empty() {
             env_vars.push(format!("REWARDS_ADDR_ARG=--rewards-address {rewards_addr}"));
             labels.push((LABEL_KEY_REWARDS_ADDR.to_string(), rewards_addr.clone()));
+        }
+        if !home_network {
+            env_vars.push("HOME_NETWORK_ARG=".to_string());
+            labels.push((
+                LABEL_KEY_HOME_NETWORK_DISABLED.to_string(),
+                "true".to_string(),
+            ));
         }
 
         let container_create_req = ContainerCreate {
