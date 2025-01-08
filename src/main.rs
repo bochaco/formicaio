@@ -40,12 +40,14 @@ async fn main() {
     let settings = db_client.get_settings().await;
     // List of node instaces batches currently in progress
     let node_instaces_batches = Arc::new(Mutex::new((broadcast::channel(3).0, Vec::new())));
+    let server_api_hit = Arc::new(Mutex::new(false));
 
     spawn_bg_tasks(
         docker_client.clone(),
         latest_bin_version.clone(),
         nodes_metrics.clone(),
         db_client.clone(),
+        server_api_hit.clone(),
         node_status_locked.clone(),
         updated_settings_rx,
         settings,
@@ -56,6 +58,7 @@ async fn main() {
         db_client,
         docker_client,
         latest_bin_version,
+        server_api_hit,
         nodes_metrics,
         node_status_locked,
         updated_settings_tx,

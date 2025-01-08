@@ -100,6 +100,7 @@ pub struct ServerGlobalState {
     pub db_client: super::db_client::DbClient,
     pub docker_client: super::docker_client::DockerClient,
     pub latest_bin_version: Arc<Mutex<Option<String>>>,
+    pub server_api_hit: Arc<Mutex<bool>>,
     pub nodes_metrics: Arc<Mutex<super::metrics_client::NodesMetrics>>,
     pub node_status_locked: ImmutableNodeStatus,
     pub updated_settings_tx: broadcast::Sender<AppSettings>,

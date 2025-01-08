@@ -36,6 +36,9 @@ const BALANCE_QUERY_TIMEOUT: Duration = Duration::from_secs(10);
 // Timeout duration when querying metrics from each node.
 const NODE_METRICS_QUERY_TIMEOUT: Duration = Duration::from_secs(3);
 
+// Frequency to poll node status from Docker engine
+const NODE_STATUS_POLLING_FREQ: Duration = Duration::from_secs(5);
+
 const LCD_LABEL_NET_SIZE: &str = "Network size:";
 const LCD_LABEL_ACTIVE_NODES: &str = "Active nodes:";
 const LCD_LABEL_STORED_RECORDS: &str = "Stored records:";
@@ -57,6 +60,7 @@ struct TasksContext {
     balances_retrieval: Interval,
     metrics_pruning: Interval,
     nodes_metrics_polling: Interval,
+    nodes_status_polling: Interval,
     app_settings: AppSettings,
 }
 
@@ -68,6 +72,7 @@ impl TasksContext {
             balances_retrieval: interval(settings.rewards_balances_retrieval_freq),
             metrics_pruning: interval(METRICS_PRUNING_FREQ),
             nodes_metrics_polling: interval(settings.nodes_metrics_polling_freq),
+            nodes_status_polling: interval(NODE_STATUS_POLLING_FREQ),
             app_settings: settings,
         }
     }
@@ -121,11 +126,13 @@ impl TasksContext {
 }
 
 // Spawn any required background tasks
+#[allow(clippy::too_many_arguments)]
 pub fn spawn_bg_tasks(
     docker_client: DockerClient,
     latest_bin_version: Arc<Mutex<Option<String>>>,
     nodes_metrics: Arc<Mutex<NodesMetrics>>,
     db_client: DbClient,
+    server_api_hit: Arc<Mutex<bool>>,
     node_status_locked: ImmutableNodeStatus,
     mut updated_settings_rx: broadcast::Receiver<AppSettings>,
     settings: AppSettings,
@@ -245,6 +252,23 @@ pub fn spawn_bg_tasks(
                     // reset interval to start next period from this instant,
                     // regardless how long the above polling task lasted.
                     ctx.nodes_metrics_polling.reset_after(ctx.nodes_metrics_polling.period());
+                },
+                _ = ctx.nodes_status_polling.tick() => {
+                    // we poll node status only if a client is currently querying the API,
+                    // and only if the metrics polling is not frequent enough
+                    let api_hit = *server_api_hit.lock().await;
+                    if !api_hit || 2 * ctx.nodes_status_polling.period() > ctx.nodes_metrics_polling.period() {
+                        continue;
+                    }
+
+                    *server_api_hit.lock().await = false;
+                    match docker_client.get_containers_list(true).await {
+                        Ok(containers) => for container in containers.into_iter() {
+                            let node_info: NodeInstanceInfo = container.into();
+                            update_node_metadata(&node_info, &db_client, &node_status_locked).await;
+                        },
+                        Err(err) => logging::log!("Failed to get containers list: {err}")
+                    }
                 }
             }
         }
@@ -340,6 +364,20 @@ async fn latest_version_available() -> Option<String> {
     None
 }
 
+// Update node medata into local DB cache
+async fn update_node_metadata(
+    node_info: &NodeInstanceInfo,
+    db_client: &DbClient,
+    node_status_locked: &ImmutableNodeStatus,
+) {
+    let update_status = !node_status_locked
+        .is_still_locked(&node_info.container_id)
+        .await;
+    db_client
+        .update_node_metadata(node_info, update_status)
+        .await;
+}
+
 // Fetch up to date information for each active node instance
 // from nodes' exposed metrics server caching them in global context.
 async fn update_nodes_info(
@@ -386,6 +424,7 @@ async fn update_nodes_info(
                         let mut node_metrics = nodes_metrics.lock().await;
                         node_metrics.store(&node_info.container_id, &metrics).await;
                         node_metrics.update_node_info(&mut node_info);
+                        update_node_metadata(&node_info, db_client, node_status_locked).await;
                     }
                     Ok(Err(err)) => {
                         logging::log!("Failed to fetch metrics from node {node_short_id}: {err}");
@@ -396,13 +435,6 @@ async fn update_nodes_info(
                 }
             }
         }
-
-        let update_status = !node_status_locked
-            .is_still_locked(&node_info.container_id)
-            .await;
-        db_client
-            .update_node_metadata(&node_info, update_status)
-            .await;
 
         net_size +=
             node_info.connected_peers.unwrap_or_default() * node_info.net_size.unwrap_or_default();
