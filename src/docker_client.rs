@@ -303,9 +303,7 @@ impl DockerClient {
         home_network: bool,
     ) -> Result<ContainerId, DockerClientError> {
         let url = format!("{DOCKER_CONTAINERS_API}/create");
-        // we don't expose/map the metrics_port from here since we had to expose it
-        // with nginx from within the dockerfile.
-        let mapped_ports = [port];
+        let mapped_ports = [(port, "udp"), (metrics_port, "tcp")];
 
         let mut labels = vec![
             (LABEL_KEY_VERSION.to_string(), self.node_image_tag.clone()),
@@ -336,22 +334,23 @@ impl DockerClient {
             ExposedPorts: Some(
                 mapped_ports
                     .iter()
-                    .map(|p| (format!("{p}/tcp"), HashMap::default()))
+                    .map(|(port, proto)| (format!("{port}/{proto}"), HashMap::default()))
                     .collect::<ExposedPorts>(),
             ),
+            StopSignal: Some("SIGINT".to_string()),
             StopTimeout: Some(5),
             HostConfig: Some(HostConfigCreate {
-                NetworkMode: None,
+                NetworkMode: Some("host".to_string()),
                 PublishAllPorts: Some(false),
                 PortBindings: Some(
                     mapped_ports
                         .iter()
-                        .map(|p| {
+                        .map(|(port, proto)| {
                             (
-                                format!("{p}/tcp"),
+                                format!("{port}/{proto}"),
                                 vec![PortBinding {
-                                    HostIp: None,
-                                    HostPort: p.to_string(),
+                                    HostIp: Some("0.0.0.0".to_string()),
+                                    HostPort: port.to_string(),
                                 }],
                             )
                         })

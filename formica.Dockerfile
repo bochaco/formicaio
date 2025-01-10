@@ -15,8 +15,6 @@ FROM debian:bookworm-slim AS runtime
 WORKDIR /app
 
 RUN apt-get update -y \
-  # Temporary fix to use nginx since the node metrics server is exposed only at ip 127.0.0.1
-  && apt-get install -y nginx \
   && apt-get autoremove -y \
   && apt-get clean -y \
   && rm -rf /var/lib/apt/lists/*
@@ -44,18 +42,16 @@ ENV REWARDS_ADDR_ARG=''
 # If this not enabled and the node is behind a NAT, the node is terminated.
 ENV HOME_NETWORK_ARG='--home-network'
 
-EXPOSE $NODE_PORT
-EXPOSE $METRICS_PORT
+#EXPOSE $NODE_PORT/udp
+#EXPOSE $METRICS_PORT/tcp
 
 # Run the node
 CMD ["sh", "-c", \
-      "echo \"server { listen ${METRICS_PORT}; server_name localhost; location /metrics { proxy_pass http://127.0.0.1:9090/metrics; include /etc/nginx/proxy_params; } }\" > /etc/nginx/sites-available/default \
-      && nginx \
-      && if [ -e '/app/node_data/secret-key-recycle' ]; then rm -f /app/node_data/secret-key*; fi \
+      "if [ -e '/app/node_data/secret-key-recycle' ]; then rm -f /app/node_data/secret-key*; fi \
       && /app/antnode \
       ${HOME_NETWORK_ARG} \
       --port ${NODE_PORT} \
-      --metrics-server-port 9090 \
+      --metrics-server-port ${METRICS_PORT} \
       --root-dir /app/node_data \
       --log-output-dest /app/node_data/logs \
       --bootstrap-cache-dir /app/node_data \

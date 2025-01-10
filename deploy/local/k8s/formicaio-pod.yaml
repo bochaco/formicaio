@@ -24,7 +24,7 @@ spec:
     image: docker.io/library/docker@sha256:b0c1179ea32ad77bdb7b852b037e54b11022304c2f2662af1954ef53869314b2
     name: docker
     ports:
-    - containerPort: 8080
+    - containerPort: 52100
       hostPort: 52100
     resources: {}
     securityContext:

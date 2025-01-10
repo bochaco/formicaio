@@ -69,10 +69,10 @@ COPY --from=builder /app/Cargo.toml /app/
 
 # Set any required env variables and
 ENV RUST_LOG="info"
-ENV LEPTOS_SITE_ADDR="0.0.0.0:8080"
+ENV LEPTOS_SITE_ADDR="0.0.0.0:52100"
 ENV LEPTOS_SITE_ROOT="site"
 
-EXPOSE 8080
+EXPOSE 52100
 
 # Run the server
 CMD ["/app/formicaio"]

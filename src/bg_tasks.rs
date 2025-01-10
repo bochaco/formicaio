@@ -456,7 +456,7 @@ async fn update_nodes_info(
     )];
     if num_active_nodes > 0 {
         let weighted_avg = if weights > 0 { net_size / weights } else { 0 };
-        let bin_versions = bin_version.into_iter().collect::<Vec<_>>().join(",");
+        let bin_versions = bin_version.into_iter().collect::<Vec<_>>().join(", ");
 
         updated_vals.extend([
             (LCD_LABEL_NET_SIZE, weighted_avg.to_string()),

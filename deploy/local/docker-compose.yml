@@ -23,10 +23,8 @@ services:
     privileged: true
     depends_on:
       - docker
-    network_mode: bridge
+    network_mode: host
     stop_grace_period: 5s
-    ports:
-      - "52100:8080"
     environment:
       NODE_CONTAINER_IMAGE_TAG: latest
       DOCKER_SOCKET_PATH: /var/run/docker.sock
