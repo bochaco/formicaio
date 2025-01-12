@@ -88,7 +88,7 @@ Upgrading the application (without stopping the running node instances) can be s
 ```
 $ podman pull docker.io/bochaco/formicaio:latest
 $ podman rm formicaio-pod-formicaio -f
-$ podman run --name formicaio-pod-formicaio -dt -v pod_volume_formicaio:/var/run -v pod_volume_formicaio:/data -e DB_PATH=/data -e DOCKER_SOCKET_PATH=/var/run/docker.sock -e NODE_CONTAINER_IMAGE_TAG=latest --pod formicaio-pod docker.io/bochaco/formicaio:latest
+$ podman run --name formicaio-pod-formicaio -dt -v pod_volume_formicaio:/var/run -v pod_volume_formicaio:/data -e DB_PATH=/data -e DOCKER_SOCKET_PATH=/var/run/docker.sock -e NODE_CONTAINER_IMAGE_TAG=latest -e HOME_NETWORK_ONLY=true --pod formicaio-pod docker.io/bochaco/formicaio:latest
 ```
 
 For stopping the Formicaio app and services simply run:
