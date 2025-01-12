@@ -9,12 +9,25 @@ use super::{
     },
 };
 
+use alloy::primitives::U256;
 use gloo_timers::future::TimeoutFuture;
 use leptos::{logging, prelude::*, task::spawn_local};
 use rand::Rng;
 
 // Duration of each alert message shows in the UI
 const ALERT_MSG_DURATION_MILLIS: u32 = 9_000;
+
+// Format a U256 value truncating it to only 4 decimals if it's too large in attos.
+pub fn truncated_balance_str(v: U256) -> String {
+    if v > U256::from(1_000_000u128) {
+        format!(
+            "{:.4}",
+            f64::from(v / U256::from(1_000_000_000_000u128)) / 1_000_000.0
+        )
+    } else {
+        format!("{v} attos")
+    }
+}
 
 // Shows an alert message in the UI (currently as an error).
 // TODO: allow to provide the type of alert, i.e. info, warning, etc.

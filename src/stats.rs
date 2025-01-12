@@ -1,6 +1,6 @@
-use super::app::ClientGlobalState;
+use super::{app::ClientGlobalState, helpers::truncated_balance_str};
 
-use alloy::primitives::U256;
+use alloy::primitives::{utils::format_units, U256};
 use leptos::prelude::*;
 use std::collections::HashMap;
 
@@ -27,7 +27,7 @@ pub fn AggregatedStatsView() -> impl IntoView {
             .filter(|n| n.read().status.is_inactive())
             .count()
     };
-    let balance = move || {
+    let total_balance = move || {
         let mut total = U256::ZERO;
         let seen = context
             .nodes
@@ -48,8 +48,9 @@ pub fn AggregatedStatsView() -> impl IntoView {
             total += balance;
         }
 
-        total.to_string()
+        total
     };
+
     let connected_peers = move || {
         context
             .nodes
@@ -144,7 +145,12 @@ pub fn AggregatedStatsView() -> impl IntoView {
         <div class="stats flex">
             <div class="stat place-items-center">
                 <div class="stat-title">Current total balance</div>
-                <div class="stat-value text-primary">{balance}</div>
+                <div class="stat-value text-primary">
+                    {move || truncated_balance_str(total_balance())}
+                </div>
+                <div class="stat-desc text-secondary">
+                    {move || format_units(total_balance(), "ether").unwrap_or_default()}
+                </div>
             </div>
 
             <div class="stat place-items-center">

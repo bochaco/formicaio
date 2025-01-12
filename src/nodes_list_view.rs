@@ -1,7 +1,7 @@
 use super::{
     app::{BatchInProgress, ClientGlobalState},
     chart_view::{node_metrics_update, ChartSeriesData, NodeChartView},
-    helpers::{node_logs_stream, show_alert_msg},
+    helpers::{node_logs_stream, show_alert_msg, truncated_balance_str},
     icons::{
         IconCancel, IconRecycle, IconRemove, IconShowChart, IconShowLogs, IconStartNode,
         IconStopNode, IconUpgradeNode,
@@ -331,13 +331,15 @@ fn NodeInstanceView(
                     </p>
                     <p>
                         <div class="flex flex-row">
-                            <div class="basis-1/2">
+                            <div class="basis-2/3">
                                 <span class="node-info-item">"Balance: "</span>
                                 {move || {
-                                    info.read().balance.map_or(" -".to_string(), |v| v.to_string())
+                                    info.read()
+                                        .balance
+                                        .map_or(" -".to_string(), |v| truncated_balance_str(v))
                                 }}
                             </div>
-                            <div class="basis-1/2">
+                            <div class="basis-1/3">
                                 <span class="node-info-item">"Rewards: "</span>
                                 {move || {
                                     info.read().rewards.map_or(" -".to_string(), |v| v.to_string())
