@@ -1,6 +1,6 @@
 services:
   docker:
-    image: docker:27.4.0-dind@sha256:b0c1179ea32ad77bdb7b852b037e54b11022304c2f2662af1954ef53869314b2
+    image: docker:27.4.1-dind@sha256:3c8fb358b82767a38189e54a89a2ba8d71109f0a17efa87fd009ef8283c46df6
     privileged: true
     network_mode: host
     stop_grace_period: 1m
