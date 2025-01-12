@@ -5,7 +5,7 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  creationTimestamp: "2024-12-12T20:22:42Z"
+  creationTimestamp: "2025-01-12T15:54:36Z"
   labels:
     app: formicaio-pod
   name: formicaio-pod
@@ -31,21 +31,21 @@ spec:
       privileged: true
     tty: true
     volumeMounts:
-    - mountPath: /data
-      name: pod_volume_formicaio-pvc
     - mountPath: /var/lib/docker
       name: pod_volume_formicaio-pvc
     - mountPath: /var/run
       name: pod_volume_formicaio-pvc
+    - mountPath: /data
+      name: pod_volume_formicaio-pvc
   - env:
-    - name: DOCKER_SOCKET_PATH
-      value: /var/run/docker.sock
     - name: NODE_CONTAINER_IMAGE_TAG
       value: latest
     - name: DB_PATH
       value: /data
+    - name: DOCKER_SOCKET_PATH
+      value: /var/run/docker.sock
     - name: HOME_NETWORK_ONLY
-      value: true
+      value: "true"
     image: docker.io/bochaco/formicaio:latest
     name: formicaio
     resources: {}
@@ -57,9 +57,9 @@ spec:
         - CAP_AUDIT_WRITE
     tty: true
     volumeMounts:
-    - mountPath: /data
-      name: pod_volume_formicaio-pvc
     - mountPath: /var/run
+      name: pod_volume_formicaio-pvc
+    - mountPath: /data
       name: pod_volume_formicaio-pvc
   enableServiceLinks: false
   hostname: formicaio-pod
