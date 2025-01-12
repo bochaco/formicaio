@@ -103,7 +103,7 @@ impl NodeAction {
 }
 
 #[component]
-pub fn NodesActionsView() -> impl IntoView {
+pub fn NodesActionsView(home_net_only: bool) -> impl IntoView {
     let context = expect_context::<ClientGlobalState>();
     let is_selecting_nodes = move || context.selecting_nodes.read().0;
     let is_selection_executing = move || context.selecting_nodes.read().1;
@@ -261,7 +261,7 @@ pub fn NodesActionsView() -> impl IntoView {
                     </div>
 
                     <div class="p-4 md:p-5">
-                        <AddNodesForm modal_visibility />
+                        <AddNodesForm modal_visibility home_net_only />
                     </div>
                 </div>
             </div>
@@ -270,7 +270,7 @@ pub fn NodesActionsView() -> impl IntoView {
 }
 
 #[component]
-fn AddNodesForm(modal_visibility: RwSignal<bool>) -> impl IntoView {
+fn AddNodesForm(modal_visibility: RwSignal<bool>, home_net_only: bool) -> impl IntoView {
     let port = RwSignal::new(Ok(DEFAULT_NODE_PORT));
     let metrics_port = RwSignal::new(Ok(DEFAULT_METRICS_PORT));
     let count = RwSignal::new(Ok(1));
@@ -360,6 +360,7 @@ fn AddNodesForm(modal_visibility: RwSignal<bool>) -> impl IntoView {
                     checked=true
                     id="home-network"
                     type="checkbox"
+                    disabled=home_net_only
                     on:change=move |ev| { home_network.set(event_target_checked(&ev)) }
                     class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
                 />
@@ -369,9 +370,21 @@ fn AddNodesForm(modal_visibility: RwSignal<bool>) -> impl IntoView {
                 >
                     "Home network: the node is operating from a home network and situated behind a NAT without port forwarding capabilities."
                     <br />
-                    <span class="font-bold dark:font-bold">
-                        "If this is not enabled and you're behind a NAT, the node is terminated."
-                    </span>
+                    <Show
+                        when=move || home_net_only
+                        fallback=move || {
+                            view! {
+                                <span class="font-bold dark:font-bold">
+                                    "If this is not enabled and you're behind a NAT, the node is terminated."
+                                </span>
+                            }
+                                .into_view()
+                        }
+                    >
+                        <span class="font-bold dark:font-bold">
+                            "Home-network mode cannot be disabled in this deployment."
+                        </span>
+                    </Show>
                 </label>
             </div>
 

@@ -44,6 +44,8 @@ spec:
       value: latest
     - name: DB_PATH
       value: /data
+    - name: HOME_NETWORK_ONLY
+      value: true
     image: docker.io/bochaco/formicaio:latest
     name: formicaio
     resources: {}

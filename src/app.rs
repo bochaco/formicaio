@@ -93,6 +93,10 @@ pub const METRICS_MAX_SIZE_PER_CONTAINER: usize = 5_000;
 // How often we poll the backedn to retrieve an up to date list of node instances.
 pub const NODES_LIST_POLLING_FREQ_MILLIS: u64 = 5_500;
 
+// Env var to restrict the nodes to be run only with home-network mode on,
+// i.e. the home-network cannot be disabled for any node instantiated in current deployment.
+const HOME_NETWORK_ONLY: &str = "HOME_NETWORK_ONLY";
+
 #[cfg(feature = "ssr")]
 #[derive(Clone, FromRef, Debug)]
 pub struct ServerGlobalState {
@@ -244,11 +248,19 @@ pub fn App() -> impl IntoView {
 
 #[component]
 fn HomeScreenView() -> impl IntoView {
+    let home_net_only = std::env::var(HOME_NETWORK_ONLY)
+        .map(|v| v.parse().unwrap_or_default())
+        .unwrap_or_default();
+
+    if home_net_only {
+        leptos::logging::log!("'{HOME_NETWORK_ONLY}' env var set to 'true', thus home-network mode cannot be disabled in this deployment.");
+    }
+
     view! {
         <AlertMsg />
 
         <AggregatedStatsView />
-        <NodesActionsView />
+        <NodesActionsView home_net_only />
 
         <SortStrategyView />
         <NodesListView />
