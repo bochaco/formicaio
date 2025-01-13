@@ -424,7 +424,6 @@ async fn update_nodes_info(
                         let mut node_metrics = nodes_metrics.lock().await;
                         node_metrics.store(&node_info.container_id, &metrics).await;
                         node_metrics.update_node_info(&mut node_info);
-                        update_node_metadata(&node_info, db_client, node_status_locked).await;
                     }
                     Ok(Err(err)) => {
                         logging::log!("Failed to fetch metrics from node {node_short_id}: {err}");
@@ -435,6 +434,9 @@ async fn update_nodes_info(
                 }
             }
         }
+
+        // store up to date metadata and status onto local DB cache
+        update_node_metadata(&node_info, db_client, node_status_locked).await;
 
         net_size +=
             node_info.connected_peers.unwrap_or_default() * node_info.net_size.unwrap_or_default();
