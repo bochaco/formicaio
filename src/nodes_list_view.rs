@@ -11,6 +11,7 @@ use super::{
     server_api::cancel_node_instances_batch,
 };
 
+use alloy::primitives::utils::format_units;
 use chrono::{DateTime, Local, Utc};
 use leptos::{logging, prelude::*, task::spawn_local};
 
@@ -333,11 +334,25 @@ fn NodeInstanceView(
                         <div class="flex flex-row">
                             <div class="basis-2/3">
                                 <span class="node-info-item">"Balance: "</span>
-                                {move || {
-                                    info.read()
-                                        .balance
-                                        .map_or(" -".to_string(), |v| truncated_balance_str(v))
-                                }}
+                                <div
+                                    class="tooltip tooltip-bottom tooltip-info"
+                                    data-tip=move || {
+                                        info.read()
+                                            .balance
+                                            .map_or(
+                                                "".to_string(),
+                                                |v| format_units(v, "ether").unwrap_or_default(),
+                                            )
+                                    }
+                                >
+                                    <span class="underline decoration-dotted">
+                                        {move || {
+                                            info.read()
+                                                .balance
+                                                .map_or(" -".to_string(), |v| truncated_balance_str(v))
+                                        }}
+                                    </span>
+                                </div>
                             </div>
                             <div class="basis-1/3">
                                 <span class="node-info-item">"Rewards: "</span>
