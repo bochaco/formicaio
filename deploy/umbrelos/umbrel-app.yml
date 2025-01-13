@@ -1,0 +1,46 @@
+manifestVersion: 1
+id: formicaio
+name: Formicaio
+tagline: Il potere delle formiche
+icon: https://raw.githubusercontent.com/bochaco/formicaio/cc1bb961c97ea6d5042ada43f83ea1bcf4808fd4/public/formicaio.svg
+category: social
+version: "0.2.3"
+port: 52101 # Published version on umbrel app store will run on port 52100
+description: >-
+  Le formiche sono insetti sociali che vivono in colonie e sono
+  note per la loro organizzazione e cooperazione.
+
+  Ants are social insects that live in colonies and are
+  known for their organization and cooperation.
+
+  Simplify your decentralized experience with this intuitive application,
+  designed to streamline your daily tasks when running nodes from home
+  on peer-to-peer (P2P) networks. Seamlessly participate in online
+  communities using the integrated Nostr client, and manage your
+  digital assets with ease through the built-in wallet. Receive, send,
+  and store tokens, rewards, and coins earned from running nodes or received
+  from third-party sources, all within a single, user-friendly interface.
+developer: bochaco
+website: https://github.com/bochaco/formicaio
+submitter: bochaco
+submission: https://github.com/getumbrel/umbrel-apps/pull/1565
+dependencies: []
+repo: https://github.com/bochaco/formicaio
+support: https://github.com/bochaco/formicaio/issues
+gallery:
+  - https://raw.githubusercontent.com/bochaco/formicaio/refs/heads/main/img/screenshot_01.png
+  - https://raw.githubusercontent.com/bochaco/formicaio/refs/heads/main/img/screenshot_02.png
+  - https://raw.githubusercontent.com/bochaco/formicaio/refs/heads/main/img/screenshot_03.png
+  - https://raw.githubusercontent.com/bochaco/formicaio/refs/heads/main/img/screenshot_04.png
+  - https://raw.githubusercontent.com/bochaco/formicaio/refs/heads/main/img/screenshot_05.png
+  - https://raw.githubusercontent.com/bochaco/formicaio/refs/heads/main/img/lcd_00.png
+  - https://raw.githubusercontent.com/bochaco/formicaio/refs/heads/main/img/lcd_01.png
+  - https://raw.githubusercontent.com/bochaco/formicaio/refs/heads/main/img/lcd_02.png
+releaseNotes: >-
+  This initial version lays the foundation for future development,
+  with additional features to be introduced in subsequent updates.
+
+  This first version of the Formicaio app allows to run a few
+  nodes on the Autonomi P2P network. No other features are still available
+  in this first version.
+path: ""
