@@ -349,7 +349,7 @@ fn NodeInstanceView(
                                         {move || {
                                             info.read()
                                                 .balance
-                                                .map_or(" -".to_string(), |v| truncated_balance_str(v))
+                                                .map_or(" -".to_string(), truncated_balance_str)
                                         }}
                                     </span>
                                 </div>

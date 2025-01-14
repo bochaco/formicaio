@@ -28,6 +28,8 @@ const NODE_METRICS_TO_COLLECT: [&str; 9] = [
 
 // Predefined set of historic metrics to store in DB.
 const NODE_METRICS_TO_STORE_IN_DB: [&str; 2] = [METRIC_KEY_MEM_USED_MB, METRIC_KEY_CPU_USEAGE];
+// Env var to enable the use of a metrics proxy service by providing its IP and port number.
+const METRICS_PROXY_ADDR: &str = "METRICS_PROXY_ADDR";
 
 #[derive(Debug, Error)]
 pub enum MetricsClientError {
@@ -42,10 +44,15 @@ pub struct NodeMetricsClient {
 
 impl NodeMetricsClient {
     pub fn new(ip: &Option<String>, port: u16) -> Self {
-        let host = ip.clone().unwrap_or(DEFAULT_NODES_METRICS_HOST.to_string());
-        Self {
-            endpoint: format!("http://{host}:{port}/metrics"),
-        }
+        let endpoint = match std::env::var(METRICS_PROXY_ADDR) {
+            Ok(addr) => format!("http://{addr}/{port}"),
+            Err(_) => {
+                let host = ip.clone().unwrap_or(DEFAULT_NODES_METRICS_HOST.to_string());
+                format!("http://{host}:{port}/metrics")
+            }
+        };
+
+        Self { endpoint }
     }
 
     // Fetch, filter, and return the predefined type of metrics.
