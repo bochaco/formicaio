@@ -3,16 +3,9 @@ version: "3.7"
 services:
   app_proxy:
     environment:
-      APP_HOST: formicaio-apps-formicaio_nginx_1
-      APP_PORT: 52100
+      APP_HOST: formicaio-apps-formicaio_formicaio_1
+      APP_PORT: 52101
     container_name: formicaio-apps-formicaio_app_proxy_1
-  nginx:
-    image: nginx:alpine
-    volumes:
-      - ${APP_DATA_DIR}/nginx.conf:/etc/nginx/conf.d/default.conf
-    extra_hosts:
-      - host.docker.internal:host-gateway
-    container_name: formicaio-apps-formicaio_nginx_1
   docker:
     image: >-
       docker:27.4.1-dind@sha256:3c8fb358b82767a38189e54a89a2ba8d71109f0a17efa87fd009ef8283c46df6
@@ -34,19 +27,26 @@ services:
       - ${APP_DATA_DIR}/entrypoint.sh:/entrypoint.sh
       - ${APP_DATA_DIR}/data/docker:/data
     container_name: formicaio-apps-formicaio_docker_1
+  metrics_proxy:
+    image: bochaco/metrics_proxy:latest
+    network_mode: host
+    container_name: formicaio-apps-formicaio_metrics_proxy_1
   formicaio:
     image: bochaco/formicaio:latest
     privileged: true
-    network_mode: host
     restart: on-failure
     stop_grace_period: 5s
     environment:
       NODE_CONTAINER_IMAGE_TAG: latest
       DOCKER_SOCKET_PATH: /var/run/docker.sock
       DB_PATH: /data
+      LEPTOS_SITE_ADDR: 0.0.0.0:52101
+      METRICS_PROXY_ADDR: host.docker.internal:8080
     volumes:
       - ${APP_DATA_DIR}/data/formicaio:/data
       - ${APP_DATA_DIR}/data/docker:/var/run
     devices:
       - /dev:/dev
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     container_name: formicaio-apps-formicaio_formicaio_1
