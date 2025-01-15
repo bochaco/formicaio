@@ -1,4 +1,4 @@
-use super::app::AppSettings;
+use super::app::{AppSettings, BgTasksCmds};
 
 use eyre::eyre;
 use i2cdev::{
@@ -51,7 +51,7 @@ fn setup_i2c(settings: &AppSettings) -> Result<Display<Pcf8574>, eyre::Error> {
 // Watch the stats and display them on the external LCD device.
 pub async fn display_stats_on_lcd(
     settings: AppSettings,
-    mut updated_settings_rx: broadcast::Receiver<AppSettings>,
+    mut bg_tasks_cmds_rx: broadcast::Receiver<BgTasksCmds>,
     stats: Arc<Mutex<HashMap<String, String>>>,
 ) {
     let cur_lcd_device = settings.lcd_device.clone();
@@ -74,8 +74,8 @@ pub async fn display_stats_on_lcd(
 
     loop {
         select! {
-            settings = updated_settings_rx.recv() => {
-                if let Ok(s) = settings {
+            settings = bg_tasks_cmds_rx.recv() => {
+                if let Ok(BgTasksCmds::ApplySettings(s)) = settings {
                     if !s.lcd_display_enabled
                         || cur_lcd_device != s.lcd_device
                         || cur_lcd_addr != s.lcd_addr

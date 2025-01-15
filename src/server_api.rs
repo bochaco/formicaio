@@ -10,7 +10,7 @@ use std::collections::HashMap;
 
 #[cfg(feature = "ssr")]
 use super::{
-    app::{ImmutableNodeStatus, ServerGlobalState},
+    app::{BgTasksCmds, ImmutableNodeStatus, ServerGlobalState},
     db_client::DbClient,
     docker_client::{DockerClient, DockerClientError, UPGRADE_NODE_BIN_TIMEOUT_SECS},
     node_instance::{NodeInstancesBatch, NodeStatus},
@@ -20,13 +20,9 @@ use futures_util::StreamExt;
 #[cfg(feature = "ssr")]
 use leptos::logging;
 #[cfg(feature = "ssr")]
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 #[cfg(feature = "ssr")]
-use tokio::{
-    select,
-    sync::{broadcast, Mutex},
-    time::sleep,
-};
+use tokio::{select, time::sleep};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct NodesInstancesInfo {
@@ -103,8 +99,7 @@ pub async fn create_node_instance(
         rewards_addr,
         home_network,
         auto_start,
-        &context.db_client,
-        &context.docker_client,
+        &context,
     )
     .await
 }
@@ -117,28 +112,41 @@ async fn helper_create_node_instance(
     rewards_addr: String,
     home_network: bool,
     auto_start: bool,
-    db_client: &DbClient,
-    docker_client: &DockerClient,
+    context: &ServerGlobalState,
 ) -> Result<NodeInstanceInfo, ServerFnError> {
     logging::log!("Creating new node container with port {port} ...");
-    let container_id = docker_client
+    let container_id = context
+        .docker_client
         .create_new_container(port, metrics_port, rewards_addr, home_network)
         .await?;
     logging::log!("New node container Id: {container_id} ...");
 
-    let container = docker_client.get_container_info(&container_id).await?;
+    let container = context
+        .docker_client
+        .get_container_info(&container_id)
+        .await?;
     logging::log!("New node container created: {container:?}");
 
-    let mut node_info = container.into();
-    db_client.insert_node_metadata(&node_info).await;
+    let mut node_info = container.clone().into();
+    context.db_client.insert_node_metadata(&node_info).await;
 
     if auto_start {
-        helper_start_node_instance(container_id.clone(), db_client, docker_client).await?;
-        node_info = docker_client
+        helper_start_node_instance(
+            container_id.clone(),
+            &context.db_client,
+            &context.docker_client,
+        )
+        .await?;
+        node_info = context
+            .docker_client
             .get_container_info(&container_id)
             .await?
             .into();
     }
+
+    context
+        .bg_tasks_cmds_tx
+        .send(BgTasksCmds::CheckBalanceFor(container))?;
 
     Ok(node_info)
 }
@@ -358,7 +366,9 @@ pub async fn get_settings() -> Result<super::app::AppSettings, ServerFnError> {
 pub async fn update_settings(settings: super::app::AppSettings) -> Result<(), ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
     context.db_client.update_settings(&settings).await?;
-    context.updated_settings_tx.send(settings)?;
+    context
+        .bg_tasks_cmds_tx
+        .send(BgTasksCmds::ApplySettings(settings))?;
     Ok(())
 }
 
@@ -429,29 +439,30 @@ pub async fn prepare_node_instances_batch(
         interval_secs,
     };
     logging::log!("New batch created: {batch_info:?}");
-    let batches = &mut context.node_instaces_batches.lock().await.1;
-    batches.push(batch_info);
-    if batches.len() == 1 {
-        tokio::spawn(run_batches(
-            context.node_instaces_batches.clone(),
-            context.db_client.clone(),
-            context.docker_client.clone(),
-        ));
+    let len = {
+        let batches = &mut context.node_instaces_batches.lock().await.1;
+        batches.push(batch_info);
+        batches.len()
+    };
+    if len == 1 {
+        tokio::spawn(run_batches(context));
     }
 
     Ok(())
 }
 
 #[cfg(feature = "ssr")]
-async fn run_batches(
-    batches: Arc<Mutex<(broadcast::Sender<()>, Vec<NodeInstancesBatch>)>>,
-    db_client: DbClient,
-    docker_client: DockerClient,
-) {
-    let mut cancel_rx = batches.lock().await.0.subscribe();
+async fn run_batches(context: ServerGlobalState) {
+    let mut cancel_rx = context.node_instaces_batches.lock().await.0.subscribe();
 
     loop {
-        let next_batch = batches.lock().await.1.first().cloned();
+        let next_batch = context
+            .node_instaces_batches
+            .lock()
+            .await
+            .1
+            .first()
+            .cloned();
 
         if let Some(batch_info) = next_batch {
             let total = batch_info.total;
@@ -466,8 +477,7 @@ async fn run_batches(
                             batch_info.rewards_addr.clone(),
                             batch_info.home_network,
                             batch_info.auto_start,
-                            &db_client,
-                            &docker_client,
+                            &context
                         )
                         .await
                         {
@@ -476,14 +486,14 @@ async fn run_batches(
                             );
                         }
 
-                        if let Some(b) = batches.lock().await.1.get_mut(0) {
+                        if let Some(b) = context.node_instaces_batches.lock().await.1.get_mut(0) {
                             b.created += 1;
                         }
                     }
                 }
             }
 
-            let _ = batches.lock().await.1.remove(0);
+            let _ = context.node_instaces_batches.lock().await.1.remove(0);
         } else {
             return;
         }

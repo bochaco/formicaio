@@ -15,6 +15,8 @@ use super::{
 };
 
 #[cfg(feature = "ssr")]
+use super::docker_msgs::Container;
+#[cfg(feature = "ssr")]
 use axum::extract::FromRef;
 #[cfg(feature = "hydrate")]
 use leptos::{logging, task::spawn_local};
@@ -97,6 +99,15 @@ pub const NODES_LIST_POLLING_FREQ_MILLIS: u64 = 5_500;
 // i.e. the home-network cannot be disabled for any node instantiated in current deployment.
 const HOME_NETWORK_ONLY: &str = "HOME_NETWORK_ONLY";
 
+// Type of actions that can be requested to the bg jobs.
+#[cfg(feature = "ssr")]
+#[derive(Clone, Debug)]
+pub enum BgTasksCmds {
+    ApplySettings(AppSettings),
+    CheckBalanceFor(Container),
+    CheckAllBalances,
+}
+
 #[cfg(feature = "ssr")]
 #[derive(Clone, FromRef, Debug)]
 pub struct ServerGlobalState {
@@ -107,7 +118,7 @@ pub struct ServerGlobalState {
     pub server_api_hit: Arc<Mutex<bool>>,
     pub nodes_metrics: Arc<Mutex<super::metrics_client::NodesMetrics>>,
     pub node_status_locked: ImmutableNodeStatus,
-    pub updated_settings_tx: broadcast::Sender<AppSettings>,
+    pub bg_tasks_cmds_tx: broadcast::Sender<BgTasksCmds>,
     pub node_instaces_batches: Arc<
         Mutex<(
             broadcast::Sender<()>,

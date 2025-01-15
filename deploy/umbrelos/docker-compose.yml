@@ -48,5 +48,5 @@ services:
     devices:
       - /dev:/dev
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - host.docker.internal:host-gateway
     container_name: formicaio-apps-formicaio_formicaio_1

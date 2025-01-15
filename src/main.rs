@@ -34,12 +34,13 @@ async fn main() {
     // List of nodes which status is temporarily immutable
     let node_status_locked = ImmutableNodeStatus::default();
 
-    // Channel to send updates on app settings so they can be applied in the bg tasks
-    let (updated_settings_tx, updated_settings_rx) = broadcast::channel::<AppSettings>(3);
+    // Channel to send commands to the bg jobs.
+    let (bg_tasks_cmds_tx, _rx) = broadcast::channel::<BgTasksCmds>(1_000);
     // Let's read currently cached settings to use and push it to channel
     let settings = db_client.get_settings().await;
     // List of node instaces batches currently in progress
     let node_instaces_batches = Arc::new(Mutex::new((broadcast::channel(3).0, Vec::new())));
+    // Flag which indicates if there is an active client querying the public API.
     let server_api_hit = Arc::new(Mutex::new(false));
 
     spawn_bg_tasks(
@@ -49,7 +50,7 @@ async fn main() {
         db_client.clone(),
         server_api_hit.clone(),
         node_status_locked.clone(),
-        updated_settings_rx,
+        bg_tasks_cmds_tx.clone(),
         settings,
     );
 
@@ -61,7 +62,7 @@ async fn main() {
         server_api_hit,
         nodes_metrics,
         node_status_locked,
-        updated_settings_tx,
+        bg_tasks_cmds_tx,
         node_instaces_batches,
     };
 

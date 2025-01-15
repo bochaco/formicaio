@@ -12,7 +12,7 @@ use super::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[allow(non_snake_case)]
 pub struct Container {
     pub Id: ContainerId,
@@ -64,19 +64,19 @@ impl From<Container> for NodeInstanceInfo {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[allow(non_snake_case)]
 pub struct Networks {
     pub Networks: HashMap<String, Network>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[allow(non_snake_case)]
 pub struct Network {
     pub IPAddress: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[allow(non_snake_case)]
 pub struct Port {
     pub IP: Option<String>,
