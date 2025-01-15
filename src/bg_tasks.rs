@@ -145,7 +145,7 @@ pub fn spawn_bg_tasks(
         docker_client.clone(),
         db_client.clone(),
         lcd_stats.clone(),
-        bg_tasks_cmds_tx.subscribe(),
+        bg_tasks_cmds_tx.clone(),
     ));
 
     tokio::spawn(async move {
@@ -474,7 +474,7 @@ async fn balance_checker_task(
     docker_client: DockerClient,
     db_client: DbClient,
     lcd_stats: Arc<Mutex<HashMap<String, String>>>,
-    mut bg_tasks_cmds_rx: broadcast::Receiver<BgTasksCmds>,
+    bg_tasks_cmds_tx: broadcast::Sender<BgTasksCmds>,
 ) {
     // helper which creates a new contract if the new configured values are valid.
     let update_token_contract = |contract_addr: &str, rpc_url: &str| {
@@ -514,6 +514,7 @@ async fn balance_checker_task(
 
     // cache retrieved rewards balances to not query more than once per address
     let mut updated_balances = HashMap::<Address, U256>::new();
+    let mut bg_tasks_cmds_rx = bg_tasks_cmds_tx.subscribe();
 
     loop {
         match bg_tasks_cmds_rx.recv().await {
@@ -523,6 +524,7 @@ async fn balance_checker_task(
                         update_token_contract(&s.token_contract_address, &s.l2_network_rpc_url);
                     prev_addr = s.token_contract_address;
                     prev_url = s.l2_network_rpc_url;
+                    let _ = bg_tasks_cmds_tx.send(BgTasksCmds::CheckAllBalances);
                 }
             }
             Ok(BgTasksCmds::CheckBalanceFor(container)) => {
@@ -540,8 +542,8 @@ async fn balance_checker_task(
                 }
             }
             Ok(BgTasksCmds::CheckAllBalances) => {
+                updated_balances.clear();
                 if let Some(ref token_contract) = token_contract {
-                    updated_balances.clear();
                     let containers = match docker_client.get_containers_list(true).await {
                         Ok(containers) if !containers.is_empty() => containers,
                         Err(err) => {
