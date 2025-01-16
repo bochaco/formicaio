@@ -8,9 +8,7 @@ known for their organization and cooperation.
 
 Simplify your decentralized experience with this intuitive application, 
 designed to streamline your daily tasks when running nodes from home 
-on peer-to-peer (P2P) networks. Seamlessly participate in online 
-communities using the integrated Nostr client, and manage your 
-digital assets with ease through the built-in wallet. Receive, send,
+on peer-to-peer (P2P) networks, like [Autonomi](https://autonomi.com) network nodes. Seamlessly participate in online communities using the integrated Nostr client, and manage your digital assets with ease through the built-in wallet. Receive, send,
 and store tokens, rewards, and coins earned from running nodes or received 
 from third-party sources, all within a single, user-friendly interface.
 
@@ -21,6 +19,8 @@ from third-party sources, all within a single, user-friendly interface.
 <img src="img/screenshot_05.png" width="800" height="439" />
 
 ## How to use:
+
+Formicaio can be deployed on Linux (amd64/arm64) with [Docker](https://www.docker.com) or [Podman](https://podman.io), on Windows/MacOS with Podman, as well as installed on [UmbrelOS](https://umbrel.com) (https://github.com/getumbrel/umbrel).
 
 ### UmbrelOS
 
