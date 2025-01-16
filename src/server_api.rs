@@ -131,12 +131,7 @@ async fn helper_create_node_instance(
     context.db_client.insert_node_metadata(&node_info).await;
 
     if auto_start {
-        helper_start_node_instance(
-            container_id.clone(),
-            &context.db_client,
-            &context.docker_client,
-        )
-        .await?;
+        helper_start_node_instance(container_id.clone(), context).await?;
         node_info = context
             .docker_client
             .get_container_info(&container_id)
@@ -175,24 +170,25 @@ pub async fn delete_node_instance(container_id: ContainerId) -> Result<(), Serve
 #[server(StartNodeInstance, "/api", "Url", "/start_node")]
 pub async fn start_node_instance(container_id: ContainerId) -> Result<(), ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
-    helper_start_node_instance(container_id, &context.db_client, &context.docker_client).await
+    helper_start_node_instance(container_id, &context).await
 }
 
 // Helper to start a node instance with given id
 #[cfg(feature = "ssr")]
 async fn helper_start_node_instance(
     container_id: ContainerId,
-    db_client: &DbClient,
-    docker_client: &DockerClient,
+    context: &ServerGlobalState,
 ) -> Result<(), ServerFnError> {
     logging::log!("Starting node container with Id: {container_id} ...");
 
-    db_client
+    context
+        .db_client
         .update_node_status(&container_id, NodeStatus::Restarting)
         .await;
 
-    let (version, peer_id) = docker_client.start_container(&container_id).await?;
-    db_client
+    let (version, peer_id) = context.docker_client.start_container(&container_id).await?;
+    context
+        .db_client
         .update_node_metadata_fields(
             &container_id,
             &[
@@ -210,46 +206,43 @@ async fn helper_start_node_instance(
 pub async fn stop_node_instance(container_id: ContainerId) -> Result<(), ServerFnError> {
     logging::log!("Stopping node container with Id: {container_id} ...");
     let context = expect_context::<ServerGlobalState>();
-    helper_stop_node_instance(
-        container_id,
-        &context.node_status_locked,
-        &context.db_client,
-        &context.docker_client,
-        NodeStatus::Stopping,
-    )
-    .await
+    helper_stop_node_instance(container_id, &context, NodeStatus::Stopping).await
 }
 
 // Helper to stop a node instance with given id
 #[cfg(feature = "ssr")]
 async fn helper_stop_node_instance(
     container_id: ContainerId,
-    node_status_locked: &ImmutableNodeStatus,
-    db_client: &DbClient,
-    docker_client: &DockerClient,
+    context: &ServerGlobalState,
     status: NodeStatus,
 ) -> Result<(), ServerFnError> {
-    node_status_locked
+    context
+        .node_status_locked
         .insert(container_id.clone(), Duration::from_secs(20))
         .await;
-    db_client.update_node_status(&container_id, status).await;
+    context
+        .db_client
+        .update_node_status(&container_id, status)
+        .await;
 
-    let res = docker_client.stop_container(&container_id).await;
+    let res = context.docker_client.stop_container(&container_id).await;
 
     if matches!(res, Ok(())) {
         // set connected/kbucket peers back to 0 and update cache
-        db_client
+        context
+            .db_client
             .update_node_metadata_fields(
                 &container_id,
                 &[("connected_peers", "0"), ("kbuckets_peers", "0")],
             )
             .await;
-        db_client
+        context
+            .db_client
             .update_node_status(&container_id, NodeStatus::Inactive)
             .await;
     }
 
-    node_status_locked.remove(&container_id).await;
+    context.node_status_locked.remove(&container_id).await;
 
     Ok(res?)
 }
