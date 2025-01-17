@@ -186,7 +186,10 @@ async fn helper_start_node_instance(
         .update_node_status(&container_id, NodeStatus::Restarting)
         .await;
 
-    let (version, peer_id) = context.docker_client.start_container(&container_id).await?;
+    let (version, peer_id, ips) = context
+        .docker_client
+        .start_container(&container_id, true)
+        .await?;
     context
         .db_client
         .update_node_metadata_fields(
@@ -194,6 +197,7 @@ async fn helper_start_node_instance(
             &[
                 ("bin_version", &version.unwrap_or_default()),
                 ("peer_id", &peer_id.unwrap_or_default()),
+                ("ips", &ips.unwrap_or_default()),
             ],
         )
         .await;
@@ -233,7 +237,11 @@ async fn helper_stop_node_instance(
             .db_client
             .update_node_metadata_fields(
                 &container_id,
-                &[("connected_peers", "0"), ("kbuckets_peers", "0")],
+                &[
+                    ("connected_peers", "0"),
+                    ("kbuckets_peers", "0"),
+                    ("ips", ""),
+                ],
             )
             .await;
         context
@@ -271,7 +279,7 @@ pub(crate) async fn helper_upgrade_node_instance(
     node_status_locked: &ImmutableNodeStatus,
     db_client: &DbClient,
     docker_client: &DockerClient,
-) -> Result<Option<String>, DockerClientError> {
+) -> Result<(Option<String>, Option<String>), DockerClientError> {
     // TODO: use docker 'extract' api to simply copy the new node binary into the container.
     node_status_locked
         .insert(
@@ -283,9 +291,11 @@ pub(crate) async fn helper_upgrade_node_instance(
         .update_node_status(container_id, NodeStatus::Upgrading)
         .await;
 
-    let res = docker_client.upgrade_node_in_container(container_id).await;
+    let res = docker_client
+        .upgrade_node_in_container(container_id, true)
+        .await;
 
-    if let Ok(ref new_version) = res {
+    if let Ok((ref new_version, ref ips)) = res {
         logging::log!(
             "Node binary upgraded to v{} in container {container_id}.",
             new_version.as_deref().unwrap_or("[unknown]")
@@ -295,7 +305,10 @@ pub(crate) async fn helper_upgrade_node_instance(
         db_client
             .update_node_metadata_fields(
                 container_id,
-                &[("bin_version", new_version.as_deref().unwrap_or_default())],
+                &[
+                    ("bin_version", new_version.as_deref().unwrap_or_default()),
+                    ("ips", ips.as_deref().unwrap_or_default()),
+                ],
             )
             .await;
         db_client
@@ -379,9 +392,9 @@ pub async fn recycle_node_instance(container_id: ContainerId) -> Result<(), Serv
         .update_node_status(&container_id, NodeStatus::Recycling)
         .await;
 
-    let (version, peer_id) = context
+    let (version, peer_id, ips) = context
         .docker_client
-        .regenerate_peer_id_in_container(&container_id)
+        .regenerate_peer_id_in_container(&container_id, true)
         .await?;
 
     context
@@ -391,6 +404,7 @@ pub async fn recycle_node_instance(container_id: ContainerId) -> Result<(), Serv
             &[
                 ("bin_version", &version.unwrap_or_default()),
                 ("peer_id", &peer_id.unwrap_or_default()),
+                ("ips", &ips.unwrap_or_default()),
             ],
         )
         .await;

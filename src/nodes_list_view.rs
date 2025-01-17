@@ -449,8 +449,30 @@ fn NodeInstanceView(
                         </div>
                     </p>
                     <p>
-                        <span class="node-info-item">"Home-network: "</span>
-                        {move || info.read().home_network}
+                        <Show
+                            when=move || !info.read().home_network
+                            fallback=|| {
+                                view! {
+                                    <span class="node-info-item">"Home-network: "</span>
+                                    "On"
+                                }
+                            }
+                        >
+                            <div class="flex flex-row">
+                                <div class="basis-1/2">
+                                    <span class="node-info-item">"Home-network: "</span>
+                                    "Off"
+                                </div>
+                                <div class="basis-1/12">
+                                    <span class="node-info-item">"IPs: "</span>
+                                </div>
+                                <div class="basis-2/5 overflow-hidden relative">
+                                    <div class="absolute whitespace-nowrap animate-slide">
+                                        {move || info.get().ips.unwrap_or_default()}
+                                    </div>
+                                </div>
+                            </div>
+                        </Show>
                     </p>
                     <p>
                         <span class="node-info-item">"Created: "</span>

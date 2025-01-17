@@ -261,7 +261,8 @@ impl DockerClient {
     pub async fn start_container(
         &self,
         id: &ContainerId,
-    ) -> Result<(Option<String>, Option<String>), DockerClientError> {
+        get_ips: bool,
+    ) -> Result<(Option<String>, Option<String>, Option<String>), DockerClientError> {
         let url = format!("{DOCKER_CONTAINERS_API}/{id}/start");
         logging::log!("[START] Sending Docker request to START a container: {url} ...");
         self.send_request(ReqMethod::post_empty_body(), &url, &[])
@@ -281,7 +282,7 @@ impl DockerClient {
             .await?;
 
         // let's try to retrieve new version
-        self.get_node_version_and_peer_id(id).await
+        self.get_node_version_and_peer_id(id, get_ips).await
     }
 
     // Request the Docker server to STOP a container matching the given id
@@ -416,7 +417,8 @@ impl DockerClient {
     pub async fn upgrade_node_in_container(
         &self,
         id: &ContainerId,
-    ) -> Result<Option<String>, DockerClientError> {
+        get_ips: bool,
+    ) -> Result<(Option<String>, Option<String>), DockerClientError> {
         logging::log!("[UPGRADE] Sending Docker request to UPGRADE node within a container...");
 
         let cmd = "./antup node -n -p /app".to_string();
@@ -442,22 +444,23 @@ impl DockerClient {
         }
 
         // let's try to retrieve new version, forget it if there is any error
-        let (new_version, _) = self
-            .get_node_version_and_peer_id(id)
+        let (new_version, _, ips) = self
+            .get_node_version_and_peer_id(id, get_ips)
             .await
             .unwrap_or_default();
 
         // restart container to run with new node version
         self.restart_container(id).await?;
 
-        Ok(new_version)
+        Ok((new_version, ips))
     }
 
     // Retrieve version of the node binary and its peer id
     pub async fn get_node_version_and_peer_id(
         &self,
         id: &ContainerId,
-    ) -> Result<(Option<String>, Option<String>), DockerClientError> {
+        get_ips: bool,
+    ) -> Result<(Option<String>, Option<String>, Option<String>), DockerClientError> {
         let cmd = "/app/antnode --version | grep -oE 'Autonomi Node v[0-9]+\\.[0-9]+\\.[0-9]+.*$'"
             .to_string();
         let (_, resp_str) = self
@@ -481,14 +484,26 @@ impl DockerClient {
         };
         logging::log!("Node peer id in container {id}: {peer_id:?}");
 
-        Ok((version, peer_id))
+        let ips = if get_ips {
+            let cmd = "hostname -I | sed 's/^[ \t]*//;s/[ \t]*$//;s/ /, /g'".to_string();
+            let (_, ips) = self
+                .exec_in_container(id, cmd, "get node network IPs")
+                .await?;
+            logging::log!("Node IPs in container {id}: {ips}");
+            Some(ips)
+        } else {
+            None
+        };
+
+        Ok((version, peer_id, ips))
     }
 
     // Clears the node's PeerId within the containver and restarts it
     pub async fn regenerate_peer_id_in_container(
         &self,
         id: &ContainerId,
-    ) -> Result<(Option<String>, Option<String>), DockerClientError> {
+        get_ips: bool,
+    ) -> Result<(Option<String>, Option<String>, Option<String>), DockerClientError> {
         logging::log!("[RECYCLE] Recycling container by clearing node's peer-id ...");
 
         // we write an empty file at '/app/node_data/secret-key-recycle' so the container removes
@@ -512,7 +527,7 @@ impl DockerClient {
 
         logging::log!("Finished recycling node container: {id}");
 
-        self.get_node_version_and_peer_id(id).await
+        self.get_node_version_and_peer_id(id, get_ips).await
     }
 
     // Restart the container wich has given id

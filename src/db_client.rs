@@ -64,6 +64,7 @@ struct CachedNodeMetadata {
     records: String,
     connected_peers: String,
     kbuckets_peers: String,
+    ips: String,
 }
 
 impl CachedNodeMetadata {
@@ -100,6 +101,9 @@ impl CachedNodeMetadata {
         }
         if let Ok(v) = self.kbuckets_peers.parse::<usize>() {
             info.kbuckets_peers = Some(v);
+        }
+        if !self.ips.is_empty() {
+            info.ips = Some(self.ips.clone());
         }
     }
 }
@@ -278,6 +282,10 @@ impl DbClient {
         if let Some(kbuckets_peers) = &info.kbuckets_peers {
             updates.push("kbuckets_peers=?");
             params.push(kbuckets_peers.to_string());
+        }
+        if let Some(ips) = &info.ips {
+            updates.push("ips=?");
+            params.push(ips.clone());
         }
 
         if updates.is_empty() {

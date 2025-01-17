@@ -53,3 +53,16 @@
 .btn-manage-nodes-action {
     @apply flex justify-center items-center w-[52px] h-[52px] text-gray-500 hover:text-gray-900 bg-white rounded-full border border-gray-200 dark:border-gray-600 shadow-sm dark:hover:text-white dark:text-gray-400 hover:bg-gray-50 dark:bg-gray-700 dark:hover:bg-gray-600 focus:ring-4 focus:ring-gray-300 focus:outline-none dark:focus:ring-gray-400;
 }
+
+@keyframes slide {
+    0% {
+        transform: translateX(25%); /* Start off-screen to the right */
+    }
+    100% {
+        transform: translateX(-85%); /* Slide out of view to the left */
+    }
+}
+
+.animate-slide {
+    animation: slide 25s linear infinite; /* Apply the sliding animation */
+}

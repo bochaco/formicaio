@@ -106,6 +106,7 @@ pub struct NodeInstanceInfo {
     pub kbuckets_peers: Option<usize>,
     pub shunned_count: Option<usize>,
     pub net_size: Option<usize>,
+    pub ips: Option<String>,
 }
 
 impl NodeInstanceInfo {
