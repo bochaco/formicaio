@@ -1,5 +1,5 @@
 use super::{
-    app::BatchInProgress,
+    app::{BatchInProgress, Stats},
     node_instance::{ContainerId, NodeInstanceInfo},
 };
 
@@ -28,6 +28,7 @@ use tokio::{select, time::sleep};
 pub struct NodesInstancesInfo {
     pub latest_bin_version: Option<String>,
     pub nodes: HashMap<String, NodeInstanceInfo>,
+    pub stats: Stats,
     pub batch_in_progress: Option<BatchInProgress>,
 }
 
@@ -37,6 +38,7 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
     let latest_bin_version = context.latest_bin_version.lock().await.clone();
     let containers = context.docker_client.get_containers_list(true).await?;
+    let stats = context.stats.lock().await.clone();
     *context.server_api_hit.lock().await = true;
 
     let mut nodes = HashMap::new();
@@ -79,6 +81,7 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
     Ok(NodesInstancesInfo {
         latest_bin_version,
         nodes,
+        stats,
         batch_in_progress,
     })
 }
@@ -151,6 +154,10 @@ async fn helper_create_node_instance(
 pub async fn delete_node_instance(container_id: ContainerId) -> Result<(), ServerFnError> {
     logging::log!("Deleting node container with Id: {container_id} ...");
     let context = expect_context::<ServerGlobalState>();
+    let container = context
+        .docker_client
+        .get_container_info(&container_id)
+        .await?;
     context
         .docker_client
         .delete_container(&container_id)
@@ -162,6 +169,10 @@ pub async fn delete_node_instance(container_id: ContainerId) -> Result<(), Serve
         .await
         .remove_container_metrics(&container_id)
         .await;
+
+    context
+        .bg_tasks_cmds_tx
+        .send(BgTasksCmds::DeleteBalanceFor(container))?;
 
     Ok(())
 }
@@ -240,6 +251,7 @@ async fn helper_stop_node_instance(
                 &[
                     ("connected_peers", "0"),
                     ("kbuckets_peers", "0"),
+                    ("records", ""),
                     ("ips", ""),
                 ],
             )

@@ -433,7 +433,7 @@ fn NodeInstanceView(
                                 }}
                             </div>
                             <div class="basis-1/2">
-                                <span class="node-info-item">"Network size:"</span>
+                                <span class="node-info-item">"Network size: "</span>
                                 {move || {
                                     info.read().net_size.map_or(" -".to_string(), |v| v.to_string())
                                 }}

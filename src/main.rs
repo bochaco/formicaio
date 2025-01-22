@@ -42,6 +42,7 @@ async fn main() {
     let node_instaces_batches = Arc::new(Mutex::new((broadcast::channel(3).0, Vec::new())));
     // Flag which indicates if there is an active client querying the public API.
     let server_api_hit = Arc::new(Mutex::new(false));
+    let stats = Arc::new(Mutex::new(Stats::default()));
 
     spawn_bg_tasks(
         docker_client.clone(),
@@ -51,6 +52,7 @@ async fn main() {
         server_api_hit.clone(),
         node_status_locked.clone(),
         bg_tasks_cmds_tx.clone(),
+        stats.clone(),
         settings,
     );
 
@@ -64,6 +66,7 @@ async fn main() {
         node_status_locked,
         bg_tasks_cmds_tx,
         node_instaces_batches,
+        stats,
     };
 
     let app = Router::new()

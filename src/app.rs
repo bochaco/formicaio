@@ -28,6 +28,7 @@ use tokio::{
     time::Instant,
 };
 
+use alloy::primitives::U256;
 #[cfg(feature = "hydrate")]
 use gloo_timers::future::sleep;
 use leptos::prelude::*;
@@ -105,7 +106,21 @@ const HOME_NETWORK_ONLY: &str = "HOME_NETWORK_ONLY";
 pub enum BgTasksCmds {
     ApplySettings(AppSettings),
     CheckBalanceFor(Container),
+    DeleteBalanceFor(Container),
     CheckAllBalances,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct Stats {
+    pub total_balance: U256,
+    pub total_nodes: usize,
+    pub active_nodes: usize,
+    pub inactive_nodes: usize,
+    pub connected_peers: usize,
+    pub shunned_count: usize,
+    pub estimated_net_size: usize,
+    pub stored_records: usize,
+    pub relevant_records: usize,
 }
 
 #[cfg(feature = "ssr")]
@@ -125,6 +140,7 @@ pub struct ServerGlobalState {
             Vec<super::node_instance::NodeInstancesBatch>,
         )>,
     >,
+    pub stats: Arc<Mutex<Stats>>,
 }
 
 #[derive(Clone, Default, Serialize, Deserialize)]
@@ -179,6 +195,8 @@ impl ImmutableNodeStatus {
 pub struct ClientGlobalState {
     // List of nodes instances and their info/state
     pub nodes: RwSignal<(bool, HashMap<String, RwSignal<NodeInstanceInfo>>)>,
+    // Node global stats
+    pub stats: RwSignal<Stats>,
     // Flag to enable/disable nodes' logs stream
     pub logs_stream_on_for: RwSignal<Option<ContainerId>>,
     // Flag to enable/disable nodes' metrics charts update
@@ -222,6 +240,7 @@ pub fn App() -> impl IntoView {
     // Provide context to manage all client side states that need to be used globally
     provide_context(ClientGlobalState {
         nodes: RwSignal::new((false, HashMap::default())),
+        stats: RwSignal::new(Stats::default()),
         logs_stream_on_for: RwSignal::new(None),
         metrics_update_on_for: RwSignal::new(None),
         latest_bin_version: RwSignal::new(None),
@@ -295,6 +314,8 @@ fn spawn_nodes_list_polling() {
                     if info.latest_bin_version.is_some() {
                         context.latest_bin_version.set(info.latest_bin_version);
                     }
+
+                    context.stats.update(|s| *s = info.stats);
 
                     // update info about node instances batch in progress
                     context

@@ -1,8 +1,7 @@
 use super::{app::ClientGlobalState, helpers::truncated_balance_str};
 
-use alloy::primitives::{utils::format_units, U256};
+use alloy::primitives::utils::format_units;
 use leptos::prelude::*;
-use std::collections::HashMap;
 
 #[component]
 pub fn AggregatedStatsView() -> impl IntoView {
@@ -27,109 +26,12 @@ pub fn AggregatedStatsView() -> impl IntoView {
             .filter(|n| n.read().status.is_inactive())
             .count()
     };
-    let total_balance = move || {
-        let mut total = U256::ZERO;
-        let seen = context
-            .nodes
-            .read()
-            .1
-            .values()
-            .filter_map(|n| {
-                n.read()
-                    .balance
-                    .map(|v| (n.get_untracked().rewards_addr, v))
-            })
-            .fold(HashMap::new(), |mut acc, (addr, v)| {
-                acc.insert(addr, v);
-                acc
-            });
-
-        for (_, balance) in seen.iter() {
-            total += balance;
-        }
-
-        total
-    };
-
-    let connected_peers = move || {
-        context
-            .nodes
-            .read()
-            .1
-            .values()
-            .map(|n| n.read().connected_peers.unwrap_or_default())
-            .sum::<usize>()
-    };
-    let shunned_by = move || {
-        context
-            .nodes
-            .read()
-            .1
-            .values()
-            .map(|n| n.read().shunned_count.unwrap_or_default())
-            .sum::<usize>()
-    };
-    let estimated_net_size = move || {
-        let estimations = context
-            .nodes
-            .read()
-            .1
-            .values()
-            .filter(|n| n.read().status.is_active())
-            .map(|n| n.read().net_size.unwrap_or_default())
-            .sum::<usize>();
-        let active_nodes = active_nodes();
-        if active_nodes > 0 {
-            estimations / active_nodes
-        } else {
-            0
-        }
-    };
-    let stored_records = move || {
-        context
-            .nodes
-            .read()
-            .1
-            .values()
-            .map(|n| {
-                if n.read().status.is_active() {
-                    n.read().records.unwrap_or_default()
-                } else {
-                    0
-                }
-            })
-            .sum::<usize>()
-    };
-    let inactive_records = move || {
-        context
-            .nodes
-            .read()
-            .1
-            .values()
-            .map(|n| {
-                if n.read().status.is_inactive() {
-                    n.read().records.unwrap_or_default()
-                } else {
-                    0
-                }
-            })
-            .sum::<usize>()
-    };
-    let relevant_records = move || {
-        context
-            .nodes
-            .read()
-            .1
-            .values()
-            .map(|n| {
-                if n.read().status.is_active() {
-                    n.read().relevant_records.unwrap_or_default()
-                } else {
-                    0
-                }
-            })
-            .sum::<usize>()
-    };
+    let total_balance = move || context.stats.read().total_balance;
+    let connected_peers = move || context.stats.read().connected_peers;
+    let shunned_count = move || context.stats.read().shunned_count;
+    let estimated_net_size = move || context.stats.read().estimated_net_size;
+    let stored_records = move || context.stats.read().stored_records;
+    let relevant_records = move || context.stats.read().relevant_records;
 
     view! {
         <div class="stats flex">
@@ -146,7 +48,7 @@ pub fn AggregatedStatsView() -> impl IntoView {
             <div class="stat place-items-center">
                 <div class="stat-title">Total connected peers</div>
                 <div class="stat-value text-primary">{connected_peers}</div>
-                <div class="stat-desc text-secondary">"shunned by " {shunned_by} " peers"</div>
+                <div class="stat-desc text-secondary">"shunned by " {shunned_count} " peers"</div>
             </div>
 
             <div class="stat place-items-center">
@@ -159,8 +61,7 @@ pub fn AggregatedStatsView() -> impl IntoView {
                 <div class="stat-title">Stored records</div>
                 <div class="stat-value">{stored_records}</div>
                 <div class="stat-desc text-secondary">
-                    {relevant_records} " are relevant | " {inactive_records}
-                    " are in inactive nodes"
+                    {relevant_records} " are relevant"
                 </div>
             </div>
             <div class="stat place-items-center">

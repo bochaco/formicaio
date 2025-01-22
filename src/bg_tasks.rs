@@ -1,5 +1,5 @@
 use super::{
-    app::{AppSettings, BgTasksCmds, ImmutableNodeStatus, METRICS_MAX_SIZE_PER_CONTAINER},
+    app::{AppSettings, BgTasksCmds, ImmutableNodeStatus, Stats, METRICS_MAX_SIZE_PER_CONTAINER},
     db_client::DbClient,
     docker_client::DockerClient,
     docker_msgs::Container,
@@ -67,10 +67,13 @@ struct TasksContext {
 
 impl TasksContext {
     fn from(settings: AppSettings) -> Self {
+        let mut balances_retrieval = interval(settings.rewards_balances_retrieval_freq);
+        balances_retrieval.reset(); // the task will trigger the first check by itself
+
         Self {
             formica_image_pulling: interval(FORMICA_IMAGE_PULLING_FREQ),
             node_bin_version_check: interval(settings.node_bin_version_polling_freq),
-            balances_retrieval: interval(settings.rewards_balances_retrieval_freq),
+            balances_retrieval,
             metrics_pruning: interval(METRICS_PRUNING_FREQ),
             nodes_metrics_polling: interval(settings.nodes_metrics_polling_freq),
             nodes_status_polling: interval(NODE_STATUS_POLLING_FREQ),
@@ -117,18 +120,20 @@ pub fn spawn_bg_tasks(
     server_api_hit: Arc<Mutex<bool>>,
     node_status_locked: ImmutableNodeStatus,
     bg_tasks_cmds_tx: broadcast::Sender<BgTasksCmds>,
+    global_stats: Arc<Mutex<Stats>>,
     settings: AppSettings,
 ) {
     logging::log!("App settings to use: {settings:#?}");
     let mut ctx = TasksContext::from(settings);
 
-    let stats: HashMap<String, String> = [(
-        "Formicaio".to_string(),
-        format!("v{}", env!("CARGO_PKG_VERSION")),
-    )]
-    .into_iter()
-    .collect();
-    let lcd_stats = Arc::new(Mutex::new(stats));
+    let lcd_stats = Arc::new(Mutex::new(
+        [(
+            "Formicaio".to_string(),
+            format!("v{}", env!("CARGO_PKG_VERSION")),
+        )]
+        .into_iter()
+        .collect::<HashMap<String, String>>(),
+    ));
 
     // Based on settings, setup LCD external device to display stats.
     if ctx.app_settings.lcd_display_enabled {
@@ -146,6 +151,7 @@ pub fn spawn_bg_tasks(
         db_client.clone(),
         lcd_stats.clone(),
         bg_tasks_cmds_tx.clone(),
+        global_stats.clone(),
     ));
 
     tokio::spawn(async move {
@@ -209,7 +215,9 @@ pub fn spawn_bg_tasks(
                         &db_client,
                         &node_status_locked,
                         query_bin_version,
-                        &lcd_stats
+                        &lcd_stats,
+                        global_stats.clone()
+
                     ).await;
                     // reset interval to start next period from this instant,
                     // regardless how long the above polling task lasted.
@@ -225,9 +233,25 @@ pub fn spawn_bg_tasks(
 
                     *server_api_hit.lock().await = false;
                     match docker_client.get_containers_list(true).await {
-                        Ok(containers) => for container in containers.into_iter() {
-                            let node_info: NodeInstanceInfo = container.into();
-                            update_node_metadata(&node_info, &db_client, &node_status_locked).await;
+                        Ok(containers) => {
+                            let total_nodes = containers.len();
+                            let mut num_active_nodes = 0;
+                            let mut num_inactive_nodes = 0;
+
+                            for container in containers.into_iter() {
+                                let node_info: NodeInstanceInfo = container.into();
+                                update_node_metadata(&node_info, &db_client, &node_status_locked).await;
+                                if node_info.status.is_active() {
+                                    num_active_nodes += 1;
+                                } else if node_info.status.is_inactive() {
+                                    num_inactive_nodes += 1;
+                                }
+                            }
+
+                            let mut guard = global_stats.lock().await;
+                            guard.total_nodes = total_nodes;
+                            guard.active_nodes = num_active_nodes;
+                            guard.inactive_nodes = num_inactive_nodes;
                         },
                         Err(err) => logging::log!("Failed to get containers list: {err}")
                     }
@@ -349,6 +373,7 @@ async fn update_nodes_info(
     node_status_locked: &ImmutableNodeStatus,
     query_bin_version: bool,
     lcd_stats: &Arc<Mutex<HashMap<String, String>>>,
+    global_stats: Arc<Mutex<Stats>>,
 ) {
     let containers = docker_client
         .get_containers_list(true)
@@ -363,10 +388,14 @@ async fn update_nodes_info(
         logging::log!("Fetching status and metrics from {num_nodes} node/s ...");
     }
 
-    // let's collect stats to update LCD (if enabled)
+    // let's collect stats to update LCD (if enabled) and global stats records
     let mut net_size = 0;
     let mut num_active_nodes = 0;
+    let mut num_inactive_nodes = 0;
     let mut records = 0;
+    let mut relevant_records = 0;
+    let mut connected_peers = 0;
+    let mut shunned_count = 0;
     let mut bin_version = HashSet::<String>::new();
 
     for container in containers.into_iter() {
@@ -393,14 +422,20 @@ async fn update_nodes_info(
                         logging::log!("Timeout ({NODE_METRICS_QUERY_TIMEOUT:?}) while fetching metrics from node {node_short_id}.");
                     }
                 }
+
+                net_size += node_info.net_size.unwrap_or_default();
+                records += node_info.records.unwrap_or_default();
+                relevant_records += node_info.relevant_records.unwrap_or_default();
+                connected_peers += node_info.connected_peers.unwrap_or_default();
+                shunned_count += node_info.shunned_count.unwrap_or_default();
             }
+        } else if node_info.status.is_inactive() {
+            num_inactive_nodes += 1;
         }
 
         // store up to date metadata and status onto local DB cache
         update_node_metadata(&node_info, db_client, node_status_locked).await;
 
-        net_size += node_info.net_size.unwrap_or_default();
-        records += node_info.records.unwrap_or_default();
         if query_bin_version {
             if let Some(ref version) = db_client
                 .get_node_bin_version(&node_info.container_id)
@@ -415,7 +450,8 @@ async fn update_nodes_info(
         LCD_LABEL_ACTIVE_NODES,
         format!("{num_active_nodes}/{num_nodes}"),
     )];
-    if num_active_nodes > 0 {
+
+    let estimated_net_size = if num_active_nodes > 0 {
         let avg_net_size = net_size / num_active_nodes;
         let bin_versions = bin_version.into_iter().collect::<Vec<_>>().join(", ");
 
@@ -424,6 +460,7 @@ async fn update_nodes_info(
             (LCD_LABEL_STORED_RECORDS, records.to_string()),
             (LCD_LABEL_BIN_VERSION, bin_versions),
         ]);
+        avg_net_size
     } else {
         logging::log!("No active nodes to retrieve metrics from...");
         remove_lcd_stats(
@@ -435,9 +472,20 @@ async fn update_nodes_info(
             ],
         )
         .await;
+        0
     };
 
     update_lcd_stats(lcd_stats, &updated_vals).await;
+
+    let mut guard = global_stats.lock().await;
+    guard.total_nodes = num_nodes;
+    guard.active_nodes = num_active_nodes;
+    guard.inactive_nodes = num_inactive_nodes;
+    guard.connected_peers = connected_peers;
+    guard.shunned_count = shunned_count;
+    guard.estimated_net_size = estimated_net_size;
+    guard.stored_records = records;
+    guard.relevant_records = relevant_records;
 }
 
 // Prune metrics records from the cache DB to always keep the number of records within a limit.
@@ -472,7 +520,17 @@ async fn balance_checker_task(
     db_client: DbClient,
     lcd_stats: Arc<Mutex<HashMap<String, String>>>,
     bg_tasks_cmds_tx: broadcast::Sender<BgTasksCmds>,
+    global_stats: Arc<Mutex<Stats>>,
 ) {
+    // cache retrieved rewards balances to not query more than once per address
+    let mut updated_balances = HashMap::<Address, U256>::new();
+
+    // Let's trigger a first check now
+    let mut bg_tasks_cmds_rx = bg_tasks_cmds_tx.subscribe();
+    if let Err(err) = bg_tasks_cmds_tx.send(BgTasksCmds::CheckAllBalances) {
+        logging::warn!("Initial check for balances couldn't be triggered: {err:?}");
+    }
+
     // helper which creates a new contract if the new configured values are valid.
     let update_token_contract = |contract_addr: &str, rpc_url: &str| {
         let addr = match contract_addr.parse::<Address>() {
@@ -509,10 +567,6 @@ async fn balance_checker_task(
     let mut prev_addr = settings.token_contract_address;
     let mut prev_url = settings.l2_network_rpc_url;
 
-    // cache retrieved rewards balances to not query more than once per address
-    let mut updated_balances = HashMap::<Address, U256>::new();
-    let mut bg_tasks_cmds_rx = bg_tasks_cmds_tx.subscribe();
-
     loop {
         match bg_tasks_cmds_rx.recv().await {
             Ok(BgTasksCmds::ApplySettings(s)) => {
@@ -534,37 +588,64 @@ async fn balance_checker_task(
                     )
                     .await;
 
-                    let balance: U256 = updated_balances.values().sum();
-                    update_lcd_stats(&lcd_stats, &[(LCD_LABEL_BALANCE, balance.to_string())]).await;
+                    let total_balance: U256 = updated_balances.values().sum();
+                    update_lcd_stats(
+                        &lcd_stats,
+                        &[(LCD_LABEL_BALANCE, total_balance.to_string())],
+                    )
+                    .await;
+                    global_stats.lock().await.total_balance = total_balance;
+                }
+            }
+            Ok(BgTasksCmds::DeleteBalanceFor(container)) => {
+                let node_info: NodeInstanceInfo = container.into();
+                if let Some(Ok(address)) = node_info
+                    .rewards_addr
+                    .as_ref()
+                    .map(|addr| addr.parse::<Address>())
+                {
+                    updated_balances.remove(&address);
+                    let total_balance: U256 = updated_balances.values().sum();
+                    update_lcd_stats(
+                        &lcd_stats,
+                        &[(LCD_LABEL_BALANCE, total_balance.to_string())],
+                    )
+                    .await;
+                    global_stats.lock().await.total_balance = total_balance;
                 }
             }
             Ok(BgTasksCmds::CheckAllBalances) => {
                 updated_balances.clear();
+                let mut total_balance = U256::from(0u64);
                 if let Some(ref token_contract) = token_contract {
-                    let containers = match docker_client.get_containers_list(true).await {
-                        Ok(containers) if !containers.is_empty() => containers,
+                    match docker_client.get_containers_list(true).await {
+                        Ok(containers) if !containers.is_empty() => {
+                            retrieve_current_balances(
+                                containers,
+                                token_contract,
+                                &db_client,
+                                &mut updated_balances,
+                            )
+                            .await;
+
+                            let new_balance: U256 = updated_balances.values().sum();
+                            update_lcd_stats(
+                                &lcd_stats,
+                                &[(LCD_LABEL_BALANCE, new_balance.to_string())],
+                            )
+                            .await;
+                            total_balance = new_balance
+                        }
                         Err(err) => {
                             logging::log!("Failed to get containers list: {err}");
                             remove_lcd_stats(&lcd_stats, &[LCD_LABEL_BALANCE]).await;
-                            continue;
                         }
                         _ => {
                             remove_lcd_stats(&lcd_stats, &[LCD_LABEL_BALANCE]).await;
-                            continue;
                         }
-                    };
-
-                    retrieve_current_balances(
-                        containers,
-                        token_contract,
-                        &db_client,
-                        &mut updated_balances,
-                    )
-                    .await;
-
-                    let balance: U256 = updated_balances.values().sum();
-                    update_lcd_stats(&lcd_stats, &[(LCD_LABEL_BALANCE, balance.to_string())]).await;
+                    }
                 }
+                global_stats.lock().await.total_balance = total_balance;
             }
             Err(_) => {}
         }
