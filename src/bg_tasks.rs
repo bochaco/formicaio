@@ -1,3 +1,8 @@
+#[cfg(not(feature = "native"))]
+use super::server_api::helper_upgrade_node_instance;
+#[cfg(feature = "native")]
+use super::server_api_native::helper_upgrade_node_instance;
+
 use super::{
     app::{BgTasksCmds, ImmutableNodeStatus, METRICS_MAX_SIZE_PER_CONTAINER},
     db_client::DbClient,
@@ -5,7 +10,6 @@ use super::{
     lcd::display_stats_on_lcd,
     metrics_client::{NodeMetricsClient, NodesMetrics},
     node_instance::NodeInstanceInfo,
-    server_api::helper_upgrade_node_instance,
     server_api_types::{AppSettings, Stats},
 };
 use alloy::{
@@ -398,37 +402,37 @@ async fn update_nodes_info(
     let mut bin_version = HashSet::<String>::new();
 
     for mut node_info in nodes.into_iter() {
-        if node_info.status.is_active() {
-            num_active_nodes += 1;
+        //if node_info.status.is_active() {
+        num_active_nodes += 1;
 
-            if let Some(metrics_port) = node_info.metrics_port {
-                // let's now collect metrics from the node
-                let metrics_client = NodeMetricsClient::new(&node_info.node_ip, metrics_port);
-                let node_short_id = node_info.short_container_id();
+        if let Some(metrics_port) = node_info.metrics_port {
+            // let's now collect metrics from the node
+            let metrics_client = NodeMetricsClient::new(&node_info.node_ip, metrics_port);
+            let node_short_id = node_info.short_container_id();
 
-                match timeout(NODE_METRICS_QUERY_TIMEOUT, metrics_client.fetch_metrics()).await {
-                    Ok(Ok(metrics)) => {
-                        let mut node_metrics = nodes_metrics.lock().await;
-                        node_metrics.store(&node_info.container_id, &metrics).await;
-                        node_metrics.update_node_info(&mut node_info);
-                    }
-                    Ok(Err(err)) => {
-                        logging::log!("Failed to fetch metrics from node {node_short_id}: {err}");
-                    }
-                    Err(_) => {
-                        logging::log!("Timeout ({NODE_METRICS_QUERY_TIMEOUT:?}) while fetching metrics from node {node_short_id}.");
-                    }
+            match timeout(NODE_METRICS_QUERY_TIMEOUT, metrics_client.fetch_metrics()).await {
+                Ok(Ok(metrics)) => {
+                    let mut node_metrics = nodes_metrics.lock().await;
+                    node_metrics.store(&node_info.container_id, &metrics).await;
+                    node_metrics.update_node_info(&mut node_info);
                 }
-
-                net_size += node_info.net_size.unwrap_or_default();
-                records += node_info.records.unwrap_or_default();
-                relevant_records += node_info.relevant_records.unwrap_or_default();
-                connected_peers += node_info.connected_peers.unwrap_or_default();
-                shunned_count += node_info.shunned_count.unwrap_or_default();
+                Ok(Err(err)) => {
+                    logging::log!("Failed to fetch metrics from node {node_short_id}: {err}");
+                }
+                Err(_) => {
+                    logging::log!("Timeout ({NODE_METRICS_QUERY_TIMEOUT:?}) while fetching metrics from node {node_short_id}.");
+                }
             }
-        } else if node_info.status.is_inactive() {
-            num_inactive_nodes += 1;
         }
+
+        net_size += node_info.net_size.unwrap_or_default();
+        records += node_info.records.unwrap_or_default();
+        relevant_records += node_info.relevant_records.unwrap_or_default();
+        connected_peers += node_info.connected_peers.unwrap_or_default();
+        shunned_count += node_info.shunned_count.unwrap_or_default();
+        //} else if node_info.status.is_inactive() {
+        num_inactive_nodes += 1;
+        //}
 
         // store up to date metadata and status onto local DB cache
         update_node_metadata(&node_info, db_client, node_status_locked).await;

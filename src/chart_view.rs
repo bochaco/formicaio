@@ -1,11 +1,14 @@
-use crate::{node_instance::ContainerId, server_api::get_settings};
+#[cfg(not(feature = "native"))]
+use super::server_api::{get_settings, node_metrics};
+#[cfg(feature = "native")]
+use super::server_api_native::{get_settings, node_metrics};
 
 use super::{
     app::{
         ClientGlobalState, METRICS_MAX_SIZE_PER_CONTAINER, METRIC_KEY_CPU_USEAGE,
         METRIC_KEY_MEM_USED_MB,
     },
-    server_api::node_metrics,
+    node_instance::ContainerId,
 };
 
 use apexcharts_rs::prelude::ApexChart;

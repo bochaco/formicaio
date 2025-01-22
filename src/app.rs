@@ -1,9 +1,12 @@
 pub use super::metrics::*;
 
-#[cfg(feature = "hydrate")]
+#[cfg(all(feature = "hydrate", not(feature = "native")))]
 use super::server_api::nodes_instances;
+#[cfg(all(feature = "hydrate", feature = "native"))]
+use super::server_api_native::nodes_instances;
 #[cfg(feature = "ssr")]
 use super::server_api_types::AppSettings;
+
 use super::{
     about::AboutView,
     alerts::AlertMsg,
@@ -73,6 +76,7 @@ pub struct ServerGlobalState {
     pub leptos_options: LeptosOptions,
     pub db_client: super::db_client::DbClient,
     pub docker_client: super::docker_client::DockerClient,
+    pub node_manager: super::node_manager::NodeManager,
     pub latest_bin_version: Arc<Mutex<Option<String>>>,
     pub server_api_hit: Arc<Mutex<bool>>,
     pub nodes_metrics: Arc<Mutex<super::metrics_client::NodesMetrics>>,

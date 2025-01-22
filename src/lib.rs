@@ -21,8 +21,13 @@ pub mod metrics_client;
 mod navbar;
 mod node_actions;
 pub mod node_instance;
+#[cfg(all(feature = "ssr", feature = "native"))]
+pub mod node_manager;
 mod nodes_list_view;
+#[cfg(not(feature = "native"))]
 mod server_api;
+#[cfg(feature = "native")]
+mod server_api_native;
 pub mod server_api_types;
 mod settings;
 mod sort_nodes;

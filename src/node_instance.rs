@@ -8,12 +8,17 @@ use std::fmt;
 // Length of nodes PeerIds' prefix and suffix to be displayed
 const PEER_ID_PREFIX_SUFFIX_LEN: usize = 12;
 // Length of nodes Docker container ids' prefix to be displayed
+#[cfg(not(feature = "native"))]
 const CONTAINER_ID_PREFIX_LEN: usize = 12;
 // Length of nodes rewards address' prefix and suffix to be displayed
 const REWARDS_ADDR_PREFIX_SUFFIX_LEN: usize = 8;
 
 // Hex-encoded container id
 pub type ContainerId = String;
+// Hex-encoded node id
+pub type NodeId = String;
+// PID of a node when running as a OS native process
+pub type NodePid = u32;
 
 #[derive(Clone, Default, Debug, Deserialize, PartialEq, Serialize)]
 pub enum NodeStatus {
@@ -86,6 +91,7 @@ impl fmt::Display for NodeStatus {
 #[derive(Clone, Default, Debug, Deserialize, PartialEq, Serialize)]
 pub struct NodeInstanceInfo {
     pub container_id: ContainerId,
+    pub pid: Option<NodePid>,
     pub created: u64,
     pub peer_id: Option<String>, // base58-encoded Peer Id bytes
     pub status: NodeStatus,
@@ -111,6 +117,13 @@ pub struct NodeInstanceInfo {
 }
 
 impl NodeInstanceInfo {
+    pub fn new(container_id: String) -> Self {
+        Self {
+            container_id,
+            ..Default::default()
+        }
+    }
+
     pub fn upgrade_available(&self) -> bool {
         let context = expect_context::<ClientGlobalState>();
         context.latest_bin_version.read().is_some()
@@ -122,8 +135,14 @@ impl NodeInstanceInfo {
         self.status.is_active() && self.upgrade_available()
     }
 
+    #[cfg(not(feature = "native"))]
     pub fn short_container_id(&self) -> String {
         self.container_id[..CONTAINER_ID_PREFIX_LEN].to_string()
+    }
+
+    #[cfg(feature = "native")]
+    pub fn short_container_id(&self) -> String {
+        self.container_id.clone()
     }
 
     pub fn short_peer_id(&self) -> Option<String> {

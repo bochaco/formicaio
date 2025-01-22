@@ -1,3 +1,8 @@
+#[cfg(not(feature = "native"))]
+use super::server_api::cancel_node_instances_batch;
+#[cfg(feature = "native")]
+use super::server_api_native::cancel_node_instances_batch;
+
 use super::{
     app::ClientGlobalState,
     chart_view::{node_metrics_update, ChartSeriesData, NodeChartView},
@@ -8,7 +13,6 @@ use super::{
     },
     node_actions::NodeAction,
     node_instance::NodeInstanceInfo,
-    server_api::cancel_node_instances_batch,
     server_api_types::BatchInProgress,
 };
 
