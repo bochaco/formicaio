@@ -6,7 +6,7 @@ async fn main() {
     use axum::Router;
     use formicaio::{
         app::*, bg_tasks::spawn_bg_tasks, db_client::DbClient, docker_client::DockerClient,
-        metrics_client::NodesMetrics, server_api_types::Stats,
+        metrics_client::NodesMetrics, node_manager::NodeManager, server_api_types::Stats,
     };
     use leptos::{logging, prelude::*};
     use leptos_axum::{generate_route_list, LeptosRoutes};
@@ -28,6 +28,7 @@ async fn main() {
     // We'll keep the database and Docker clients instances in server global state.
     let db_client = DbClient::connect().await.unwrap();
     let docker_client = DockerClient::new().await.unwrap();
+    let node_manager = NodeManager::default();
 
     let latest_bin_version = Arc::new(Mutex::new(None));
     let nodes_metrics = Arc::new(Mutex::new(NodesMetrics::new(db_client.clone())));
@@ -56,10 +57,14 @@ async fn main() {
         settings,
     );
 
+    // Spawn the node executor which will take care of run formica nodes
+    //spawn_node_exeutor();
+
     let app_state = ServerGlobalState {
         leptos_options: leptos_options.clone(),
         db_client,
         docker_client,
+        node_manager,
         latest_bin_version,
         server_api_hit,
         nodes_metrics,

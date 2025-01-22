@@ -1,6 +1,6 @@
 use super::{
     metrics::{Metrics, NodeMetric},
-    node_instance::{ContainerId, NodeInstanceInfo, NodeStatus},
+    node_instance::{ContainerId, NodeId, NodeInstanceInfo, NodeStatus},
     server_api_types::AppSettings,
 };
 
@@ -14,6 +14,7 @@ use sqlx::{
     FromRow, QueryBuilder, Row, Sqlite,
 };
 use std::{
+    collections::HashMap,
     env::{self, current_dir},
     path::Path,
     str::FromStr,
@@ -55,12 +56,16 @@ struct CachedSettings {
 #[derive(Clone, Debug, Deserialize, FromRow, Serialize)]
 struct CachedNodeMetadata {
     container_id: String,
+    pid: u32,
     status: String,
     peer_id: String,
     bin_version: String,
     port: u16,
+    metrics_port: u16,
     rewards: String,
     balance: String,
+    rewards_addr: String,
+    home_network: bool,
     records: String,
     connected_peers: String,
     kbuckets_peers: String,
@@ -71,6 +76,12 @@ impl CachedNodeMetadata {
     // Update the node info with data obtained from DB, but only those
     // fields with non zero/empty values; zero/empty value means it was unknown when stored.
     pub fn merge_onto(&self, info: &mut NodeInstanceInfo) {
+        if !self.container_id.is_empty() {
+            info.container_id = self.container_id.clone();
+        }
+        if self.pid > 0 {
+            info.pid = Some(self.pid);
+        }
         if let Ok(status) = serde_json::from_str(&self.status) {
             info.status = status;
         }
@@ -83,15 +94,22 @@ impl CachedNodeMetadata {
         if self.port > 0 {
             info.port = Some(self.port);
         }
+        if self.metrics_port > 0 {
+            info.metrics_port = Some(self.metrics_port);
+        }
         if !self.rewards.is_empty() {
             if let Ok(v) = U256::from_str(&self.rewards) {
                 info.rewards = Some(v);
             }
         }
+        info.home_network = self.home_network;
         if !self.balance.is_empty() {
             if let Ok(v) = U256::from_str(&self.balance) {
                 info.balance = Some(v);
             }
+        }
+        if !self.rewards_addr.is_empty() {
+            info.rewards_addr = Some(self.rewards_addr.clone());
         }
         if let Ok(v) = self.records.parse::<usize>() {
             info.records = Some(v);
@@ -148,6 +166,27 @@ impl DbClient {
         Ok(Self {
             db: Arc::new(Mutex::new(db)),
         })
+    }
+
+    // Retrieve list of nodes from local cache DB
+    pub async fn get_nodes_list(&self) -> HashMap<NodeId, NodeInstanceInfo> {
+        let db_lock = self.db.lock().await;
+        let mut retrieved_nodes = HashMap::default();
+        match sqlx::query_as::<_, CachedNodeMetadata>("SELECT * FROM nodes")
+            .fetch_all(&*db_lock)
+            .await
+        {
+            Ok(nodes) => {
+                for node in nodes {
+                    let mut node_info = NodeInstanceInfo::default();
+                    node.merge_onto(&mut node_info);
+                    retrieved_nodes.insert(node.container_id, node_info);
+                }
+            }
+            Err(err) => logging::log!("Sqlite query error: {err}"),
+        }
+
+        retrieved_nodes
     }
 
     // Retrieve node metadata from local cache DB
@@ -218,9 +257,10 @@ impl DbClient {
     // Insert node metadata onto local cache DB
     pub async fn insert_node_metadata(&self, info: &NodeInstanceInfo) {
         let query_str = "INSERT OR REPLACE INTO nodes (\
-                container_id, status, port, \
+                container_id, status, port, metrics_port, \
+                rewards_addr, home_network, \
                 records, connected_peers, kbuckets_peers \
-            ) VALUES (?, ?, ?, ?, ?, ?)"
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
             .to_string();
 
         let db_lock = self.db.lock().await;
@@ -228,6 +268,9 @@ impl DbClient {
             .bind(info.container_id.clone())
             .bind(json!(info.status).to_string())
             .bind(info.port)
+            .bind(info.metrics_port)
+            .bind(info.rewards_addr.clone())
+            .bind(info.home_network)
             .bind(info.records.map_or("".to_string(), |v| v.to_string()))
             .bind(
                 info.connected_peers
