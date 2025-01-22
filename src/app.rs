@@ -15,8 +15,6 @@ use super::{
 };
 
 #[cfg(feature = "ssr")]
-use super::docker_msgs::Container;
-#[cfg(feature = "ssr")]
 use axum::extract::FromRef;
 #[cfg(feature = "hydrate")]
 use leptos::{logging, task::spawn_local};
@@ -105,8 +103,8 @@ const HOME_NETWORK_ONLY: &str = "HOME_NETWORK_ONLY";
 #[derive(Clone, Debug)]
 pub enum BgTasksCmds {
     ApplySettings(AppSettings),
-    CheckBalanceFor(Container),
-    DeleteBalanceFor(Container),
+    CheckBalanceFor(NodeInstanceInfo),
+    DeleteBalanceFor(NodeInstanceInfo),
     CheckAllBalances,
 }
 

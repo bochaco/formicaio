@@ -37,14 +37,12 @@ pub struct NodesInstancesInfo {
 pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
     let latest_bin_version = context.latest_bin_version.lock().await.clone();
-    let containers = context.docker_client.get_containers_list(true).await?;
+    let nodes_list = context.docker_client.get_containers_list(true).await?;
     let stats = context.stats.lock().await.clone();
     *context.server_api_hit.lock().await = true;
 
     let mut nodes = HashMap::new();
-    for container in containers {
-        let mut node_info = container.into();
-
+    for mut node_info in nodes_list.into_iter() {
         // we first read node metadata cached in the database
         // TODO: fetch metadata of all containers from DB with a single DB call
         context.db_client.get_node_metadata(&mut node_info).await;
@@ -124,13 +122,12 @@ async fn helper_create_node_instance(
         .await?;
     logging::log!("New node container Id: {container_id} ...");
 
-    let container = context
+    let mut node_info = context
         .docker_client
         .get_container_info(&container_id)
         .await?;
-    logging::log!("New node container created: {container:?}");
+    logging::log!("New node container created: {node_info:?}");
 
-    let mut node_info = container.clone().into();
     context.db_client.insert_node_metadata(&node_info).await;
 
     if auto_start {
@@ -138,13 +135,12 @@ async fn helper_create_node_instance(
         node_info = context
             .docker_client
             .get_container_info(&container_id)
-            .await?
-            .into();
+            .await?;
     }
 
     context
         .bg_tasks_cmds_tx
-        .send(BgTasksCmds::CheckBalanceFor(container))?;
+        .send(BgTasksCmds::CheckBalanceFor(node_info.clone()))?;
 
     Ok(node_info)
 }
@@ -154,7 +150,7 @@ async fn helper_create_node_instance(
 pub async fn delete_node_instance(container_id: ContainerId) -> Result<(), ServerFnError> {
     logging::log!("Deleting node container with Id: {container_id} ...");
     let context = expect_context::<ServerGlobalState>();
-    let container = context
+    let node_info = context
         .docker_client
         .get_container_info(&container_id)
         .await?;
@@ -172,7 +168,7 @@ pub async fn delete_node_instance(container_id: ContainerId) -> Result<(), Serve
 
     context
         .bg_tasks_cmds_tx
-        .send(BgTasksCmds::DeleteBalanceFor(container))?;
+        .send(BgTasksCmds::DeleteBalanceFor(node_info))?;
 
     Ok(())
 }

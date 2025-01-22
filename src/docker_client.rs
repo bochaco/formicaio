@@ -1,4 +1,7 @@
-use super::{docker_msgs::*, node_instance::ContainerId};
+use super::{
+    docker_msgs::*,
+    node_instance::{ContainerId, NodeInstanceInfo},
+};
 
 use axum::body::Body;
 use bytes::Bytes;
@@ -210,7 +213,7 @@ impl DockerClient {
     pub async fn get_container_info(
         &self,
         id: &ContainerId,
-    ) -> Result<Container, DockerClientError> {
+    ) -> Result<NodeInstanceInfo, DockerClientError> {
         let mut filters = HashMap::default();
         filters.insert("id".to_string(), vec![id.clone()]);
         let containers = self.list_containers(&filters, true).await?;
@@ -225,7 +228,7 @@ impl DockerClient {
     pub async fn get_containers_list(
         &self,
         all: bool,
-    ) -> Result<Vec<Container>, DockerClientError> {
+    ) -> Result<Vec<NodeInstanceInfo>, DockerClientError> {
         let mut filters = HashMap::default();
         filters.insert("label".to_string(), vec![LABEL_KEY_VERSION.to_string()]);
         self.list_containers(&filters, all).await
@@ -236,7 +239,7 @@ impl DockerClient {
         &self,
         filters: &HashMap<String, Vec<String>>,
         all: bool,
-    ) -> Result<Vec<Container>, DockerClientError> {
+    ) -> Result<Vec<NodeInstanceInfo>, DockerClientError> {
         let url = format!("{DOCKER_CONTAINERS_API}/json");
         let all_str = all.to_string();
         let query = &[
@@ -245,7 +248,8 @@ impl DockerClient {
         ];
         let resp_bytes = self.send_request(ReqMethod::Get, &url, query).await?;
         let containers: Vec<Container> = serde_json::from_slice(&resp_bytes)?;
-        Ok(containers)
+        let nodes = containers.into_iter().map(|c| c.into()).collect();
+        Ok(nodes)
     }
 
     // Request the Docker server to DELETE a container matching the given id
