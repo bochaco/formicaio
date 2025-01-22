@@ -6,7 +6,7 @@ async fn main() {
     use axum::Router;
     use formicaio::{
         app::*, bg_tasks::spawn_bg_tasks, db_client::DbClient, docker_client::DockerClient,
-        metrics_client::NodesMetrics,
+        metrics_client::NodesMetrics, server_api_types::Stats,
     };
     use leptos::{logging, prelude::*};
     use leptos_axum::{generate_route_list, LeptosRoutes};

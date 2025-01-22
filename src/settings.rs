@@ -1,8 +1,8 @@
 use super::{
-    app::AppSettings,
     helpers::show_alert_msg,
     icons::IconCancel,
     server_api::{get_settings, update_settings},
+    server_api_types::AppSettings,
 };
 
 use alloy::primitives::Address;

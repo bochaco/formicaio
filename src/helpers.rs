@@ -1,5 +1,3 @@
-use crate::app::BatchInProgress;
-
 use super::{
     app::ClientGlobalState,
     node_instance::{ContainerId, NodeInstanceInfo},
@@ -7,6 +5,7 @@ use super::{
         create_node_instance, delete_node_instance, prepare_node_instances_batch,
         start_node_logs_stream,
     },
+    server_api_types::BatchInProgress,
 };
 
 use alloy::primitives::U256;

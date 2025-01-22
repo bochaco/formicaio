@@ -1,11 +1,12 @@
 use super::{
-    app::{AppSettings, BgTasksCmds, ImmutableNodeStatus, Stats, METRICS_MAX_SIZE_PER_CONTAINER},
+    app::{BgTasksCmds, ImmutableNodeStatus, METRICS_MAX_SIZE_PER_CONTAINER},
     db_client::DbClient,
     docker_client::DockerClient,
     lcd::display_stats_on_lcd,
     metrics_client::{NodeMetricsClient, NodesMetrics},
     node_instance::NodeInstanceInfo,
     server_api::helper_upgrade_node_instance,
+    server_api_types::{AppSettings, Stats},
 };
 use alloy::{
     primitives::{Address, U256},

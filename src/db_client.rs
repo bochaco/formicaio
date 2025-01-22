@@ -1,7 +1,7 @@
 use super::{
-    app::AppSettings,
     metrics::{Metrics, NodeMetric},
     node_instance::{ContainerId, NodeInstanceInfo, NodeStatus},
+    server_api_types::AppSettings,
 };
 
 use alloy::primitives::U256;

@@ -23,6 +23,7 @@ mod node_actions;
 pub mod node_instance;
 mod nodes_list_view;
 mod server_api;
+pub mod server_api_types;
 mod settings;
 mod sort_nodes;
 mod stats;

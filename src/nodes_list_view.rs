@@ -1,5 +1,5 @@
 use super::{
-    app::{BatchInProgress, ClientGlobalState},
+    app::ClientGlobalState,
     chart_view::{node_metrics_update, ChartSeriesData, NodeChartView},
     helpers::{node_logs_stream, show_alert_msg, truncated_balance_str},
     icons::{
@@ -9,6 +9,7 @@ use super::{
     node_actions::NodeAction,
     node_instance::NodeInstanceInfo,
     server_api::cancel_node_instances_batch,
+    server_api_types::BatchInProgress,
 };
 
 use alloy::primitives::utils::format_units;

@@ -1,11 +1,11 @@
 use super::{
-    app::{BatchInProgress, Stats},
     node_instance::{ContainerId, NodeInstanceInfo},
+    server_api_types::BatchInProgress,
+    server_api_types::NodesInstancesInfo,
 };
 
 use self::server_fn::codec::{ByteStream, Streaming};
 use leptos::prelude::*;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[cfg(feature = "ssr")]
@@ -23,14 +23,6 @@ use leptos::logging;
 use std::time::Duration;
 #[cfg(feature = "ssr")]
 use tokio::{select, time::sleep};
-
-#[derive(Clone, Serialize, Deserialize)]
-pub struct NodesInstancesInfo {
-    pub latest_bin_version: Option<String>,
-    pub nodes: HashMap<String, NodeInstanceInfo>,
-    pub stats: Stats,
-    pub batch_in_progress: Option<BatchInProgress>,
-}
 
 // Obtain the list of existing nodes instances with their info
 #[server(ListNodeInstances, "/api", "Url", "/list_nodes")]
@@ -368,7 +360,7 @@ pub async fn node_metrics(
 
 // Retrieve the settings
 #[server(GetSettings, "/api", "Url", "/get_settings")]
-pub async fn get_settings() -> Result<super::app::AppSettings, ServerFnError> {
+pub async fn get_settings() -> Result<super::server_api_types::AppSettings, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
     let settings = context.db_client.get_settings().await;
 
@@ -377,7 +369,9 @@ pub async fn get_settings() -> Result<super::app::AppSettings, ServerFnError> {
 
 // Update the settings
 #[server(UpdateSettings, "/api", "Url", "/update_settings")]
-pub async fn update_settings(settings: super::app::AppSettings) -> Result<(), ServerFnError> {
+pub async fn update_settings(
+    settings: super::server_api_types::AppSettings,
+) -> Result<(), ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
     context.db_client.update_settings(&settings).await?;
     context

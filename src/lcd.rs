@@ -1,4 +1,4 @@
-use super::app::{AppSettings, BgTasksCmds};
+use super::{app::BgTasksCmds, server_api_types::AppSettings};
 
 use eyre::eyre;
 use i2cdev::{
