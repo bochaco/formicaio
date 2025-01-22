@@ -70,27 +70,17 @@ pub fn AggregatedStatsView() -> impl IntoView {
             .sum::<usize>()
     };
     let estimated_net_size = move || {
-        let weighted_estimations = context
+        let estimations = context
             .nodes
             .read()
             .1
             .values()
             .filter(|n| n.read().status.is_active())
-            .map(|n| {
-                n.read().connected_peers.unwrap_or_default() * n.read().net_size.unwrap_or_default()
-            })
+            .map(|n| n.read().net_size.unwrap_or_default())
             .sum::<usize>();
-        let weights = context
-            .nodes
-            .read()
-            .1
-            .values()
-            .filter(|n| n.read().status.is_active())
-            .map(|n| n.read().connected_peers.unwrap_or_default())
-            .sum::<usize>();
-
-        if weights > 0 {
-            weighted_estimations / weights
+        let active_nodes = active_nodes();
+        if active_nodes > 0 {
+            estimations / active_nodes
         } else {
             0
         }

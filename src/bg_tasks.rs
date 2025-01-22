@@ -365,7 +365,6 @@ async fn update_nodes_info(
 
     // let's collect stats to update LCD (if enabled)
     let mut net_size = 0;
-    let mut weights = 0;
     let mut num_active_nodes = 0;
     let mut records = 0;
     let mut bin_version = HashSet::<String>::new();
@@ -400,9 +399,7 @@ async fn update_nodes_info(
         // store up to date metadata and status onto local DB cache
         update_node_metadata(&node_info, db_client, node_status_locked).await;
 
-        net_size +=
-            node_info.connected_peers.unwrap_or_default() * node_info.net_size.unwrap_or_default();
-        weights += node_info.connected_peers.unwrap_or_default();
+        net_size += node_info.net_size.unwrap_or_default();
         records += node_info.records.unwrap_or_default();
         if query_bin_version {
             if let Some(ref version) = db_client
@@ -419,11 +416,11 @@ async fn update_nodes_info(
         format!("{num_active_nodes}/{num_nodes}"),
     )];
     if num_active_nodes > 0 {
-        let weighted_avg = if weights > 0 { net_size / weights } else { 0 };
+        let avg_net_size = net_size / num_active_nodes;
         let bin_versions = bin_version.into_iter().collect::<Vec<_>>().join(", ");
 
         updated_vals.extend([
-            (LCD_LABEL_NET_SIZE, weighted_avg.to_string()),
+            (LCD_LABEL_NET_SIZE, avg_net_size.to_string()),
             (LCD_LABEL_STORED_RECORDS, records.to_string()),
             (LCD_LABEL_BIN_VERSION, bin_versions),
         ]);
