@@ -423,10 +423,22 @@ fn NodeInstanceView(
                         </div>
                     </p>
                     <p>
-                        <span class="node-info-item">"kBuckets peers: "</span>
-                        {move || {
-                            info.read().kbuckets_peers.map_or(" -".to_string(), |v| v.to_string())
-                        }}
+                        <div class="flex flex-row">
+                            <div class="basis-1/2">
+                                <span class="node-info-item">"kBuckets peers: "</span>
+                                {move || {
+                                    info.read()
+                                        .kbuckets_peers
+                                        .map_or(" -".to_string(), |v| v.to_string())
+                                }}
+                            </div>
+                            <div class="basis-1/2">
+                                <span class="node-info-item">"Network size:"</span>
+                                {move || {
+                                    info.read().net_size.map_or(" -".to_string(), |v| v.to_string())
+                                }}
+                            </div>
+                        </div>
                     </p>
                     <p>
                         <div class="flex flex-row">
