@@ -30,12 +30,6 @@ pub enum NodeManagerError {
     NodeNotFound(NodeId),
     #[error("Missing '{0}' information to spawn node")]
     SpawnNodeMissingParam(String),
-    /*
-        #[error(transparent)]
-        StdIoError(#[from] std::io::Error),
-        #[error("System info error with code {0}: {1}")]
-        SystemInfoError(u16, String),
-    */
 }
 
 // Execution and management of nodes as native OS processes
@@ -150,6 +144,11 @@ impl NodeManager {
                 logging::log!("Node process spawned with PID: {pid}");
                 self.nodes.lock().await.insert(node_id.to_string(), child);
                 node_info.pid = Some(pid);
+                /* TODO:
+                node_info.bin_version = Some();
+                node_info.peer_id = Some();
+                node_info.ips = Some();
+                */
                 Ok(())
             }
             Err(err) => {

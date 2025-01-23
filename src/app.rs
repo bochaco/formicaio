@@ -75,7 +75,9 @@ pub enum BgTasksCmds {
 pub struct ServerGlobalState {
     pub leptos_options: LeptosOptions,
     pub db_client: super::db_client::DbClient,
+    #[cfg(not(feature = "native"))]
     pub docker_client: super::docker_client::DockerClient,
+    #[cfg(feature = "native")]
     pub node_manager: super::node_manager::NodeManager,
     pub latest_bin_version: Arc<Mutex<Option<String>>>,
     pub server_api_hit: Arc<Mutex<bool>>,

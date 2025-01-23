@@ -1,20 +1,19 @@
 use super::{
     node_instance::{ContainerId, NodeInstanceInfo},
-    server_api_types::{BatchInProgress, NodeOpts, NodesInstancesInfo},
+    server_api_types::{NodeOpts, NodesInstancesInfo},
 };
 
 use self::server_fn::codec::{ByteStream, Streaming};
 use leptos::prelude::*;
-#[cfg(all(feature = "ssr", feature = "native"))]
-use rand::distributions::{Alphanumeric, DistString};
 use std::collections::HashMap;
 
 #[cfg(feature = "ssr")]
 use super::{
     app::{BgTasksCmds, ImmutableNodeStatus, ServerGlobalState},
     db_client::DbClient,
-    docker_client::{DockerClient, DockerClientError, UPGRADE_NODE_BIN_TIMEOUT_SECS},
     node_instance::{NodeInstancesBatch, NodeStatus},
+    node_manager::{NodeManager, NodeManagerError},
+    server_api_types::BatchInProgress,
 };
 #[cfg(feature = "ssr")]
 use alloy::primitives::Address;
@@ -23,13 +22,19 @@ use futures_util::StreamExt;
 #[cfg(feature = "ssr")]
 use leptos::logging;
 #[cfg(feature = "ssr")]
+use rand::distributions::{Alphanumeric, DistString};
+#[cfg(feature = "ssr")]
 use std::time::Duration;
 #[cfg(feature = "ssr")]
 use tokio::{select, time::sleep};
 
 // Length of generated node ids
-#[cfg(all(feature = "ssr", feature = "native"))]
+#[cfg(feature = "ssr")]
 const NODE_ID_LENGTH: usize = 12;
+
+// Number of seconds before timing out an attempt to upgrade the node binary.
+#[cfg(feature = "ssr")]
+const UPGRADE_NODE_BIN_TIMEOUT_SECS: u64 = 8 * 60; // 8 mins
 
 // Obtain the list of existing nodes instances with their info
 #[server(ListNodeInstances, "/api", "Url", "/list_nodes")]
@@ -58,7 +63,7 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
         }
     }
 
-    // TODO: what if there are active PIDs not found in local list from cache DB...
+    // TODO: what if there are active PIDs not found in local list from cache DB...populate them in DB so the user can delete them...?
 
     let batches = &context.node_instaces_batches.lock().await.1;
     let batch_in_progress = if let Some(b) = batches.first() {
@@ -101,7 +106,7 @@ async fn helper_create_node_instance(
         "Creating new node container with port {} ...",
         node_opts.port
     );
-    let rewards_address = node_opts.rewards_addr.parse::<Address>()?;
+    let _ = node_opts.rewards_addr.parse::<Address>()?;
 
     // Generate a random string as node id
     let random_str = Alphanumeric.sample_string(&mut rand::thread_rng(), NODE_ID_LENGTH / 2);
@@ -186,19 +191,19 @@ async fn helper_start_node_instance(
         .db_client
         .update_node_status(&container_id, NodeStatus::Active)
         .await;
-    /*
+
     context
         .db_client
         .update_node_metadata_fields(
             &container_id,
             &[
-                ("bin_version", &version.unwrap_or_default()),
-                ("peer_id", &peer_id.unwrap_or_default()),
-                ("ips", &ips.unwrap_or_default()),
+                ("bin_version", &node_info.bin_version.unwrap_or_default()),
+                ("peer_id", &node_info.peer_id.unwrap_or_default()),
+                ("ips", &node_info.ips.unwrap_or_default()),
             ],
         )
         .await;
-    */
+
     Ok(())
 }
 
@@ -263,7 +268,7 @@ pub async fn upgrade_node_instance(container_id: ContainerId) -> Result<(), Serv
         &container_id,
         &context.node_status_locked,
         &context.db_client,
-        &context.docker_client,
+        &context.node_manager,
     )
     .await?;
 
@@ -276,8 +281,8 @@ pub(crate) async fn helper_upgrade_node_instance(
     container_id: &ContainerId,
     node_status_locked: &ImmutableNodeStatus,
     db_client: &DbClient,
-    docker_client: &DockerClient,
-) -> Result<(Option<String>, Option<String>), DockerClientError> {
+    node_manager: &NodeManager,
+) -> Result<(Option<String>, Option<String>), NodeManagerError> {
     // TODO: use docker 'extract' api to simply copy the new node binary into the container.
     node_status_locked
         .insert(
@@ -289,6 +294,7 @@ pub(crate) async fn helper_upgrade_node_instance(
         .update_node_status(container_id, NodeStatus::Upgrading)
         .await;
 
+    /* TODO:
     let res = docker_client
         .upgrade_node_in_container(container_id, true)
         .await;
@@ -316,10 +322,11 @@ pub(crate) async fn helper_upgrade_node_instance(
             )
             .await;
     }
-
+    */
     node_status_locked.remove(container_id).await;
 
-    res
+    //res
+    Ok((None, None))
 }
 
 // Start streaming logs from a node instance with given id
@@ -329,6 +336,7 @@ pub async fn start_node_logs_stream(
 ) -> Result<ByteStream, ServerFnError> {
     logging::log!("Starting logs stream from container with Id: {container_id} ...");
     let context = expect_context::<ServerGlobalState>();
+    /* TODO:
     let container_logs_stream = context
         .docker_client
         .get_container_logs_stream(&container_id)
@@ -337,6 +345,8 @@ pub async fn start_node_logs_stream(
         item.map_err(ServerFnError::from) // convert the error type
     });
     Ok(ByteStream::new(converted_stream))
+    */
+    todo!()
 }
 
 // Retrieve the metrics for a node instance with given id and filters
@@ -392,6 +402,7 @@ pub async fn recycle_node_instance(container_id: ContainerId) -> Result<(), Serv
         .update_node_status(&container_id, NodeStatus::Recycling)
         .await;
 
+    /*TODO
     let (version, peer_id, ips) = context
         .docker_client
         .regenerate_peer_id_in_container(&container_id, true)
@@ -408,7 +419,7 @@ pub async fn recycle_node_instance(container_id: ContainerId) -> Result<(), Serv
             ],
         )
         .await;
-
+    */
     context.node_status_locked.remove(&container_id).await;
 
     Ok(())

@@ -1,15 +1,20 @@
 #[cfg(not(feature = "native"))]
-use super::server_api::helper_upgrade_node_instance;
+use super::{
+    docker_client::{DockerClient, DockerClientError},
+    server_api::helper_upgrade_node_instance,
+};
 #[cfg(feature = "native")]
-use super::server_api_native::helper_upgrade_node_instance;
+use super::{
+    node_manager::{NodeManager, NodeManagerError},
+    server_api_native::helper_upgrade_node_instance,
+};
 
 use super::{
     app::{BgTasksCmds, ImmutableNodeStatus, METRICS_MAX_SIZE_PER_CONTAINER},
     db_client::DbClient,
-    docker_client::DockerClient,
     lcd::display_stats_on_lcd,
     metrics_client::{NodeMetricsClient, NodesMetrics},
-    node_instance::NodeInstanceInfo,
+    node_instance::{ContainerId, NodeInstanceInfo},
     server_api_types::{AppSettings, Stats},
 };
 use alloy::{
@@ -114,10 +119,94 @@ impl TasksContext {
     }
 }
 
+#[derive(Clone)]
+struct NodeManagerProxy {
+    db_client: DbClient,
+    #[cfg(not(feature = "native"))]
+    docker_client: DockerClient,
+    #[cfg(feature = "native")]
+    node_manager: NodeManager,
+}
+
+impl NodeManagerProxy {
+    #[cfg(not(feature = "native"))]
+    async fn get_nodes_list(&self, all: bool) -> Result<Vec<NodeInstanceInfo>, DockerClientError> {
+        self.docker_client.get_containers_list(all).await
+    }
+
+    #[cfg(feature = "native")]
+    async fn get_nodes_list(&self, all: bool) -> Result<Vec<NodeInstanceInfo>, NodeManagerError> {
+        let active_nodes = self.node_manager.get_active_nodes_list().await?;
+
+        let nodes = self
+            .db_client
+            .get_nodes_list()
+            .await
+            .into_iter()
+            .filter_map(|(_, n)| {
+                if all {
+                    Some(n)
+                } else {
+                    n.pid.and_then(|pid| {
+                        if active_nodes.contains(&pid) {
+                            Some(n)
+                        } else {
+                            None
+                        }
+                    })
+                }
+            })
+            .collect();
+
+        Ok(nodes)
+    }
+
+    #[cfg(not(feature = "native"))]
+    async fn upgrade_node_instance(
+        &self,
+        container_id: &ContainerId,
+        node_status_locked: &ImmutableNodeStatus,
+    ) -> Result<(Option<String>, Option<String>), DockerClientError> {
+        helper_upgrade_node_instance(
+            container_id,
+            node_status_locked,
+            &self.db_client,
+            &self.docker_client,
+        )
+        .await
+    }
+
+    #[cfg(feature = "native")]
+    async fn upgrade_node_instance(
+        &self,
+        container_id: &ContainerId,
+        node_status_locked: &ImmutableNodeStatus,
+    ) -> Result<(Option<String>, Option<String>), NodeManagerError> {
+        helper_upgrade_node_instance(
+            container_id,
+            node_status_locked,
+            &self.db_client,
+            &self.node_manager,
+        )
+        .await
+    }
+
+    #[cfg(not(feature = "native"))]
+    async fn pull_formica_image(&self) -> Result<(), DockerClientError> {
+        self.docker_client.pull_formica_image().await
+    }
+
+    #[cfg(feature = "native")]
+    async fn pull_formica_image(&self) -> Result<(), NodeManagerError> {
+        Ok(())
+    }
+}
+
 // Spawn any required background tasks
 #[allow(clippy::too_many_arguments)]
 pub fn spawn_bg_tasks(
-    docker_client: DockerClient,
+    #[cfg(not(feature = "native"))] docker_client: DockerClient,
+    #[cfg(feature = "native")] node_manager: NodeManager,
     latest_bin_version: Arc<Mutex<Option<String>>>,
     nodes_metrics: Arc<Mutex<NodesMetrics>>,
     db_client: DbClient,
@@ -148,10 +237,21 @@ pub fn spawn_bg_tasks(
         ));
     }
 
+    #[cfg(not(feature = "native"))]
+    let node_mgr_proxy = NodeManagerProxy {
+        db_client: db_client.clone(),
+        docker_client,
+    };
+    #[cfg(feature = "native")]
+    let node_mgr_proxy = NodeManagerProxy {
+        db_client: db_client.clone(),
+        node_manager,
+    };
+
     // Spawn task which checks address balances as requested on the provided channel
     tokio::spawn(balance_checker_task(
         ctx.app_settings.clone(),
-        docker_client.clone(),
+        node_mgr_proxy.clone(),
         db_client.clone(),
         lcd_stats.clone(),
         bg_tasks_cmds_tx.clone(),
@@ -182,17 +282,17 @@ pub fn spawn_bg_tasks(
                     }
                 },
                 _ = ctx.formica_image_pulling.tick() => {
-                    let docker_client = docker_client.clone();
+                    let node_mgr_proxy = node_mgr_proxy.clone();
                     tokio::spawn(async move {
                         logging::log!("Pulling formica node image ...");
-                        if let Err(err) = docker_client.pull_formica_image().await {
+                        if let Err(err) = node_mgr_proxy.pull_formica_image().await {
                             logging::log!("Failed to pull node image from the periodic task: {err}");
                         }
                     });
                 },
                 _ = ctx.node_bin_version_check.tick() => {
                     tokio::spawn(check_node_bin_version(
-                        docker_client.clone(),
+                        node_mgr_proxy.clone(),
                         latest_bin_version.clone(),
                         db_client.clone(),
                         node_status_locked.clone()
@@ -203,7 +303,7 @@ pub fn spawn_bg_tasks(
                 },
                 _ = ctx.metrics_pruning.tick() => {
                     tokio::spawn(prune_metrics(
-                        docker_client.clone(),
+                        node_mgr_proxy.clone(),
                         db_client.clone()
                     ));
                 },
@@ -214,7 +314,7 @@ pub fn spawn_bg_tasks(
                     // too long to complete and we may start overwhelming the backend
                     // with multiple overlapping tasks being launched.
                     update_nodes_info(
-                        &docker_client,
+                        &node_mgr_proxy,
                         &nodes_metrics,
                         &db_client,
                         &node_status_locked,
@@ -236,7 +336,7 @@ pub fn spawn_bg_tasks(
                     }
 
                     *server_api_hit.lock().await = false;
-                    match docker_client.get_containers_list(true).await {
+                    match node_mgr_proxy.get_nodes_list(true).await {
                         Ok(nodes) => {
                             let total_nodes = nodes.len();
                             let mut num_active_nodes = 0;
@@ -267,7 +367,7 @@ pub fn spawn_bg_tasks(
 // Check latest version of node binary and upgrade nodes
 // automatically if auto-upgrade was enabled by the user.
 async fn check_node_bin_version(
-    docker_client: DockerClient,
+    node_mgr_proxy: NodeManagerProxy,
     latest_bin_version: Arc<Mutex<Option<String>>>,
     db_client: DbClient,
     node_status_locked: ImmutableNodeStatus,
@@ -293,13 +393,9 @@ async fn check_node_bin_version(
             {
                 Ok(Some((container_id, v))) => {
                     logging::log!("Auto-upgrading node binary from v{v} to v{version} for node instance {container_id} ...");
-                    if let Err(err) = helper_upgrade_node_instance(
-                        &container_id,
-                        &node_status_locked,
-                        &db_client,
-                        &docker_client,
-                    )
-                    .await
+                    if let Err(err) = node_mgr_proxy
+                        .upgrade_node_instance(&container_id, &node_status_locked)
+                        .await
                     {
                         logging::log!("Failed to auto-upgrade node binary for node instance {container_id}: {err:?}.");
                     }
@@ -370,7 +466,7 @@ async fn update_node_metadata(
 // Fetch up to date information for each active node instance
 // from nodes' exposed metrics server caching them in global context.
 async fn update_nodes_info(
-    docker_client: &DockerClient,
+    node_mgr_proxy: &NodeManagerProxy,
     nodes_metrics: &Arc<Mutex<NodesMetrics>>,
     db_client: &DbClient,
     node_status_locked: &ImmutableNodeStatus,
@@ -378,8 +474,8 @@ async fn update_nodes_info(
     lcd_stats: &Arc<Mutex<HashMap<String, String>>>,
     global_stats: Arc<Mutex<Stats>>,
 ) {
-    let nodes = docker_client
-        .get_containers_list(true)
+    let nodes = node_mgr_proxy
+        .get_nodes_list(true)
         .await
         .unwrap_or_else(|err| {
             logging::log!("Failed to get nodes list: {err}");
@@ -402,37 +498,37 @@ async fn update_nodes_info(
     let mut bin_version = HashSet::<String>::new();
 
     for mut node_info in nodes.into_iter() {
-        //if node_info.status.is_active() {
-        num_active_nodes += 1;
+        if node_info.status.is_active() {
+            num_active_nodes += 1;
 
-        if let Some(metrics_port) = node_info.metrics_port {
-            // let's now collect metrics from the node
-            let metrics_client = NodeMetricsClient::new(&node_info.node_ip, metrics_port);
-            let node_short_id = node_info.short_container_id();
+            if let Some(metrics_port) = node_info.metrics_port {
+                // let's now collect metrics from the node
+                let metrics_client = NodeMetricsClient::new(&node_info.node_ip, metrics_port);
+                let node_short_id = node_info.short_container_id();
 
-            match timeout(NODE_METRICS_QUERY_TIMEOUT, metrics_client.fetch_metrics()).await {
-                Ok(Ok(metrics)) => {
-                    let mut node_metrics = nodes_metrics.lock().await;
-                    node_metrics.store(&node_info.container_id, &metrics).await;
-                    node_metrics.update_node_info(&mut node_info);
-                }
-                Ok(Err(err)) => {
-                    logging::log!("Failed to fetch metrics from node {node_short_id}: {err}");
-                }
-                Err(_) => {
-                    logging::log!("Timeout ({NODE_METRICS_QUERY_TIMEOUT:?}) while fetching metrics from node {node_short_id}.");
+                match timeout(NODE_METRICS_QUERY_TIMEOUT, metrics_client.fetch_metrics()).await {
+                    Ok(Ok(metrics)) => {
+                        let mut node_metrics = nodes_metrics.lock().await;
+                        node_metrics.store(&node_info.container_id, &metrics).await;
+                        node_metrics.update_node_info(&mut node_info);
+                    }
+                    Ok(Err(err)) => {
+                        logging::log!("Failed to fetch metrics from node {node_short_id}: {err}");
+                    }
+                    Err(_) => {
+                        logging::log!("Timeout ({NODE_METRICS_QUERY_TIMEOUT:?}) while fetching metrics from node {node_short_id}.");
+                    }
                 }
             }
-        }
 
-        net_size += node_info.net_size.unwrap_or_default();
-        records += node_info.records.unwrap_or_default();
-        relevant_records += node_info.relevant_records.unwrap_or_default();
-        connected_peers += node_info.connected_peers.unwrap_or_default();
-        shunned_count += node_info.shunned_count.unwrap_or_default();
-        //} else if node_info.status.is_inactive() {
-        num_inactive_nodes += 1;
-        //}
+            net_size += node_info.net_size.unwrap_or_default();
+            records += node_info.records.unwrap_or_default();
+            relevant_records += node_info.relevant_records.unwrap_or_default();
+            connected_peers += node_info.connected_peers.unwrap_or_default();
+            shunned_count += node_info.shunned_count.unwrap_or_default();
+        } else if node_info.status.is_inactive() {
+            num_inactive_nodes += 1;
+        }
 
         // store up to date metadata and status onto local DB cache
         update_node_metadata(&node_info, db_client, node_status_locked).await;
@@ -490,8 +586,8 @@ async fn update_nodes_info(
 }
 
 // Prune metrics records from the cache DB to always keep the number of records within a limit.
-async fn prune_metrics(docker_client: DockerClient, db_client: DbClient) {
-    let nodes = match docker_client.get_containers_list(false).await {
+async fn prune_metrics(node_mgr_proxy: NodeManagerProxy, db_client: DbClient) {
+    let nodes = match node_mgr_proxy.get_nodes_list(false).await {
         Ok(nodes) if !nodes.is_empty() => nodes,
         Err(err) => {
             logging::log!("Failed to get nodes list: {err}");
@@ -516,7 +612,7 @@ async fn prune_metrics(docker_client: DockerClient, db_client: DbClient) {
 
 async fn balance_checker_task(
     settings: AppSettings,
-    docker_client: DockerClient,
+    node_mgr_proxy: NodeManagerProxy,
     db_client: DbClient,
     lcd_stats: Arc<Mutex<HashMap<String, String>>>,
     bg_tasks_cmds_tx: broadcast::Sender<BgTasksCmds>,
@@ -617,7 +713,7 @@ async fn balance_checker_task(
                 updated_balances.clear();
                 let mut total_balance = U256::from(0u64);
                 if let Some(ref token_contract) = token_contract {
-                    match docker_client.get_containers_list(true).await {
+                    match node_mgr_proxy.get_nodes_list(true).await {
                         Ok(nodes) if !nodes.is_empty() => {
                             retrieve_current_balances(
                                 nodes,
