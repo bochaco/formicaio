@@ -2,6 +2,8 @@ pub use super::metrics::*;
 
 #[cfg(feature = "hydrate")]
 use super::server_api::nodes_instances;
+#[cfg(feature = "ssr")]
+use super::server_api_types::AppSettings;
 use super::{
     about::AboutView,
     alerts::AlertMsg,
@@ -10,7 +12,7 @@ use super::{
     node_actions::NodesActionsView,
     node_instance::{ContainerId, NodeInstanceInfo},
     nodes_list_view::NodesListView,
-    server_api_types::{AppSettings, BatchInProgress, Stats},
+    server_api_types::{BatchInProgress, Stats},
     sort_nodes::{NodesSortStrategy, SortStrategyView},
     stats::AggregatedStatsView,
 };

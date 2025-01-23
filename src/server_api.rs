@@ -1,6 +1,5 @@
 use super::{
     node_instance::{ContainerId, NodeInstanceInfo},
-    server_api_types::BatchInProgress,
     server_api_types::NodesInstancesInfo,
 };
 
@@ -14,6 +13,7 @@ use super::{
     db_client::DbClient,
     docker_client::{DockerClient, DockerClientError, UPGRADE_NODE_BIN_TIMEOUT_SECS},
     node_instance::{NodeInstancesBatch, NodeStatus},
+    server_api_types::BatchInProgress,
 };
 #[cfg(feature = "ssr")]
 use futures_util::StreamExt;

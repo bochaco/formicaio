@@ -60,9 +60,7 @@ pub fn AggregatedStatsView() -> impl IntoView {
             <div class="stat place-items-center">
                 <div class="stat-title">Stored records</div>
                 <div class="stat-value">{stored_records}</div>
-                <div class="stat-desc text-secondary">
-                    {relevant_records} " are relevant"
-                </div>
+                <div class="stat-desc text-secondary">{relevant_records} " are relevant"</div>
             </div>
             <div class="stat place-items-center">
                 <div class="stat-title">Estimated network size</div>
