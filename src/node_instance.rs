@@ -1,4 +1,4 @@
-use super::app::ClientGlobalState;
+use super::{app::ClientGlobalState, server_api_types::NodeOpts};
 
 use alloy::primitives::U256;
 use leptos::prelude::*;
@@ -97,6 +97,7 @@ pub struct NodeInstanceInfo {
     pub balance: Option<U256>,
     pub rewards_addr: Option<String>, // hex-encoded rewards address
     pub home_network: bool,
+    pub node_logs: bool,
     pub rewards: Option<U256>,
     pub records: Option<usize>,
     pub relevant_records: Option<usize>,
@@ -149,12 +150,8 @@ impl NodeInstanceInfo {
 // Information of a batch of node intances creation
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct NodeInstancesBatch {
-    pub port_start: u16,
-    pub metrics_port_start: u16,
+    pub node_opts: NodeOpts,
     pub created: u16,
     pub total: u16,
-    pub rewards_addr: String,
-    pub home_network: bool,
-    pub auto_start: bool,
     pub interval_secs: u64,
 }

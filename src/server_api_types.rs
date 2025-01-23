@@ -77,3 +77,14 @@ pub struct BatchInProgress {
     pub auto_start: bool,
     pub interval_secs: u64,
 }
+
+/// Options when creating a new node instance.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct NodeOpts {
+    pub port: u16,
+    pub metrics_port: u16,
+    pub rewards_addr: String,
+    pub home_network: bool,
+    pub node_logs: bool,
+    pub auto_start: bool,
+}

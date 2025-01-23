@@ -5,7 +5,7 @@ use super::{
         create_node_instance, delete_node_instance, prepare_node_instances_batch,
         start_node_logs_stream,
     },
-    server_api_types::BatchInProgress,
+    server_api_types::{BatchInProgress, NodeOpts},
 };
 
 use alloy::primitives::U256;
@@ -46,12 +46,8 @@ pub fn show_alert_msg(msg: String) {
 
 // Creates and add new node instances
 pub async fn add_node_instances(
-    port: u16,
-    metrics_port: u16,
+    node_opts: NodeOpts,
     count: u16,
-    rewards_addr: String,
-    home_network: bool,
-    auto_start: bool,
     interval_secs: u64,
 ) -> Result<(), ServerFnError> {
     let context = expect_context::<ClientGlobalState>();
@@ -70,16 +66,8 @@ pub async fn add_node_instances(
     });
 
     if count > 1 {
-        prepare_node_instances_batch(
-            port,
-            metrics_port,
-            count,
-            rewards_addr,
-            home_network,
-            auto_start,
-            interval_secs,
-        )
-        .await?;
+        let auto_start = node_opts.auto_start;
+        prepare_node_instances_batch(node_opts, count, interval_secs).await?;
         context.nodes.update(|items| {
             items.1.remove(&tmp_container_id);
         });
@@ -96,9 +84,7 @@ pub async fn add_node_instances(
             }
         })
     } else {
-        let node_info =
-            create_node_instance(port, metrics_port, rewards_addr, home_network, auto_start)
-                .await?;
+        let node_info = create_node_instance(node_opts).await?;
         context.nodes.update(|items| {
             items.1.remove(&tmp_container_id);
             items

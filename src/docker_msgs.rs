@@ -3,8 +3,8 @@ use super::node_instance::{ContainerId, NodeInstanceInfo};
 #[cfg(feature = "ssr")]
 use super::{
     docker_client::{
-        LABEL_KEY_HOME_NETWORK_DISABLED, LABEL_KEY_METRICS_PORT, LABEL_KEY_NODE_PORT,
-        LABEL_KEY_REWARDS_ADDR,
+        LABEL_KEY_HOME_NETWORK_DISABLED, LABEL_KEY_METRICS_PORT, LABEL_KEY_NODE_LOGS_DISABLED,
+        LABEL_KEY_NODE_PORT, LABEL_KEY_REWARDS_ADDR,
     },
     node_instance::NodeStatus,
 };
@@ -59,6 +59,7 @@ impl From<Container> for NodeInstanceInfo {
             node_ip: val.node_ip(),
             rewards_addr: val.Labels.get(LABEL_KEY_REWARDS_ADDR).cloned(),
             home_network: !val.Labels.contains_key(LABEL_KEY_HOME_NETWORK_DISABLED),
+            node_logs: !val.Labels.contains_key(LABEL_KEY_NODE_LOGS_DISABLED),
             ..Default::default()
         }
     }

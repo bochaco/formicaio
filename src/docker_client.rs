@@ -1,6 +1,7 @@
 use super::{
     docker_msgs::*,
     node_instance::{ContainerId, NodeInstanceInfo},
+    server_api_types::NodeOpts,
 };
 
 use axum::body::Body;
@@ -37,6 +38,8 @@ pub const LABEL_KEY_METRICS_PORT: &str = "metrics_port";
 pub const LABEL_KEY_REWARDS_ADDR: &str = "rewards_addr";
 // Label's key to cache the flag value set --home-network for the node
 pub const LABEL_KEY_HOME_NETWORK_DISABLED: &str = "home_network_disabled";
+// Label's key to cache the value set to node logs for the node
+pub const LABEL_KEY_NODE_LOGS_DISABLED: &str = "node_logs_disabled";
 
 // Docker API base paths
 const DOCKER_CONTAINERS_API: &str = "/containers";
@@ -302,33 +305,43 @@ impl DockerClient {
     // Request the Docker server to CREATE a new node container, returning the container info.
     pub async fn create_new_container(
         &self,
-        port: u16,
-        metrics_port: u16,
-        rewards_addr: String,
-        home_network: bool,
+        node_opts: NodeOpts,
     ) -> Result<ContainerId, DockerClientError> {
         let url = format!("{DOCKER_CONTAINERS_API}/create");
-        let mapped_ports = [(port, "udp"), (metrics_port, "tcp")];
+        let mapped_ports = [(node_opts.port, "udp"), (node_opts.metrics_port, "tcp")];
 
         let mut labels = vec![
             (LABEL_KEY_VERSION.to_string(), self.node_image_tag.clone()),
-            (LABEL_KEY_NODE_PORT.to_string(), port.to_string()),
-            (LABEL_KEY_METRICS_PORT.to_string(), metrics_port.to_string()),
+            (LABEL_KEY_NODE_PORT.to_string(), node_opts.port.to_string()),
+            (
+                LABEL_KEY_METRICS_PORT.to_string(),
+                node_opts.metrics_port.to_string(),
+            ),
         ];
         let mut env_vars = vec![
-            format!("NODE_PORT={port}"),
-            format!("METRICS_PORT={metrics_port}"),
+            format!("NODE_PORT={}", node_opts.port),
+            format!("METRICS_PORT={}", node_opts.metrics_port),
         ];
-        if !rewards_addr.is_empty() {
-            env_vars.push(format!("REWARDS_ADDR_ARG=--rewards-address {rewards_addr}"));
-            labels.push((LABEL_KEY_REWARDS_ADDR.to_string(), rewards_addr.clone()));
+        if !node_opts.rewards_addr.is_empty() {
+            env_vars.push(format!(
+                "REWARDS_ADDR_ARG=--rewards-address {}",
+                node_opts.rewards_addr
+            ));
+            labels.push((
+                LABEL_KEY_REWARDS_ADDR.to_string(),
+                node_opts.rewards_addr.clone(),
+            ));
         }
-        if !home_network {
+        if !node_opts.home_network {
             env_vars.push("HOME_NETWORK_ARG=".to_string());
             labels.push((
                 LABEL_KEY_HOME_NETWORK_DISABLED.to_string(),
                 "true".to_string(),
             ));
+        }
+        if !node_opts.node_logs {
+            env_vars.push("NODE_LOGS_ARG=".to_string());
+            labels.push((LABEL_KEY_NODE_LOGS_DISABLED.to_string(), "true".to_string()));
         }
 
         let container_create_req = ContainerCreate {

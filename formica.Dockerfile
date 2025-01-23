@@ -42,6 +42,9 @@ ENV REWARDS_ADDR_ARG=''
 # If this not enabled and the node is behind a NAT, the node is terminated.
 ENV HOME_NETWORK_ARG='--home-network'
 
+# Define whether to enable node logs.
+ENV NODE_LOGS_ARG='--log-output-dest /app/node_data/logs'
+
 #EXPOSE $NODE_PORT/udp
 #EXPOSE $METRICS_PORT/tcp
 
@@ -53,7 +56,7 @@ CMD ["sh", "-c", \
       --port ${NODE_PORT} \
       --metrics-server-port ${METRICS_PORT} \
       --root-dir /app/node_data \
-      --log-output-dest /app/node_data/logs \
+      ${NODE_LOGS_ARG} \
       --bootstrap-cache-dir /app/node_data \
       ${REWARDS_ADDR_ARG} \
       evm-arbitrum-sepolia" \

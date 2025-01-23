@@ -9,6 +9,7 @@ use super::{
     server_api::{
         recycle_node_instance, start_node_instance, stop_node_instance, upgrade_node_instance,
     },
+    server_api_types::NodeOpts,
 };
 
 use alloy::primitives::Address;
@@ -279,43 +280,18 @@ fn AddNodesForm(modal_visibility: RwSignal<bool>, home_net_only: bool) -> impl I
         "0x".to_string(),
     )));
     let home_network = RwSignal::new(true);
+    let node_logs = RwSignal::new(true);
     let auto_start = RwSignal::new(false);
     let interval = RwSignal::new(Ok(60));
 
-    let add_node = Action::new(
-        move |(port, metrics_port, count, rewards_addr, home_network, auto_start, interval): &(
-            u16,
-            u16,
-            u16,
-            String,
-            bool,
-            bool,
-            u64,
-        )| {
-            let port = *port;
-            let metrics_port = *metrics_port;
-            let count = *count;
-            let rewards_addr = rewards_addr
-                .strip_prefix("0x")
-                .unwrap_or(rewards_addr)
-                .to_string();
-            let home_network = *home_network;
-            let auto_start = *auto_start;
-            let interval = *interval;
-            async move {
-                let _ = add_node_instances(
-                    port,
-                    metrics_port,
-                    count,
-                    rewards_addr,
-                    home_network,
-                    auto_start,
-                    interval,
-                )
-                .await;
-            }
-        },
-    );
+    let add_node = Action::new(move |(node_opts, count, interval): &(NodeOpts, u16, u64)| {
+        let node_opts = node_opts.clone();
+        let count = *count;
+        let interval = *interval;
+        async move {
+            let _ = add_node_instances(node_opts, count, interval).await;
+        }
+    });
 
     view! {
         <form class="space-y-4">
@@ -387,6 +363,22 @@ fn AddNodesForm(modal_visibility: RwSignal<bool>, home_net_only: bool) -> impl I
                     </Show>
                 </label>
             </div>
+            <div class="flex items-center">
+                <input
+                    checked=true
+                    disabled
+                    id="logs-enabled"
+                    type="checkbox"
+                    on:change=move |ev| { node_logs.set(event_target_checked(&ev)) }
+                    class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                />
+                <label
+                    for="logs-enabled"
+                    class="ms-2 text-sm font-medium text-gray-900 dark:text-gray-300"
+                >
+                    "Node logs enabled"
+                </label>
+            </div>
 
             <button
                 type="button"
@@ -403,16 +395,15 @@ fn AddNodesForm(modal_visibility: RwSignal<bool>, home_net_only: bool) -> impl I
                         interval.get(),
                     ) {
                         modal_visibility.set(false);
-                        add_node
-                            .dispatch((
-                                p,
-                                m,
-                                c,
-                                addr,
-                                home_network.get(),
-                                auto_start.get(),
-                                i as u64,
-                            ));
+                        let node_opts = NodeOpts {
+                            port: p,
+                            metrics_port: m,
+                            rewards_addr: addr.strip_prefix("0x").unwrap_or(&addr).to_string(),
+                            home_network: home_network.get(),
+                            node_logs: node_logs.get(),
+                            auto_start: auto_start.get(),
+                        };
+                        add_node.dispatch((node_opts, c, i as u64));
                     }
                 }
                 class="btn-modal"

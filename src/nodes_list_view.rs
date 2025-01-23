@@ -558,8 +558,8 @@ fn NodeLogs(info: RwSignal<NodeInstanceInfo>, set_logs: WriteSignal<Vec<String>>
             <label
                 for="logs_stream_modal"
                 class=move || {
-                    if is_selecting_nodes() || info.read().status.is_transitioning()
-                        || info.read().status.is_inactive()
+                    if !info.read_untracked().node_logs || is_selecting_nodes()
+                        || info.read().status.is_transitioning() || info.read().status.is_inactive()
                     {
                         "btn-disabled-node-action"
                     } else {

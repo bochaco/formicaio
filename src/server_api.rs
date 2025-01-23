@@ -1,6 +1,6 @@
 use super::{
     node_instance::{ContainerId, NodeInstanceInfo},
-    server_api_types::NodesInstancesInfo,
+    server_api_types::{NodeOpts, NodesInstancesInfo},
 };
 
 use self::server_fn::codec::{ByteStream, Streaming};
@@ -55,7 +55,7 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
     let batches = &context.node_instaces_batches.lock().await.1;
     let batch_in_progress = if let Some(b) = batches.first() {
         let init = BatchInProgress {
-            auto_start: b.auto_start,
+            auto_start: b.node_opts.auto_start,
             interval_secs: b.interval_secs,
             ..Default::default()
         };
@@ -78,39 +78,25 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
 
 // Create and add a new node instance returning its info
 #[server(CreateNodeInstance, "/api", "Url", "/create_node")]
-pub async fn create_node_instance(
-    port: u16,
-    metrics_port: u16,
-    rewards_addr: String,
-    home_network: bool,
-    auto_start: bool,
-) -> Result<NodeInstanceInfo, ServerFnError> {
+pub async fn create_node_instance(node_opts: NodeOpts) -> Result<NodeInstanceInfo, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
-    helper_create_node_instance(
-        port,
-        metrics_port,
-        rewards_addr,
-        home_network,
-        auto_start,
-        &context,
-    )
-    .await
+    helper_create_node_instance(node_opts, &context).await
 }
 
 /// Helper to create a node instance
 #[cfg(feature = "ssr")]
 async fn helper_create_node_instance(
-    port: u16,
-    metrics_port: u16,
-    rewards_addr: String,
-    home_network: bool,
-    auto_start: bool,
+    node_opts: NodeOpts,
     context: &ServerGlobalState,
 ) -> Result<NodeInstanceInfo, ServerFnError> {
-    logging::log!("Creating new node container with port {port} ...");
+    logging::log!(
+        "Creating new node container with port {} ...",
+        node_opts.port
+    );
+    let auto_start = node_opts.auto_start;
     let container_id = context
         .docker_client
-        .create_new_container(port, metrics_port, rewards_addr, home_network)
+        .create_new_container(node_opts)
         .await?;
     logging::log!("New node container Id: {container_id} ...");
 
@@ -424,27 +410,20 @@ pub async fn recycle_node_instance(container_id: ContainerId) -> Result<(), Serv
     "/prepare_node_instances_batch"
 )]
 pub async fn prepare_node_instances_batch(
-    port_start: u16,
-    metrics_port_start: u16,
+    node_opts: NodeOpts,
     count: u16,
-    rewards_addr: String,
-    home_network: bool,
-    auto_start: bool,
     interval_secs: u64,
 ) -> Result<(), ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
     logging::log!(
-        "Creating new batch of {count} nodes with port range starting at {port_start} ..."
+        "Creating new batch of {count} nodes with port range starting at {} ...",
+        node_opts.port
     );
 
     let batch_info = NodeInstancesBatch {
-        port_start,
-        metrics_port_start,
+        node_opts,
         created: 0,
         total: count,
-        rewards_addr,
-        home_network,
-        auto_start,
         interval_secs,
     };
     logging::log!("New batch created: {batch_info:?}");
@@ -480,16 +459,10 @@ async fn run_batches(context: ServerGlobalState) {
                 select! {
                     _ = cancel_rx.recv() => return,
                     _ = sleep(Duration::from_secs(batch_info.interval_secs)) => {
-                        if let Err(err) = helper_create_node_instance(
-                            batch_info.port_start + i,
-                            batch_info.metrics_port_start + i,
-                            batch_info.rewards_addr.clone(),
-                            batch_info.home_network,
-                            batch_info.auto_start,
-                            &context
-                        )
-                        .await
-                        {
+                        let mut node_opts = batch_info.node_opts.clone();
+                        node_opts.port += i;
+                        node_opts.metrics_port += i;
+                        if let Err(err) = helper_create_node_instance(node_opts, &context).await {
                             logging::log!(
                                 "Failed to create node instance {i}/{total} as part of a batch: {err}"
                             );
