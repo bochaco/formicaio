@@ -6,9 +6,9 @@ pub mod bg_tasks;
 mod chart_view;
 #[cfg(feature = "ssr")]
 pub mod db_client;
-#[cfg(feature = "ssr")]
+#[cfg(all(feature = "ssr", not(feature = "native")))]
 pub mod docker_client;
-#[cfg(feature = "ssr")]
+#[cfg(all(feature = "ssr", not(feature = "native")))]
 mod docker_msgs;
 pub mod error_template;
 mod helpers;

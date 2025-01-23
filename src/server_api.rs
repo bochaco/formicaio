@@ -16,6 +16,8 @@ use super::{
     server_api_types::BatchInProgress,
 };
 #[cfg(feature = "ssr")]
+use alloy::primitives::Address;
+#[cfg(feature = "ssr")]
 use futures_util::StreamExt;
 #[cfg(feature = "ssr")]
 use leptos::logging;
@@ -94,6 +96,8 @@ async fn helper_create_node_instance(
         node_opts.port
     );
     let auto_start = node_opts.auto_start;
+    let _ = rewards_addr.parse::<Address>()?;
+
     let container_id = context
         .docker_client
         .create_new_container(node_opts)

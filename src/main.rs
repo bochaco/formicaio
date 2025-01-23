@@ -5,8 +5,8 @@
 async fn main() {
     use axum::Router;
     use formicaio::{
-        app::*, bg_tasks::spawn_bg_tasks, db_client::DbClient, docker_client::DockerClient,
-        metrics_client::NodesMetrics, node_manager::NodeManager, server_api_types::Stats,
+        app::*, bg_tasks::spawn_bg_tasks, db_client::DbClient, metrics_client::NodesMetrics,
+        server_api_types::Stats,
     };
     use leptos::{logging, prelude::*};
     use leptos_axum::{generate_route_list, LeptosRoutes};
@@ -27,8 +27,10 @@ async fn main() {
 
     // We'll keep the database and Docker clients instances in server global state.
     let db_client = DbClient::connect().await.unwrap();
-    let docker_client = DockerClient::new().await.unwrap();
-    let node_manager = NodeManager::default();
+    #[cfg(not(feature = "native"))]
+    let docker_client = formicaio::docker_client::DockerClient::new().await.unwrap();
+    #[cfg(feature = "native")]
+    let node_manager = formicaio::node_manager::NodeManager::default();
 
     let latest_bin_version = Arc::new(Mutex::new(None));
     let nodes_metrics = Arc::new(Mutex::new(NodesMetrics::new(db_client.clone())));
@@ -46,7 +48,10 @@ async fn main() {
     let stats = Arc::new(Mutex::new(Stats::default()));
 
     spawn_bg_tasks(
+        #[cfg(not(feature = "native"))]
         docker_client.clone(),
+        #[cfg(feature = "native")]
+        node_manager.clone(),
         latest_bin_version.clone(),
         nodes_metrics.clone(),
         db_client.clone(),
@@ -63,7 +68,9 @@ async fn main() {
     let app_state = ServerGlobalState {
         leptos_options: leptos_options.clone(),
         db_client,
+        #[cfg(not(feature = "native"))]
         docker_client,
+        #[cfg(feature = "native")]
         node_manager,
         latest_bin_version,
         server_api_hit,
