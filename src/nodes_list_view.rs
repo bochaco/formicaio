@@ -333,7 +333,7 @@ fn NodeInstanceView(
                     </p>
                     <p>
                         <div class="flex flex-row">
-                            <div class="basis-2/3">
+                            <div class="basis-1/2">
                                 <span class="node-info-item">"Balance: "</span>
                                 <div
                                     class="tooltip tooltip-bottom tooltip-info"
@@ -355,11 +355,27 @@ fn NodeInstanceView(
                                     </span>
                                 </div>
                             </div>
-                            <div class="basis-1/3">
+                            <div class="basis-1/2">
                                 <span class="node-info-item">"Rewards: "</span>
-                                {move || {
-                                    info.read().rewards.map_or(" -".to_string(), |v| v.to_string())
-                                }}
+                                <div
+                                    class="tooltip tooltip-bottom tooltip-info"
+                                    data-tip=move || {
+                                        info.read()
+                                            .rewards
+                                            .map_or(
+                                                "".to_string(),
+                                                |v| format_units(v, "ether").unwrap_or_default(),
+                                            )
+                                    }
+                                >
+                                    <span class="underline decoration-dotted">
+                                        {move || {
+                                            info.read()
+                                                .rewards
+                                                .map_or(" -".to_string(), truncated_balance_str)
+                                        }}
+                                    </span>
+                                </div>
                             </div>
                         </div>
                     </p>
