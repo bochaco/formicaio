@@ -1,14 +1,13 @@
 # Dockerfile for running Formicaio app
 
 # We first just install tailwindcss from a nodejs slim image
-FROM node:20.17.0-slim AS tailwindcss-builder
+FROM node:23.6.1-slim AS tailwindcss-builder
 
 WORKDIR /app
 COPY package.json package-lock.json ./
 
 # Install tailwindcss modules
-RUN npm install -D tailwindcss
-RUN npx tailwindcss init
+RUN npm install tailwindcss
 
 # Now let's use a build env with Rust for the app
 FROM rust:1 AS builder
