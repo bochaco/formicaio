@@ -363,7 +363,7 @@ fn AddNodesForm(modal_visibility: RwSignal<bool>, home_net_only: bool) -> impl I
                     </Show>
                 </label>
             </div>
-            <div class="flex items-center">
+            <div class="hidden flex items-center">
                 <input
                     checked=true
                     disabled
