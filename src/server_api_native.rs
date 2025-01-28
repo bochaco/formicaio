@@ -19,6 +19,8 @@ use super::{
 #[cfg(feature = "ssr")]
 use alloy::primitives::Address;
 #[cfg(feature = "ssr")]
+use chrono::Utc;
+#[cfg(feature = "ssr")]
 use futures_util::StreamExt;
 #[cfg(feature = "ssr")]
 use leptos::logging;
@@ -131,6 +133,7 @@ async fn helper_create_node_instance(
 
     let node_info = NodeInstanceInfo {
         container_id: node_id.clone(),
+        created: Utc::now().timestamp() as u64,
         status: NodeStatus::Inactive,
         port: Some(node_opts.port),
         metrics_port: Some(node_opts.metrics_port),
@@ -140,7 +143,7 @@ async fn helper_create_node_instance(
     };
 
     context.db_client.insert_node_metadata(&node_info).await;
-    logging::log!("New node created: {node_info:#?} ...");
+    logging::log!("New node created: {node_info:#?}");
 
     if node_opts.auto_start {
         helper_start_node_instance(node_id.clone(), context).await?;
@@ -250,7 +253,7 @@ async fn helper_stop_node_instance(
             .update_node_metadata_fields(
                 &container_id,
                 &[
-                    ("pid", ""),
+                    ("pid", "0"),
                     ("connected_peers", "0"),
                     ("kbuckets_peers", "0"),
                     ("records", ""),
