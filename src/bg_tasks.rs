@@ -5,6 +5,7 @@ use super::{
 };
 #[cfg(feature = "native")]
 use super::{
+    node_instance::NodeStatus,
     node_manager::{NodeManager, NodeManagerError},
     server_api_native::helper_upgrade_node_instance,
 };
@@ -143,17 +144,17 @@ impl NodeManagerProxy {
             .get_nodes_list()
             .await
             .into_iter()
-            .filter_map(|(_, n)| {
-                if all {
+            .filter_map(|(_, mut n)| {
+                if let Some(pid) = n.pid {
+                    if active_nodes.contains(&pid) {
+                        n.status = NodeStatus::Active;
+                    }
+                }
+
+                if all || n.status.is_active() {
                     Some(n)
                 } else {
-                    n.pid.and_then(|pid| {
-                        if active_nodes.contains(&pid) {
-                            Some(n)
-                        } else {
-                            None
-                        }
-                    })
+                    None
                 }
             })
             .collect();

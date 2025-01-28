@@ -5,7 +5,7 @@ use std::{
     collections::{HashMap, HashSet},
     env,
     path::{Path, PathBuf},
-    process::{Child, Command, Stdio},
+    process::{Child, Command, Output, Stdio},
     sync::Arc,
 };
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
@@ -30,6 +30,8 @@ pub enum NodeManagerError {
     NodeNotFound(NodeId),
     #[error("Missing '{0}' information to spawn node")]
     SpawnNodeMissingParam(String),
+    #[error(transparent)]
+    StdIoError(#[from] std::io::Error),
 }
 
 // Execution and management of nodes as native OS processes
@@ -100,9 +102,6 @@ impl NodeManager {
             .join(node_id)
             .join(DEFAULT_LOGS_FOLDER);
 
-        // TODO:
-        // "if [ -e '/app/node_data/secret-key-recycle' ]; then rm -f /app/node_data/secret-key*; fi \
-
         let mut args = if home_network {
             vec!["--home-network".to_string()]
         } else {
@@ -144,11 +143,20 @@ impl NodeManager {
                 logging::log!("Node process spawned with PID: {pid}");
                 self.nodes.lock().await.insert(node_id.to_string(), child);
                 node_info.pid = Some(pid);
-                /* TODO:
-                node_info.bin_version = Some();
-                node_info.peer_id = Some();
-                node_info.ips = Some();
-                */
+                match self
+                    .get_node_version_and_peer_id(&node_info.container_id, !home_network)
+                    .await
+                {
+                    Ok((bin_version, peer_id, ips)) => {
+                        node_info.bin_version = bin_version;
+                        node_info.peer_id = peer_id;
+                        node_info.ips = ips;
+                    }
+                    Err(err) => {
+                        logging::error!("Failed to obtain node bin version and peer id: {err:?}")
+                    }
+                }
+
                 Ok(())
             }
             Err(err) => {
@@ -174,8 +182,8 @@ impl NodeManager {
             // filter out threads
             .filter(|p| p.thread_kind().is_none())
         {
-            println!(
-                "Process: {:?} (PID: {}) {}",
+            logging::log!(
+                ">>> Process: {:?} (PID: {}) {}",
                 process.name(),
                 process.pid(),
                 process.status()
@@ -220,5 +228,94 @@ impl NodeManager {
         }
 
         Ok(())
+    }
+
+    // Retrieve version of the node binary and its peer id
+    async fn get_node_version_and_peer_id(
+        &self,
+        id: &NodeId,
+        get_ips: bool,
+    ) -> Result<(Option<String>, Option<String>, Option<String>), NodeManagerError> {
+        /* TODO:
+        let cmd = "/app/antnode --version | grep -oE 'Autonomi Node v[0-9]+\\.[0-9]+\\.[0-9]+.*$'"
+            .to_string();
+        let (_, resp_str) = self
+            .exec_in_container(id, cmd, "get node bin version")
+            .await?;
+
+        let version = resp_str
+            .strip_prefix("Autonomi Node v")
+            .map(|v| v.replace(['\n', '\r'], ""));
+        logging::log!("Node bin version in container {id}: {version:?}");
+
+        let cmd = "cat node_data/secret-key | od -A n -t x1 | tr -d ' \n'".to_string();
+        let (_, resp_str) = self.exec_in_container(id, cmd, "get node peer id").await?;
+
+        let peer_id = if let Ok(keypair) =
+            libp2p_identity::Keypair::ed25519_from_bytes(hex::decode(resp_str).unwrap_or_default())
+        {
+            Some(libp2p_identity::PeerId::from(keypair.public()).to_string())
+        } else {
+            None
+        };
+        logging::log!("Node peer id in container {id}: {peer_id:?}");
+        */
+
+        //let ips = if get_ips {
+        //    let cmd = "hostname -I | sed 's/^[ \t]*//;s/[ \t]*$//;s/ /, /g'".to_string();
+        //    let (_, ips) = self
+        //        .exec_in_container(id, cmd, "get node network IPs")
+        //        .await?;
+        //    logging::log!("Node IPs in container {id}: {ips}");
+        //    Some(ips)
+        //} else {
+        //    None
+        //};
+
+        //Ok((version, peer_id, ips))
+
+        Ok((
+            Some("6.6.666".to_string()),
+            Some("12D3KooWQCWUNjFmA5Azkp3jSxBRf796x3cyKF6V7FviUBCxXp31".to_string()),
+            None,
+        ))
+    }
+
+    // Clears the node's PeerId and restarts it
+    pub async fn regenerate_peer_id_in_container(
+        &self,
+        node_info: &mut NodeInstanceInfo,
+        get_ips: bool,
+    ) -> Result<(), NodeManagerError> {
+        logging::log!("[RECYCLE] Recycling node by clearing its peer-id ...");
+
+        // we remove 'secret-key' file so the node will re-generate it when restarted.
+        let file_path = self
+            .root_dir
+            .join(DEFAULT_NODE_DATA_FOLDER)
+            .join(node_info.container_id.clone())
+            .join("secret-key");
+        let output = self.exec_cmd(
+            Command::new("rm")
+                .arg("-f")
+                .arg(file_path.display().to_string()),
+        )?;
+
+        logging::log!(">>> status: {}", output.status);
+
+        // restart node to obtain a new peer-id
+        let _res = self.kill_node(&node_info.container_id).await;
+        self.spawn_new_node(node_info).await?;
+
+        logging::log!("Finished recycling node: {}", node_info.container_id);
+
+        Ok(())
+    }
+
+    // Helper to execute a cmd
+    fn exec_cmd(&self, cmd: &mut Command) -> Result<Output, NodeManagerError> {
+        let output = cmd.output()?;
+        logging::log!(">>> status: {}", output.status);
+        Ok(output)
     }
 }
