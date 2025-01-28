@@ -298,6 +298,10 @@ impl DbClient {
             params.push(json!(info.status).to_string());
         }
 
+        if let Some(pid) = &info.pid {
+            updates.push("pid=?");
+            params.push(pid.to_string());
+        }
         if let Some(peer_id) = &info.peer_id {
             updates.push("peer_id=?");
             params.push(peer_id.clone());

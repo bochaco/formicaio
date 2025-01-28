@@ -96,7 +96,7 @@ async fn helper_create_node_instance(
         node_opts.port
     );
     let auto_start = node_opts.auto_start;
-    let _ = rewards_addr.parse::<Address>()?;
+    let _ = node_opts.rewards_addr.parse::<Address>()?;
 
     let container_id = context
         .docker_client

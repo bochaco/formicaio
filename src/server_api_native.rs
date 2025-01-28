@@ -187,21 +187,11 @@ async fn helper_start_node_instance(
     context.db_client.get_node_metadata(&mut node_info).await;
     context.node_manager.spawn_new_node(&mut node_info).await?;
 
-    context
-        .db_client
-        .update_node_status(&container_id, NodeStatus::Active)
-        .await;
+    node_info.status = NodeStatus::Active;
 
     context
         .db_client
-        .update_node_metadata_fields(
-            &container_id,
-            &[
-                ("bin_version", &node_info.bin_version.unwrap_or_default()),
-                ("peer_id", &node_info.peer_id.unwrap_or_default()),
-                ("ips", &node_info.ips.unwrap_or_default()),
-            ],
-        )
+        .update_node_metadata(&node_info, true)
         .await;
 
     Ok(())
@@ -240,6 +230,7 @@ async fn helper_stop_node_instance(
             .update_node_metadata_fields(
                 &container_id,
                 &[
+                    ("pid", ""),
                     ("connected_peers", "0"),
                     ("kbuckets_peers", "0"),
                     ("records", ""),
@@ -283,7 +274,6 @@ pub(crate) async fn helper_upgrade_node_instance(
     db_client: &DbClient,
     node_manager: &NodeManager,
 ) -> Result<(Option<String>, Option<String>), NodeManagerError> {
-    // TODO: use docker 'extract' api to simply copy the new node binary into the container.
     node_status_locked
         .insert(
             container_id.clone(),
@@ -402,24 +392,19 @@ pub async fn recycle_node_instance(container_id: ContainerId) -> Result<(), Serv
         .update_node_status(&container_id, NodeStatus::Recycling)
         .await;
 
-    /*TODO
-    let (version, peer_id, ips) = context
-        .docker_client
-        .regenerate_peer_id_in_container(&container_id, true)
-        .await?;
+    let mut node_info = NodeInstanceInfo::new(container_id.clone());
+    context.db_client.get_node_metadata(&mut node_info).await;
 
     context
+        .node_manager
+        .regenerate_peer_id_in_container(&mut node_info, true)
+        .await?;
+    node_info.status = NodeStatus::Active;
+    context
         .db_client
-        .update_node_metadata_fields(
-            &container_id,
-            &[
-                ("bin_version", &version.unwrap_or_default()),
-                ("peer_id", &peer_id.unwrap_or_default()),
-                ("ips", &ips.unwrap_or_default()),
-            ],
-        )
+        .update_node_metadata(&node_info, true)
         .await;
-    */
+
     context.node_status_locked.remove(&container_id).await;
 
     Ok(())
