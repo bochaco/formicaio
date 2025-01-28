@@ -5,9 +5,8 @@ use super::{
 };
 #[cfg(feature = "native")]
 use super::{
-    node_instance::NodeStatus,
     node_manager::{NodeManager, NodeManagerError},
-    server_api_native::helper_upgrade_node_instance,
+    server_api_native::{helper_get_nodes_list, helper_upgrade_node_instance},
 };
 
 use super::{
@@ -137,21 +136,10 @@ impl NodeManagerProxy {
 
     #[cfg(feature = "native")]
     async fn get_nodes_list(&self, all: bool) -> Result<Vec<NodeInstanceInfo>, NodeManagerError> {
-        let active_nodes = self.node_manager.get_active_nodes_list().await?;
-
-        let nodes = self
-            .db_client
-            .get_nodes_list()
-            .await
+        let nodes = helper_get_nodes_list(&self.node_manager, &self.db_client, None)
+            .await?
             .into_iter()
-            .filter_map(|(_, mut n)| {
-                n.status = NodeStatus::Inactive;
-                if let Some(pid) = n.pid {
-                    if active_nodes.contains(&pid) {
-                        n.status = NodeStatus::Active;
-                    }
-                }
-
+            .filter_map(|(_, n)| {
                 if all || n.status.is_active() {
                     Some(n)
                 } else {
