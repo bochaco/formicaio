@@ -1,5 +1,6 @@
 ALTER TABLE nodes DROP COLUMN rpc_api_port;
 
+ALTER TABLE nodes ADD COLUMN created INTEGER;
 ALTER TABLE nodes ADD COLUMN pid INTEGER;
 ALTER TABLE nodes ADD COLUMN metrics_port INTEGER;
 ALTER TABLE nodes ADD COLUMN rewards_addr TEXT;

@@ -57,6 +57,7 @@ struct CachedSettings {
 struct CachedNodeMetadata {
     container_id: String,
     pid: u32,
+    created: u64,
     status: String,
     peer_id: String,
     bin_version: String,
@@ -81,6 +82,9 @@ impl CachedNodeMetadata {
         }
         if self.pid > 0 {
             info.pid = Some(self.pid);
+        }
+        if self.created > 0 {
+            info.created = self.created;
         }
         if let Ok(status) = serde_json::from_str(&self.status) {
             info.status = status;
@@ -257,15 +261,17 @@ impl DbClient {
     // Insert node metadata onto local cache DB
     pub async fn insert_node_metadata(&self, info: &NodeInstanceInfo) {
         let query_str = "INSERT OR REPLACE INTO nodes (\
-                container_id, status, port, metrics_port, \
+                container_id, created, status, \
+                port, metrics_port, \
                 rewards_addr, home_network, \
                 records, connected_peers, kbuckets_peers \
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             .to_string();
 
         let db_lock = self.db.lock().await;
         match sqlx::query(&query_str)
             .bind(info.container_id.clone())
+            .bind(info.created.to_string())
             .bind(json!(info.status).to_string())
             .bind(info.port)
             .bind(info.metrics_port)
