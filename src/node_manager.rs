@@ -12,8 +12,11 @@ use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
 use thiserror::Error;
 use tokio::sync::Mutex;
 
-// Name of the node binary use to launch new nodes processes
+// FIXME!!!: these two binaries need to be installed when app is first started.
+// Name of the node binary used to launch new nodes processes
 const NODE_BIN_NAME: &str = "antnode";
+// Name of the binary used to upgrade the node binary
+const INSTALLER_BIN_NAME: &str = "antup";
 
 const DEFAULT_EVM_NETWORK: &str = "evm-arbitrum-sepolia";
 const ROOT_DIR: &str = "NODE_MGR_ROOT_DIR";
@@ -275,17 +278,45 @@ impl NodeManager {
         //Ok((version, peer_id, ips))
 
         Ok((
-            Some("6.6.666".to_string()),
+            Some("0.1.1".to_string()),
             Some("12D3KooWQCWUNjFmA5Azkp3jSxBRf796x3cyKF6V7FviUBCxXp31".to_string()),
             None,
         ))
+    }
+
+    // Upgrade the binary of given node
+    pub async fn upgrade_node(
+        &self,
+        node_info: &mut NodeInstanceInfo,
+    ) -> Result<(), NodeManagerError> {
+        logging::log!("[UPGRADE] UPGRADE node ...");
+
+        // restart container to run with new node version
+        let _res = self.kill_node(&node_info.container_id).await;
+        self.spawn_new_node(node_info).await?;
+
+        Ok(())
+    }
+
+    // Upgrade the binary of the node binary used for new nodes to be spawned
+    pub async fn upgrade_node_binary(&self) -> Result<(), NodeManagerError> {
+        let installer_bin_path = self.root_dir.join(INSTALLER_BIN_NAME);
+        let node_bin_path = self.root_dir.clone();
+        let _output = self.exec_cmd(
+            Command::new(installer_bin_path.display().to_string())
+                .arg("node")
+                .arg("-p")
+                .arg(node_bin_path.display().to_string()),
+            "upgrade node binary",
+        )?;
+
+        Ok(())
     }
 
     // Clears the node's PeerId and restarts it
     pub async fn regenerate_peer_id_in_container(
         &self,
         node_info: &mut NodeInstanceInfo,
-        get_ips: bool,
     ) -> Result<(), NodeManagerError> {
         logging::log!("[RECYCLE] Recycling node by clearing its peer-id ...");
 
@@ -295,13 +326,12 @@ impl NodeManager {
             .join(DEFAULT_NODE_DATA_FOLDER)
             .join(node_info.container_id.clone())
             .join("secret-key");
-        let output = self.exec_cmd(
+        let _output = self.exec_cmd(
             Command::new("rm")
                 .arg("-f")
                 .arg(file_path.display().to_string()),
+            "regenerate node's peer-id",
         )?;
-
-        logging::log!(">>> status: {}", output.status);
 
         // restart node to obtain a new peer-id
         let _res = self.kill_node(&node_info.container_id).await;
@@ -313,9 +343,11 @@ impl NodeManager {
     }
 
     // Helper to execute a cmd
-    fn exec_cmd(&self, cmd: &mut Command) -> Result<Output, NodeManagerError> {
+    fn exec_cmd(&self, cmd: &mut Command, desc: &str) -> Result<Output, NodeManagerError> {
         let output = cmd.output()?;
-        logging::log!(">>> status: {}", output.status);
+        if !output.status.success() {
+            logging::error!("Failed to execute command to {desc}: {output:?}");
+        }
         Ok(output)
     }
 }

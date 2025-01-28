@@ -145,6 +145,7 @@ impl NodeManagerProxy {
             .await
             .into_iter()
             .filter_map(|(_, mut n)| {
+                n.status = NodeStatus::Inactive;
                 if let Some(pid) = n.pid {
                     if active_nodes.contains(&pid) {
                         n.status = NodeStatus::Active;
@@ -167,7 +168,7 @@ impl NodeManagerProxy {
         &self,
         container_id: &ContainerId,
         node_status_locked: &ImmutableNodeStatus,
-    ) -> Result<(Option<String>, Option<String>), DockerClientError> {
+    ) -> Result<(), DockerClientError> {
         helper_upgrade_node_instance(
             container_id,
             node_status_locked,
@@ -182,7 +183,7 @@ impl NodeManagerProxy {
         &self,
         container_id: &ContainerId,
         node_status_locked: &ImmutableNodeStatus,
-    ) -> Result<(Option<String>, Option<String>), NodeManagerError> {
+    ) -> Result<(), NodeManagerError> {
         helper_upgrade_node_instance(
             container_id,
             node_status_locked,
@@ -200,6 +201,16 @@ impl NodeManagerProxy {
     #[cfg(feature = "native")]
     async fn pull_formica_image(&self) -> Result<(), NodeManagerError> {
         Ok(())
+    }
+
+    #[cfg(not(feature = "native"))]
+    async fn upgrade_node_binary(&self, _: &str) {}
+
+    #[cfg(feature = "native")]
+    async fn upgrade_node_binary(&self, version: &str) {
+        if let Err(err) = self.node_manager.upgrade_node_binary().await {
+            logging::error!("Failed to download new version ({version}) of node binary: {err:?}");
+        }
     }
 }
 
@@ -375,6 +386,16 @@ async fn check_node_bin_version(
 ) {
     if let Some(version) = latest_version_available().await {
         logging::log!("Latest version of node binary available: {version}");
+
+        match latest_bin_version.lock().await.clone() {
+            // TODO: use semantic version to make the comparison.
+            Some(current) if current != version => {
+                node_mgr_proxy.upgrade_node_binary(&version).await
+            }
+            None => node_mgr_proxy.upgrade_node_binary(&version).await,
+            _ => {}
+        }
+
         *latest_bin_version.lock().await = Some(version.clone());
 
         loop {
