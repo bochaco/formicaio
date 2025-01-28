@@ -50,6 +50,7 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
     for (_, node_info) in nodes.iter_mut() {
         // if the node is Active, let's also get up to date metrics
         // info that was retrieved through the metrics server
+        node_info.status = NodeStatus::Inactive;
         if let Some(pid) = node_info.pid {
             if active_nodes.contains(&pid) {
                 node_info.status = NodeStatus::Active;
@@ -223,6 +224,9 @@ async fn helper_stop_node_instance(
 
     let res = context.node_manager.kill_node(&container_id).await;
 
+    // FIXME!!!: when this node is started up it will take new version of node-bin,
+    // even when it was never requested to be upgraded, but just to stop.
+
     if matches!(res, Ok(())) {
         // set connected/kbucket peers back to 0 and update cache
         context
@@ -273,7 +277,7 @@ pub(crate) async fn helper_upgrade_node_instance(
     node_status_locked: &ImmutableNodeStatus,
     db_client: &DbClient,
     node_manager: &NodeManager,
-) -> Result<(Option<String>, Option<String>), NodeManagerError> {
+) -> Result<(), NodeManagerError> {
     node_status_locked
         .insert(
             container_id.clone(),
@@ -284,39 +288,25 @@ pub(crate) async fn helper_upgrade_node_instance(
         .update_node_status(container_id, NodeStatus::Upgrading)
         .await;
 
-    /* TODO:
-    let res = docker_client
-        .upgrade_node_in_container(container_id, true)
-        .await;
+    let mut node_info = NodeInstanceInfo::new(container_id.clone());
+    db_client.get_node_metadata(&mut node_info).await;
 
-    if let Ok((ref new_version, ref ips)) = res {
+    let res = node_manager.upgrade_node(&mut node_info).await;
+
+    if res.is_ok() {
         logging::log!(
             "Node binary upgraded to v{} in container {container_id}.",
-            new_version.as_deref().unwrap_or("[unknown]")
+            node_info.bin_version.as_deref().unwrap_or("[unknown]")
         );
 
-        // set bin_version to new version obtained
-        db_client
-            .update_node_metadata_fields(
-                container_id,
-                &[
-                    ("bin_version", new_version.as_deref().unwrap_or_default()),
-                    ("ips", ips.as_deref().unwrap_or_default()),
-                ],
-            )
-            .await;
-        db_client
-            .update_node_status(
-                container_id,
-                NodeStatus::Transitioned("Upgraded".to_string()),
-            )
-            .await;
+        node_info.status = NodeStatus::Transitioned("Upgraded".to_string());
+
+        db_client.update_node_metadata(&node_info, true).await;
     }
-    */
+
     node_status_locked.remove(container_id).await;
 
-    //res
-    Ok((None, None))
+    res
 }
 
 // Start streaming logs from a node instance with given id
@@ -397,7 +387,7 @@ pub async fn recycle_node_instance(container_id: ContainerId) -> Result<(), Serv
 
     context
         .node_manager
-        .regenerate_peer_id_in_container(&mut node_info, true)
+        .regenerate_peer_id_in_container(&mut node_info)
         .await?;
     node_info.status = NodeStatus::Active;
     context
