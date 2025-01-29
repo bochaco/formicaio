@@ -14,7 +14,7 @@ use std::{
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
 use thiserror::Error;
 use tokio::{
-    fs::File,
+    fs::{remove_file, File},
     io::{AsyncReadExt, AsyncSeekExt, BufReader, SeekFrom},
     sync::Mutex,
     time::sleep,
@@ -154,6 +154,8 @@ impl NodeManager {
                 logging::log!("Node process spawned with PID: {pid}");
                 self.nodes.lock().await.insert(node_id.to_string(), child);
                 node_info.pid = Some(pid);
+                // let's delay it for a moment so it generates the peer id
+                sleep(Duration::from_secs(2)).await;
                 match self
                     .get_node_version_and_peer_id(&node_info.container_id, !home_network)
                     .await
@@ -257,39 +259,54 @@ impl NodeManager {
         let version = resp_str
             .strip_prefix("Autonomi Node v")
             .map(|v| v.replace(['\n', '\r'], ""));
+            */
+        let version = Some("0.1.1".to_string());
         logging::log!("Node bin version in container {id}: {version:?}");
 
-        let cmd = "cat node_data/secret-key | od -A n -t x1 | tr -d ' \n'".to_string();
-        let (_, resp_str) = self.exec_in_container(id, cmd, "get node peer id").await?;
-
-        let peer_id = if let Ok(keypair) =
-            libp2p_identity::Keypair::ed25519_from_bytes(hex::decode(resp_str).unwrap_or_default())
-        {
-            Some(libp2p_identity::PeerId::from(keypair.public()).to_string())
+        let sk_file_path = self
+            .root_dir
+            .join(DEFAULT_NODE_DATA_FOLDER)
+            .join(id)
+            .join("secret-key");
+        let peer_id = if let Ok(mut file) = File::open(sk_file_path).await {
+            let mut key_str = Vec::new();
+            if file.read_to_end(&mut key_str).await.is_ok() {
+                match libp2p_identity::Keypair::ed25519_from_bytes(key_str) {
+                    Ok(keypair) => {
+                        Some(libp2p_identity::PeerId::from(keypair.public()).to_string())
+                    }
+                    Err(err) => {
+                        logging::log!("Failed to retrieve PeerId from node {id}: {err:?}");
+                        None
+                    }
+                }
+            } else {
+                None
+            }
         } else {
             None
         };
         logging::log!("Node peer id in container {id}: {peer_id:?}");
-        */
 
-        //let ips = if get_ips {
-        //    let cmd = "hostname -I | sed 's/^[ \t]*//;s/[ \t]*$//;s/ /, /g'".to_string();
-        //    let (_, ips) = self
-        //        .exec_in_container(id, cmd, "get node network IPs")
-        //        .await?;
-        //    logging::log!("Node IPs in container {id}: {ips}");
-        //    Some(ips)
-        //} else {
-        //    None
-        //};
+        // FIXME: this is not cross platform
+        let ips = if get_ips {
+            let mut cmd = Command::new("hostname -I | sed 's/^[ \t]*//;s/[ \t]*$//;s/ /, /g'");
+            match self.exec_cmd(&mut cmd, "get node network IPs") {
+                Ok(output) => {
+                    let ips = String::from_utf8_lossy(&output.stdout).to_string();
+                    logging::log!("Node IPs in container {id}: {ips}");
+                    Some(ips)
+                }
+                Err(err) => {
+                    logging::log!("Failed to retrieve node IPs for {id}: {err:?}");
+                    None
+                }
+            }
+        } else {
+            None
+        };
 
-        //Ok((version, peer_id, ips))
-
-        Ok((
-            Some("0.1.1".to_string()),
-            Some("12D3KooWQCWUNjFmA5Azkp3jSxBRf796x3cyKF6V7FviUBCxXp31".to_string()),
-            None,
-        ))
+        Ok((version, peer_id, ips))
     }
 
     // Upgrade the binary of given node
@@ -334,12 +351,7 @@ impl NodeManager {
             .join(DEFAULT_NODE_DATA_FOLDER)
             .join(node_info.container_id.clone())
             .join("secret-key");
-        let _output = self.exec_cmd(
-            Command::new("rm")
-                .arg("-f")
-                .arg(file_path.display().to_string()),
-            "regenerate node's peer-id",
-        )?;
+        remove_file(file_path).await?;
 
         // restart node to obtain a new peer-id
         let _res = self.kill_node(&node_info.container_id).await;
