@@ -142,6 +142,11 @@ async fn helper_create_node_instance(
         ..Default::default()
     };
 
+    if let Err(err) = context.node_manager.new_node(&node_info).await {
+        logging::error!("Failed to create new node's directory: {err:?}");
+        return Err(err.into());
+    }
+
     context.db_client.insert_node_metadata(&node_info).await;
     logging::log!("New node created: {node_info:#?}");
 
@@ -175,6 +180,8 @@ pub async fn delete_node_instance(container_id: ContainerId) -> Result<(), Serve
             .await?;
     }
 
+    // TODO: remove node's directory
+
     context
         .nodes_metrics
         .lock()
@@ -203,16 +210,25 @@ async fn helper_start_node_instance(
     context: &ServerGlobalState,
 ) -> Result<(), ServerFnError> {
     logging::log!("Starting node with Id: {container_id} ...");
+    context
+        .node_status_locked
+        .insert(container_id.clone(), Duration::from_secs(20))
+        .await;
+    context
+        .db_client
+        .update_node_status(&container_id, NodeStatus::Restarting)
+        .await;
+
     let mut node_info = NodeInstanceInfo::new(container_id.clone());
     context.db_client.get_node_metadata(&mut node_info).await;
     context.node_manager.spawn_new_node(&mut node_info).await?;
 
     node_info.status = NodeStatus::Active;
-
     context
         .db_client
         .update_node_metadata(&node_info, true)
         .await;
+    context.node_status_locked.remove(&container_id).await;
 
     Ok(())
 }
@@ -242,9 +258,6 @@ async fn helper_stop_node_instance(
         .await;
 
     let res = context.node_manager.kill_node(&container_id).await;
-
-    // FIXME!!!: when this node is started up it will take new version of node-bin,
-    // even when it was never requested to be upgraded, but just to stop.
 
     if matches!(res, Ok(())) {
         // set connected/kbucket peers back to 0 and update cache
