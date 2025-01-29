@@ -183,6 +183,7 @@ impl NodeManagerProxy {
 
     #[cfg(not(feature = "native"))]
     async fn pull_formica_image(&self) -> Result<(), DockerClientError> {
+        logging::log!("Pulling formica node image ...");
         self.docker_client.pull_formica_image().await
     }
 
@@ -196,8 +197,11 @@ impl NodeManagerProxy {
 
     #[cfg(feature = "native")]
     async fn upgrade_node_binary(&self, version: &str) {
+        logging::log!("Downloading latest node binary ...");
         if let Err(err) = self.node_manager.upgrade_node_binary().await {
             logging::error!("Failed to download new version ({version}) of node binary: {err:?}");
+        } else {
+            logging::log!("Node binary {version} downloaded successfully!");
         }
     }
 }
@@ -284,7 +288,6 @@ pub fn spawn_bg_tasks(
                 _ = ctx.formica_image_pulling.tick() => {
                     let node_mgr_proxy = node_mgr_proxy.clone();
                     tokio::spawn(async move {
-                        logging::log!("Pulling formica node image ...");
                         if let Err(err) = node_mgr_proxy.pull_formica_image().await {
                             logging::log!("Failed to pull node image from the periodic task: {err}");
                         }

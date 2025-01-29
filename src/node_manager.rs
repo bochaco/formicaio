@@ -3,9 +3,11 @@ use super::node_instance::{NodeId, NodeInstanceInfo, NodePid};
 use bytes::Bytes;
 use futures_util::Stream;
 use leptos::logging;
+use libp2p_identity::{Keypair, PeerId};
 use std::{
     collections::{HashMap, HashSet},
     env,
+    os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
     process::{Child, Command, Output, Stdio},
     sync::Arc,
@@ -14,8 +16,8 @@ use std::{
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
 use thiserror::Error;
 use tokio::{
-    fs::{remove_file, File},
-    io::{AsyncReadExt, AsyncSeekExt, BufReader, SeekFrom},
+    fs::{create_dir_all, metadata, remove_file, set_permissions, File},
+    io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt, BufReader, SeekFrom},
     sync::Mutex,
     time::sleep,
 };
@@ -43,6 +45,8 @@ pub enum NodeManagerError {
     SpawnNodeMissingParam(String),
     #[error(transparent)]
     StdIoError(#[from] std::io::Error),
+    #[error(transparent)]
+    PeerIdError(#[from] libp2p_identity::DecodingError),
 }
 
 // Execution and management of nodes as native OS processes
@@ -79,6 +83,28 @@ impl Default for NodeManager {
 }
 
 impl NodeManager {
+    // Create directory to hold node's data and binary
+    pub async fn new_node(&self, node_info: &NodeInstanceInfo) -> Result<(), NodeManagerError> {
+        let node_id = &node_info.container_id;
+        let node_bin_path = self.root_dir.join(NODE_BIN_NAME);
+        let new_node_data_dir = self.root_dir.join(DEFAULT_NODE_DATA_FOLDER).join(node_id);
+
+        create_dir_all(&new_node_data_dir).await?;
+
+        let mut source_file = File::open(node_bin_path).await?;
+        let destination_path = new_node_data_dir.join(NODE_BIN_NAME);
+        let mut destination_file = File::create(&destination_path).await?;
+        let mut permissions = metadata(&destination_path).await?.permissions();
+        permissions.set_mode(0o755); // Set permissions to rwxr-xr-x (owner can read/write/execute, group and others can read/execute)
+        set_permissions(destination_path, permissions).await?;
+        let mut buffer = Vec::new();
+        source_file.read_to_end(&mut buffer).await?;
+        destination_file.write_all(&buffer).await?;
+
+        Ok(())
+    }
+
+    // Spawn the node as a new process using its own directory and node binary
     pub async fn spawn_new_node(
         &self,
         node_info: &mut NodeInstanceInfo,
@@ -104,8 +130,8 @@ impl NodeManager {
                 ))?;
         let home_network = node_info.home_network;
 
-        let node_bin_path = self.root_dir.join(NODE_BIN_NAME);
         let node_data_dir = self.root_dir.join(DEFAULT_NODE_DATA_FOLDER).join(node_id);
+        let node_bin_path = node_data_dir.join(NODE_BIN_NAME);
         let bootstrap_cache_dir = self.root_dir.join(DEFAULT_BOOTSTRAP_CACHE_FOLDER);
         let log_output_dir = self
             .root_dir
@@ -173,7 +199,7 @@ impl NodeManager {
                 Ok(())
             }
             Err(err) => {
-                logging::error!("Failed to create new node: {err:?}");
+                logging::error!("Failed to spawn new node: {err:?}");
                 Err(NodeManagerError::CannotCreateNode(err.to_string()))
             }
         }
@@ -224,15 +250,14 @@ impl NodeManager {
             }
         }
 
-        let output = child.wait_with_output();
-        match output {
+        match child.wait_with_output() {
             Ok(output) => {
-                if output.status.success() {
+                if output.status.success() || output.status.code().is_none() {
                     let stdout = String::from_utf8_lossy(&output.stdout);
-                    logging::log!(">>> Output: {}", stdout);
+                    logging::log!(">>> Output: {stdout}");
                 } else {
                     let stderr = String::from_utf8_lossy(&output.stderr);
-                    logging::error!(">>> Error: {}", stderr);
+                    logging::error!(">>> Error: {stderr} {:?}", output.status.code());
                 }
             }
             Err(err) => {
@@ -249,47 +274,26 @@ impl NodeManager {
         id: &NodeId,
         get_ips: bool,
     ) -> Result<(Option<String>, Option<String>, Option<String>), NodeManagerError> {
-        /* TODO:
-        let cmd = "/app/antnode --version | grep -oE 'Autonomi Node v[0-9]+\\.[0-9]+\\.[0-9]+.*$'"
-            .to_string();
-        let (_, resp_str) = self
-            .exec_in_container(id, cmd, "get node bin version")
-            .await?;
-
-        let version = resp_str
-            .strip_prefix("Autonomi Node v")
-            .map(|v| v.replace(['\n', '\r'], ""));
-            */
-        let version = Some("0.1.1".to_string());
-        logging::log!("Node bin version in container {id}: {version:?}");
-
-        let sk_file_path = self
-            .root_dir
-            .join(DEFAULT_NODE_DATA_FOLDER)
-            .join(id)
-            .join("secret-key");
-        let peer_id = if let Ok(mut file) = File::open(sk_file_path).await {
-            let mut key_str = Vec::new();
-            if file.read_to_end(&mut key_str).await.is_ok() {
-                match libp2p_identity::Keypair::ed25519_from_bytes(key_str) {
-                    Ok(keypair) => {
-                        Some(libp2p_identity::PeerId::from(keypair.public()).to_string())
-                    }
-                    Err(err) => {
-                        logging::log!("Failed to retrieve PeerId from node {id}: {err:?}");
-                        None
-                    }
-                }
-            } else {
+        let version = match self.helper_read_node_version(id).await {
+            Ok(version) => Some(version),
+            Err(err) => {
+                logging::log!("Failed to retrieve binary version of node {id}: {err:?}");
                 None
             }
-        } else {
-            None
+        };
+        logging::log!("Node binary version in for node {id}: {version:?}");
+
+        let peer_id = match self.helper_read_peer_id(id).await {
+            Ok(peer_id) => Some(peer_id),
+            Err(err) => {
+                logging::log!("Failed to retrieve PeerId of node {id}: {err:?}");
+                None
+            }
         };
         logging::log!("Node peer id in container {id}: {peer_id:?}");
 
-        // FIXME: this is not cross platform
         let ips = if get_ips {
+            // FIXME: this is not cross platform
             let mut cmd = Command::new("hostname -I | sed 's/^[ \t]*//;s/[ \t]*$//;s/ /, /g'");
             match self.exec_cmd(&mut cmd, "get node network IPs") {
                 Ok(output) => {
@@ -309,6 +313,47 @@ impl NodeManager {
         Ok((version, peer_id, ips))
     }
 
+    async fn helper_read_node_version(&self, id: &NodeId) -> Result<String, NodeManagerError> {
+        let node_bin_path = self
+            .root_dir
+            .join(DEFAULT_NODE_DATA_FOLDER)
+            .join(id)
+            .join(NODE_BIN_NAME);
+        let mut cmd = Command::new(node_bin_path);
+        cmd.arg("--version");
+        let output = self.exec_cmd(&mut cmd, "get node bin version")?;
+
+        let lines = output
+            .stdout
+            .split(|&byte| byte == b'\n')
+            .collect::<Vec<_>>();
+        let version = if let Some(line) = lines.first() {
+            String::from_utf8_lossy(line)
+                .to_string()
+                .strip_prefix("Autonomi Node v")
+                .unwrap_or_default()
+                .to_string()
+        } else {
+            "".to_string()
+        };
+
+        Ok(version)
+    }
+
+    async fn helper_read_peer_id(&self, id: &NodeId) -> Result<String, NodeManagerError> {
+        let sk_file_path = self
+            .root_dir
+            .join(DEFAULT_NODE_DATA_FOLDER)
+            .join(id)
+            .join("secret-key");
+        let mut file = File::open(sk_file_path).await?;
+        let mut key_str = Vec::new();
+        file.read_to_end(&mut key_str).await?;
+
+        let keypair = Keypair::ed25519_from_bytes(key_str)?;
+        Ok(PeerId::from(keypair.public()).to_string())
+    }
+
     // Upgrade the binary of given node
     pub async fn upgrade_node(
         &self,
@@ -318,6 +363,11 @@ impl NodeManager {
 
         // restart node to run with new node version
         let _res = self.kill_node(&node_info.container_id).await;
+        // copy the node binary so it uses the latest version available
+        self.new_node(node_info).await?;
+        // let's delay it for a moment so closes files descriptors
+        sleep(Duration::from_secs(2)).await;
+
         self.spawn_new_node(node_info).await?;
 
         Ok(())
