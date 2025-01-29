@@ -16,7 +16,7 @@ use std::{
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
 use thiserror::Error;
 use tokio::{
-    fs::{create_dir_all, metadata, remove_file, set_permissions, File},
+    fs::{create_dir_all, metadata, remove_dir_all, remove_file, set_permissions, File},
     io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt, BufReader, SeekFrom},
     sync::Mutex,
     time::sleep,
@@ -83,7 +83,7 @@ impl Default for NodeManager {
 }
 
 impl NodeManager {
-    // Create directory to hold node's data and binary
+    // Create directory to hold node's data and cloned node binary
     pub async fn new_node(&self, node_info: &NodeInstanceInfo) -> Result<(), NodeManagerError> {
         let node_id = &node_info.container_id;
         let node_bin_path = self.root_dir.join(NODE_BIN_NAME);
@@ -104,7 +104,7 @@ impl NodeManager {
         Ok(())
     }
 
-    // Spawn the node as a new process using its own directory and node binary
+    // Spawn the node as a new process using its own directory and cloned node binary
     pub async fn spawn_new_node(
         &self,
         node_info: &mut NodeInstanceInfo,
@@ -172,7 +172,7 @@ impl NodeManager {
         command.stderr(Stdio::null());
         command.current_dir(&self.root_dir);
 
-        logging::log!(">>> RUNNING: {command:?}");
+        logging::log!("Spawning new node with cmd: {command:?}");
         // Run the node
         match command.spawn() {
             Ok(child) => {
@@ -205,6 +205,7 @@ impl NodeManager {
         }
     }
 
+    // Retrieve list of node running processes
     pub async fn get_active_nodes_list(&self) -> Result<HashSet<NodePid>, NodeManagerError> {
         // first update processes information of our `System` struct
         let mut sys = self.system.lock().await;
@@ -225,6 +226,7 @@ impl NodeManager {
         Ok(pids)
     }
 
+    // Kill node's process
     pub async fn kill_node(&self, node_id: &NodeId) -> Result<(), NodeManagerError> {
         let mut child = self
             .nodes
@@ -233,29 +235,31 @@ impl NodeManager {
             .remove(node_id)
             .ok_or(NodeManagerError::NodeNotFound(node_id.clone()))?;
 
-        match child.kill() {
-            Ok(()) => {
-                logging::log!(">>> KILLED!!");
-            }
-            Err(err) => {
-                logging::warn!(">>> child couldn't be killed: {err:?}");
-            }
+        if let Err(err) = child.kill() {
+            logging::warn!("Failed to kill process for node {node_id}: {err:?}");
+        } else {
+            logging::log!("Process of node {node_id} was killed.");
         }
 
         match child.wait_with_output() {
+            Ok(output) if output.status.success() || output.status.code().is_none() => {}
             Ok(output) => {
-                if output.status.success() || output.status.code().is_none() {
-                    let stdout = String::from_utf8_lossy(&output.stdout);
-                    logging::log!(">>> Output: {stdout}");
-                } else {
-                    let stderr = String::from_utf8_lossy(&output.stderr);
-                    logging::error!(">>> Error: {stderr} {:?}", output.status.code());
-                }
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                logging::warn!("Error when checking killed node process: {stderr} {stdout}");
             }
             Err(err) => {
-                logging::warn!(">>> Failed to wait on child: {err:?}");
+                logging::warn!("Error when checking killed node process: {err:?}");
             }
         }
+
+        Ok(())
+    }
+
+    // Remove node's data dir
+    pub async fn remove_node_dir(&self, node_id: &NodeId) -> Result<(), NodeManagerError> {
+        let node_data_dir = self.root_dir.join(DEFAULT_NODE_DATA_FOLDER).join(node_id);
+        remove_dir_all(node_data_dir).await?;
 
         Ok(())
     }
@@ -282,7 +286,7 @@ impl NodeManager {
                 None
             }
         };
-        logging::log!("Node peer id in container {id}: {peer_id:?}");
+        logging::log!("Peer id in node {id}: {peer_id:?}");
 
         let ips = if get_ips {
             // FIXME: this is not cross platform
@@ -294,7 +298,7 @@ impl NodeManager {
                         .to_string()
                         .trim()
                         .replace(' ', ", ");
-                    logging::log!("Node IPs in container {id}: {ips}");
+                    logging::log!("IPs in host: {ips}");
                     Some(ips)
                 }
                 Err(err) => {
@@ -355,14 +359,14 @@ impl NodeManager {
         &self,
         node_info: &mut NodeInstanceInfo,
     ) -> Result<(), NodeManagerError> {
-        logging::log!("[UPGRADE] UPGRADE node ...");
+        logging::log!("[UPGRADE] Upgrading node {} ...", node_info.container_id);
 
         // restart node to run with new node version
         let _res = self.kill_node(&node_info.container_id).await;
         // copy the node binary so it uses the latest version available
         self.new_node(node_info).await?;
-        // let's delay it for a moment so closes files descriptors
-        sleep(Duration::from_secs(2)).await;
+        // let's delay it for a moment so it closes files descriptors
+        sleep(Duration::from_secs(4)).await;
 
         self.spawn_new_node(node_info).await?;
 
@@ -385,11 +389,14 @@ impl NodeManager {
     }
 
     // Clears the node's PeerId and restarts it
-    pub async fn regenerate_peer_id_in_container(
+    pub async fn regenerate_peer_id(
         &self,
         node_info: &mut NodeInstanceInfo,
     ) -> Result<(), NodeManagerError> {
-        logging::log!("[RECYCLE] Recycling node by clearing its peer-id ...");
+        logging::log!(
+            "[RECYCLE] Recycling node {} by clearing its peer-id ...",
+            node_info.container_id
+        );
 
         // we remove 'secret-key' file so the node will re-generate it when restarted.
         let file_path = self
@@ -413,7 +420,7 @@ impl NodeManager {
         &self,
         id: &NodeId,
     ) -> Result<impl Stream<Item = Result<Bytes, NodeManagerError>>, NodeManagerError> {
-        logging::log!("[LOGS] Get node LOGS stream ...");
+        logging::log!("[LOGS] Get LOGS stream from node {id} ...");
         let log_file_path = self
             .root_dir
             .join(DEFAULT_NODE_DATA_FOLDER)
@@ -438,10 +445,10 @@ impl NodeManager {
     }
 
     // Helper to execute a cmd
-    fn exec_cmd(&self, cmd: &mut Command, desc: &str) -> Result<Output, NodeManagerError> {
+    fn exec_cmd(&self, cmd: &mut Command, description: &str) -> Result<Output, NodeManagerError> {
         let output = cmd.output()?;
         if !output.status.success() {
-            logging::error!("Failed to execute command to {desc}: {output:?}");
+            logging::error!("Failed to execute command to {description}: {output:?}");
         }
         Ok(output)
     }
