@@ -11,7 +11,6 @@ use std::collections::HashMap;
 use super::{
     app::{BgTasksCmds, ImmutableNodeStatus, ServerGlobalState},
     db_client::DbClient,
-    metrics_client::NodesMetrics,
     node_instance::{NodeInstancesBatch, NodeStatus},
     node_manager::{NodeManager, NodeManagerError},
     server_api_types::BatchInProgress,
@@ -27,9 +26,9 @@ use leptos::logging;
 #[cfg(feature = "ssr")]
 use rand::distributions::{Alphanumeric, DistString};
 #[cfg(feature = "ssr")]
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 #[cfg(feature = "ssr")]
-use tokio::{select, sync::Mutex, time::sleep};
+use tokio::{select, time::sleep};
 
 // Length of generated node ids
 #[cfg(feature = "ssr")]
@@ -48,14 +47,18 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
     let latest_bin_version = context.latest_bin_version.lock().await.clone();
     let stats = context.stats.lock().await.clone();
 
-    let nodes = helper_get_nodes_list(
-        &context.node_manager,
-        &context.db_client,
-        Some(&context.nodes_metrics),
-    )
-    .await?;
-
-    // TODO: what if there are active PIDs not found in local list from cache DB...populate them in DB so the user can delete them...?
+    let mut nodes = context.db_client.get_nodes_list().await;
+    for (_, node_info) in nodes.iter_mut() {
+        if node_info.status.is_active() {
+            // let's get up to date metrics info
+            // which was retrieved through the metrics server
+            context
+                .nodes_metrics
+                .lock()
+                .await
+                .update_node_info(node_info);
+        }
+    }
 
     let batches = &context.node_instaces_batches.lock().await.1;
     let batch_in_progress = if let Some(b) = batches.first() {
@@ -79,33 +82,6 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
         stats,
         batch_in_progress,
     })
-}
-
-#[cfg(feature = "ssr")]
-pub async fn helper_get_nodes_list(
-    node_manager: &NodeManager,
-    db_client: &DbClient,
-    nodes_metrics: Option<&Arc<Mutex<NodesMetrics>>>,
-) -> Result<HashMap<ContainerId, NodeInstanceInfo>, NodeManagerError> {
-    let active_nodes = node_manager.get_active_nodes_list().await?;
-    let mut nodes = db_client.get_nodes_list().await;
-    for (_, node_info) in nodes.iter_mut() {
-        node_info.status = NodeStatus::Inactive;
-        if let Some(pid) = node_info.pid {
-            if active_nodes.contains(&pid) {
-                node_info.status = NodeStatus::Active;
-
-                if let Some(nodes_metrics) = nodes_metrics {
-                    // let's also get up to date metrics
-                    // info that was retrieved through the metrics server
-                    nodes_metrics.lock().await.update_node_info(node_info);
-                }
-            }
-            // TODO: what if it's not active but it has a PID, change status and clear PID
-        }
-    }
-
-    Ok(nodes)
 }
 
 // Create and add a new node instance returning its info
@@ -148,7 +124,7 @@ async fn helper_create_node_instance(
     }
 
     context.db_client.insert_node_metadata(&node_info).await;
-    logging::log!("New node created: {node_info:#?}");
+    logging::log!("New node created with id: {node_id}");
 
     if node_opts.auto_start {
         helper_start_node_instance(node_id.clone(), context).await?;
@@ -174,13 +150,17 @@ pub async fn delete_node_instance(container_id: ContainerId) -> Result<(), Serve
         .await;
 
     if node_info.status.is_active() {
+        // kill node's process
         context
             .node_manager
             .kill_node(&node_info.container_id)
             .await?;
     }
-
-    // TODO: remove node's directory
+    // remove node's directory
+    context
+        .node_manager
+        .remove_node_dir(&node_info.container_id)
+        .await?;
 
     context
         .nodes_metrics
@@ -417,7 +397,7 @@ pub async fn recycle_node_instance(container_id: ContainerId) -> Result<(), Serv
 
     context
         .node_manager
-        .regenerate_peer_id_in_container(&mut node_info)
+        .regenerate_peer_id(&mut node_info)
         .await?;
     node_info.status = NodeStatus::Active;
     context

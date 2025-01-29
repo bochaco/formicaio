@@ -723,11 +723,6 @@ fn ButtonUpgrade(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
 fn ButtonRecycle(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
     let context = expect_context::<ClientGlobalState>();
     let is_selecting_nodes = move || context.selecting_nodes.read().0;
-    // TODO: remove this. Temporary check to transition to a newly supported feature which requires a newly published formica image.
-    let feature_introduction_date = chrono::DateTime::parse_from_rfc3339("2025-01-06T21:00:00.00Z")
-        .unwrap_or_default()
-        .timestamp() as u64;
-    let has_required_feature = info.read_untracked().created >= feature_introduction_date;
 
     view! {
         <div class="tooltip tooltip-bottom tooltip-info" data-tip="recycle">
@@ -735,7 +730,6 @@ fn ButtonRecycle(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                 class=move || {
                     if !is_selecting_nodes() && !info.read().status.is_transitioning()
                         && info.read().peer_id.is_some()
-                        && (has_required_feature || info.read().status.is_active())
                     {
                         "btn-node-action"
                     } else {

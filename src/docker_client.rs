@@ -155,7 +155,7 @@ impl ReqMethod {
             StatusCode::NOT_FOUND => {
                 let resp_bytes = get_response_bytes(resp).await?;
                 let msg: ServerErrorMessage = serde_json::from_slice(&resp_bytes)?;
-                // TODO: unfortunatelly the API returns different error msgs
+                // unfortunatelly the API returns different error msgs
                 // instead of different error codes to handle them
                 if msg.message.starts_with("No such image") {
                     Err(DockerClientError::ImageNotFound)

@@ -23,7 +23,6 @@ use gloo_timers::future::sleep;
 use leptos::{logging, prelude::*, task::spawn_local};
 use std::{num::ParseIntError, time::Duration};
 
-// TODO: find next available port numbers by looking at already used ones
 const DEFAULT_NODE_PORT: u16 = 12000;
 const DEFAULT_METRICS_PORT: u16 = 14000;
 

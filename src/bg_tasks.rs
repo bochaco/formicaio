@@ -5,8 +5,9 @@ use super::{
 };
 #[cfg(feature = "native")]
 use super::{
+    node_instance::NodeStatus,
     node_manager::{NodeManager, NodeManagerError},
-    server_api_native::{helper_get_nodes_list, helper_upgrade_node_instance},
+    server_api_native::helper_upgrade_node_instance,
 };
 
 use super::{
@@ -136,17 +137,27 @@ impl NodeManagerProxy {
 
     #[cfg(feature = "native")]
     async fn get_nodes_list(&self, all: bool) -> Result<Vec<NodeInstanceInfo>, NodeManagerError> {
-        let nodes = helper_get_nodes_list(&self.node_manager, &self.db_client, None)
-            .await?
+        let active_nodes = self.node_manager.get_active_nodes_list().await?;
+        let nodes_in_db = self.db_client.get_nodes_list().await;
+
+        let nodes = nodes_in_db
             .into_iter()
-            .filter_map(|(_, n)| {
-                if all || n.status.is_active() {
-                    Some(n)
+            .filter_map(|(_, mut node_info)| {
+                node_info.status = NodeStatus::Inactive;
+                if node_info.pid.map(|pid| active_nodes.contains(&pid)) == Some(true) {
+                    node_info.status = NodeStatus::Active;
+                }
+
+                if all || node_info.status.is_active() {
+                    Some(node_info)
                 } else {
                     None
                 }
             })
-            .collect();
+            .collect::<Vec<_>>();
+
+        // TODO: what if there are active PIDs not found in DB...
+        // ...populate them in DB so the user can see/delete them...?
 
         Ok(nodes)
     }
@@ -375,19 +386,20 @@ async fn check_node_bin_version(
     db_client: DbClient,
     node_status_locked: ImmutableNodeStatus,
 ) {
-    if let Some(version) = latest_version_available().await {
-        logging::log!("Latest version of node binary available: {version}");
+    if let Some(latest_version) = latest_version_available().await {
+        logging::log!("Latest version of node binary available: {latest_version}");
 
-        match latest_bin_version.lock().await.clone() {
+        let latest_known_version = latest_bin_version.lock().await.clone();
+        match latest_known_version {
             // TODO: use semantic version to make the comparison.
-            Some(current) if current != version => {
-                node_mgr_proxy.upgrade_node_binary(&version).await
+            Some(known) if known != latest_version => {
+                node_mgr_proxy.upgrade_node_binary(&latest_version).await
             }
-            None => node_mgr_proxy.upgrade_node_binary(&version).await,
+            None => node_mgr_proxy.upgrade_node_binary(&latest_version).await,
             _ => {}
         }
 
-        *latest_bin_version.lock().await = Some(version.clone());
+        *latest_bin_version.lock().await = Some(latest_version.clone());
 
         loop {
             let auto_upgrade = db_client.get_settings().await.nodes_auto_upgrade;
@@ -400,12 +412,12 @@ async fn check_node_bin_version(
             // settings, in next iteration we will stop the auto-upgrade and/or avoid upgrading a node
             // which may have been already upgraded by the user manually.
             match db_client
-                .get_outdated_nodes_list(&version)
+                .get_outdated_nodes_list(&latest_version)
                 .await
                 .map(|list| list.first().cloned())
             {
                 Ok(Some((container_id, v))) => {
-                    logging::log!("Auto-upgrading node binary from v{v} to v{version} for node instance {container_id} ...");
+                    logging::log!("Auto-upgrading node binary from v{v} to v{latest_version} for node instance {container_id} ...");
                     if let Err(err) = node_mgr_proxy
                         .upgrade_node_instance(&container_id, &node_status_locked)
                         .await

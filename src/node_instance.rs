@@ -32,7 +32,7 @@ pub enum NodeStatus {
     Inactive,
     // When a node is running and connected to peers on the network but it's
     // being considered a bad node by them, then this node is considered Shunned.
-    Shunned, // TODO: include suspected reason as to why others shunned it ...??
+    Shunned,
     Removing,
     Upgrading,
     // The node's peer-id is cleared and restarted with a fresh new one
