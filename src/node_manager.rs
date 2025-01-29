@@ -215,20 +215,12 @@ impl NodeManager {
         );
 
         // Display processes ID, name na disk usage:
-        let mut pids = HashSet::default();
-        for process in sys
+        let pids = sys
             .processes_by_exact_name(NODE_BIN_NAME.as_ref())
             // filter out threads
             .filter(|p| p.thread_kind().is_none())
-        {
-            logging::log!(
-                ">>> Process: {:?} (PID: {}) {}",
-                process.name(),
-                process.pid(),
-                process.status()
-            );
-            pids.insert(process.pid().as_u32());
-        }
+            .map(|process| process.pid().as_u32())
+            .collect::<HashSet<_>>();
 
         Ok(pids)
     }
@@ -294,10 +286,14 @@ impl NodeManager {
 
         let ips = if get_ips {
             // FIXME: this is not cross platform
-            let mut cmd = Command::new("hostname -I | sed 's/^[ \t]*//;s/[ \t]*$//;s/ /, /g'");
+            let mut cmd = Command::new("hostname");
+            cmd.arg("-I");
             match self.exec_cmd(&mut cmd, "get node network IPs") {
                 Ok(output) => {
-                    let ips = String::from_utf8_lossy(&output.stdout).to_string();
+                    let ips = String::from_utf8_lossy(&output.stdout)
+                        .to_string()
+                        .trim()
+                        .replace(' ', ", ");
                     logging::log!("Node IPs in container {id}: {ips}");
                     Some(ips)
                 }
