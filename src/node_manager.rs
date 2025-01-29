@@ -1,5 +1,7 @@
 use super::node_instance::{NodeId, NodeInstanceInfo, NodePid};
 
+use bytes::Bytes;
+use futures_util::Stream;
 use leptos::logging;
 use std::{
     collections::{HashMap, HashSet},
@@ -7,10 +9,16 @@ use std::{
     path::{Path, PathBuf},
     process::{Child, Command, Output, Stdio},
     sync::Arc,
+    time::Duration,
 };
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
 use thiserror::Error;
-use tokio::sync::Mutex;
+use tokio::{
+    fs::File,
+    io::{AsyncReadExt, AsyncSeekExt, BufReader, SeekFrom},
+    sync::Mutex,
+    time::sleep,
+};
 
 // FIXME!!!: these two binaries need to be installed when app is first started.
 // Name of the node binary used to launch new nodes processes
@@ -291,7 +299,7 @@ impl NodeManager {
     ) -> Result<(), NodeManagerError> {
         logging::log!("[UPGRADE] UPGRADE node ...");
 
-        // restart container to run with new node version
+        // restart node to run with new node version
         let _res = self.kill_node(&node_info.container_id).await;
         self.spawn_new_node(node_info).await?;
 
@@ -340,6 +348,35 @@ impl NodeManager {
         logging::log!("Finished recycling node: {}", node_info.container_id);
 
         Ok(())
+    }
+
+    // Return a node logs stream.
+    pub async fn get_node_logs_stream(
+        &self,
+        id: &NodeId,
+    ) -> Result<impl Stream<Item = Result<Bytes, NodeManagerError>>, NodeManagerError> {
+        logging::log!("[LOGS] Get node LOGS stream ...");
+        let log_file_path = self
+            .root_dir
+            .join(DEFAULT_NODE_DATA_FOLDER)
+            .join(id)
+            .join(DEFAULT_LOGS_FOLDER)
+            .join("antnode.log");
+        let mut file = File::open(log_file_path).await?;
+        file.seek(SeekFrom::End(1024)).await?;
+        let mut reader = BufReader::new(file);
+
+        Ok(async_stream::stream! {
+            loop {
+                let mut chunk = vec![0; 1024]; // Read in 1024-byte chunks.
+                let bytes_read = reader.read(&mut chunk).await?;
+                if bytes_read == 0 {
+                    sleep(Duration::from_millis(1000)).await;
+                    continue;
+                }
+                yield Ok(Bytes::from(chunk));
+            }
+        })
     }
 
     // Helper to execute a cmd

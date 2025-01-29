@@ -121,15 +121,14 @@ async fn helper_create_node_instance(
     node_opts: NodeOpts,
     context: &ServerGlobalState,
 ) -> Result<NodeInstanceInfo, ServerFnError> {
-    logging::log!(
-        "Creating new node container with port {} ...",
-        node_opts.port
-    );
-    let _ = node_opts.rewards_addr.parse::<Address>()?;
-
     // Generate a random string as node id
     let random_str = Alphanumeric.sample_string(&mut rand::thread_rng(), NODE_ID_LENGTH / 2);
     let node_id = hex::encode(random_str);
+    logging::log!(
+        "Creating new node with port {} and Id {node_id} ...",
+        node_opts.port
+    );
+    let _ = node_opts.rewards_addr.parse::<Address>()?;
 
     let node_info = NodeInstanceInfo {
         container_id: node_id.clone(),
@@ -139,6 +138,7 @@ async fn helper_create_node_instance(
         metrics_port: Some(node_opts.metrics_port),
         rewards_addr: Some(node_opts.rewards_addr),
         home_network: node_opts.home_network,
+        node_logs: node_opts.node_logs,
         ..Default::default()
     };
 
@@ -159,7 +159,7 @@ async fn helper_create_node_instance(
 // Delete a node instance with given id
 #[server(DeleteNodeInstance, "/api", "Url", "/delete_node")]
 pub async fn delete_node_instance(container_id: ContainerId) -> Result<(), ServerFnError> {
-    logging::log!("Deleting node container with Id: {container_id} ...");
+    logging::log!("Deleting node with Id: {container_id} ...");
     let context = expect_context::<ServerGlobalState>();
     let mut node_info = NodeInstanceInfo::new(container_id);
     context.db_client.get_node_metadata(&mut node_info).await;
@@ -202,7 +202,7 @@ async fn helper_start_node_instance(
     container_id: ContainerId,
     context: &ServerGlobalState,
 ) -> Result<(), ServerFnError> {
-    logging::log!("Starting node container with Id: {container_id} ...");
+    logging::log!("Starting node with Id: {container_id} ...");
     let mut node_info = NodeInstanceInfo::new(container_id.clone());
     context.db_client.get_node_metadata(&mut node_info).await;
     context.node_manager.spawn_new_node(&mut node_info).await?;
@@ -220,7 +220,7 @@ async fn helper_start_node_instance(
 // Stop a node instance with given id
 #[server(StopNodeInstance, "/api", "Url", "/stop_node")]
 pub async fn stop_node_instance(container_id: ContainerId) -> Result<(), ServerFnError> {
-    logging::log!("Stopping node container with Id: {container_id} ...");
+    logging::log!("Stopping node with Id: {container_id} ...");
     let context = expect_context::<ServerGlobalState>();
     helper_stop_node_instance(container_id, &context, NodeStatus::Stopping).await
 }
@@ -275,7 +275,7 @@ async fn helper_stop_node_instance(
 // Upgrade a node instance with given id
 #[server(UpgradeNodeInstance, "/api", "Url", "/upgrade_node")]
 pub async fn upgrade_node_instance(container_id: ContainerId) -> Result<(), ServerFnError> {
-    logging::log!("Upgrading node container with Id: {container_id} ...");
+    logging::log!("Upgrading node with Id: {container_id} ...");
     let context = expect_context::<ServerGlobalState>();
 
     helper_upgrade_node_instance(
@@ -314,7 +314,7 @@ pub(crate) async fn helper_upgrade_node_instance(
 
     if res.is_ok() {
         logging::log!(
-            "Node binary upgraded to v{} in container {container_id}.",
+            "Node binary upgraded to v{} in node {container_id}.",
             node_info.bin_version.as_deref().unwrap_or("[unknown]")
         );
 
@@ -333,19 +333,17 @@ pub(crate) async fn helper_upgrade_node_instance(
 pub async fn start_node_logs_stream(
     container_id: ContainerId,
 ) -> Result<ByteStream, ServerFnError> {
-    logging::log!("Starting logs stream from container with Id: {container_id} ...");
+    logging::log!("Starting logs stream from node with Id: {container_id} ...");
     let context = expect_context::<ServerGlobalState>();
-    /* TODO:
-    let container_logs_stream = context
-        .docker_client
-        .get_container_logs_stream(&container_id)
+
+    let node_logs_stream = context
+        .node_manager
+        .get_node_logs_stream(&container_id)
         .await?;
-    let converted_stream = container_logs_stream.map(|item| {
+    let converted_stream = node_logs_stream.map(|item| {
         item.map_err(ServerFnError::from) // convert the error type
     });
     Ok(ByteStream::new(converted_stream))
-    */
-    todo!()
 }
 
 // Retrieve the metrics for a node instance with given id and filters

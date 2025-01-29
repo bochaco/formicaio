@@ -67,6 +67,7 @@ struct CachedNodeMetadata {
     balance: String,
     rewards_addr: String,
     home_network: bool,
+    node_logs: bool,
     records: String,
     connected_peers: String,
     kbuckets_peers: String,
@@ -107,6 +108,7 @@ impl CachedNodeMetadata {
             }
         }
         info.home_network = self.home_network;
+        info.node_logs = self.node_logs;
         if !self.balance.is_empty() {
             if let Ok(v) = U256::from_str(&self.balance) {
                 info.balance = Some(v);
@@ -263,9 +265,9 @@ impl DbClient {
         let query_str = "INSERT OR REPLACE INTO nodes (\
                 container_id, created, status, \
                 port, metrics_port, \
-                rewards_addr, home_network, \
+                rewards_addr, home_network, node_logs, \
                 records, connected_peers, kbuckets_peers \
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             .to_string();
 
         let db_lock = self.db.lock().await;
@@ -277,6 +279,7 @@ impl DbClient {
             .bind(info.metrics_port)
             .bind(info.rewards_addr.clone())
             .bind(info.home_network)
+            .bind(info.node_logs)
             .bind(info.records.map_or("".to_string(), |v| v.to_string()))
             .bind(
                 info.connected_peers

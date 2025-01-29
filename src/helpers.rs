@@ -139,7 +139,7 @@ pub async fn node_logs_stream(
                     cur_line.extend(line);
                     if i < num_lines - 1 {
                         let log: String = String::from_utf8_lossy(&cur_line).to_string();
-                        received_logs.update(|entries| entries.push(log.to_string()));
+                        received_logs.update(|entries| entries.push(log));
                         cur_line.clear();
                     }
                 }
