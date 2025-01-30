@@ -51,10 +51,9 @@ async fn main() {
     {
         // let's make sure we have node binary installed before continuing
         let version = node_manager
-            .upgrade_node_binary(None)
+            .upgrade_master_node_binary(None)
             .await
-            .expect("failed to download n binary");
-        logging::log!("Node binary {version} downloaded successfully!");
+            .expect("failed to download node binary");
         *latest_bin_version.lock().await = Some(version);
     }
 

@@ -204,7 +204,7 @@ impl NodeManagerProxy {
     }
 
     #[cfg(not(feature = "native"))]
-    async fn upgrade_node_binary(
+    async fn upgrade_master_node_binary(
         &self,
         version: &str,
         latest_bin_version: Arc<Mutex<Option<String>>>,
@@ -213,17 +213,18 @@ impl NodeManagerProxy {
     }
 
     #[cfg(feature = "native")]
-    async fn upgrade_node_binary(
+    async fn upgrade_master_node_binary(
         &self,
         version: &str,
         latest_bin_version: Arc<Mutex<Option<String>>>,
     ) {
         logging::log!("Downloading latest node binary ...");
-        match self.node_manager.upgrade_node_binary(Some(version)).await {
-            Ok(_) => {
-                logging::log!("Node binary {version} downloaded successfully!");
-                *latest_bin_version.lock().await = Some(version.to_string());
-            }
+        match self
+            .node_manager
+            .upgrade_master_node_binary(Some(version))
+            .await
+        {
+            Ok(_) => *latest_bin_version.lock().await = Some(version.to_string()),
             Err(err) => logging::error!("Failed to download new version of node binary: {err:?}"),
         }
     }
@@ -406,12 +407,12 @@ async fn check_node_bin_version(
             // TODO: use semantic version to make the comparison.
             Some(known) if known != latest_version => {
                 node_mgr_proxy
-                    .upgrade_node_binary(&latest_version, latest_bin_version.clone())
+                    .upgrade_master_node_binary(&latest_version, latest_bin_version.clone())
                     .await
             }
             None => {
                 node_mgr_proxy
-                    .upgrade_node_binary(&latest_version, latest_bin_version.clone())
+                    .upgrade_master_node_binary(&latest_version, latest_bin_version.clone())
                     .await
             }
             _ => {}
