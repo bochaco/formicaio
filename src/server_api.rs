@@ -184,6 +184,7 @@ async fn helper_start_node_instance(
         .update_node_metadata_fields(
             &container_id,
             &[
+                ("status_changed", Utc::now().timestamp().to_string()),
                 ("bin_version", &version.unwrap_or_default()),
                 ("peer_id", &peer_id.unwrap_or_default()),
                 ("ips", &ips.unwrap_or_default()),
@@ -227,6 +228,7 @@ async fn helper_stop_node_instance(
             .update_node_metadata_fields(
                 &container_id,
                 &[
+                    ("status_changed", Utc::now().timestamp().to_string()),
                     ("connected_peers", "0"),
                     ("kbuckets_peers", "0"),
                     ("records", ""),

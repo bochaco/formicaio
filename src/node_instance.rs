@@ -93,6 +93,7 @@ pub struct NodeInstanceInfo {
     pub container_id: ContainerId,
     pub pid: Option<NodePid>,
     pub created: u64,
+    pub status_changed: Option<u64>,
     pub peer_id: Option<String>, // base58-encoded Peer Id bytes
     pub status: NodeStatus,
     pub status_info: String,
