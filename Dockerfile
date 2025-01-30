@@ -40,8 +40,12 @@ COPY . .
 # make sure we exit early if clippy is not happy
 #RUN cargo clippy -- -D warnings
 
+# Define build args argument
+ARG BUILD_ARGS
+ENV BUILD_ARGS=${BUILD_ARGS}
+
 # Build the app
-RUN cargo leptos build --release -vv
+RUN cargo leptos build --release $BUILD_ARGS -vv
 
 # Finally use a slim Debian image to build the final runtime image 
 # which contains only the built app and required resource files.
