@@ -18,6 +18,8 @@ use super::{
 #[cfg(feature = "ssr")]
 use alloy::primitives::Address;
 #[cfg(feature = "ssr")]
+use chrono::Utc;
+#[cfg(feature = "ssr")]
 use futures_util::StreamExt;
 #[cfg(feature = "ssr")]
 use leptos::logging;
@@ -71,7 +73,7 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
     };
 
     Ok(NodesInstancesInfo {
-        latest_bin_version,
+        latest_bin_version: latest_bin_version.map(|v| v.to_string()),
         nodes,
         stats,
         batch_in_progress,
@@ -184,7 +186,7 @@ async fn helper_start_node_instance(
         .update_node_metadata_fields(
             &container_id,
             &[
-                ("status_changed", Utc::now().timestamp().to_string()),
+                ("status_changed", &Utc::now().timestamp().to_string()),
                 ("bin_version", &version.unwrap_or_default()),
                 ("peer_id", &peer_id.unwrap_or_default()),
                 ("ips", &ips.unwrap_or_default()),
@@ -228,7 +230,7 @@ async fn helper_stop_node_instance(
             .update_node_metadata_fields(
                 &container_id,
                 &[
-                    ("status_changed", Utc::now().timestamp().to_string()),
+                    ("status_changed", &Utc::now().timestamp().to_string()),
                     ("connected_peers", "0"),
                     ("kbuckets_peers", "0"),
                     ("records", ""),
@@ -271,7 +273,7 @@ pub(crate) async fn helper_upgrade_node_instance(
     node_status_locked: &ImmutableNodeStatus,
     db_client: &DbClient,
     docker_client: &DockerClient,
-) -> Result<(Option<String>, Option<String>), DockerClientError> {
+) -> Result<(), DockerClientError> {
     // TODO: use docker 'extract' api to simply copy the new node binary into the container.
     node_status_locked
         .insert(
@@ -313,7 +315,9 @@ pub(crate) async fn helper_upgrade_node_instance(
 
     node_status_locked.remove(container_id).await;
 
-    res
+    let _ = res?;
+
+    Ok(())
 }
 
 // Start streaming logs from a node instance with given id

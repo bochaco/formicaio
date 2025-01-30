@@ -79,7 +79,7 @@ pub struct ServerGlobalState {
     pub docker_client: super::docker_client::DockerClient,
     #[cfg(feature = "native")]
     pub node_manager: super::node_manager::NodeManager,
-    pub latest_bin_version: Arc<Mutex<Option<String>>>,
+    pub latest_bin_version: Arc<Mutex<Option<semver::Version>>>,
     pub server_api_hit: Arc<Mutex<bool>>,
     pub nodes_metrics: Arc<Mutex<super::metrics_client::NodesMetrics>>,
     pub node_status_locked: ImmutableNodeStatus,

@@ -405,8 +405,8 @@ impl NodeManager {
     // If no version is provided, it will upgrade only if existing node binary is not the latest version.
     pub async fn upgrade_master_node_binary(
         &self,
-        version: Option<&str>,
-    ) -> Result<String, NodeManagerError> {
+        version: Option<&Version>,
+    ) -> Result<Version, NodeManagerError> {
         let release_repo = AntReleaseRepository {
             github_api_base_url: GITHUB_API_URL.to_string(),
             nat_detection_base_url: "".to_string(),
@@ -419,7 +419,7 @@ impl NodeManager {
         let release_type = ReleaseType::AntNode;
 
         let version_to_download = match version {
-            Some(v) => v.parse()?,
+            Some(v) => v.clone(),
             None => {
                 let latest_version = release_repo.get_latest_version(&release_type).await?;
 
@@ -429,7 +429,7 @@ impl NodeManager {
                         logging::log!(
                             "Master node binary matches the latest version available: v{version}."
                         );
-                        return Ok(version.to_string());
+                        return Ok(version);
                     }
                     _ => latest_version,
                 }
@@ -456,7 +456,7 @@ impl NodeManager {
 
         logging::log!("Node binary v{version_to_download} downloaded successfully and unpacked at: {bin_path:?}");
 
-        Ok(version_to_download.to_string())
+        Ok(version_to_download)
     }
 
     // Clears the node's PeerId and restarts it
