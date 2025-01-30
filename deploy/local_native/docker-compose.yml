@@ -1,0 +1,13 @@
+services:
+  formicaio:
+    image: bochaco/formicaio:native
+    privileged: true
+    network_mode: host
+    stop_grace_period: 5s
+    environment:
+      DB_PATH: /data
+      NODE_MGR_ROOT_DIR: /data
+    volumes:
+      - ./docker_volumes/formicaio:/data
+    devices:
+      - /dev:/dev
