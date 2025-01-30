@@ -204,15 +204,27 @@ impl NodeManagerProxy {
     }
 
     #[cfg(not(feature = "native"))]
-    async fn upgrade_node_binary(&self, _: &str) {}
+    async fn upgrade_node_binary(
+        &self,
+        version: &str,
+        latest_bin_version: Arc<Mutex<Option<String>>>,
+    ) {
+        *latest_bin_version.lock().await = Some(version.to_string());
+    }
 
     #[cfg(feature = "native")]
-    async fn upgrade_node_binary(&self, version: &str) {
+    async fn upgrade_node_binary(
+        &self,
+        version: &str,
+        latest_bin_version: Arc<Mutex<Option<String>>>,
+    ) {
         logging::log!("Downloading latest node binary ...");
-        if let Err(err) = self.node_manager.upgrade_node_binary().await {
-            logging::error!("Failed to download new version ({version}) of node binary: {err:?}");
-        } else {
-            logging::log!("Node binary {version} downloaded successfully!");
+        match self.node_manager.upgrade_node_binary(Some(version)).await {
+            Ok(_) => {
+                logging::log!("Node binary {version} downloaded successfully!");
+                *latest_bin_version.lock().await = Some(version.to_string());
+            }
+            Err(err) => logging::error!("Failed to download new version of node binary: {err:?}"),
         }
     }
 }
@@ -393,13 +405,17 @@ async fn check_node_bin_version(
         match latest_known_version {
             // TODO: use semantic version to make the comparison.
             Some(known) if known != latest_version => {
-                node_mgr_proxy.upgrade_node_binary(&latest_version).await
+                node_mgr_proxy
+                    .upgrade_node_binary(&latest_version, latest_bin_version.clone())
+                    .await
             }
-            None => node_mgr_proxy.upgrade_node_binary(&latest_version).await,
+            None => {
+                node_mgr_proxy
+                    .upgrade_node_binary(&latest_version, latest_bin_version.clone())
+                    .await
+            }
             _ => {}
         }
-
-        *latest_bin_version.lock().await = Some(latest_version.clone());
 
         loop {
             let auto_upgrade = db_client.get_settings().await.nodes_auto_upgrade;
@@ -544,13 +560,13 @@ async fn update_nodes_info(
                         logging::log!("Timeout ({NODE_METRICS_QUERY_TIMEOUT:?}) while fetching metrics from node {node_short_id}.");
                     }
                 }
-            }
 
-            net_size += node_info.net_size.unwrap_or_default();
-            records += node_info.records.unwrap_or_default();
-            relevant_records += node_info.relevant_records.unwrap_or_default();
-            connected_peers += node_info.connected_peers.unwrap_or_default();
-            shunned_count += node_info.shunned_count.unwrap_or_default();
+                net_size += node_info.net_size.unwrap_or_default();
+                records += node_info.records.unwrap_or_default();
+                relevant_records += node_info.relevant_records.unwrap_or_default();
+                connected_peers += node_info.connected_peers.unwrap_or_default();
+                shunned_count += node_info.shunned_count.unwrap_or_default();
+            }
         } else if node_info.status.is_inactive() {
             num_inactive_nodes += 1;
         }
