@@ -1,5 +1,8 @@
 use super::node_instance::{NodeId, NodeInstanceInfo, NodePid};
 
+use ant_releases::{
+    get_running_platform, AntReleaseRepoActions, AntReleaseRepository, ArchiveType, ReleaseType,
+};
 use bytes::Bytes;
 use futures_util::Stream;
 use leptos::logging;
@@ -22,11 +25,8 @@ use tokio::{
     time::sleep,
 };
 
-// FIXME!!!: these two binaries need to be installed when app is first started.
 // Name of the node binary used to launch new nodes processes
 const NODE_BIN_NAME: &str = "antnode";
-// Name of the binary used to upgrade the node binary
-const INSTALLER_BIN_NAME: &str = "antup";
 
 const DEFAULT_EVM_NETWORK: &str = "evm-arbitrum-sepolia";
 const ROOT_DIR: &str = "NODE_MGR_ROOT_DIR";
@@ -47,6 +47,10 @@ pub enum NodeManagerError {
     StdIoError(#[from] std::io::Error),
     #[error(transparent)]
     PeerIdError(#[from] libp2p_identity::DecodingError),
+    #[error(transparent)]
+    NodeBinInstallError(#[from] ant_releases::Error),
+    #[error(transparent)]
+    NodeBinVersionError(#[from] semver::Error),
 }
 
 // Execution and management of nodes as native OS processes
@@ -374,18 +378,48 @@ impl NodeManager {
     }
 
     // Upgrade the binary of the node binary used for new nodes to be spawned
-    pub async fn upgrade_node_binary(&self) -> Result<(), NodeManagerError> {
-        let installer_bin_path = self.root_dir.join(INSTALLER_BIN_NAME);
-        let node_bin_path = self.root_dir.clone();
-        let _output = self.exec_cmd(
-            Command::new(installer_bin_path.display().to_string())
-                .arg("node")
-                .arg("-p")
-                .arg(node_bin_path.display().to_string()),
-            "upgrade node binary",
-        )?;
+    pub async fn upgrade_node_binary(
+        &self,
+        version: Option<&str>,
+    ) -> Result<String, NodeManagerError> {
+        const ANTNODE_S3_BASE_URL: &str = "https://antnode.s3.eu-west-2.amazonaws.com";
+        const GITHUB_API_URL: &str = "https://api.github.com";
+        let release_repo = AntReleaseRepository {
+            github_api_base_url: GITHUB_API_URL.to_string(),
+            nat_detection_base_url: "".to_string(),
+            node_launchpad_base_url: "".to_string(),
+            ant_base_url: "".to_string(),
+            antnode_base_url: ANTNODE_S3_BASE_URL.to_string(),
+            antctl_base_url: "".to_string(),
+            antnode_rpc_client_base_url: "".to_string(),
+        };
 
-        Ok(())
+        let release_type = ReleaseType::AntNode;
+        let version = match version {
+            Some(v) => v.parse()?,
+            None => release_repo.get_latest_version(&release_type).await?,
+        };
+        let platform = get_running_platform()?;
+
+        logging::log!("Installing node binary v{version} ...");
+        let archive_path = release_repo
+            .download_release_from_s3(
+                &release_type,
+                &version,
+                &platform,
+                &ArchiveType::TarGz,
+                &self.root_dir,
+                &|_, _| {},
+            )
+            .await?;
+
+        let bin_path = release_repo.extract_release_archive(&archive_path, &self.root_dir)?;
+
+        remove_file(archive_path).await?;
+
+        logging::log!("Node binary v{version} is now available at {bin_path:?}");
+
+        Ok(version.to_string())
     }
 
     // Clears the node's PeerId and restarts it

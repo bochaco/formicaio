@@ -47,6 +47,17 @@ async fn main() {
     let server_api_hit = Arc::new(Mutex::new(false));
     let stats = Arc::new(Mutex::new(Stats::default()));
 
+    #[cfg(feature = "native")]
+    {
+        // let's make sure we have node binary installed before continuing
+        let version = node_manager
+            .upgrade_node_binary(None)
+            .await
+            .expect("failed to download n binary");
+        logging::log!("Node binary {version} downloaded successfully!");
+        *latest_bin_version.lock().await = Some(version);
+    }
+
     spawn_bg_tasks(
         #[cfg(not(feature = "native"))]
         docker_client.clone(),
@@ -61,9 +72,6 @@ async fn main() {
         stats.clone(),
         settings,
     );
-
-    // Spawn the node executor which will take care of run formica nodes
-    //spawn_node_exeutor();
 
     let app_state = ServerGlobalState {
         leptos_options: leptos_options.clone(),
