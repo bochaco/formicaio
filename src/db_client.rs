@@ -58,6 +58,7 @@ struct CachedNodeMetadata {
     container_id: String,
     pid: u32,
     created: u64,
+    status_changed: u64,
     status: String,
     peer_id: String,
     bin_version: String,
@@ -86,6 +87,9 @@ impl CachedNodeMetadata {
         }
         if self.created > 0 {
             info.created = self.created;
+        }
+        if self.status_changed > 0 {
+            info.status_changed = Some(self.status_changed);
         }
         if let Ok(status) = serde_json::from_str(&self.status) {
             info.status = status;
@@ -263,17 +267,21 @@ impl DbClient {
     // Insert node metadata onto local cache DB
     pub async fn insert_node_metadata(&self, info: &NodeInstanceInfo) {
         let query_str = "INSERT OR REPLACE INTO nodes (\
-                container_id, created, status, \
+                container_id, created, status_changed, status, \
                 port, metrics_port, \
                 rewards_addr, home_network, node_logs, \
                 records, connected_peers, kbuckets_peers \
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             .to_string();
 
         let db_lock = self.db.lock().await;
         match sqlx::query(&query_str)
             .bind(info.container_id.clone())
             .bind(info.created.to_string())
+            .bind(
+                info.status_changed
+                    .map_or("0".to_string(), |v| v.to_string()),
+            )
             .bind(json!(info.status).to_string())
             .bind(info.port)
             .bind(info.metrics_port)
@@ -307,6 +315,10 @@ impl DbClient {
             params.push(json!(info.status).to_string());
         }
 
+        if let Some(status_changed) = &info.status_changed {
+            updates.push("status_changed=?");
+            params.push(status_changed.to_string());
+        }
         if let Some(pid) = &info.pid {
             updates.push("pid=?");
             params.push(pid.to_string());

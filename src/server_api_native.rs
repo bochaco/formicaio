@@ -18,7 +18,7 @@ use super::{
 #[cfg(feature = "ssr")]
 use alloy::primitives::Address;
 #[cfg(feature = "ssr")]
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 #[cfg(feature = "ssr")]
 use futures_util::StreamExt;
 #[cfg(feature = "ssr")]
@@ -49,6 +49,7 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
 
     let mut nodes = context.db_client.get_nodes_list().await;
     for (_, node_info) in nodes.iter_mut() {
+        helper_gen_status_info(node_info);
         if node_info.status.is_active() {
             // let's get up to date metrics info
             // which was retrieved through the metrics server
@@ -82,6 +83,43 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
         stats,
         batch_in_progress,
     })
+}
+
+// Helper to generate a string with additional info about current node's status
+#[cfg(feature = "ssr")]
+fn helper_gen_status_info(node_info: &mut NodeInstanceInfo) {
+    let status = &node_info.status;
+    let status_info = if status.is_transitioning() {
+        "".to_string()
+    } else {
+        match node_info.status_changed {
+            None => status.to_string(),
+            Some(v) => {
+                let changed = DateTime::<Utc>::from_timestamp(v as i64, 0).unwrap();
+                let elapsed = Utc::now() - changed;
+                let elapsed_str = if elapsed.num_weeks() > 1 {
+                    format!("{}+ weeks", elapsed.num_weeks())
+                } else if elapsed.num_days() > 1 {
+                    format!("{} days", elapsed.num_days())
+                } else if elapsed.num_hours() > 1 {
+                    format!("{} hours", elapsed.num_hours())
+                } else if elapsed.num_minutes() > 1 {
+                    format!("{} minutes", elapsed.num_minutes())
+                } else if elapsed.num_seconds() > 1 {
+                    format!("{} seconds", elapsed.num_seconds())
+                } else {
+                    "about a second".to_string()
+                };
+                if status.is_active() {
+                    format!("Up {elapsed_str}")
+                } else {
+                    format!("Since {elapsed_str} ago")
+                }
+            }
+        }
+    };
+
+    node_info.status_info = status_info;
 }
 
 // Create and add a new node instance returning its info
@@ -204,6 +242,7 @@ async fn helper_start_node_instance(
     context.node_manager.spawn_new_node(&mut node_info).await?;
 
     node_info.status = NodeStatus::Active;
+    node_info.status_changed = Some(Utc::now().timestamp() as u64);
     context
         .db_client
         .update_node_metadata(&node_info, true)
@@ -246,6 +285,7 @@ async fn helper_stop_node_instance(
             .update_node_metadata_fields(
                 &container_id,
                 &[
+                    ("status_changed", &Utc::now().timestamp().to_string()),
                     ("pid", "0"),
                     ("connected_peers", "0"),
                     ("kbuckets_peers", "0"),
