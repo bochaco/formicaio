@@ -133,6 +133,7 @@ impl NodeManager {
                     "rewards address".to_string(),
                 ))?;
         let home_network = node_info.home_network;
+        let node_logs = node_info.node_logs;
 
         let node_data_dir = self.root_dir.join(DEFAULT_NODE_DATA_FOLDER).join(node_id);
         let node_bin_path = node_data_dir.join(NODE_BIN_NAME);
@@ -159,7 +160,13 @@ impl NodeManager {
         args.push(node_data_dir.display().to_string());
 
         args.push("--log-output-dest".to_string());
-        args.push(log_output_dir.display().to_string());
+        if node_logs {
+            args.push(log_output_dir.display().to_string());
+        } else {
+            // untill the node binary supports this feature,
+            // we just send it to stdout, which we in turn send it to 'null'
+            args.push("stdout".to_string());
+        }
 
         args.push("--bootstrap-cache-dir".to_string());
         args.push(bootstrap_cache_dir.display().to_string());
