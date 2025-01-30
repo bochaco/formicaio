@@ -7,6 +7,7 @@ use bytes::Bytes;
 use futures_util::Stream;
 use leptos::logging;
 use libp2p_identity::{Keypair, PeerId};
+use semver::Version;
 use std::{
     collections::{HashMap, HashSet},
     env,
@@ -35,12 +36,18 @@ const DEFAULT_NODE_DATA_FOLDER: &str = "node_data";
 const DEFAULT_LOGS_FOLDER: &str = "logs";
 const DEFAULT_BOOTSTRAP_CACHE_FOLDER: &str = "bootstrap_cache";
 
+// Consts used to download node binary
+const ANTNODE_S3_BASE_URL: &str = "https://antnode.s3.eu-west-2.amazonaws.com";
+const GITHUB_API_URL: &str = "https://api.github.com";
+
 #[derive(Debug, Error)]
 pub enum NodeManagerError {
     #[error("Failed to create a new node: {0}")]
     CannotCreateNode(String),
     #[error("Node not found with id: {0}")]
     NodeNotFound(NodeId),
+    #[error("Node bin version not found at {0:?}")]
+    NodeBinVersionNotFound(PathBuf),
     #[error("Missing '{0}' information to spawn node")]
     SpawnNodeMissingParam(String),
     #[error(transparent)]
@@ -281,14 +288,14 @@ impl NodeManager {
         id: &NodeId,
         get_ips: bool,
     ) -> Result<(Option<String>, Option<String>, Option<String>), NodeManagerError> {
-        let version = match self.helper_read_node_version(id).await {
-            Ok(version) => Some(version),
+        let version = match self.helper_read_node_version(Some(id)).await {
+            Ok(version) => Some(version.to_string()),
             Err(err) => {
                 logging::log!("Failed to retrieve binary version of node {id}: {err:?}");
                 None
             }
         };
-        logging::log!("Node binary version in for node {id}: {version:?}");
+        logging::log!("Node binary version in node {id}: {version:?}");
 
         let peer_id = match self.helper_read_peer_id(id).await {
             Ok(peer_id) => Some(peer_id),
@@ -324,13 +331,23 @@ impl NodeManager {
         Ok((version, peer_id, ips))
     }
 
-    async fn helper_read_node_version(&self, id: &NodeId) -> Result<String, NodeManagerError> {
-        let node_bin_path = self
-            .root_dir
-            .join(DEFAULT_NODE_DATA_FOLDER)
-            .join(id)
-            .join(NODE_BIN_NAME);
-        let mut cmd = Command::new(node_bin_path);
+    // Try to retrieve the version of existing instance's node binary.
+    // If node id is otherwise not provided, it will then try
+    // to retrieve the version of the master node binary.
+    async fn helper_read_node_version(
+        &self,
+        id: Option<&NodeId>,
+    ) -> Result<Version, NodeManagerError> {
+        let node_bin_path = if let Some(id) = id {
+            self.root_dir
+                .join(DEFAULT_NODE_DATA_FOLDER)
+                .join(id)
+                .join(NODE_BIN_NAME)
+        } else {
+            self.root_dir.join(NODE_BIN_NAME)
+        };
+
+        let mut cmd = Command::new(&node_bin_path);
         cmd.arg("--version");
         let output = self.exec_cmd(&mut cmd, "get node bin version")?;
 
@@ -338,17 +355,17 @@ impl NodeManager {
             .stdout
             .split(|&byte| byte == b'\n')
             .collect::<Vec<_>>();
-        let version = if let Some(line) = lines.first() {
-            String::from_utf8_lossy(line)
+        if let Some(line) = lines.first() {
+            let version_str = String::from_utf8_lossy(line)
                 .to_string()
                 .strip_prefix("Autonomi Node v")
                 .unwrap_or_default()
-                .to_string()
-        } else {
-            "".to_string()
-        };
+                .to_string();
 
-        Ok(version)
+            Ok(version_str.parse()?)
+        } else {
+            Err(NodeManagerError::NodeBinVersionNotFound(node_bin_path))
+        }
     }
 
     async fn helper_read_peer_id(&self, id: &NodeId) -> Result<String, NodeManagerError> {
@@ -384,13 +401,12 @@ impl NodeManager {
         Ok(())
     }
 
-    // Upgrade the binary of the node binary used for new nodes to be spawned
-    pub async fn upgrade_node_binary(
+    // Download/upgrade the master node binary which is used for new nodes to be spawned.
+    // If no version is provided, it will upgrade only if existing node binary is not the latest version.
+    pub async fn upgrade_master_node_binary(
         &self,
         version: Option<&str>,
     ) -> Result<String, NodeManagerError> {
-        const ANTNODE_S3_BASE_URL: &str = "https://antnode.s3.eu-west-2.amazonaws.com";
-        const GITHUB_API_URL: &str = "https://api.github.com";
         let release_repo = AntReleaseRepository {
             github_api_base_url: GITHUB_API_URL.to_string(),
             nat_detection_base_url: "".to_string(),
@@ -400,19 +416,33 @@ impl NodeManager {
             antctl_base_url: "".to_string(),
             antnode_rpc_client_base_url: "".to_string(),
         };
-
         let release_type = ReleaseType::AntNode;
-        let version = match version {
+
+        let version_to_download = match version {
             Some(v) => v.parse()?,
-            None => release_repo.get_latest_version(&release_type).await?,
+            None => {
+                let latest_version = release_repo.get_latest_version(&release_type).await?;
+
+                // we upgrade only if existing node binary is not the latest version
+                match self.helper_read_node_version(None).await {
+                    Ok(version) if version == latest_version => {
+                        logging::log!(
+                            "Master node binary matches the latest version available: v{version}."
+                        );
+                        return Ok(version.to_string());
+                    }
+                    _ => latest_version,
+                }
+            }
         };
+
         let platform = get_running_platform()?;
 
-        logging::log!("Installing node binary v{version} ...");
+        logging::log!("Downloading node binary v{version_to_download} ...");
         let archive_path = release_repo
             .download_release_from_s3(
                 &release_type,
-                &version,
+                &version_to_download,
                 &platform,
                 &ArchiveType::TarGz,
                 &self.root_dir,
@@ -424,9 +454,9 @@ impl NodeManager {
 
         remove_file(archive_path).await?;
 
-        logging::log!("Node binary v{version} is now available at {bin_path:?}");
+        logging::log!("Node binary v{version_to_download} downloaded successfully and unpacked at: {bin_path:?}");
 
-        Ok(version.to_string())
+        Ok(version_to_download.to_string())
     }
 
     // Clears the node's PeerId and restarts it
