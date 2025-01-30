@@ -8,7 +8,6 @@ use std::fmt;
 // Length of nodes PeerIds' prefix and suffix to be displayed
 const PEER_ID_PREFIX_SUFFIX_LEN: usize = 12;
 // Length of nodes Docker container ids' prefix to be displayed
-#[cfg(not(feature = "native"))]
 const CONTAINER_ID_PREFIX_LEN: usize = 12;
 // Length of nodes rewards address' prefix and suffix to be displayed
 const REWARDS_ADDR_PREFIX_SUFFIX_LEN: usize = 8;
@@ -136,14 +135,12 @@ impl NodeInstanceInfo {
         self.status.is_active() && self.upgrade_available()
     }
 
-    #[cfg(not(feature = "native"))]
     pub fn short_container_id(&self) -> String {
-        self.container_id[..CONTAINER_ID_PREFIX_LEN].to_string()
-    }
-
-    #[cfg(feature = "native")]
-    pub fn short_container_id(&self) -> String {
-        self.container_id.clone()
+        if self.container_id.len() > CONTAINER_ID_PREFIX_LEN {
+            self.container_id[..CONTAINER_ID_PREFIX_LEN].to_string()
+        } else {
+            self.container_id.clone()
+        }
     }
 
     pub fn short_peer_id(&self) -> Option<String> {
