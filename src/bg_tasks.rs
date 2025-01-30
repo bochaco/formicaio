@@ -405,8 +405,7 @@ async fn check_node_bin_version(
 
         let latest_known_version = latest_bin_version.lock().await.clone();
         match latest_known_version {
-            // TODO: use semantic version to make the comparison.
-            Some(known) if known != latest_version => {
+            Some(known) if known < latest_version => {
                 node_mgr_proxy
                     .upgrade_master_node_binary(&latest_version, latest_bin_version.clone())
                     .await

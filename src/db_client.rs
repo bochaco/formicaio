@@ -243,11 +243,10 @@ impl DbClient {
     }
 
     // Retrieve the list of nodes which have a binary version not matching the provided version
-    // TODO: use semantic version to make the comparison.
     pub async fn get_outdated_nodes_list(
         &self,
         version: &Version,
-    ) -> Result<Vec<(ContainerId, String)>, DbError> {
+    ) -> Result<Vec<(ContainerId, Version)>, DbError> {
         let db_lock = self.db.lock().await;
         let data = sqlx::query(
             "SELECT container_id, bin_version FROM nodes WHERE status = ? AND bin_version != ?",
@@ -259,7 +258,21 @@ impl DbClient {
 
         let version = data
             .iter()
-            .map(|v| (v.get("container_id"), v.get("bin_version")))
+            .filter_map(|v| {
+                let current = v
+                    .get::<String, _>("bin_version")
+                    .parse()
+                    // if we cannot parse it, let's assume it as outdated
+                    // and return it with v0.0.0, so it can be corrected
+                    // by the caller if desirable (e.g. by upgrading it).
+                    .unwrap_or(Version::new(0, 0, 0));
+
+                if &current < version {
+                    Some((v.get("container_id"), current))
+                } else {
+                    None
+                }
+            })
             .collect();
 
         Ok(version)
