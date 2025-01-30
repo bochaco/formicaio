@@ -25,6 +25,7 @@ use alloy::{
 };
 use alloy_sol_types::sol;
 use leptos::logging;
+use semver::Version;
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
@@ -206,17 +207,17 @@ impl NodeManagerProxy {
     #[cfg(not(feature = "native"))]
     async fn upgrade_master_node_binary(
         &self,
-        version: &str,
-        latest_bin_version: Arc<Mutex<Option<String>>>,
+        version: &Version,
+        latest_bin_version: Arc<Mutex<Option<Version>>>,
     ) {
-        *latest_bin_version.lock().await = Some(version.to_string());
+        *latest_bin_version.lock().await = Some(version.clone());
     }
 
     #[cfg(feature = "native")]
     async fn upgrade_master_node_binary(
         &self,
-        version: &str,
-        latest_bin_version: Arc<Mutex<Option<String>>>,
+        version: &Version,
+        latest_bin_version: Arc<Mutex<Option<Version>>>,
     ) {
         logging::log!("Downloading latest node binary ...");
         match self
@@ -224,7 +225,7 @@ impl NodeManagerProxy {
             .upgrade_master_node_binary(Some(version))
             .await
         {
-            Ok(_) => *latest_bin_version.lock().await = Some(version.to_string()),
+            Ok(v) => *latest_bin_version.lock().await = Some(v),
             Err(err) => logging::error!("Failed to download new version of node binary: {err:?}"),
         }
     }
@@ -235,7 +236,7 @@ impl NodeManagerProxy {
 pub fn spawn_bg_tasks(
     #[cfg(not(feature = "native"))] docker_client: DockerClient,
     #[cfg(feature = "native")] node_manager: NodeManager,
-    latest_bin_version: Arc<Mutex<Option<String>>>,
+    latest_bin_version: Arc<Mutex<Option<Version>>>,
     nodes_metrics: Arc<Mutex<NodesMetrics>>,
     db_client: DbClient,
     server_api_hit: Arc<Mutex<bool>>,
@@ -395,7 +396,7 @@ pub fn spawn_bg_tasks(
 // automatically if auto-upgrade was enabled by the user.
 async fn check_node_bin_version(
     node_mgr_proxy: NodeManagerProxy,
-    latest_bin_version: Arc<Mutex<Option<String>>>,
+    latest_bin_version: Arc<Mutex<Option<Version>>>,
     db_client: DbClient,
     node_status_locked: ImmutableNodeStatus,
 ) {
@@ -456,7 +457,7 @@ async fn check_node_bin_version(
 }
 
 // Query crates.io to find out latest version available of the node
-async fn latest_version_available() -> Option<String> {
+async fn latest_version_available() -> Option<Version> {
     let url = "https://crates.io/api/v1/crates/ant-node".to_string();
     let client = reqwest::Client::new();
     const MY_USER_AGENT: &str = "formicaio (https://github.com/bochaco/formicaio)";
@@ -482,8 +483,8 @@ async fn latest_version_available() -> Option<String> {
         };
 
         if let Some(version) = json["crate"]["newest_version"].as_str() {
-            if let Ok(latest_version) = semver::Version::parse(version) {
-                return Some(latest_version.to_string());
+            if let Ok(latest_version) = Version::parse(version) {
+                return Some(latest_version);
             }
         }
     }

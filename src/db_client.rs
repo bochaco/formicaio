@@ -6,6 +6,7 @@ use super::{
 
 use alloy::primitives::U256;
 use leptos::{logging, prelude::*};
+use semver::Version;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::{
@@ -245,14 +246,14 @@ impl DbClient {
     // TODO: use semantic version to make the comparison.
     pub async fn get_outdated_nodes_list(
         &self,
-        version: &str,
+        version: &Version,
     ) -> Result<Vec<(ContainerId, String)>, DbError> {
         let db_lock = self.db.lock().await;
         let data = sqlx::query(
             "SELECT container_id, bin_version FROM nodes WHERE status = ? AND bin_version != ?",
         )
         .bind(json!(NodeStatus::Active).to_string())
-        .bind(version)
+        .bind(version.to_string())
         .fetch_all(&*db_lock)
         .await?;
 

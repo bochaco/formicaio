@@ -78,7 +78,7 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
     };
 
     Ok(NodesInstancesInfo {
-        latest_bin_version,
+        latest_bin_version: latest_bin_version.map(|v| v.to_string()),
         nodes,
         stats,
         batch_in_progress,
