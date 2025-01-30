@@ -300,6 +300,7 @@ pub(crate) async fn helper_upgrade_node_instance(
             .update_node_metadata_fields(
                 container_id,
                 &[
+                    ("status_changed", &Utc::now().timestamp().to_string()),
                     ("bin_version", new_version.as_deref().unwrap_or_default()),
                     ("ips", ips.as_deref().unwrap_or_default()),
                 ],
@@ -400,6 +401,7 @@ pub async fn recycle_node_instance(container_id: ContainerId) -> Result<(), Serv
         .update_node_metadata_fields(
             &container_id,
             &[
+                ("status_changed", &Utc::now().timestamp().to_string()),
                 ("bin_version", &version.unwrap_or_default()),
                 ("peer_id", &peer_id.unwrap_or_default()),
                 ("ips", &ips.unwrap_or_default()),

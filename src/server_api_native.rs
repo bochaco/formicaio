@@ -93,12 +93,12 @@ fn helper_gen_status_info(node_info: &mut NodeInstanceInfo) {
         "".to_string()
     } else {
         match node_info.status_changed {
-            None => status.to_string(),
+            None => "Created".to_string(),
             Some(v) => {
                 let changed = DateTime::<Utc>::from_timestamp(v as i64, 0).unwrap();
                 let elapsed = Utc::now() - changed;
                 let elapsed_str = if elapsed.num_weeks() > 1 {
-                    format!("{}+ weeks", elapsed.num_weeks())
+                    format!("{} weeks", elapsed.num_weeks())
                 } else if elapsed.num_days() > 1 {
                     format!("{} days", elapsed.num_days())
                 } else if elapsed.num_hours() > 1 {
@@ -352,6 +352,7 @@ pub(crate) async fn helper_upgrade_node_instance(
         );
 
         node_info.status = NodeStatus::Transitioned("Upgraded".to_string());
+        node_info.status_changed = Some(Utc::now().timestamp() as u64);
 
         db_client.update_node_metadata(&node_info, true).await;
     }
@@ -440,6 +441,7 @@ pub async fn recycle_node_instance(container_id: ContainerId) -> Result<(), Serv
         .regenerate_peer_id(&mut node_info)
         .await?;
     node_info.status = NodeStatus::Active;
+    node_info.status_changed = Some(Utc::now().timestamp() as u64);
     context
         .db_client
         .update_node_metadata(&node_info, true)
