@@ -21,7 +21,20 @@ async fn main() {
     // Alternately a file can be specified such as Some("Cargo.toml")
     // The file would need to be included with the executable when moved to deployment
     let conf = get_configuration(None).unwrap();
-    let leptos_options = conf.leptos_options;
+    let mut leptos_options = conf.leptos_options;
+    if std::env::var("CARGO_MANIFEST_DIR").is_err() {
+        // Running from built binary, thus we change default site root dir
+        // and site address unless they are being changed/set with env vars
+        if std::env::var("LEPTOS_SITE_ROOT").is_err() {
+            leptos_options.site_root = "site".into();
+        }
+
+        if std::env::var("LEPTOS_SITE_ADDR").is_err() {
+            leptos_options.site_addr = "0.0.0.0:52100".parse().unwrap_or(leptos_options.site_addr);
+        }
+    }
+
+    logging::log!("Web service config: {leptos_options:?}");
     let addr = leptos_options.site_addr;
     let routes = generate_route_list(App);
 
