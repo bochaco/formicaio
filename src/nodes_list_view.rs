@@ -268,6 +268,27 @@ fn NodeInstanceView(
         }
     };
 
+    // warn the user when there is no connected peers for more than 2 minutes
+    let mut innactivity_started = 0i64;
+    let mut warn_conn_peers = move || {
+        if info.read().status.is_active() {
+            if matches!(info.read().connected_peers, Some(0)) {
+                if innactivity_started == 0 {
+                    innactivity_started = Utc::now().timestamp();
+                } else {
+                    let elapsed_secs = Utc::now().timestamp() - innactivity_started;
+                    if elapsed_secs > 120 {
+                        return true;
+                    }
+                }
+            } else {
+                innactivity_started = 0i64;
+            }
+        }
+
+        false
+    };
+
     view! {
         <div
             on:click=move |_| node_card_clicked()
@@ -426,12 +447,22 @@ fn NodeInstanceView(
                     <p>
                         <div class="flex flex-row">
                             <div class="basis-1/2">
-                                <span class="node-info-item">"Conn. peers: "</span>
-                                {move || {
-                                    info.read()
-                                        .connected_peers
-                                        .map_or(" -".to_string(), |v| v.to_string())
-                                }}
+                                <span class=move || {
+                                    if warn_conn_peers() {
+                                        "node-info-item-warn"
+                                    } else {
+                                        "node-info-item"
+                                    }
+                                }>"Conn. peers: "</span>
+                                <span class=move || {
+                                    if warn_conn_peers() { "node-info-item-warn" } else { "" }
+                                }>
+                                    {move || {
+                                        info.read()
+                                            .connected_peers
+                                            .map_or(" -".to_string(), |v| v.to_string())
+                                    }}
+                                </span>
                             </div>
                             <div class="basis-1/2">
                                 <span class="node-info-item">"Shunned by: "</span>

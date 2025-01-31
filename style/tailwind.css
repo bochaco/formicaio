@@ -42,6 +42,10 @@
     @apply text-blue-700 dark:text-blue-400;
 }
 
+.node-info-item-warn {
+    @apply text-red-700 dark:text-red-400;
+}
+
 .settings-tab {
     @apply inline-block p-4 border-b-2 border-transparent rounded-t-lg hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300;
 }
