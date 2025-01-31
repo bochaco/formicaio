@@ -95,7 +95,7 @@ fn helper_gen_status_info(node_info: &mut NodeInstanceInfo) {
         match node_info.status_changed {
             None => "Created".to_string(),
             Some(v) => {
-                let changed = DateTime::<Utc>::from_timestamp(v as i64, 0).unwrap();
+                let changed = DateTime::<Utc>::from_timestamp(v as i64, 0).unwrap_or_default();
                 let elapsed = Utc::now() - changed;
                 let elapsed_str = if elapsed.num_weeks() > 1 {
                     format!("{} weeks", elapsed.num_weeks())
