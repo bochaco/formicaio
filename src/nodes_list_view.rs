@@ -16,7 +16,7 @@ use super::{
     server_api_types::BatchInProgress,
 };
 
-use alloy::primitives::utils::format_units;
+use alloy_primitives::utils::format_units;
 use chrono::{DateTime, Local, Utc};
 use leptos::{logging, prelude::*, task::spawn_local};
 

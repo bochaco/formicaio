@@ -4,7 +4,7 @@ use super::{
     server_api_types::AppSettings,
 };
 
-use alloy::primitives::U256;
+use alloy_primitives::U256;
 use leptos::{logging, prelude::*};
 use semver::Version;
 use serde::{Deserialize, Serialize};

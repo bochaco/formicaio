@@ -1,6 +1,6 @@
 use super::{app::ClientGlobalState, server_api_types::NodeOpts};
 
-use alloy::primitives::U256;
+use alloy_primitives::U256;
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::fmt;

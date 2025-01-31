@@ -1,6 +1,6 @@
 use super::node_instance::NodeInstanceInfo;
 
-use alloy::primitives::U256;
+use alloy_primitives::U256;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, time::Duration};
 

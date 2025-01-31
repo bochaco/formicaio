@@ -5,7 +5,7 @@ use super::server_api_native::{get_settings, update_settings};
 
 use super::{helpers::show_alert_msg, icons::IconCancel, server_api_types::AppSettings};
 
-use alloy::primitives::Address;
+use alloy_primitives::Address;
 use leptos::{logging, prelude::*};
 use std::time::Duration;
 use url::Url;

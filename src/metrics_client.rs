@@ -4,7 +4,7 @@ use super::{
     node_instance::{ContainerId, NodeInstanceInfo},
 };
 
-use alloy::primitives::U256;
+use alloy_primitives::U256;
 use chrono::Utc;
 use leptos::{logging, prelude::*};
 use std::{collections::HashMap, str::FromStr};
