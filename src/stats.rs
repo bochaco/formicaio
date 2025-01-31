@@ -1,6 +1,6 @@
 use super::{app::ClientGlobalState, helpers::truncated_balance_str};
 
-use alloy::primitives::utils::format_units;
+use alloy_primitives::utils::format_units;
 use leptos::prelude::*;
 
 #[component]

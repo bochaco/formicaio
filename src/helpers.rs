@@ -15,7 +15,7 @@ use super::{
     server_api_types::{BatchInProgress, NodeOpts},
 };
 
-use alloy::primitives::U256;
+use alloy_primitives::U256;
 use gloo_timers::future::TimeoutFuture;
 use leptos::{logging, prelude::*, task::spawn_local};
 use rand::Rng;

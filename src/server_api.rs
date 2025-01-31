@@ -16,7 +16,7 @@ use super::{
     server_api_types::BatchInProgress,
 };
 #[cfg(feature = "ssr")]
-use alloy::primitives::Address;
+use alloy_primitives::Address;
 #[cfg(feature = "ssr")]
 use chrono::Utc;
 #[cfg(feature = "ssr")]

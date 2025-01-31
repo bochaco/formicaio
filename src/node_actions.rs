@@ -18,7 +18,7 @@ use super::{
     server_api_types::NodeOpts,
 };
 
-use alloy::primitives::Address;
+use alloy_primitives::Address;
 use gloo_timers::future::sleep;
 use leptos::{logging, prelude::*, task::spawn_local};
 use std::{num::ParseIntError, time::Duration};
