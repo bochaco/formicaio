@@ -68,8 +68,8 @@ pub struct NodeManager {
     nodes: Arc<Mutex<HashMap<NodeId, Child>>>,
 }
 
-impl Default for NodeManager {
-    fn default() -> Self {
+impl NodeManager {
+    pub async fn new() -> Result<Self, NodeManagerError> {
         if !sysinfo::IS_SUPPORTED_SYSTEM {
             panic!("This OS isn't supported by our 'sysinfo' dependency which manages the nodes as native processes.");
         }
@@ -81,19 +81,18 @@ impl Default for NodeManager {
         .to_path_buf();
 
         logging::log!("Node manager instantiated with root dir:: {root_dir:?}");
+        create_dir_all(&root_dir).await?;
 
         let system = Arc::new(Mutex::new(System::new()));
         let nodes = Arc::new(Mutex::new(HashMap::default()));
 
-        Self {
+        Ok(Self {
             root_dir,
             system,
             nodes,
-        }
+        })
     }
-}
 
-impl NodeManager {
     // Create directory to hold node's data and cloned node binary
     pub async fn new_node(&self, node_info: &NodeInstanceInfo) -> Result<(), NodeManagerError> {
         let node_id = &node_info.container_id;
