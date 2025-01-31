@@ -30,7 +30,9 @@ async fn main() {
     #[cfg(not(feature = "native"))]
     let docker_client = formicaio::docker_client::DockerClient::new().await.unwrap();
     #[cfg(feature = "native")]
-    let node_manager = formicaio::node_manager::NodeManager::default();
+    let node_manager = formicaio::node_manager::NodeManager::new()
+        .await
+        .expect("cannot instantiate node manager");
 
     let latest_bin_version = Arc::new(Mutex::new(None));
     let nodes_metrics = Arc::new(Mutex::new(NodesMetrics::new(db_client.clone())));
