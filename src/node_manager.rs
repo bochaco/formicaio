@@ -20,7 +20,7 @@ use std::{
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
 use thiserror::Error;
 use tokio::{
-    fs::{create_dir_all, metadata, remove_dir_all, remove_file, set_permissions, File},
+    fs::{create_dir_all, remove_dir_all, remove_file, File},
     io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt, BufReader, SeekFrom},
     sync::Mutex,
     time::sleep,
@@ -105,9 +105,13 @@ impl NodeManager {
         let mut source_file = File::open(node_bin_path).await?;
         let destination_path = new_node_data_dir.join(NODE_BIN_NAME);
         let mut destination_file = File::create(&destination_path).await?;
-        let mut permissions = metadata(&destination_path).await?.permissions();
-        permissions.set_mode(0o755); // Set permissions to rwxr-xr-x (owner can read/write/execute, group and others can read/execute)
-        set_permissions(destination_path, permissions).await?;
+
+        #[cfg(unix)]
+        {
+            let mut permissions = tokio::fs::metadata(&destination_path).await?.permissions();
+            permissions.set_mode(0o755); // Set permissions to rwxr-xr-x (owner can read/write/execute, group and others can read/execute)
+            tokio::fs::set_permissions(destination_path, permissions).await?;
+        }
         let mut buffer = Vec::new();
         source_file.read_to_end(&mut buffer).await?;
         destination_file.write_all(&buffer).await?;
