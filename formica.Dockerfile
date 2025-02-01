@@ -1,30 +1,25 @@
 # Dockerfile for running a node
 
-FROM debian:bookworm-slim AS builder
+FROM rust:1.81-alpine AS builder
 
 RUN mkdir -p /app
 WORKDIR /app
 
 # Install node binary
-RUN apt-get update -y && apt-get install -y curl
+RUN apk add curl bash
 RUN curl -sSL https://raw.githubusercontent.com/maidsafe/antup/main/install.sh | bash
-RUN /usr/local/bin/antup node -p /app
+RUN cp /usr/local/bin/antup /app/
+RUN /app/antup node -n -p /app
 
-FROM debian:bookworm-slim AS runtime
+FROM alpine AS runtime
 # Make an /app dir, which everything will eventually live in
 WORKDIR /app
 
-RUN apt-get update -y \
-  && apt-get autoremove -y \
-  && apt-get clean -y \
-  && rm -rf /var/lib/apt/lists/*
-
 # Copy antup binary to the /app directory
-COPY --from=builder /usr/local/bin/antup /app/
+COPY --from=builder /app/antup /app/
 
 # Copy the node binary to the /app directory
 COPY --from=builder /app/antnode /app/
-RUN /app/antnode --version
 
 # Set any required env variables
 # Set default port numbers for node and its metrics service
