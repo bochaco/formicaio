@@ -18,6 +18,11 @@ pub fn SettingsView(settings_panel: RwSignal<bool>) -> impl IntoView {
     );
     let active_tab = RwSignal::new(0);
 
+    #[cfg(feature = "lcd-disabled")]
+    let lcd_disabled = true;
+    #[cfg(not(feature = "lcd-disabled"))]
+    let lcd_disabled = false;
+
     view! {
         <div
             id="settings_modal"
@@ -64,7 +69,7 @@ pub fn SettingsView(settings_panel: RwSignal<bool>) -> impl IntoView {
                                     General
                                 </a>
                             </li>
-                            <li class="me-2">
+                            <li class="me-2" prop:hidden=lcd_disabled>
                                 <a
                                     href="#"
                                     on:click=move |_| active_tab.set(1)

@@ -54,6 +54,7 @@ wasm-bindgen-futures = "0.4"
 [features]
 # Nodes are launched as native OS processes instead of as Docker containers
 native = ["dep:sysinfo"]
+lcd-disabled = []
 hydrate = ["leptos/hydrate"]
 ssr = [
     "dep:ant-releases",

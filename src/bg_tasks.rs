@@ -10,10 +10,12 @@ use super::{
     server_api_native::helper_upgrade_node_instance,
 };
 
+#[cfg(not(feature = "lcd-disabled"))]
+use super::lcd::display_stats_on_lcd;
+
 use super::{
     app::{BgTasksCmds, ImmutableNodeStatus, METRICS_MAX_SIZE_PER_CONTAINER},
     db_client::DbClient,
-    lcd::display_stats_on_lcd,
     metrics_client::{NodeMetricsClient, NodesMetrics},
     node_instance::{ContainerId, NodeInstanceInfo},
     server_api_types::{AppSettings, Stats},
@@ -258,6 +260,7 @@ pub fn spawn_bg_tasks(
     ));
 
     // Based on settings, setup LCD external device to display stats.
+    #[cfg(not(feature = "lcd-disabled"))]
     if ctx.app_settings.lcd_display_enabled {
         tokio::spawn(display_stats_on_lcd(
             ctx.app_settings.clone(),
@@ -293,6 +296,7 @@ pub fn spawn_bg_tasks(
             select! {
                 settings = bg_tasks_cmds_rx.recv() => {
                     if let Ok(BgTasksCmds::ApplySettings(s)) = settings {
+                        #[cfg(not(feature = "lcd-disabled"))]
                         if s.lcd_display_enabled && (!ctx.app_settings.lcd_display_enabled
                             || ctx.app_settings.lcd_device != s.lcd_device
                             || ctx.app_settings.lcd_addr != s.lcd_addr)

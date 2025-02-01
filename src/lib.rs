@@ -13,7 +13,7 @@ mod docker_msgs;
 pub mod error_template;
 mod helpers;
 mod icons;
-#[cfg(feature = "ssr")]
+#[cfg(all(feature = "ssr", not(feature = "lcd-disabled")))]
 mod lcd;
 mod metrics;
 #[cfg(feature = "ssr")]
