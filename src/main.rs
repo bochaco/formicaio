@@ -20,18 +20,21 @@ async fn main() {
     // <https://github.com/leptos-rs/start-axum#executing-a-server-on-a-remote-machine-without-the-toolchain>
     // Alternately a file can be specified such as Some("Cargo.toml")
     // The file would need to be included with the executable when moved to deployment
-    let conf = get_configuration(None).unwrap();
-    let mut leptos_options = conf.leptos_options;
-    if std::env::var("CARGO_MANIFEST_DIR").is_err() {
-        // Running from built binary, thus we change default site root dir
-        // and site address unless they are being changed/set with env vars
-        if std::env::var("LEPTOS_SITE_ROOT").is_err() {
-            leptos_options.site_root = "site".into();
-        }
+    let mut leptos_options = get_configuration(None).unwrap().leptos_options;
 
-        if std::env::var("LEPTOS_SITE_ADDR").is_err() {
-            leptos_options.site_addr = "0.0.0.0:52100".parse().unwrap_or(leptos_options.site_addr);
-        }
+    // we make sure some values are set to some
+    // defaults only if no env vars are being set for them
+    if std::env::var("LEPTOS_OUTPUT_NAME").is_err() {
+        leptos_options.output_name = "formicaio".into();
+    }
+    if std::env::var("LEPTOS_SITE_ROOT").is_err() {
+        leptos_options.site_root = "site".into();
+    }
+    if std::env::var("LEPTOS_SITE_ADDR").is_err() {
+        leptos_options.site_addr = "0.0.0.0:52100".parse().unwrap_or(leptos_options.site_addr);
+    }
+    if std::env::var("LEPTOS_ENV").is_err() {
+        leptos_options.env = "PROD".into();
     }
 
     logging::log!("Web service config: {leptos_options:?}");

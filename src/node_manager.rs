@@ -11,7 +11,6 @@ use semver::Version;
 use std::{
     collections::{HashMap, HashSet},
     env,
-    os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
     process::{Child, Command, Output, Stdio},
     sync::Arc,
@@ -107,6 +106,7 @@ impl NodeManager {
 
         #[cfg(unix)]
         {
+            use std::os::unix::fs::PermissionsExt;
             let mut permissions = tokio::fs::metadata(&destination_path).await?.permissions();
             permissions.set_mode(0o755); // Set permissions to rwxr-xr-x (owner can read/write/execute, group and others can read/execute)
             tokio::fs::set_permissions(destination_path, permissions).await?;
