@@ -26,6 +26,9 @@ use tokio::{
 };
 
 // Name of the node binary used to launch new nodes processes
+#[cfg(windows)]
+const NODE_BIN_NAME: &str = "antnode.exe";
+#[cfg(not(windows))]
 const NODE_BIN_NAME: &str = "antnode";
 
 const DEFAULT_EVM_NETWORK: &str = "evm-arbitrum-sepolia";
