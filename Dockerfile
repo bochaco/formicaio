@@ -1,7 +1,7 @@
 # Dockerfile for running Formicaio app
 
 # We first just install tailwindcss from a nodejs slim image
-FROM node:23.6.1-slim AS tailwindcss-builder
+FROM node:23.6.1-alpine AS tailwindcss-builder
 
 WORKDIR /app
 COPY package.json package-lock.json ./
@@ -10,7 +10,7 @@ COPY package.json package-lock.json ./
 RUN npm install tailwindcss
 
 # Now let's use a build env with Rust for the app
-FROM rust:1 AS builder
+FROM rust:1-alpine AS builder
 
 # Install cargo-binstall, which makes it easier to install other
 # cargo extensions like cargo-leptos
@@ -19,26 +19,28 @@ RUN export TARGET="$(uname -m)" && wget -O cargo-binstall-linux-musl.tgz https:/
 RUN tar -xvf cargo-binstall-linux-musl.tgz
 RUN cp cargo-binstall /usr/local/cargo/bin
 
+RUN apk update && \
+    apk add --no-cache bash curl npm libc-dev binaryen
+
 # Install cargo-leptos
 RUN cargo binstall cargo-leptos -y
 
 # Add the WASM target
 RUN rustup target add wasm32-unknown-unknown
-RUN rustup component add rustfmt
-RUN rustup component add clippy
 
-WORKDIR /app
+WORKDIR /work
 
 # Copy tailwindcss modules, and nodejs binary, to the /app directory
 # since they are required for building the app
-COPY --from=tailwindcss-builder /app/node_modules /app/node_modules
+COPY --from=tailwindcss-builder /app/node_modules /work/node_modules
 COPY --from=tailwindcss-builder /usr/local/bin/node /usr/local/bin/node
 
 # Now we can copy the source files to build them
 COPY . .
 
-# make sure we exit early if clippy is not happy
-#RUN cargo clippy -- -D warnings
+# Define build args argument
+ARG BUILD_ARGS
+ENV BUILD_ARGS=${BUILD_ARGS}
 
 # Define build args argument
 ARG BUILD_ARGS
@@ -47,27 +49,26 @@ ENV BUILD_ARGS=${BUILD_ARGS}
 # Build the app
 RUN cargo leptos build --release $BUILD_ARGS -vv
 
-# Finally use a slim Debian image to build the final runtime image 
+# Finally use an Alpine image to build the final runtime image
 # which contains only the built app and required resource files.
-FROM debian:bookworm-slim AS runtime
-RUN mkdir -p /data
+FROM alpine AS runtime
 WORKDIR /app
-RUN apt-get update -y \
-  && apt-get autoremove -y \
-  && apt-get clean -y \
+
+RUN apk update \
+  && apk cache purge \
   && rm -rf /var/lib/apt/lists/*
 
 # Copy the server binary to the /app directory
-COPY --from=builder /app/target/release/formicaio /app/
+COPY --from=builder /work/target/release/formicaio /app/
 
 # Copy Sqlite migrations files
-COPY --from=builder /app/migrations /app/migrations
+COPY --from=builder /work/migrations /app/migrations
 
 # /target/site contains our JS/WASM/CSS, etc.
-COPY --from=builder /app/target/site /app/site
+COPY --from=builder /work/target/site /app/site
 
 # Copy Cargo.toml if it’s needed at runtime
-COPY --from=builder /app/Cargo.toml /app/
+COPY --from=builder /work/Cargo.toml /app/
 
 # Set any required env variables and
 ENV RUST_LOG="info"
