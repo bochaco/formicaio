@@ -24,9 +24,6 @@ async fn main() {
 
     // we make sure some values are set to some
     // defaults only if no env vars are being set for them
-    if std::env::var("LEPTOS_OUTPUT_NAME").is_err() {
-        leptos_options.output_name = "formicaio".into();
-    }
     if std::env::var("LEPTOS_SITE_ROOT").is_err() {
         leptos_options.site_root = "site".into();
     }

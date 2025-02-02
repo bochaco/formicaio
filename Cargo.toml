@@ -94,6 +94,10 @@ lto = true
 codegen-units = 1
 panic = "abort"
 
+[package.metadata.cross.build.env]
+# Environment variables to be passed through to the cross container.
+passthrough = ["LEPTOS_OUTPUT_NAME=formicaio"]
+
 [package.metadata.leptos]
 # The name used by wasm-bindgen/cargo-leptos for the JS/WASM bundle. Defaults to the crate name
 output-name = "formicaio"
