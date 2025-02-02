@@ -20,7 +20,31 @@ from third-party sources, all within a single, user-friendly interface.
 
 ## How to use:
 
-Formicaio can be deployed on Linux (amd64/arm64) with [Docker](https://www.docker.com) or [Podman](https://podman.io), on Windows/MacOS with Podman, as well as installed on [UmbrelOS](https://umbrel.com) (https://github.com/getumbrel/umbrel).
+Formicaio can be deployed/executed in several ways:
+- running a native executable on Linux, Windows, and macOS
+- installed as an application on [UmbrelOS](https://umbrel.com) (https://github.com/getumbrel/umbrel).
+- on Linux (amd64/arm64) with [Docker](https://www.docker.com) or [Podman](https://podman.io)
+- on Windows/MacOS with Podman
+
+### Running a native executable on Linux, Windows, and macOS
+
+To launch Formicaio:
+1. Download the package for your preferred platform from [latest release](https://github.com/bochaco/formicaio/releases).
+2. Unzip it to your desired location.
+3. Run the `formicaio` / `formicaio.exe` binary.
+
+Upon startup, Formicaio will automatically download the latest node binary available. Once this process is complete, the GUI frontend will be accessible at http://localhost:52100.
+
+#### Formicaio and nodes files/data
+All Formicaio and nodes files/data are stored within the same directory from which the application is executed. Please note that deleting this folder will remove all data associated with the nodes and the Formicaio database.
+
+#### Running in the background
+If you need to close the console or terminal from which Formicaio is being launched, please use a tool like [screen](https://www.shellhacks.com/linux-screen-command-run-in-background/) to keep Formicaio and its nodes running in the background. Otherwise, closing the console/terminal will stop the application and all nodes.
+
+#### macOS and Windows Permissions
+On both macOS and Windows, you may need to authorize the application to run it as unverified. For macOS users, follow [these instructions](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac).
+
+**Note for macOS Users**: It is recommended to launch Formicaio from a terminal, double-clicking the executable may not work properly.
 
 ### UmbrelOS
 
