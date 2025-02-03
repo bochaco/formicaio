@@ -1,0 +1,109 @@
+name: build and package release native mode binaries
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    if: "startsWith(github.event.head_commit.message, 'chore: release native mode binaries')"
+    name: build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: macos-latest
+            target: x86_64-apple-darwin
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+          - os: ubuntu-latest
+            target: arm-unknown-linux-musleabi
+          - os: ubuntu-latest
+            target: armv7-unknown-linux-musleabihf
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-musl
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '23.6.1'
+
+      - name: Install node dependencies
+        run: npm install
+
+      - name: Install stable Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install build tools
+        uses: cargo-bins/cargo-binstall@main
+
+      - name: Install cargo build tools
+        shell: bash
+        run: cargo binstall --no-confirm cargo-leptos
+
+      - name: Install musl-tools
+        if: startsWith(matrix.target, 'x86_64-unknown-linux-musl')
+        shell: bash
+        run: |
+          sudo apt update -y
+          sudo apt-get install -y musl-tools
+
+      - name: Install Rust target components
+        shell: bash
+        run: |
+          rustup target add wasm32-unknown-unknown
+          rustup target add ${{ matrix.target }}
+
+      - name: Install cross on aarch64/arm/armv7
+        if: startsWith(matrix.target, 'aarch64') || startsWith(matrix.target, 'arm') || startsWith(matrix.target, 'armv7')
+        shell: bash
+        run: |
+          cargo binstall --no-confirm cross
+
+      - name: Build on Linux aarch64/arm/armv7
+        if: startsWith(matrix.target, 'aarch64-unknown-linux-musl') || startsWith(matrix.target, 'arm') || startsWith(matrix.target, 'armv7')
+        env:
+          LEPTOS_BIN_TARGET_TRIPLE: ${{ matrix.target }}
+          LEPTOS_OUTPUT_NAME: formicaio
+          LEPTOS_BIN_CARGO_COMMAND: cross
+        shell: bash
+        run: cargo leptos build --release --features native,logs-disabled -vv
+
+      - name: Build on Windows/Mac
+        if: startsWith(matrix.target, 'x86_64-pc-windows-msvc') || startsWith(matrix.target, 'aarch64-apple-darwin') || startsWith(matrix.target, 'x86_64-apple-darwin')
+        env:
+          LEPTOS_BIN_TARGET_TRIPLE: ${{ matrix.target }}
+        shell: bash
+        run: cargo leptos build --release --features native,lcd-disabled -vv
+
+      - name: Build Linux amd64
+        if: startsWith(matrix.target, 'x86_64-unknown-linux-musl')
+        env:
+          LEPTOS_BIN_TARGET_TRIPLE: ${{ matrix.target }}
+        shell: bash
+        run: cargo leptos build --release --features native -vv
+
+      - name: Prepare artifacts
+        shell: bash
+        run: |
+          mkdir release_artifacts
+          cp -a migrations release_artifacts/
+          cp -a target/site release_artifacts/
+          cp target/${{ matrix.target }}/release/formicaio release_artifacts/ || true
+          cp target/${{ matrix.target }}/release/formicaio.exe* release_artifacts/ || true
+
+      - name: Upload release_artifacts
+        uses: actions/upload-artifact@main
+        with:
+          name: formicaio-${{ matrix.target }}
+          path: |
+            release_artifacts/**
