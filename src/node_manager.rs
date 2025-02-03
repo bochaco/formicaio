@@ -7,6 +7,7 @@ use bytes::Bytes;
 use futures_util::Stream;
 use leptos::logging;
 use libp2p_identity::{Keypair, PeerId};
+use local_ip_address::list_afinet_netifas;
 use semver::Version;
 use std::{
     collections::{HashMap, HashSet},
@@ -313,16 +314,15 @@ impl NodeManager {
         logging::log!("Peer id in node {id}: {peer_id:?}");
 
         let ips = if get_ips {
-            // FIXME: this is not cross platform
-            let mut cmd = Command::new("hostname");
-            cmd.arg("-I");
-            match self.exec_cmd(&mut cmd, "get node network IPs") {
-                Ok(output) => {
-                    let ips = String::from_utf8_lossy(&output.stdout)
-                        .to_string()
-                        .trim()
-                        .replace(' ', ", ");
-                    logging::log!("IPs in host: {ips}");
+            match list_afinet_netifas() {
+                Ok(network_interfaces) => {
+                    let ips = network_interfaces
+                        .into_iter()
+                        .filter(|(_, ip)| ip.is_ipv4())
+                        .map(|(_, ip)| ip.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    logging::log!("IPv4 addresses in host: {ips}");
                     Some(ips)
                 }
                 Err(err) => {

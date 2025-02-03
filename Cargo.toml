@@ -36,6 +36,7 @@ leptos_axum = { version = "0.7", optional = true }
 leptos_meta = { version = "0.7" }
 leptos_router = { version = "0.7" }
 libp2p-identity = { version = "0.2", features = ["peerid","ed25519"], optional = true }
+local-ip-address = { version = "0.6", optional = true }
 rand = "0.8"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"], optional = true }
 semver = { version = "1.0", optional = true }
@@ -75,6 +76,7 @@ ssr = [
     "dep:lcd",
     "dep:leptos_axum",
     "dep:libp2p-identity",
+    "dep:local-ip-address",
     "dep:reqwest",
     "dep:semver",
     "dep:sqlx",

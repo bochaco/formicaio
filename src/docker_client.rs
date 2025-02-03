@@ -502,10 +502,12 @@ impl DockerClient {
         logging::log!("Node peer id in container {id}: {peer_id:?}");
 
         let ips = if get_ips {
-            let cmd = "hostname -I | sed 's/^[ \t]*//;s/[ \t]*$//;s/ /, /g'".to_string();
+            let cmd = "ip -4 addr show | awk '/inet / {print $2}' | cut -d/ -f1 | paste -sd ' '"
+                .to_string();
             let (_, ips) = self
                 .exec_in_container(id, cmd, "get node network IPs")
                 .await?;
+            let ips = ips.trim().replace(' ', ", ");
             logging::log!("Node IPs in container {id}: {ips}");
             Some(ips)
         } else {
