@@ -8,25 +8,24 @@ use leptos::prelude::*;
 use std::collections::HashMap;
 
 #[cfg(feature = "ssr")]
-use super::{
-    app::{BgTasksCmds, ImmutableNodeStatus, ServerGlobalState},
-    db_client::DbClient,
-    docker_client::{DockerClient, DockerClientError, UPGRADE_NODE_BIN_TIMEOUT_SECS},
-    node_instance::{NodeInstancesBatch, NodeStatus},
-    server_api_types::BatchInProgress,
-};
+mod ssr_imports_and_defs {
+    pub use crate::{
+        app::{BgTasksCmds, ImmutableNodeStatus, ServerGlobalState},
+        db_client::DbClient,
+        docker_client::{DockerClient, DockerClientError, UPGRADE_NODE_BIN_TIMEOUT_SECS},
+        node_instance::{NodeInstancesBatch, NodeStatus},
+        server_api_types::BatchInProgress,
+    };
+    pub use alloy_primitives::Address;
+    pub use chrono::Utc;
+    pub use futures_util::StreamExt;
+    pub use leptos::logging;
+    pub use std::time::Duration;
+    pub use tokio::{select, time::sleep};
+}
+
 #[cfg(feature = "ssr")]
-use alloy_primitives::Address;
-#[cfg(feature = "ssr")]
-use chrono::Utc;
-#[cfg(feature = "ssr")]
-use futures_util::StreamExt;
-#[cfg(feature = "ssr")]
-use leptos::logging;
-#[cfg(feature = "ssr")]
-use std::time::Duration;
-#[cfg(feature = "ssr")]
-use tokio::{select, time::sleep};
+use ssr_imports_and_defs::*;
 
 // Obtain the list of existing nodes instances with their info
 #[server(ListNodeInstances, "/api", "Url", "/list_nodes")]

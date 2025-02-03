@@ -8,35 +8,31 @@ use leptos::prelude::*;
 use std::collections::HashMap;
 
 #[cfg(feature = "ssr")]
-use super::{
-    app::{BgTasksCmds, ImmutableNodeStatus, ServerGlobalState},
-    db_client::DbClient,
-    node_instance::{NodeInstancesBatch, NodeStatus},
-    node_manager::{NodeManager, NodeManagerError},
-    server_api_types::BatchInProgress,
-};
-#[cfg(feature = "ssr")]
-use alloy_primitives::Address;
-#[cfg(feature = "ssr")]
-use chrono::{DateTime, Utc};
-#[cfg(feature = "ssr")]
-use futures_util::StreamExt;
-#[cfg(feature = "ssr")]
-use leptos::logging;
-#[cfg(feature = "ssr")]
-use rand::distributions::{Alphanumeric, DistString};
-#[cfg(feature = "ssr")]
-use std::time::Duration;
-#[cfg(feature = "ssr")]
-use tokio::{select, time::sleep};
+mod ssr_imports_and_defs {
+    pub use crate::{
+        app::{BgTasksCmds, ImmutableNodeStatus, ServerGlobalState},
+        db_client::DbClient,
+        node_instance::{NodeInstancesBatch, NodeStatus},
+        node_manager::{NodeManager, NodeManagerError},
+        server_api_types::BatchInProgress,
+    };
+    pub use alloy_primitives::Address;
+    pub use chrono::{DateTime, Utc};
+    pub use futures_util::StreamExt;
+    pub use leptos::logging;
+    pub use rand::distributions::{Alphanumeric, DistString};
+    pub use std::time::Duration;
+    pub use tokio::{select, time::sleep};
 
-// Length of generated node ids
-#[cfg(feature = "ssr")]
-const NODE_ID_LENGTH: usize = 12;
+    // Length of generated node ids
+    pub const NODE_ID_LENGTH: usize = 12;
 
-// Number of seconds before timing out an attempt to upgrade the node binary.
+    // Number of seconds before timing out an attempt to upgrade the node binary.
+    pub const UPGRADE_NODE_BIN_TIMEOUT_SECS: u64 = 8 * 60; // 8 mins
+}
+
 #[cfg(feature = "ssr")]
-const UPGRADE_NODE_BIN_TIMEOUT_SECS: u64 = 8 * 60; // 8 mins
+use ssr_imports_and_defs::*;
 
 // Obtain the list of existing nodes instances with their info
 #[server(ListNodeInstances, "/api", "Url", "/list_nodes")]
