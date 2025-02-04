@@ -12,11 +12,11 @@ on peer-to-peer (P2P) networks, like [Autonomi](https://autonomi.com) network no
 and store tokens, rewards, and coins earned from running nodes or received 
 from third-party sources, all within a single, user-friendly interface.
 
-<img src="img/screenshot_01.png" width="800" height="439" />
-<img src="img/screenshot_02.png" width="597" height="563" />
-<img src="img/screenshot_03.png" width="800" height="438" />
-<img src="img/screenshot_04.png" width="600" height="735" />
-<img src="img/screenshot_05.png" width="800" height="439" />
+<img src="img/screenshot_01.png" width="400" height="219" />
+<img src="img/screenshot_02.png" width="300" height="367" />
+<img src="img/screenshot_03.png" width="400" height="219" />
+<img src="img/screenshot_04.png" width="300" height="367" />
+<img src="img/screenshot_05.png" width="400" height="219" />
 
 ## How to use:
 
