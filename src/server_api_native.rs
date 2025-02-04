@@ -359,7 +359,7 @@ pub(crate) async fn helper_upgrade_node_instance(
 }
 
 // Start streaming logs from a node instance with given id
-#[server(output = Streaming)]
+#[server(output = Streaming, name = StartNodeLogsStream, prefix = "/api", endpoint = "/node_logs_stream")]
 pub async fn start_node_logs_stream(
     container_id: ContainerId,
 ) -> Result<ByteStream, ServerFnError> {
