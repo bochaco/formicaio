@@ -221,14 +221,15 @@ impl NodeManagerProxy {
         version: &Version,
         latest_bin_version: Arc<Mutex<Option<Version>>>,
     ) {
-        logging::log!("Downloading latest node binary ...");
         match self
             .node_manager
             .upgrade_master_node_binary(Some(version))
             .await
         {
             Ok(v) => *latest_bin_version.lock().await = Some(v),
-            Err(err) => logging::error!("Failed to download new version of node binary: {err:?}"),
+            Err(err) => {
+                logging::error!("Failed to download v{version} of node binary: {err:?}")
+            }
         }
     }
 }
@@ -407,20 +408,9 @@ async fn check_node_bin_version(
     if let Some(latest_version) = latest_version_available().await {
         logging::log!("Latest version of node binary available: {latest_version}");
 
-        let latest_known_version = latest_bin_version.lock().await.clone();
-        match latest_known_version {
-            Some(known) if known < latest_version => {
-                node_mgr_proxy
-                    .upgrade_master_node_binary(&latest_version, latest_bin_version.clone())
-                    .await
-            }
-            None => {
-                node_mgr_proxy
-                    .upgrade_master_node_binary(&latest_version, latest_bin_version.clone())
-                    .await
-            }
-            _ => {}
-        }
+        node_mgr_proxy
+            .upgrade_master_node_binary(&latest_version, latest_bin_version.clone())
+            .await;
 
         loop {
             let auto_upgrade = db_client.get_settings().await.nodes_auto_upgrade;

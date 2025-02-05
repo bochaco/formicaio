@@ -426,25 +426,20 @@ impl NodeManager {
 
         let version_to_download = match version {
             Some(v) => v.clone(),
-            None => {
-                let latest_version = release_repo.get_latest_version(&release_type).await?;
-
-                // we upgrade only if existing node binary is not the latest version
-                match self.helper_read_node_version(None).await {
-                    Ok(version) if version == latest_version => {
-                        logging::log!(
-                            "Master node binary matches the latest version available: v{version}."
-                        );
-                        return Ok(version);
-                    }
-                    _ => latest_version,
-                }
-            }
+            None => release_repo.get_latest_version(&release_type).await?,
         };
 
-        let platform = get_running_platform()?;
+        // we upgrade only if existing node binary is not the latest version
+        if let Ok(version) = self.helper_read_node_version(None).await {
+            if version == version_to_download {
+                logging::log!("Master node binary already matches version v{version}.");
+                return Ok(version);
+            }
+        }
 
         logging::log!("Downloading node binary v{version_to_download} ...");
+        let platform = get_running_platform()?;
+
         let archive_path = release_repo
             .download_release_from_s3(
                 &release_type,
