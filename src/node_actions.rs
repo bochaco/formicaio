@@ -285,11 +285,7 @@ fn AddNodesForm(modal_visibility: RwSignal<bool>, home_net_only: bool) -> impl I
         "0x".to_string(),
     )));
     let home_network = RwSignal::new(true);
-    #[cfg(feature = "logs-disabled")]
-    let logs_enabled = false;
-    #[cfg(not(feature = "logs-disabled"))]
-    let logs_enabled = true;
-    let node_logs = RwSignal::new(logs_enabled);
+    let node_logs = RwSignal::new(true);
     let auto_start = RwSignal::new(false);
     let interval = RwSignal::new(Ok(60));
 
@@ -374,7 +370,7 @@ fn AddNodesForm(modal_visibility: RwSignal<bool>, home_net_only: bool) -> impl I
             </div>
             <div class="hidden flex items-center">
                 <input
-                    checked=logs_enabled
+                    checked=true
                     disabled
                     id="logs-enabled"
                     type="checkbox"

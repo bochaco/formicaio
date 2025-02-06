@@ -122,7 +122,7 @@ pub async fn node_logs_stream(
     received_logs: WriteSignal<Vec<String>>,
 ) -> Result<(), ServerFnError> {
     use futures_util::stream::StreamExt;
-    logging::log!("Initiating node logs stream from container {container_id}...");
+    logging::log!("Initiating node logs stream from node {container_id}...");
     let mut logs_stream = start_node_logs_stream(container_id.clone())
         .await?
         .into_inner();
@@ -161,6 +161,6 @@ pub async fn node_logs_stream(
         }
     }
 
-    logging::log!("Dropped node logs stream from container {container_id}.");
+    logging::log!("Dropped node logs stream from node {container_id}.");
     Ok(())
 }

@@ -499,19 +499,31 @@ impl NodeManager {
             .join(id)
             .join(DEFAULT_LOGS_FOLDER)
             .join("antnode.log");
-        let mut file = File::open(log_file_path).await?;
-        file.seek(SeekFrom::End(1024)).await?;
-        let mut reader = BufReader::new(file);
 
+        let mut file = File::open(log_file_path).await?;
+        let file_length = file.metadata().await?.len();
+        if file_length > 1024 {
+            file.seek(SeekFrom::Start(file_length - 1024u64)).await?;
+        }
+        let mut reader = BufReader::new(file);
+        let mut max_iter = 180;
         Ok(async_stream::stream! {
             loop {
                 let mut chunk = vec![0; 1024]; // Read in 1024-byte chunks.
                 let bytes_read = reader.read(&mut chunk).await?;
                 if bytes_read == 0 {
-                    sleep(Duration::from_millis(1000)).await;
+                    sleep(Duration::from_secs(1)).await;
+                    if max_iter == 0 {
+                        // we have this limit to make sure we don't leak any thread
+                        // since there seems to be cases in ARM platforms...
+                        break;
+                    }
+                    max_iter -= 1;
                     continue;
                 }
+
                 yield Ok(Bytes::from(chunk));
+                max_iter = 180;
             }
         })
     }

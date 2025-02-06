@@ -57,8 +57,6 @@ wasm-bindgen-futures = "0.4"
 native = ["dep:sysinfo"]
 # Some platforms don't support I2C interface.
 lcd-disabled = []
-# Disables only the frontend logs view feature.
-logs-disabled = []
 hydrate = ["leptos/hydrate"]
 ssr = [
     "dep:ant-releases",
