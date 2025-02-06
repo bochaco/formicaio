@@ -16,6 +16,7 @@ use super::lcd::display_stats_on_lcd;
 use super::{
     app::{BgTasksCmds, ImmutableNodeStatus, METRICS_MAX_SIZE_PER_CONTAINER},
     db_client::DbClient,
+    helpers::truncated_balance_str,
     metrics_client::{NodeMetricsClient, NodesMetrics},
     node_instance::{ContainerId, NodeInstanceInfo},
     server_api_types::{AppSettings, Stats},
@@ -721,11 +722,7 @@ async fn balance_checker_task(
                     .await;
 
                     let total_balance: U256 = updated_balances.values().sum();
-                    update_lcd_stats(
-                        &lcd_stats,
-                        &[(LCD_LABEL_BALANCE, total_balance.to_string())],
-                    )
-                    .await;
+                    update_balance_lcd_stats(&lcd_stats, total_balance).await;
                     global_stats.lock().await.total_balance = total_balance;
                 }
             }
@@ -737,11 +734,7 @@ async fn balance_checker_task(
                 {
                     updated_balances.remove(&address);
                     let total_balance: U256 = updated_balances.values().sum();
-                    update_lcd_stats(
-                        &lcd_stats,
-                        &[(LCD_LABEL_BALANCE, total_balance.to_string())],
-                    )
-                    .await;
+                    update_balance_lcd_stats(&lcd_stats, total_balance).await;
                     global_stats.lock().await.total_balance = total_balance;
                 }
             }
@@ -760,11 +753,7 @@ async fn balance_checker_task(
                             .await;
 
                             let new_balance: U256 = updated_balances.values().sum();
-                            update_lcd_stats(
-                                &lcd_stats,
-                                &[(LCD_LABEL_BALANCE, new_balance.to_string())],
-                            )
-                            .await;
+                            update_balance_lcd_stats(&lcd_stats, new_balance).await;
                             total_balance = new_balance
                         }
                         Err(err) => {
@@ -832,6 +821,15 @@ async fn retrieve_current_balances<T: Transport + Clone, P: Provider<T, N>, N: N
             logging::log!("No valid rewards address set for node {node_short_id}.");
         }
     }
+}
+
+// Helper to update total balance stat to be disaplyed on external LCD device
+async fn update_balance_lcd_stats(
+    lcd_stats: &Arc<Mutex<HashMap<String, String>>>,
+    new_balance: U256,
+) {
+    let balance = truncated_balance_str(new_balance);
+    update_lcd_stats(lcd_stats, &[(LCD_LABEL_BALANCE, balance)]).await
 }
 
 // Helper to add/update stats to be disaplyed on external LCD device

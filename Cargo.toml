@@ -54,7 +54,7 @@ wasm-bindgen-futures = "0.4"
 
 [features]
 # Nodes are launched as native OS processes instead of as Docker containers
-native = ["dep:sysinfo"]
+native = []
 # Some platforms don't support I2C interface.
 lcd-disabled = []
 hydrate = ["leptos/hydrate"]
@@ -78,6 +78,7 @@ ssr = [
     "dep:reqwest",
     "dep:semver",
     "dep:sqlx",
+    "dep:sysinfo",
     "dep:tokio",
     "dep:tower",
     "dep:tower-http",
