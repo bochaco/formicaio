@@ -50,11 +50,7 @@ pub fn NodesListView() -> impl IntoView {
             <div class="flex flex-wrap">
                 <BatchInProgressView batch_info=context.batch_in_progress />
 
-                <For
-                    each=move || sorted_nodes.get()
-                    key=|(container_id, _)| container_id.clone()
-                    let:child
-                >
+                <For each=move || sorted_nodes.get() key=|(node_id, _)| node_id.clone() let:child>
                     <Show
                         when=move || !child.1.read().status.is_creating()
                         fallback=move || { view! { <CreatingNodeInstanceView /> }.into_view() }
@@ -232,7 +228,7 @@ fn NodeInstanceView(
             .selecting_nodes
             .read()
             .2
-            .contains(&info.read_untracked().container_id)
+            .contains(&info.read_untracked().node_id)
     };
     let is_selection_on = move || {
         let (is_selecting_nodes, is_selection_executing, _) = *context.selecting_nodes.read();
@@ -258,11 +254,11 @@ fn NodeInstanceView(
         if is_selecting && !is_executing {
             if is_selected() {
                 context.selecting_nodes.update(|(_, _, selected)| {
-                    selected.remove(&info.read_untracked().container_id);
+                    selected.remove(&info.read_untracked().node_id);
                 })
             } else {
                 context.selecting_nodes.update(|(_, _, selected)| {
-                    selected.insert(info.read_untracked().container_id.clone());
+                    selected.insert(info.read_untracked().node_id.clone());
                 })
             }
         }
@@ -335,7 +331,7 @@ fn NodeInstanceView(
                 <span class=move || { if is_transitioning() { "opacity-60" } else { "" } }>
                     <p>
                         <span class="node-info-item">"Node Id: "</span>
-                        {info.read_untracked().short_container_id()}
+                        {info.read_untracked().short_node_id()}
                     </p>
                     <p>
                         <span class="node-info-item">"Peer Id: "</span>
@@ -562,7 +558,7 @@ fn NodeSelection(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
             .selecting_nodes
             .read()
             .2
-            .contains(&info.read_untracked().container_id)
+            .contains(&info.read_untracked().node_id)
     };
 
     view! {
@@ -619,7 +615,7 @@ fn NodeLogs(info: RwSignal<NodeInstanceInfo>, set_logs: WriteSignal<Vec<String>>
                 }
                 on:click=move |_| {
                     set_logs.set(vec![]);
-                    start_logs_stream.dispatch(info.read_untracked().container_id.clone());
+                    start_logs_stream.dispatch(info.read_untracked().node_id.clone());
                 }
             >
                 <IconShowLogs />
@@ -665,7 +661,7 @@ fn NodeChartShow(
                     }
                 }
                 on:click=move |_| {
-                    start_metrics_update(info.read_untracked().container_id.clone());
+                    start_metrics_update(info.read_untracked().node_id.clone());
                 }
             >
                 <IconShowChart />

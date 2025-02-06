@@ -1,4 +1,4 @@
-use super::node_instance::{ContainerId, NodeInstanceInfo};
+use super::node_instance::{NodeId, NodeInstanceInfo};
 
 #[cfg(feature = "ssr")]
 use super::{
@@ -15,7 +15,7 @@ use std::collections::HashMap;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[allow(non_snake_case)]
 pub struct Container {
-    pub Id: ContainerId,
+    pub Id: NodeId,
     pub Created: u64,
     pub Ports: Vec<Port>,
     pub State: ContainerState,
@@ -50,7 +50,7 @@ impl Container {
 impl From<Container> for NodeInstanceInfo {
     fn from(val: Container) -> Self {
         Self {
-            container_id: val.Id.clone(),
+            node_id: val.Id.clone(),
             created: val.Created,
             status: NodeStatus::from(&val.State),
             status_info: val.Status.clone(),

@@ -1,6 +1,6 @@
 use super::{
     app::ClientGlobalState,
-    node_instance::{ContainerId, NodeInstanceInfo},
+    node_instance::{NodeId, NodeInstanceInfo},
 };
 
 use leptos::prelude::*;
@@ -71,7 +71,7 @@ impl NodesSortStrategy {
         }
     }
 
-    pub fn sort_items(&self, items: &mut [(ContainerId, RwSignal<NodeInstanceInfo>)]) {
+    pub fn sort_items(&self, items: &mut [(NodeId, RwSignal<NodeInstanceInfo>)]) {
         match self {
             NodesSortStrategy::CreationDate(true) => {
                 items.sort_by(|a, b| b.1.read().created.cmp(&a.1.read().created));

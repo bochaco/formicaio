@@ -13,7 +13,7 @@ use super::{
     error_template::{AppError, ErrorTemplate},
     navbar::NavBar,
     node_actions::NodesActionsView,
-    node_instance::{ContainerId, NodeInstanceInfo},
+    node_instance::{NodeId, NodeInstanceInfo},
     nodes_list_view::NodesListView,
     server_api_types::{BatchInProgress, Stats},
     sort_nodes::{NodesSortStrategy, SortStrategyView},
@@ -52,8 +52,8 @@ extern "C" {
 }
 
 // Maximum number of metrics data points to be kept per node on DB cache.
-pub const METRICS_MAX_SIZE_PER_CONTAINER: usize = 5_000;
-// How often we poll the backedn to retrieve an up to date list of node instances.
+pub const METRICS_MAX_SIZE_PER_NODE: usize = 5_000;
+// How often we poll the backend to retrieve an up to date list of node instances.
 pub const NODES_LIST_POLLING_FREQ_MILLIS: u64 = 5_500;
 
 // Env var to restrict the nodes to be run only with home-network mode on,
@@ -98,31 +98,31 @@ pub struct ServerGlobalState {
 #[cfg(feature = "ssr")]
 #[derive(Clone, Debug, Default)]
 pub struct ImmutableNodeStatus(
-    Arc<Mutex<HashMap<super::node_instance::ContainerId, (Instant, Duration)>>>,
+    Arc<Mutex<HashMap<super::node_instance::NodeId, (Instant, Duration)>>>,
 );
 
 #[cfg(feature = "ssr")]
 impl ImmutableNodeStatus {
-    pub async fn insert(&self, container_id: ContainerId, expiration: Duration) {
+    pub async fn insert(&self, node_id: NodeId, expiration: Duration) {
         self.0
             .lock()
             .await
-            .insert(container_id, (Instant::now(), expiration));
+            .insert(node_id, (Instant::now(), expiration));
     }
 
-    pub async fn remove(&self, container_id: &ContainerId) {
-        self.0.lock().await.remove(container_id);
+    pub async fn remove(&self, node_id: &NodeId) {
+        self.0.lock().await.remove(node_id);
     }
 
-    // Check if the container id is still in the list, but also check if
+    // Check if the node id is still in the list, but also check if
     // its expiration has already passed and therefore has to be removed from the list.
-    pub async fn is_still_locked(&self, container_id: &ContainerId) -> bool {
-        let info = self.0.lock().await.get(container_id).cloned();
+    pub async fn is_still_locked(&self, node_id: &NodeId) -> bool {
+        let info = self.0.lock().await.get(node_id).cloned();
         match info {
             None => false,
             Some((instant, expiration)) => {
                 if instant.elapsed() >= expiration {
-                    self.remove(container_id).await;
+                    self.remove(node_id).await;
                     false
                 } else {
                     true
@@ -142,9 +142,9 @@ pub struct ClientGlobalState {
     // Node global stats
     pub stats: RwSignal<Stats>,
     // Flag to enable/disable nodes' logs stream
-    pub logs_stream_on_for: RwSignal<Option<ContainerId>>,
+    pub logs_stream_on_for: RwSignal<Option<NodeId>>,
     // Flag to enable/disable nodes' metrics charts update
-    pub metrics_update_on_for: RwSignal<Option<ContainerId>>,
+    pub metrics_update_on_for: RwSignal<Option<NodeId>>,
     // Lastest version of the node binary available
     pub latest_bin_version: RwSignal<Option<String>>,
     // List of alerts to be shown in the UI
@@ -152,7 +152,7 @@ pub struct ClientGlobalState {
     // Information about node instances batch currently in progress
     pub batch_in_progress: RwSignal<Option<BatchInProgress>>,
     // Keep track of nodes being selected and if selection is on/off
-    pub selecting_nodes: RwSignal<(bool, bool, HashSet<ContainerId>)>,
+    pub selecting_nodes: RwSignal<(bool, bool, HashSet<NodeId>)>,
     // How to sort nodes to display them on the list
     pub nodes_sort_strategy: RwSignal<NodesSortStrategy>,
 }

@@ -1,6 +1,6 @@
 use super::{
     docker_msgs::*,
-    node_instance::{ContainerId, NodeInstanceInfo},
+    node_instance::{NodeId, NodeInstanceInfo},
     server_api_types::NodeOpts,
 };
 
@@ -70,7 +70,7 @@ pub enum DockerClientError {
     #[error("Docker client error: {0}")]
     ClientError(String),
     #[error("Container not found with id: {0}")]
-    CointainerNotFound(ContainerId),
+    CointainerNotFound(NodeId),
     #[error("Image not found locally")]
     ImageNotFound,
     #[error("Docker server error with code {0}: {1}")]
@@ -215,7 +215,7 @@ impl DockerClient {
     // Query the Docker server to return the info of the container matching the given id
     pub async fn get_container_info(
         &self,
-        id: &ContainerId,
+        id: &NodeId,
     ) -> Result<NodeInstanceInfo, DockerClientError> {
         let mut filters = HashMap::default();
         filters.insert("id".to_string(), vec![id.clone()]);
@@ -256,7 +256,7 @@ impl DockerClient {
     }
 
     // Request the Docker server to DELETE a container matching the given id
-    pub async fn delete_container(&self, id: &ContainerId) -> Result<(), DockerClientError> {
+    pub async fn delete_container(&self, id: &NodeId) -> Result<(), DockerClientError> {
         let url = format!("{DOCKER_CONTAINERS_API}/{id}");
         logging::log!("[DELETE] Sending Docker request to DELETE containers: {url} ...");
         let query = &[("force", "true")];
@@ -267,7 +267,7 @@ impl DockerClient {
     // Request the Docker server to START a container matching the given id
     pub async fn start_container(
         &self,
-        id: &ContainerId,
+        id: &NodeId,
         get_ips: bool,
     ) -> Result<(Option<String>, Option<String>, Option<String>), DockerClientError> {
         let url = format!("{DOCKER_CONTAINERS_API}/{id}/start");
@@ -293,7 +293,7 @@ impl DockerClient {
     }
 
     // Request the Docker server to STOP a container matching the given id
-    pub async fn stop_container(&self, id: &ContainerId) -> Result<(), DockerClientError> {
+    pub async fn stop_container(&self, id: &NodeId) -> Result<(), DockerClientError> {
         let url = format!("{DOCKER_CONTAINERS_API}/{id}/stop");
         logging::log!("[STOP] Sending Docker request to STOP a container: {url} ...");
         self.send_request(ReqMethod::post_empty_body(), &url, &[])
@@ -306,7 +306,7 @@ impl DockerClient {
     pub async fn create_new_container(
         &self,
         node_opts: NodeOpts,
-    ) -> Result<ContainerId, DockerClientError> {
+    ) -> Result<NodeId, DockerClientError> {
         let url = format!("{DOCKER_CONTAINERS_API}/create");
         let mapped_ports = [(node_opts.port, "udp"), (node_opts.metrics_port, "tcp")];
 
@@ -397,7 +397,7 @@ impl DockerClient {
     // Request the Docker server to return a node container logs stream.
     pub async fn get_container_logs_stream(
         &self,
-        id: &ContainerId,
+        id: &NodeId,
     ) -> Result<impl Stream<Item = Result<Bytes, DockerClientError>>, DockerClientError> {
         let url = format!("{DOCKER_CONTAINERS_API}/{id}/exec");
         logging::log!("[LOGS] Sending Docker query to get container LOGS stream: {url} ...");
@@ -433,7 +433,7 @@ impl DockerClient {
     // Request the Docker server to UPGRADE the node binary within a container matching the given id
     pub async fn upgrade_node_in_container(
         &self,
-        id: &ContainerId,
+        id: &NodeId,
         get_ips: bool,
     ) -> Result<(Option<String>, Option<String>), DockerClientError> {
         logging::log!("[UPGRADE] Sending Docker request to UPGRADE node within a container...");
@@ -475,7 +475,7 @@ impl DockerClient {
     // Retrieve version of the node binary and its peer id
     pub async fn get_node_version_and_peer_id(
         &self,
-        id: &ContainerId,
+        id: &NodeId,
         get_ips: bool,
     ) -> Result<(Option<String>, Option<String>, Option<String>), DockerClientError> {
         let cmd = "/app/antnode --version | grep -oE 'Autonomi Node v[0-9]+\\.[0-9]+\\.[0-9]+.*$'"
@@ -520,7 +520,7 @@ impl DockerClient {
     // Clears the node's PeerId within the containver and restarts it
     pub async fn regenerate_peer_id_in_container(
         &self,
-        id: &ContainerId,
+        id: &NodeId,
         get_ips: bool,
     ) -> Result<(Option<String>, Option<String>, Option<String>), DockerClientError> {
         logging::log!("[RECYCLE] Recycling container by clearing node's peer-id ...");
@@ -550,7 +550,7 @@ impl DockerClient {
     }
 
     // Restart the container wich has given id
-    async fn restart_container(&self, id: &ContainerId) -> Result<(), DockerClientError> {
+    async fn restart_container(&self, id: &NodeId) -> Result<(), DockerClientError> {
         let url = format!("{DOCKER_CONTAINERS_API}/{id}/restart");
         logging::log!("[RESTART] Sending Docker request to RESTART a container: {url} ...");
         self.send_request(ReqMethod::post_empty_body(), &url, &[])
@@ -561,7 +561,7 @@ impl DockerClient {
     // Helper to execute a cmd in a given container
     async fn exec_in_container(
         &self,
-        id: &ContainerId,
+        id: &NodeId,
         cmd: String,
         cmd_desc: &str,
     ) -> Result<(String, String), DockerClientError> {

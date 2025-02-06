@@ -14,11 +14,11 @@ use super::{
 use super::lcd::display_stats_on_lcd;
 
 use super::{
-    app::{BgTasksCmds, ImmutableNodeStatus, METRICS_MAX_SIZE_PER_CONTAINER},
+    app::{BgTasksCmds, ImmutableNodeStatus, METRICS_MAX_SIZE_PER_NODE},
     db_client::DbClient,
     helpers::truncated_balance_str,
     metrics_client::{NodeMetricsClient, NodesMetrics},
-    node_instance::{ContainerId, NodeInstanceInfo},
+    node_instance::{NodeId, NodeInstanceInfo},
     server_api_types::{AppSettings, Stats},
 };
 use alloy::{
@@ -169,11 +169,11 @@ impl NodeManagerProxy {
     #[cfg(not(feature = "native"))]
     async fn upgrade_node_instance(
         &self,
-        container_id: &ContainerId,
+        node_id: &NodeId,
         node_status_locked: &ImmutableNodeStatus,
     ) -> Result<(), DockerClientError> {
         helper_upgrade_node_instance(
-            container_id,
+            node_id,
             node_status_locked,
             &self.db_client,
             &self.docker_client,
@@ -184,11 +184,11 @@ impl NodeManagerProxy {
     #[cfg(feature = "native")]
     async fn upgrade_node_instance(
         &self,
-        container_id: &ContainerId,
+        node_id: &NodeId,
         node_status_locked: &ImmutableNodeStatus,
     ) -> Result<(), NodeManagerError> {
         helper_upgrade_node_instance(
-            container_id,
+            node_id,
             node_status_locked,
             &self.db_client,
             &self.node_manager,
@@ -390,7 +390,7 @@ pub fn spawn_bg_tasks(
                             guard.active_nodes = num_active_nodes;
                             guard.inactive_nodes = num_inactive_nodes;
                         },
-                        Err(err) => logging::log!("Failed to get containers list: {err}")
+                        Err(err) => logging::log!("Failed to get nodes list: {err}")
                     }
                 }
             }
@@ -428,13 +428,13 @@ async fn check_node_bin_version(
                 .await
                 .map(|list| list.first().cloned())
             {
-                Ok(Some((container_id, v))) => {
-                    logging::log!("Auto-upgrading node binary from v{v} to v{latest_version} for node instance {container_id} ...");
+                Ok(Some((node_id, v))) => {
+                    logging::log!("Auto-upgrading node binary from v{v} to v{latest_version} for node instance {node_id} ...");
                     if let Err(err) = node_mgr_proxy
-                        .upgrade_node_instance(&container_id, &node_status_locked)
+                        .upgrade_node_instance(&node_id, &node_status_locked)
                         .await
                     {
-                        logging::log!("Failed to auto-upgrade node binary for node instance {container_id}: {err:?}.");
+                        logging::log!("Failed to auto-upgrade node binary for node instance {node_id}: {err:?}.");
                     }
 
                     let delay = db_client.get_settings().await.nodes_auto_upgrade_delay;
@@ -492,9 +492,7 @@ async fn update_node_metadata(
     db_client: &DbClient,
     node_status_locked: &ImmutableNodeStatus,
 ) {
-    let update_status = !node_status_locked
-        .is_still_locked(&node_info.container_id)
-        .await;
+    let update_status = !node_status_locked.is_still_locked(&node_info.node_id).await;
     db_client
         .update_node_metadata(node_info, update_status)
         .await;
@@ -541,12 +539,12 @@ async fn update_nodes_info(
             if let Some(metrics_port) = node_info.metrics_port {
                 // let's now collect metrics from the node
                 let metrics_client = NodeMetricsClient::new(&node_info.node_ip, metrics_port);
-                let node_short_id = node_info.short_container_id();
+                let node_short_id = node_info.short_node_id();
 
                 match timeout(NODE_METRICS_QUERY_TIMEOUT, metrics_client.fetch_metrics()).await {
                     Ok(Ok(metrics)) => {
                         let mut node_metrics = nodes_metrics.lock().await;
-                        node_metrics.store(&node_info.container_id, &metrics).await;
+                        node_metrics.store(&node_info.node_id, &metrics).await;
                         node_metrics.update_node_info(&mut node_info);
                     }
                     Ok(Err(err)) => {
@@ -571,10 +569,7 @@ async fn update_nodes_info(
         update_node_metadata(&node_info, db_client, node_status_locked).await;
 
         if query_bin_version {
-            if let Some(ref version) = db_client
-                .get_node_bin_version(&node_info.container_id)
-                .await
-            {
+            if let Some(ref version) = db_client.get_node_bin_version(&node_info.node_id).await {
                 bin_version.insert(version.clone());
             }
         }
@@ -636,13 +631,10 @@ async fn prune_metrics(node_mgr_proxy: NodeManagerProxy, db_client: DbClient) {
     for node_info in nodes.into_iter() {
         logging::log!(
             "Removing oldest metrics from DB for node {} ...",
-            node_info.short_container_id()
+            node_info.short_node_id()
         );
         db_client
-            .remove_oldest_metrics(
-                node_info.container_id.clone(),
-                METRICS_MAX_SIZE_PER_CONTAINER,
-            )
+            .remove_oldest_metrics(node_info.node_id.clone(), METRICS_MAX_SIZE_PER_NODE)
             .await;
     }
 }
@@ -757,7 +749,7 @@ async fn balance_checker_task(
                             total_balance = new_balance
                         }
                         Err(err) => {
-                            logging::log!("Failed to get containers list: {err}");
+                            logging::log!("Failed to get nodes list: {err}");
                             remove_lcd_stats(&lcd_stats, &[LCD_LABEL_BALANCE]).await;
                         }
                         _ => {
@@ -779,7 +771,7 @@ async fn retrieve_current_balances<T: Transport + Clone, P: Provider<T, N>, N: N
     updated_balances: &mut HashMap<Address, U256>,
 ) {
     for node_info in nodes.into_iter() {
-        let node_short_id = node_info.short_container_id();
+        let node_short_id = node_info.short_node_id();
         if let Some(Ok(address)) = node_info
             .rewards_addr
             .as_ref()
@@ -815,7 +807,7 @@ async fn retrieve_current_balances<T: Transport + Clone, P: Provider<T, N>, N: N
             };
 
             db_client
-                .update_node_metadata_fields(&node_info.container_id, &[("balance", &new_balance)])
+                .update_node_metadata_fields(&node_info.node_id, &[("balance", &new_balance)])
                 .await;
         } else {
             logging::log!("No valid rewards address set for node {node_short_id}.");

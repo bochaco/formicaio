@@ -98,7 +98,7 @@ impl NodeManager {
 
     // Create directory to hold node's data and cloned node binary
     pub async fn new_node(&self, node_info: &NodeInstanceInfo) -> Result<(), NodeManagerError> {
-        let node_id = &node_info.container_id;
+        let node_id = &node_info.node_id;
         let node_bin_path = self.root_dir.join(NODE_BIN_NAME);
         let new_node_data_dir = self.root_dir.join(DEFAULT_NODE_DATA_FOLDER).join(node_id);
 
@@ -127,7 +127,7 @@ impl NodeManager {
         &self,
         node_info: &mut NodeInstanceInfo,
     ) -> Result<(), NodeManagerError> {
-        let node_id = &node_info.container_id;
+        let node_id = &node_info.node_id;
         let port = node_info
             .port
             .ok_or(NodeManagerError::SpawnNodeMissingParam(
@@ -208,7 +208,7 @@ impl NodeManager {
                 // let's delay it for a moment so it generates the peer id
                 sleep(Duration::from_secs(2)).await;
                 match self
-                    .get_node_version_and_peer_id(&node_info.container_id, !home_network)
+                    .get_node_version_and_peer_id(&node_info.node_id, !home_network)
                     .await
                 {
                     Ok((bin_version, peer_id, ips)) => {
@@ -393,10 +393,10 @@ impl NodeManager {
         &self,
         node_info: &mut NodeInstanceInfo,
     ) -> Result<(), NodeManagerError> {
-        logging::log!("[UPGRADE] Upgrading node {} ...", node_info.container_id);
+        logging::log!("[UPGRADE] Upgrading node {} ...", node_info.node_id);
 
         // restart node to run with new node version
-        let _res = self.kill_node(&node_info.container_id).await;
+        let _res = self.kill_node(&node_info.node_id).await;
         // copy the node binary so it uses the latest version available
         self.new_node(node_info).await?;
         // let's delay it for a moment so it closes files descriptors
@@ -467,22 +467,22 @@ impl NodeManager {
     ) -> Result<(), NodeManagerError> {
         logging::log!(
             "[RECYCLE] Recycling node {} by clearing its peer-id ...",
-            node_info.container_id
+            node_info.node_id
         );
 
         // we remove 'secret-key' file so the node will re-generate it when restarted.
         let file_path = self
             .root_dir
             .join(DEFAULT_NODE_DATA_FOLDER)
-            .join(node_info.container_id.clone())
+            .join(node_info.node_id.clone())
             .join("secret-key");
         remove_file(file_path).await?;
 
         // restart node to obtain a new peer-id
-        let _res = self.kill_node(&node_info.container_id).await;
+        let _res = self.kill_node(&node_info.node_id).await;
         self.spawn_new_node(node_info).await?;
 
-        logging::log!("Finished recycling node: {}", node_info.container_id);
+        logging::log!("Finished recycling node: {}", node_info.node_id);
 
         Ok(())
     }

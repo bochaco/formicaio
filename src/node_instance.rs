@@ -7,13 +7,11 @@ use std::fmt;
 
 // Length of nodes PeerIds' prefix and suffix to be displayed
 const PEER_ID_PREFIX_SUFFIX_LEN: usize = 12;
-// Length of nodes Docker container ids' prefix to be displayed
-const CONTAINER_ID_PREFIX_LEN: usize = 12;
+// Length of nodes ids' prefix to be displayed
+const NODE_ID_PREFIX_LEN: usize = 12;
 // Length of nodes rewards address' prefix and suffix to be displayed
 const REWARDS_ADDR_PREFIX_SUFFIX_LEN: usize = 8;
 
-// Hex-encoded container id
-pub type ContainerId = String;
 // Hex-encoded node id
 pub type NodeId = String;
 // PID of a node when running as a OS native process
@@ -89,7 +87,7 @@ impl fmt::Display for NodeStatus {
 
 #[derive(Clone, Default, Debug, Deserialize, PartialEq, Serialize)]
 pub struct NodeInstanceInfo {
-    pub container_id: ContainerId,
+    pub node_id: NodeId,
     pub pid: Option<NodePid>,
     pub created: u64,
     pub status_changed: Option<u64>,
@@ -117,9 +115,9 @@ pub struct NodeInstanceInfo {
 }
 
 impl NodeInstanceInfo {
-    pub fn new(container_id: String) -> Self {
+    pub fn new(node_id: String) -> Self {
         Self {
-            container_id,
+            node_id,
             ..Default::default()
         }
     }
@@ -135,11 +133,11 @@ impl NodeInstanceInfo {
         self.status.is_active() && self.upgrade_available()
     }
 
-    pub fn short_container_id(&self) -> String {
-        if self.container_id.len() > CONTAINER_ID_PREFIX_LEN {
-            self.container_id[..CONTAINER_ID_PREFIX_LEN].to_string()
+    pub fn short_node_id(&self) -> String {
+        if self.node_id.len() > NODE_ID_PREFIX_LEN {
+            self.node_id[..NODE_ID_PREFIX_LEN].to_string()
         } else {
-            self.container_id.clone()
+            self.node_id.clone()
         }
     }
 

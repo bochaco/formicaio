@@ -11,7 +11,7 @@ use super::server_api_native::{
 
 use super::{
     app::ClientGlobalState,
-    node_instance::{ContainerId, NodeInstanceInfo},
+    node_instance::{NodeId, NodeInstanceInfo},
     server_api_types::{BatchInProgress, NodeOpts},
 };
 
@@ -59,24 +59,22 @@ pub async fn add_node_instances(
 ) -> Result<(), ServerFnError> {
     let context = expect_context::<ClientGlobalState>();
 
-    // random container_id and temporary
-    let tmp_container_id = format!("tmp-{}", hex::encode(rand::random::<[u8; 6]>()));
-    let tmp_container = NodeInstanceInfo {
-        container_id: tmp_container_id.clone(),
+    // random node_id and temporary
+    let tmp_node_id = format!("tmp-{}", hex::encode(rand::random::<[u8; 6]>()));
+    let tmp_node = NodeInstanceInfo {
+        node_id: tmp_node_id.clone(),
         created: u64::MAX, // just so it's shown first as the newest in the UI
         ..Default::default()
     };
     context.nodes.update(|items| {
-        items
-            .1
-            .insert(tmp_container_id.clone(), RwSignal::new(tmp_container));
+        items.1.insert(tmp_node_id.clone(), RwSignal::new(tmp_node));
     });
 
     if count > 1 {
         let auto_start = node_opts.auto_start;
         prepare_node_instances_batch(node_opts, count, interval_secs).await?;
         context.nodes.update(|items| {
-            items.1.remove(&tmp_container_id);
+            items.1.remove(&tmp_node_id);
         });
         context.batch_in_progress.update(|info| {
             if let Some(b) = info {
@@ -93,10 +91,10 @@ pub async fn add_node_instances(
     } else {
         let node_info = create_node_instance(node_opts).await?;
         context.nodes.update(|items| {
-            items.1.remove(&tmp_container_id);
+            items.1.remove(&tmp_node_id);
             items
                 .1
-                .insert(node_info.container_id.clone(), RwSignal::new(node_info));
+                .insert(node_info.node_id.clone(), RwSignal::new(node_info));
         });
     };
 
@@ -104,13 +102,13 @@ pub async fn add_node_instances(
 }
 
 // Removes a node instance with given id and updates given signal
-pub async fn remove_node_instance(container_id: ContainerId) -> Result<(), ServerFnError> {
+pub async fn remove_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
     let context = expect_context::<ClientGlobalState>();
 
-    delete_node_instance(container_id.clone()).await?;
+    delete_node_instance(node_id.clone()).await?;
 
     context.nodes.update(|nodes| {
-        nodes.1.remove(&container_id);
+        nodes.1.remove(&node_id);
     });
 
     Ok(())
@@ -118,14 +116,12 @@ pub async fn remove_node_instance(container_id: ContainerId) -> Result<(), Serve
 
 // Obtains a stream from the node's log
 pub async fn node_logs_stream(
-    container_id: ContainerId,
+    node_id: NodeId,
     received_logs: WriteSignal<Vec<String>>,
 ) -> Result<(), ServerFnError> {
     use futures_util::stream::StreamExt;
-    logging::log!("Initiating node logs stream from node {container_id}...");
-    let mut logs_stream = start_node_logs_stream(container_id.clone())
-        .await?
-        .into_inner();
+    logging::log!("Initiating node logs stream from node {node_id}...");
+    let mut logs_stream = start_node_logs_stream(node_id.clone()).await?.into_inner();
 
     let context = expect_context::<ClientGlobalState>();
     let mut cur_line = Vec::<u8>::new();
@@ -155,12 +151,12 @@ pub async fn node_logs_stream(
             != context
                 .logs_stream_on_for
                 .get_untracked()
-                .map(|id| id == container_id)
+                .map(|id| id == node_id)
         {
             break;
         }
     }
 
-    logging::log!("Dropped node logs stream from node {container_id}.");
+    logging::log!("Dropped node logs stream from node {node_id}.");
     Ok(())
 }

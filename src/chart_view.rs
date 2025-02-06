@@ -5,10 +5,9 @@ use super::server_api_native::{get_settings, node_metrics};
 
 use super::{
     app::{
-        ClientGlobalState, METRICS_MAX_SIZE_PER_CONTAINER, METRIC_KEY_CPU_USEAGE,
-        METRIC_KEY_MEM_USED_MB,
+        ClientGlobalState, METRICS_MAX_SIZE_PER_NODE, METRIC_KEY_CPU_USEAGE, METRIC_KEY_MEM_USED_MB,
     },
-    node_instance::ContainerId,
+    node_instance::NodeId,
 };
 
 use apexcharts_rs::prelude::ApexChart;
@@ -163,10 +162,10 @@ pub fn NodeChartView(
 
 // Fetch metrics data for a given node to render the charts
 pub async fn node_metrics_update(
-    container_id: ContainerId,
+    node_id: NodeId,
     set_chart_data: WriteSignal<ChartSeriesData>,
 ) -> Result<(), ServerFnError> {
-    logging::log!("Retriving node metrics from container {container_id}...");
+    logging::log!("Retriving node metrics from node {node_id}...");
 
     let polling_freq_millis =
         get_settings().await?.nodes_metrics_polling_freq.as_secs() as u32 * 2000;
@@ -182,9 +181,9 @@ pub async fn node_metrics_update(
     while let Some(true) = context
         .metrics_update_on_for
         .get_untracked()
-        .map(|id| id == container_id)
+        .map(|id| id == node_id)
     {
-        let update = node_metrics(container_id.clone(), since).await?;
+        let update = node_metrics(node_id.clone(), since).await?;
 
         match (
             update.get(METRIC_KEY_MEM_USED_MB),
@@ -207,10 +206,10 @@ pub async fn node_metrics_update(
                     }));
 
                     // remove items if they exceed the max size
-                    if let Some(delta) = m.len().checked_sub(METRICS_MAX_SIZE_PER_CONTAINER) {
+                    if let Some(delta) = m.len().checked_sub(METRICS_MAX_SIZE_PER_NODE) {
                         m.drain(0..delta);
                     }
-                    if let Some(delta) = c.len().checked_sub(METRICS_MAX_SIZE_PER_CONTAINER) {
+                    if let Some(delta) = c.len().checked_sub(METRICS_MAX_SIZE_PER_NODE) {
                         c.drain(0..delta);
                     }
                 });
@@ -222,6 +221,6 @@ pub async fn node_metrics_update(
         TimeoutFuture::new(polling_freq_millis).await;
     }
 
-    logging::log!("Stopped node metrics update from container {container_id}.");
+    logging::log!("Stopped node metrics update from node {node_id}.");
     Ok(())
 }

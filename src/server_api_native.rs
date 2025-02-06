@@ -1,5 +1,5 @@
 use super::{
-    node_instance::{ContainerId, NodeInstanceInfo},
+    node_instance::{NodeId, NodeInstanceInfo},
     server_api_types::{NodeOpts, NodesInstancesInfo},
 };
 
@@ -141,7 +141,7 @@ async fn helper_create_node_instance(
     let _ = node_opts.rewards_addr.parse::<Address>()?;
 
     let node_info = NodeInstanceInfo {
-        container_id: node_id.clone(),
+        node_id: node_id.clone(),
         created: Utc::now().timestamp() as u64,
         status: NodeStatus::Inactive,
         port: Some(node_opts.port),
@@ -173,34 +173,31 @@ async fn helper_create_node_instance(
 
 // Delete a node instance with given id
 #[server(DeleteNodeInstance, "/api", "Url", "/delete_node")]
-pub async fn delete_node_instance(container_id: ContainerId) -> Result<(), ServerFnError> {
-    logging::log!("Deleting node with Id: {container_id} ...");
+pub async fn delete_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
+    logging::log!("Deleting node with Id: {node_id} ...");
     let context = expect_context::<ServerGlobalState>();
-    let mut node_info = NodeInstanceInfo::new(container_id);
+    let mut node_info = NodeInstanceInfo::new(node_id);
     context.db_client.get_node_metadata(&mut node_info).await;
     context
         .db_client
-        .delete_node_metadata(&node_info.container_id)
+        .delete_node_metadata(&node_info.node_id)
         .await;
 
     if node_info.status.is_active() {
         // kill node's process
-        context
-            .node_manager
-            .kill_node(&node_info.container_id)
-            .await?;
+        context.node_manager.kill_node(&node_info.node_id).await?;
     }
     // remove node's directory
     context
         .node_manager
-        .remove_node_dir(&node_info.container_id)
+        .remove_node_dir(&node_info.node_id)
         .await?;
 
     context
         .nodes_metrics
         .lock()
         .await
-        .remove_container_metrics(&node_info.container_id)
+        .remove_node_metrics(&node_info.node_id)
         .await;
 
     context
@@ -212,28 +209,28 @@ pub async fn delete_node_instance(container_id: ContainerId) -> Result<(), Serve
 
 // Start a node instance with given id
 #[server(StartNodeInstance, "/api", "Url", "/start_node")]
-pub async fn start_node_instance(container_id: ContainerId) -> Result<(), ServerFnError> {
+pub async fn start_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
-    helper_start_node_instance(container_id, &context).await
+    helper_start_node_instance(node_id, &context).await
 }
 
 // Helper to start a node instance with given id
 #[cfg(feature = "ssr")]
 async fn helper_start_node_instance(
-    container_id: ContainerId,
+    node_id: NodeId,
     context: &ServerGlobalState,
 ) -> Result<(), ServerFnError> {
-    logging::log!("Starting node with Id: {container_id} ...");
+    logging::log!("Starting node with Id: {node_id} ...");
     context
         .node_status_locked
-        .insert(container_id.clone(), Duration::from_secs(20))
+        .insert(node_id.clone(), Duration::from_secs(20))
         .await;
     context
         .db_client
-        .update_node_status(&container_id, NodeStatus::Restarting)
+        .update_node_status(&node_id, NodeStatus::Restarting)
         .await;
 
-    let mut node_info = NodeInstanceInfo::new(container_id.clone());
+    let mut node_info = NodeInstanceInfo::new(node_id.clone());
     context.db_client.get_node_metadata(&mut node_info).await;
     context.node_manager.spawn_new_node(&mut node_info).await?;
 
@@ -243,43 +240,40 @@ async fn helper_start_node_instance(
         .db_client
         .update_node_metadata(&node_info, true)
         .await;
-    context.node_status_locked.remove(&container_id).await;
+    context.node_status_locked.remove(&node_id).await;
 
     Ok(())
 }
 
 // Stop a node instance with given id
 #[server(StopNodeInstance, "/api", "Url", "/stop_node")]
-pub async fn stop_node_instance(container_id: ContainerId) -> Result<(), ServerFnError> {
-    logging::log!("Stopping node with Id: {container_id} ...");
+pub async fn stop_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
+    logging::log!("Stopping node with Id: {node_id} ...");
     let context = expect_context::<ServerGlobalState>();
-    helper_stop_node_instance(container_id, &context, NodeStatus::Stopping).await
+    helper_stop_node_instance(node_id, &context, NodeStatus::Stopping).await
 }
 
 // Helper to stop a node instance with given id
 #[cfg(feature = "ssr")]
 async fn helper_stop_node_instance(
-    container_id: ContainerId,
+    node_id: NodeId,
     context: &ServerGlobalState,
     status: NodeStatus,
 ) -> Result<(), ServerFnError> {
     context
         .node_status_locked
-        .insert(container_id.clone(), Duration::from_secs(20))
+        .insert(node_id.clone(), Duration::from_secs(20))
         .await;
-    context
-        .db_client
-        .update_node_status(&container_id, status)
-        .await;
+    context.db_client.update_node_status(&node_id, status).await;
 
-    let res = context.node_manager.kill_node(&container_id).await;
+    let res = context.node_manager.kill_node(&node_id).await;
 
     if matches!(res, Ok(())) {
         // set connected/kbucket peers back to 0 and update cache
         context
             .db_client
             .update_node_metadata_fields(
-                &container_id,
+                &node_id,
                 &[
                     ("status_changed", &Utc::now().timestamp().to_string()),
                     ("pid", "0"),
@@ -292,23 +286,23 @@ async fn helper_stop_node_instance(
             .await;
         context
             .db_client
-            .update_node_status(&container_id, NodeStatus::Inactive)
+            .update_node_status(&node_id, NodeStatus::Inactive)
             .await;
     }
 
-    context.node_status_locked.remove(&container_id).await;
+    context.node_status_locked.remove(&node_id).await;
 
     Ok(res?)
 }
 
 // Upgrade a node instance with given id
 #[server(UpgradeNodeInstance, "/api", "Url", "/upgrade_node")]
-pub async fn upgrade_node_instance(container_id: ContainerId) -> Result<(), ServerFnError> {
-    logging::log!("Upgrading node with Id: {container_id} ...");
+pub async fn upgrade_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
+    logging::log!("Upgrading node with Id: {node_id} ...");
     let context = expect_context::<ServerGlobalState>();
 
     helper_upgrade_node_instance(
-        &container_id,
+        &node_id,
         &context.node_status_locked,
         &context.db_client,
         &context.node_manager,
@@ -321,29 +315,29 @@ pub async fn upgrade_node_instance(container_id: ContainerId) -> Result<(), Serv
 /// Helper to upgrade a node instance with given id
 #[cfg(feature = "ssr")]
 pub(crate) async fn helper_upgrade_node_instance(
-    container_id: &ContainerId,
+    node_id: &NodeId,
     node_status_locked: &ImmutableNodeStatus,
     db_client: &DbClient,
     node_manager: &NodeManager,
 ) -> Result<(), NodeManagerError> {
     node_status_locked
         .insert(
-            container_id.clone(),
+            node_id.clone(),
             Duration::from_secs(UPGRADE_NODE_BIN_TIMEOUT_SECS),
         )
         .await;
     db_client
-        .update_node_status(container_id, NodeStatus::Upgrading)
+        .update_node_status(node_id, NodeStatus::Upgrading)
         .await;
 
-    let mut node_info = NodeInstanceInfo::new(container_id.clone());
+    let mut node_info = NodeInstanceInfo::new(node_id.clone());
     db_client.get_node_metadata(&mut node_info).await;
 
     let res = node_manager.upgrade_node(&mut node_info).await;
 
     if res.is_ok() {
         logging::log!(
-            "Node binary upgraded to v{} in node {container_id}.",
+            "Node binary upgraded to v{} in node {node_id}.",
             node_info.bin_version.as_deref().unwrap_or("[unknown]")
         );
 
@@ -353,23 +347,18 @@ pub(crate) async fn helper_upgrade_node_instance(
         db_client.update_node_metadata(&node_info, true).await;
     }
 
-    node_status_locked.remove(container_id).await;
+    node_status_locked.remove(node_id).await;
 
     res
 }
 
 // Start streaming logs from a node instance with given id
 #[server(output = Streaming, name = StartNodeLogsStream, prefix = "/api", endpoint = "/node_logs_stream")]
-pub async fn start_node_logs_stream(
-    container_id: ContainerId,
-) -> Result<ByteStream, ServerFnError> {
-    logging::log!("Starting logs stream from node with Id: {container_id} ...");
+pub async fn start_node_logs_stream(node_id: NodeId) -> Result<ByteStream, ServerFnError> {
+    logging::log!("Starting logs stream from node with Id: {node_id} ...");
     let context = expect_context::<ServerGlobalState>();
 
-    let node_logs_stream = context
-        .node_manager
-        .get_node_logs_stream(&container_id)
-        .await?;
+    let node_logs_stream = context.node_manager.get_node_logs_stream(&node_id).await?;
     let converted_stream = node_logs_stream.map(|item| {
         item.map_err(ServerFnError::from) // convert the error type
     });
@@ -379,7 +368,7 @@ pub async fn start_node_logs_stream(
 // Retrieve the metrics for a node instance with given id and filters
 #[server(NodeMetrics, "/api", "Url", "/node_metrics")]
 pub async fn node_metrics(
-    container_id: ContainerId,
+    node_id: NodeId,
     since: Option<i64>,
 ) -> Result<HashMap<String, Vec<super::app::NodeMetric>>, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
@@ -387,7 +376,7 @@ pub async fn node_metrics(
         .nodes_metrics
         .lock()
         .await
-        .get_container_metrics(container_id, since)
+        .get_node_metrics(node_id, since)
         .await;
 
     Ok(metrics)
@@ -417,19 +406,19 @@ pub async fn update_settings(
 
 // Recycle a node instance by restarting it with a new node peer-id
 #[server(RecycleNodeInstance, "/api", "Url", "/recycle_node_instance")]
-pub async fn recycle_node_instance(container_id: ContainerId) -> Result<(), ServerFnError> {
+pub async fn recycle_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
-    logging::log!("Recycling node instance with Id: {container_id} ...");
+    logging::log!("Recycling node instance with Id: {node_id} ...");
     context
         .node_status_locked
-        .insert(container_id.clone(), Duration::from_secs(20))
+        .insert(node_id.clone(), Duration::from_secs(20))
         .await;
     context
         .db_client
-        .update_node_status(&container_id, NodeStatus::Recycling)
+        .update_node_status(&node_id, NodeStatus::Recycling)
         .await;
 
-    let mut node_info = NodeInstanceInfo::new(container_id.clone());
+    let mut node_info = NodeInstanceInfo::new(node_id.clone());
     context.db_client.get_node_metadata(&mut node_info).await;
 
     context
@@ -443,7 +432,7 @@ pub async fn recycle_node_instance(container_id: ContainerId) -> Result<(), Serv
         .update_node_metadata(&node_info, true)
         .await;
 
-    context.node_status_locked.remove(&container_id).await;
+    context.node_status_locked.remove(&node_id).await;
 
     Ok(())
 }

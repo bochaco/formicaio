@@ -42,7 +42,7 @@ pub enum NodeAction {
 impl NodeAction {
     // Apply the action to the given node instance
     pub async fn apply(&self, info: &RwSignal<NodeInstanceInfo>) {
-        let container_id = info.read_untracked().container_id.clone();
+        let node_id = info.read_untracked().node_id.clone();
         let previous_status = info.read_untracked().status.clone();
         let res = match self {
             Self::Start => {
@@ -50,14 +50,14 @@ impl NodeAction {
                     return;
                 }
                 info.update(|node| node.status = NodeStatus::Restarting);
-                start_node_instance(container_id.clone()).await
+                start_node_instance(node_id.clone()).await
             }
             Self::Stop => {
                 if !previous_status.is_active() {
                     return;
                 }
                 info.update(|node| node.status = NodeStatus::Stopping);
-                let res = stop_node_instance(container_id.clone()).await;
+                let res = stop_node_instance(node_id.clone()).await;
 
                 if matches!(res, Ok(())) {
                     info.update(|node| {
@@ -73,7 +73,7 @@ impl NodeAction {
                     return;
                 }
                 info.update(|node| node.status = NodeStatus::Upgrading);
-                let res = upgrade_node_instance(container_id.clone()).await;
+                let res = upgrade_node_instance(node_id.clone()).await;
 
                 if matches!(res, Ok(())) {
                     info.update(|node| {
@@ -88,18 +88,18 @@ impl NodeAction {
                     return;
                 }
                 info.update(|node| node.status = NodeStatus::Recycling);
-                recycle_node_instance(container_id.clone()).await
+                recycle_node_instance(node_id.clone()).await
             }
             Self::Remove => {
                 info.update(|node| node.status = NodeStatus::Removing);
-                remove_node_instance(container_id.clone()).await
+                remove_node_instance(node_id.clone()).await
             }
         };
 
         if let Err(err) = res {
             let msg = format!(
                 "Failed to {self:?} node {}: {err:?}",
-                info.read_untracked().short_container_id()
+                info.read_untracked().short_node_id()
             );
             logging::log!("{msg}");
             show_alert_msg(msg);
@@ -691,7 +691,7 @@ fn apply_on_selected(action: NodeAction, context: ClientGlobalState) {
         .read_untracked()
         .1
         .values()
-        .filter(|n| selected.contains(&n.read_untracked().container_id))
+        .filter(|n| selected.contains(&n.read_untracked().node_id))
         .cloned()
         .collect::<Vec<_>>();
 
@@ -704,7 +704,7 @@ fn apply_on_selected(action: NodeAction, context: ClientGlobalState) {
 
             action.apply(&info).await;
             context.selecting_nodes.update(|(_, _, selected)| {
-                selected.remove(&info.read_untracked().container_id);
+                selected.remove(&info.read_untracked().node_id);
             });
 
             // let's await for it to finish transitioning unless it was a removal action

@@ -1,6 +1,6 @@
 use super::{
     metrics::{Metrics, NodeMetric},
-    node_instance::{ContainerId, NodeId, NodeInstanceInfo, NodeStatus},
+    node_instance::{NodeId, NodeInstanceInfo, NodeStatus},
     server_api_types::AppSettings,
 };
 
@@ -56,7 +56,7 @@ struct CachedSettings {
 // Struct stored on the DB caching nodes metadata.
 #[derive(Clone, Debug, Deserialize, FromRow, Serialize)]
 struct CachedNodeMetadata {
-    container_id: String,
+    node_id: String,
     pid: u32,
     created: u64,
     status_changed: u64,
@@ -80,8 +80,8 @@ impl CachedNodeMetadata {
     // Update the node info with data obtained from DB, but only those
     // fields with non zero/empty values; zero/empty value means it was unknown when stored.
     pub fn merge_onto(&self, info: &mut NodeInstanceInfo) {
-        if !self.container_id.is_empty() {
-            info.container_id = self.container_id.clone();
+        if !self.node_id.is_empty() {
+            info.node_id = self.node_id.clone();
         }
         if self.pid > 0 {
             info.pid = Some(self.pid);
@@ -191,7 +191,7 @@ impl DbClient {
                 for node in nodes {
                     let mut node_info = NodeInstanceInfo::default();
                     node.merge_onto(&mut node_info);
-                    retrieved_nodes.insert(node.container_id, node_info);
+                    retrieved_nodes.insert(node.node_id, node_info);
                 }
             }
             Err(err) => logging::log!("Sqlite query error: {err}"),
@@ -203,14 +203,14 @@ impl DbClient {
     // Retrieve node metadata from local cache DB
     pub async fn get_node_metadata(&self, info: &mut NodeInstanceInfo) {
         let db_lock = self.db.lock().await;
-        match sqlx::query_as::<_, CachedNodeMetadata>("SELECT * FROM nodes WHERE container_id=?")
-            .bind(info.container_id.clone())
+        match sqlx::query_as::<_, CachedNodeMetadata>("SELECT * FROM nodes WHERE node_id=?")
+            .bind(info.node_id.clone())
             .fetch_all(&*db_lock)
             .await
         {
             Ok(nodes) => {
                 for node in nodes {
-                    if node.container_id == info.container_id {
+                    if node.node_id == info.node_id {
                         node.merge_onto(info);
                     }
                 }
@@ -220,10 +220,10 @@ impl DbClient {
     }
 
     // Retrieve node binary version from local cache DB
-    pub async fn get_node_bin_version(&self, container_id: &str) -> Option<String> {
+    pub async fn get_node_bin_version(&self, node_id: &str) -> Option<String> {
         let db_lock = self.db.lock().await;
-        match sqlx::query("SELECT bin_version FROM nodes WHERE container_id=?")
-            .bind(container_id)
+        match sqlx::query("SELECT bin_version FROM nodes WHERE node_id=?")
+            .bind(node_id)
             .fetch_all(&*db_lock)
             .await
         {
@@ -246,10 +246,10 @@ impl DbClient {
     pub async fn get_outdated_nodes_list(
         &self,
         version: &Version,
-    ) -> Result<Vec<(ContainerId, Version)>, DbError> {
+    ) -> Result<Vec<(NodeId, Version)>, DbError> {
         let db_lock = self.db.lock().await;
         let data = sqlx::query(
-            "SELECT container_id, bin_version FROM nodes WHERE status = ? AND bin_version != ?",
+            "SELECT node_id, bin_version FROM nodes WHERE status = ? AND bin_version != ?",
         )
         .bind(json!(NodeStatus::Active).to_string())
         .bind(version.to_string())
@@ -268,7 +268,7 @@ impl DbClient {
                     .unwrap_or(Version::new(0, 0, 0));
 
                 if &current < version {
-                    Some((v.get("container_id"), current))
+                    Some((v.get("node_id"), current))
                 } else {
                     None
                 }
@@ -281,7 +281,7 @@ impl DbClient {
     // Insert node metadata onto local cache DB
     pub async fn insert_node_metadata(&self, info: &NodeInstanceInfo) {
         let query_str = "INSERT OR REPLACE INTO nodes (\
-                container_id, created, status_changed, status, \
+                node_id, created, status_changed, status, \
                 port, metrics_port, \
                 rewards_addr, home_network, node_logs, \
                 records, connected_peers, kbuckets_peers \
@@ -290,7 +290,7 @@ impl DbClient {
 
         let db_lock = self.db.lock().await;
         match sqlx::query(&query_str)
-            .bind(info.container_id.clone())
+            .bind(info.node_id.clone())
             .bind(info.created.to_string())
             .bind(
                 info.status_changed
@@ -374,11 +374,8 @@ impl DbClient {
             return; // no updates to make
         }
 
-        let query_str = format!(
-            "UPDATE nodes SET {} WHERE container_id=?",
-            updates.join(", ")
-        );
-        params.push(info.container_id.clone());
+        let query_str = format!("UPDATE nodes SET {} WHERE node_id=?", updates.join(", "));
+        params.push(info.node_id.clone());
 
         let mut query = sqlx::query(&query_str);
         for p in params {
@@ -399,10 +396,10 @@ impl DbClient {
     }
 
     // Remove node metadata from local cache DB
-    pub async fn delete_node_metadata(&self, container_id: &str) {
+    pub async fn delete_node_metadata(&self, node_id: &str) {
         let db_lock = self.db.lock().await;
-        match sqlx::query("DELETE FROM nodes WHERE container_id = ?")
-            .bind(container_id)
+        match sqlx::query("DELETE FROM nodes WHERE node_id = ?")
+            .bind(node_id)
             .execute(&*db_lock)
             .await
         {
@@ -412,11 +409,7 @@ impl DbClient {
     }
 
     // Update node metadata onto local cache DB by specifying specific fields and new values
-    pub async fn update_node_metadata_fields(
-        &self,
-        container_id: &str,
-        fields_values: &[(&str, &str)],
-    ) {
+    pub async fn update_node_metadata_fields(&self, node_id: &str, fields_values: &[(&str, &str)]) {
         let (updates, mut params) =
             fields_values
                 .iter()
@@ -425,12 +418,9 @@ impl DbClient {
                     p.push(*param);
                     (u, p)
                 });
-        params.push(container_id);
+        params.push(node_id);
 
-        let query_str = format!(
-            "UPDATE nodes SET {} WHERE container_id=?",
-            updates.join(", ")
-        );
+        let query_str = format!("UPDATE nodes SET {} WHERE node_id=?", updates.join(", "));
 
         let mut query = sqlx::query(&query_str);
         for p in params {
@@ -445,20 +435,20 @@ impl DbClient {
     }
 
     // Convenient method to update node status field on local cache DB
-    pub async fn update_node_status(&self, container_id: &str, status: NodeStatus) {
-        self.update_node_metadata_fields(container_id, &[("status", &json!(&status).to_string())])
+    pub async fn update_node_status(&self, node_id: &str, status: NodeStatus) {
+        self.update_node_metadata_fields(node_id, &[("status", &json!(&status).to_string())])
             .await
     }
 
     // Retrieve node metrics from local cache DB
-    pub async fn get_node_metrics(&self, container_id: ContainerId, since: Option<i64>) -> Metrics {
+    pub async fn get_node_metrics(&self, node_id: NodeId, since: Option<i64>) -> Metrics {
         let db_lock = self.db.lock().await;
         let mut node_metrics = Metrics::new();
 
         match sqlx::query(
-            "SELECT * FROM nodes_metrics WHERE container_id = ? AND timestamp > ? ORDER BY timestamp",
+            "SELECT * FROM nodes_metrics WHERE node_id = ? AND timestamp > ? ORDER BY timestamp",
         )
-        .bind(container_id.clone())
+        .bind(node_id.clone())
         .bind(since.unwrap_or_default())
         .fetch_all(&*db_lock)
         .await
@@ -483,7 +473,7 @@ impl DbClient {
     // Store node metrics onto local cache DB
     pub async fn store_node_metrics(
         &self,
-        container_id: ContainerId,
+        node_id: NodeId,
         metrics: impl IntoIterator<Item = &NodeMetric>,
     ) {
         let metrics = metrics.into_iter().collect::<Vec<_>>();
@@ -492,10 +482,10 @@ impl DbClient {
         }
 
         let mut query_builder =
-            QueryBuilder::new("INSERT INTO nodes_metrics (container_id, timestamp, key, value) ");
+            QueryBuilder::new("INSERT INTO nodes_metrics (node_id, timestamp, key, value) ");
 
         query_builder.push_values(metrics, |mut b, metric| {
-            b.push_bind(container_id.clone())
+            b.push_bind(node_id.clone())
                 .push_bind(metric.timestamp)
                 .push_bind(metric.key.clone())
                 .push_bind(metric.value.clone());
@@ -509,10 +499,10 @@ impl DbClient {
     }
 
     // Remove node metrics from local cache DB
-    pub async fn delete_node_metrics(&self, container_id: &str) {
+    pub async fn delete_node_metrics(&self, node_id: &str) {
         let db_lock = self.db.lock().await;
-        match sqlx::query("DELETE FROM nodes_metrics WHERE container_id = ?")
-            .bind(container_id)
+        match sqlx::query("DELETE FROM nodes_metrics WHERE node_id = ?")
+            .bind(node_id)
             .execute(&*db_lock)
             .await
         {
@@ -521,21 +511,21 @@ impl DbClient {
         }
     }
 
-    // Remove metrics for a container so there are no more than max_size records
-    pub async fn remove_oldest_metrics(&self, container_id: ContainerId, max_size: usize) {
+    // Remove metrics for a node so there are no more than max_size records
+    pub async fn remove_oldest_metrics(&self, node_id: NodeId, max_size: usize) {
         let db_lock = self.db.lock().await;
         match sqlx::query(
             "DELETE FROM nodes_metrics WHERE \
-                container_id = ? AND timestamp <= \
+                node_id = ? AND timestamp <= \
                     (SELECT DISTINCT timestamp \
                         FROM nodes_metrics \
-                        WHERE container_id = ? \
+                        WHERE node_id = ? \
                         ORDER BY timestamp DESC \
                         LIMIT 1 OFFSET ? \
                     )",
         )
-        .bind(container_id.clone())
-        .bind(container_id)
+        .bind(node_id.clone())
+        .bind(node_id)
         .bind(max_size as i64)
         .execute(&*db_lock)
         .await

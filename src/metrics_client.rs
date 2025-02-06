@@ -1,7 +1,7 @@
 use super::{
     db_client::DbClient,
     metrics::*,
-    node_instance::{ContainerId, NodeInstanceInfo},
+    node_instance::{NodeId, NodeInstanceInfo},
 };
 
 use alloy_primitives::U256;
@@ -92,8 +92,8 @@ impl NodeMetricsClient {
 // and consumed by the frontend through a server api.
 #[derive(Debug)]
 pub struct NodesMetrics {
-    // Cache of the last metrics for each node indexed by their container id.
-    data: HashMap<ContainerId, HashMap<String, NodeMetric>>,
+    // Cache of the last metrics for each node indexed by their node id.
+    data: HashMap<NodeId, HashMap<String, NodeMetric>>,
     // DB client to store all metrics collected overtime
     db_client: DbClient,
 }
@@ -106,12 +106,12 @@ impl NodesMetrics {
         }
     }
 
-    // Store a data point for the specified container id.
-    pub async fn store(&mut self, container_id: &ContainerId, metrics: &[NodeMetric]) {
+    // Store a data point for the specified node id.
+    pub async fn store(&mut self, node_id: &NodeId, metrics: &[NodeMetric]) {
         // store into our DB cache those we keep as logs/historic values
         self.db_client
             .store_node_metrics(
-                container_id.to_string(),
+                node_id.to_string(),
                 metrics
                     .iter()
                     .filter(|m| NODE_METRICS_TO_STORE_IN_DB.contains(&m.key.as_str())),
@@ -121,27 +121,23 @@ impl NodesMetrics {
         // let's now update our in-memory cache with new metrics values
         let metrics: HashMap<String, NodeMetric> =
             metrics.iter().map(|m| (m.key.clone(), m.clone())).collect();
-        let _ = self.data.insert(container_id.to_string(), metrics.clone());
+        let _ = self.data.insert(node_id.to_string(), metrics.clone());
     }
 
-    // Remove all the metrics for the specified container id
-    pub async fn remove_container_metrics(&mut self, container_id: &ContainerId) {
-        self.db_client.delete_node_metrics(container_id).await;
-        let _ = self.data.remove(container_id);
+    // Remove all the metrics for the specified node id
+    pub async fn remove_node_metrics(&mut self, node_id: &NodeId) {
+        self.db_client.delete_node_metrics(node_id).await;
+        let _ = self.data.remove(node_id);
     }
 
-    // Return all the metrics for the specified container id with given filters
-    pub async fn get_container_metrics(
-        &self,
-        container_id: ContainerId,
-        since: Option<i64>,
-    ) -> Metrics {
-        self.db_client.get_node_metrics(container_id, since).await
+    // Return all the metrics for the specified node id with given filters
+    pub async fn get_node_metrics(&self, node_id: NodeId, since: Option<i64>) -> Metrics {
+        self.db_client.get_node_metrics(node_id, since).await
     }
 
     // Update given node instance info with in-memory cached metrics
     pub fn update_node_info(&self, info: &mut NodeInstanceInfo) {
-        if let Some(metrics) = self.data.get(&info.container_id) {
+        if let Some(metrics) = self.data.get(&info.node_id) {
             if let Some(metric) = metrics.get(METRIC_KEY_BALANCE) {
                 info.rewards = U256::from_str(&metric.value).ok();
             }
