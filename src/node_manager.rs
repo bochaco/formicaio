@@ -79,7 +79,7 @@ impl NodeManager {
 
         let root_dir = match env::var(ROOT_DIR) {
             Ok(v) => Path::new(&v).to_path_buf(),
-            Err(_) => env::current_dir().unwrap().join(DEFAULT_ROOT_FOLDER),
+            Err(_) => env::current_dir()?.join(DEFAULT_ROOT_FOLDER),
         }
         .to_path_buf();
 

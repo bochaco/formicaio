@@ -20,6 +20,11 @@ use alloy_primitives::utils::format_units;
 use chrono::{DateTime, Local, Utc};
 use leptos::{logging, prelude::*, task::spawn_local};
 
+// Helper which converts a value to string or a dash sign if it's None
+fn value_or_dash<T: ToString>(val: Option<T>) -> String {
+    val.map_or(" -".to_string(), |v| v.to_string())
+}
+
 #[component]
 pub fn NodesListView() -> impl IntoView {
     let context = expect_context::<ClientGlobalState>();
@@ -249,6 +254,14 @@ fn NodeInstanceView(
             .unwrap_or_else(|| " -".to_string())
     };
 
+    let display_if_active = move |v| {
+        if info.read().status.is_active() {
+            value_or_dash(v)
+        } else {
+            " -".to_string()
+        }
+    };
+
     let node_card_clicked = move || {
         let (is_selecting, is_executing, _) = *context.selecting_nodes.read();
         if is_selecting && !is_executing {
@@ -330,8 +343,16 @@ fn NodeInstanceView(
                 </p>
                 <span class=move || { if is_transitioning() { "opacity-60" } else { "" } }>
                     <p>
-                        <span class="node-info-item">"Node Id: "</span>
-                        {info.read_untracked().short_node_id()}
+                        <div class="flex flex-row">
+                            <div class="basis-2/3">
+                                <span class="node-info-item">"Node Id: "</span>
+                                {info.read_untracked().short_node_id()}
+                            </div>
+                            <div class="basis-1/3">
+                                <span class="node-info-item">"PID: "</span>
+                                {move || display_if_active(info.read().pid)}
+                            </div>
+                        </div>
                     </p>
                     <p>
                         <span class="node-info-item">"Peer Id: "</span>
@@ -350,7 +371,7 @@ fn NodeInstanceView(
                     </p>
                     <p>
                         <span class="node-info-item">"Version: "</span>
-                        {move || info.get().bin_version.unwrap_or_else(|| " -".to_string())}
+                        {move || value_or_dash(info.get().bin_version)}
                     </p>
                     <p>
                         <div class="flex flex-row">
@@ -369,9 +390,9 @@ fn NodeInstanceView(
                                 >
                                     <span class="underline decoration-dotted">
                                         {move || {
-                                            info.read()
-                                                .balance
-                                                .map_or(" -".to_string(), truncated_balance_str)
+                                            value_or_dash(
+                                                info.read().balance.map(truncated_balance_str),
+                                            )
                                         }}
                                     </span>
                                 </div>
@@ -391,9 +412,9 @@ fn NodeInstanceView(
                                 >
                                     <span class="underline decoration-dotted">
                                         {move || {
-                                            info.read()
-                                                .rewards
-                                                .map_or(" -".to_string(), truncated_balance_str)
+                                            value_or_dash(
+                                                info.read().rewards.map(truncated_balance_str),
+                                            )
                                         }}
                                     </span>
                                 </div>
@@ -408,17 +429,11 @@ fn NodeInstanceView(
                         <div class="flex flex-row">
                             <div class="basis-1/3">
                                 <span class="node-info-item">"Port: "</span>
-                                {move || {
-                                    info.read().port.map_or(" -".to_string(), |v| v.to_string())
-                                }}
+                                {move || { value_or_dash(info.read().port) }}
                             </div>
                             <div class="basis-2/3">
                                 <span class="node-info-item">"Node metrics Port: "</span>
-                                {move || {
-                                    info.read()
-                                        .metrics_port
-                                        .map_or(" -".to_string(), |v| v.to_string())
-                                }}
+                                {move || { value_or_dash(info.read().metrics_port) }}
                             </div>
                         </div>
                     </p>
@@ -426,17 +441,11 @@ fn NodeInstanceView(
                         <div class="flex flex-row">
                             <div class="basis-1/2">
                                 <span class="node-info-item">"Records: "</span>
-                                {move || {
-                                    info.read().records.map_or(" -".to_string(), |v| v.to_string())
-                                }}
+                                {move || { value_or_dash(info.read().records) }}
                             </div>
                             <div class="basis-1/2">
                                 <span class="node-info-item">"Relevant: "</span>
-                                {move || {
-                                    info.read()
-                                        .relevant_records
-                                        .map_or(" -".to_string(), |v| v.to_string())
-                                }}
+                                {move || { value_or_dash(info.read().relevant_records) }}
                             </div>
                         </div>
                     </p>
@@ -452,21 +461,11 @@ fn NodeInstanceView(
                                 }>"Conn. peers: "</span>
                                 <span class=move || {
                                     if warn_conn_peers() { "node-info-item-warn" } else { "" }
-                                }>
-                                    {move || {
-                                        info.read()
-                                            .connected_peers
-                                            .map_or(" -".to_string(), |v| v.to_string())
-                                    }}
-                                </span>
+                                }>{move || { value_or_dash(info.read().connected_peers) }}</span>
                             </div>
                             <div class="basis-1/2">
                                 <span class="node-info-item">"Shunned by: "</span>
-                                {move || {
-                                    info.read()
-                                        .shunned_count
-                                        .map_or(" -".to_string(), |v| v.to_string())
-                                }}
+                                {move || { value_or_dash(info.read().shunned_count) }}
                             </div>
                         </div>
                     </p>
@@ -474,17 +473,11 @@ fn NodeInstanceView(
                         <div class="flex flex-row">
                             <div class="basis-1/2">
                                 <span class="node-info-item">"kBuckets peers: "</span>
-                                {move || {
-                                    info.read()
-                                        .kbuckets_peers
-                                        .map_or(" -".to_string(), |v| v.to_string())
-                                }}
+                                {move || { value_or_dash(info.read().kbuckets_peers) }}
                             </div>
                             <div class="basis-1/2">
                                 <span class="node-info-item">"Network size: "</span>
-                                {move || {
-                                    info.read().net_size.map_or(" -".to_string(), |v| v.to_string())
-                                }}
+                                {move || { value_or_dash(info.read().net_size) }}
                             </div>
                         </div>
                     </p>
@@ -493,17 +486,15 @@ fn NodeInstanceView(
                             <div class="basis-2/3">
                                 <span class="node-info-item">"Memory used: "</span>
                                 {move || {
-                                    info.read()
-                                        .mem_used
-                                        .map_or("".to_string(), |v| format!("{v:.2} MB"))
+                                    value_or_dash(
+                                        info.read().mem_used.map(|v| format!("{v:.2} MB")),
+                                    )
                                 }}
                             </div>
                             <div class="basis-1/3">
                                 <span class="node-info-item">"CPU: "</span>
                                 {move || {
-                                    info.get()
-                                        .cpu_usage
-                                        .map_or("".to_string(), |v| format!("{v:.2}%"))
+                                    value_or_dash(info.get().cpu_usage.map(|v| format!("{v:.2}%")))
                                 }}
                             </div>
                         </div>
@@ -538,7 +529,7 @@ fn NodeInstanceView(
                         <span class="node-info-item">"Created: "</span>
                         {move || {
                             DateTime::<Utc>::from_timestamp(info.read().created as i64, 0)
-                                .unwrap()
+                                .unwrap_or_default()
                                 .with_timezone(&Local)
                                 .to_string()
                         }}

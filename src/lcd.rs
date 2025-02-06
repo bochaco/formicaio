@@ -81,7 +81,7 @@ pub async fn display_stats_on_lcd(
                         || cur_lcd_addr != s.lcd_addr
                     {
                         logging::log!("Disabling LCD device on /dev/i2c-{cur_lcd_device}, address: 0x{cur_lcd_addr}...");
-                        let mut pcf_8574: Pcf8574 = display.unwrap();
+                        let mut pcf_8574: Pcf8574 = display.unwrap(); // this unwrap doesn't panic
                         pcf_8574.backlight(false);
                         return;
                     }
