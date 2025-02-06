@@ -9,7 +9,7 @@ use super::server_api_types::AppSettings;
 
 use super::{
     about::AboutView,
-    alerts::AlertMsg,
+    alerts::{AlertMsg, OfflineMsg},
     error_template::{AppError, ErrorTemplate},
     navbar::NavBar,
     node_actions::NodesActionsView,
@@ -135,6 +135,8 @@ impl ImmutableNodeStatus {
 // Struct to use client side as a global context/state
 #[derive(Clone, Copy, Debug)]
 pub struct ClientGlobalState {
+    // Flag which tells the frontend when the connection to the backend is lost.
+    pub is_online: RwSignal<bool>,
     // List of nodes instances and their info/state
     pub nodes: RwSignal<(bool, HashMap<String, RwSignal<NodeInstanceInfo>>)>,
     // Node global stats
@@ -181,6 +183,7 @@ pub fn App() -> impl IntoView {
 
     // Provide context to manage all client side states that need to be used globally
     provide_context(ClientGlobalState {
+        is_online: RwSignal::new(true),
         nodes: RwSignal::new((false, HashMap::default())),
         stats: RwSignal::new(Stats::default()),
         logs_stream_on_for: RwSignal::new(None),
@@ -232,6 +235,7 @@ fn HomeScreenView() -> impl IntoView {
         <AlertMsg />
 
         <AggregatedStatsView />
+        <OfflineMsg />
         <NodesActionsView home_net_only />
 
         <SortStrategyView />
@@ -246,12 +250,14 @@ fn spawn_nodes_list_polling() {
         logging::log!("Polling server every {NODES_LIST_POLLING_FREQ_MILLIS}ms. ...");
         let context = expect_context::<ClientGlobalState>();
         loop {
-            // TODO: poll only when nodes list screen is active
             match nodes_instances().await {
                 Err(err) => {
-                    logging::log!("Failed to get up to date nodes info from server: {err}")
+                    context.is_online.set(false);
+                    logging::log!("Failed to get up to date nodes info from server: {err}");
                 }
                 Ok(info) => {
+                    context.is_online.set(true);
+
                     // if we received info about new binary version then update context
                     if info.latest_bin_version.is_some() {
                         context.latest_bin_version.set(info.latest_bin_version);

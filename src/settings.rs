@@ -3,7 +3,10 @@ use super::server_api::{get_settings, update_settings};
 #[cfg(feature = "native")]
 use super::server_api_native::{get_settings, update_settings};
 
-use super::{helpers::show_alert_msg, icons::IconCancel, server_api_types::AppSettings};
+use super::{
+    app::ClientGlobalState, helpers::show_alert_msg, icons::IconCancel,
+    server_api_types::AppSettings,
+};
 
 use alloy_primitives::Address;
 use leptos::{logging, prelude::*};
@@ -12,6 +15,8 @@ use url::Url;
 
 #[component]
 pub fn SettingsView(settings_panel: RwSignal<bool>) -> impl IntoView {
+    let context = expect_context::<ClientGlobalState>();
+
     let current_settings = Resource::new(
         move || settings_panel.read() == true,
         |_| async move { get_settings().await.unwrap_or_default() },
@@ -29,7 +34,7 @@ pub fn SettingsView(settings_panel: RwSignal<bool>) -> impl IntoView {
             tabindex="-1"
             aria-hidden="true"
             class=move || {
-                if *settings_panel.read() {
+                if *settings_panel.read() && *context.is_online.read() {
                     "overflow-y-auto overflow-x-hidden fixed inset-0 flex z-50 justify-center items-center w-full md:inset-0 h-[calc(100%-1rem)] max-h-full"
                 } else {
                     "hidden"

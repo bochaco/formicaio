@@ -243,7 +243,7 @@ pub fn NodesActionsView(home_net_only: bool) -> impl IntoView {
             tabindex="-1"
             aria-hidden="true"
             class=move || {
-                if modal_visibility.get() {
+                if modal_visibility.get() && *context.is_online.read() {
                     "overflow-y-auto overflow-x-hidden fixed inset-0 flex z-50 justify-center items-center w-full md:inset-0 h-[calc(100%-1rem)] max-h-full"
                 } else {
                     "hidden"
