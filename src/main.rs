@@ -20,7 +20,9 @@ async fn main() {
     // <https://github.com/leptos-rs/start-axum#executing-a-server-on-a-remote-machine-without-the-toolchain>
     // Alternately a file can be specified such as Some("Cargo.toml")
     // The file would need to be included with the executable when moved to deployment
-    let mut leptos_options = get_configuration(None).unwrap().leptos_options;
+    let mut leptos_options = get_configuration(None)
+        .expect("Failed to obtain Leptos config options from env values")
+        .leptos_options;
 
     // we make sure some values are set to some
     // defaults only if no env vars are being set for them
@@ -39,13 +41,17 @@ async fn main() {
     let routes = generate_route_list(App);
 
     // We'll keep the database and Docker clients instances in server global state.
-    let db_client = DbClient::connect().await.unwrap();
+    let db_client = DbClient::connect()
+        .await
+        .expect("Failed to initialise database");
     #[cfg(not(feature = "native"))]
-    let docker_client = formicaio::docker_client::DockerClient::new().await.unwrap();
+    let docker_client = formicaio::docker_client::DockerClient::new()
+        .await
+        .expect("Failed to initialise Docker client");
     #[cfg(feature = "native")]
     let node_manager = formicaio::node_manager::NodeManager::new()
         .await
-        .expect("cannot instantiate node manager");
+        .expect("Failed to instantiate node manager");
 
     let latest_bin_version = Arc::new(Mutex::new(None));
     let nodes_metrics = Arc::new(Mutex::new(NodesMetrics::new(db_client.clone())));
@@ -68,7 +74,7 @@ async fn main() {
         let version = node_manager
             .upgrade_master_node_binary(None)
             .await
-            .expect("failed to download node binary");
+            .expect("Failed to download node binary");
         *latest_bin_version.lock().await = Some(version);
     }
 
@@ -112,11 +118,13 @@ async fn main() {
         ))
         .with_state(app_state);
 
-    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+    let listener = tokio::net::TcpListener::bind(&addr)
+        .await
+        .expect("Failed to bind to TCP address");
     logging::log!("listening on http://{}", &addr);
     axum::serve(listener, app.into_make_service())
         .await
-        .unwrap();
+        .expect("Failed to start HTTP listener");
 }
 
 #[cfg(not(feature = "ssr"))]
