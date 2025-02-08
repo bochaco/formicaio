@@ -1,10 +1,8 @@
-#[cfg(not(feature = "native"))]
-use super::server_api::{get_settings, update_settings};
-#[cfg(feature = "native")]
-use super::server_api_native::{get_settings, update_settings};
-
 use super::{
-    app::ClientGlobalState, helpers::show_alert_msg, icons::IconCancel,
+    app::ClientGlobalState,
+    helpers::show_alert_msg,
+    icons::IconCancel,
+    server_api::{get_settings, update_settings},
     server_api_types::AppSettings,
 };
 

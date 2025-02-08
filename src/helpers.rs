@@ -1,17 +1,10 @@
-#[cfg(not(feature = "native"))]
-use super::server_api::{
-    create_node_instance, delete_node_instance, prepare_node_instances_batch,
-    start_node_logs_stream,
-};
-#[cfg(feature = "native")]
-use super::server_api_native::{
-    create_node_instance, delete_node_instance, prepare_node_instances_batch,
-    start_node_logs_stream,
-};
-
 use super::{
     app::ClientGlobalState,
     node_instance::{NodeId, NodeInstanceInfo},
+    server_api::{
+        create_node_instance, delete_node_instance, prepare_node_instances_batch,
+        start_node_logs_stream,
+    },
     server_api_types::{BatchInProgress, NodeOpts},
 };
 

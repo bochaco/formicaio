@@ -1,12 +1,3 @@
-#[cfg(not(feature = "native"))]
-use super::server_api::{
-    recycle_node_instance, start_node_instance, stop_node_instance, upgrade_node_instance,
-};
-#[cfg(feature = "native")]
-use super::server_api_native::{
-    recycle_node_instance, start_node_instance, stop_node_instance, upgrade_node_instance,
-};
-
 use super::{
     app::{get_addr_from_metamask, ClientGlobalState, NODES_LIST_POLLING_FREQ_MILLIS},
     helpers::{add_node_instances, remove_node_instance, show_alert_msg},
@@ -15,6 +6,9 @@ use super::{
         IconRemove, IconSelectAll, IconStartNode, IconStopNode, IconUpgradeNode,
     },
     node_instance::{NodeInstanceInfo, NodeStatus},
+    server_api::{
+        recycle_node_instance, start_node_instance, stop_node_instance, upgrade_node_instance,
+    },
     server_api_types::NodeOpts,
 };
 
