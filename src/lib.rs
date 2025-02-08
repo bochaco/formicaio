@@ -2,6 +2,8 @@ mod about;
 mod alerts;
 pub mod app;
 #[cfg(feature = "ssr")]
+mod bg_helpers;
+#[cfg(feature = "ssr")]
 pub mod bg_tasks;
 mod chart_view;
 #[cfg(feature = "ssr")]

@@ -1,9 +1,7 @@
 pub use super::metrics::*;
 
-#[cfg(all(feature = "hydrate", not(feature = "native")))]
+#[cfg(feature = "hydrate")]
 use super::server_api::nodes_instances;
-#[cfg(all(feature = "hydrate", feature = "native"))]
-use super::server_api_native::nodes_instances;
 #[cfg(feature = "ssr")]
 use super::server_api_types::AppSettings;
 
