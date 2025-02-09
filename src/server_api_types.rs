@@ -41,10 +41,10 @@ impl Default for AppSettings {
             nodes_metrics_polling_freq: Duration::from_secs(5),
             // Retrieve balances every 15 mins.
             rewards_balances_retrieval_freq: Duration::from_secs(60 * 15),
-            // Arbitrum Sepolia testnet.
-            l2_network_rpc_url: "https://sepolia-rollup.arbitrum.io/rpc".to_string(),
-            // ANT token contract on Arbitrum Sepolia testnet.
-            token_contract_address: "0xBE1802c27C324a28aeBcd7eeC7D734246C807194".to_string(),
+            // Arbitrum One network.
+            l2_network_rpc_url: "https://arb1.arbitrum.io/rpc".to_string(),
+            // ANT token contract on Arbitrum One network.
+            token_contract_address: "0xa78d8321B20c4Ef90eCd72f2588AA985A4BDb684".to_string(),
             // External LCD device disabled.
             lcd_display_enabled: false,
             // I2C bus number 1, i.e. device at /dev/i2c-1.

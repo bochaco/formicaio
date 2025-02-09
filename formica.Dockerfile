@@ -54,5 +54,5 @@ CMD ["sh", "-c", \
       ${NODE_LOGS_ARG} \
       --bootstrap-cache-dir /app/node_data \
       ${REWARDS_ADDR_ARG} \
-      evm-arbitrum-sepolia" \
+      evm-arbitrum-one" \
     ]

@@ -73,10 +73,10 @@ INSERT INTO settings (
     60 * 15,
     -- Poll nodes metrics every 5 secs.
     5,
-    -- Arbitrum Sepolia testnet.
-    "https://sepolia-rollup.arbitrum.io/rpc",
-    -- ANT token contract on Arbitrum Sepolia testnet.
-    "0xBE1802c27C324a28aeBcd7eeC7D734246C807194",
+    -- Arbitrum One network.
+    "https://arb1.arbitrum.io/rpc",
+    -- ANT token contract on Arbitrum One network.
+    "0xa78d8321B20c4Ef90eCd72f2588AA985A4BDb684",
     -- LCD device disabled.
     0,
     -- I2C bus number 1, i.e. /dev/i2c-1.

@@ -166,9 +166,9 @@ Once I2c was successfully enabled through `raspi-config`, reboot the Rasberry Pi
 
 ## Disclaimer
 
-Please be aware that the Formicaio backend application, as well as the `safenode` binary running within each user-created node instance, utilizes third-party RPC services to retrieve information related to the Arbitrum L2 ledger.
+Please be aware that the Formicaio backend application, as well as the `antnode` binary running within each user-created node instance (released by [Autonomi](https://autonomi.com/)), utilizes third-party RPC services to retrieve information related to the Arbitrum L2 ledger.
 
-Specifically, the Formicaio backend application queries the RPC server at `https://sepolia-rollup.arbitrum.io/rpc` to periodically check the current rewards balances for each node instance based on the configured (ETH) rewards addresses.
+Specifically, the Formicaio backend application queries the RPC server at `https://arb1.arbitrum.io/rpc` to periodically check the current rewards balances for each node instance based on the configured (ETH) rewards addresses.
 
 Risks:
 - Privacy: Using third-party RPC services may expose your IP address and other metadata to those services. This means that the service provider can potentially track which addresses you are querying, which could lead to privacy concerns regarding your activity on the Arbitrum network.
