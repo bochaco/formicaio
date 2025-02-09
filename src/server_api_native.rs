@@ -265,25 +265,23 @@ async fn helper_stop_node_instance(
 
     let res = context.node_manager.kill_node(&node_id).await;
 
-    if matches!(res, Ok(())) {
+    if res.is_ok() {
         // set connected/kbucket peers back to 0 and update cache
+        let node_info = NodeInstanceInfo {
+            node_id: node_id.clone(),
+            status: NodeStatus::Inactive,
+            status_changed: Some(Utc::now().timestamp() as u64),
+            pid: Some(0),
+            connected_peers: Some(0),
+            kbuckets_peers: Some(0),
+            records: Some(0),
+            ips: Some("".to_string()),
+            ..Default::default()
+        };
+
         context
             .db_client
-            .update_node_metadata_fields(
-                &node_id,
-                &[
-                    ("status_changed", &Utc::now().timestamp().to_string()),
-                    ("pid", "0"),
-                    ("connected_peers", "0"),
-                    ("kbuckets_peers", "0"),
-                    ("records", ""),
-                    ("ips", ""),
-                ],
-            )
-            .await;
-        context
-            .db_client
-            .update_node_status(&node_id, NodeStatus::Inactive)
+            .update_node_metadata(&node_info, true)
             .await;
     }
 
