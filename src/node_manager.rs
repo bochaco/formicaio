@@ -32,7 +32,7 @@ const NODE_BIN_NAME: &str = "antnode.exe";
 #[cfg(not(windows))]
 const NODE_BIN_NAME: &str = "antnode";
 
-const DEFAULT_EVM_NETWORK: &str = "evm-arbitrum-sepolia";
+const DEFAULT_EVM_NETWORK: &str = "evm-arbitrum-one";
 const ROOT_DIR: &str = "NODE_MGR_ROOT_DIR";
 const DEFAULT_ROOT_FOLDER: &str = "formicaio_data";
 const DEFAULT_NODE_DATA_FOLDER: &str = "node_data";
