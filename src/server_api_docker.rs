@@ -1,7 +1,4 @@
-use super::{
-    node_instance::{NodeId, NodeInstanceInfo},
-    server_api_types::{NodeOpts, NodesInstancesInfo},
-};
+use super::{node_instance::NodeId, server_api_types::NodesInstancesInfo};
 
 use leptos::prelude::*;
 #[cfg(feature = "ssr")]
@@ -13,8 +10,8 @@ mod ssr_imports_and_defs {
         app::{BgTasksCmds, ImmutableNodeStatus, ServerGlobalState},
         db_client::DbClient,
         docker_client::{DockerClient, DockerClientError, UPGRADE_NODE_BIN_TIMEOUT_SECS},
-        node_instance::NodeStatus,
-        server_api_types::BatchInProgress,
+        node_instance::{NodeInstanceInfo, NodeStatus},
+        server_api_types::{BatchInProgress, NodeOpts},
     };
     pub use alloy_primitives::Address;
     pub use chrono::Utc;
@@ -27,7 +24,7 @@ mod ssr_imports_and_defs {
 use ssr_imports_and_defs::*;
 
 // Obtain the list of existing nodes instances with their info
-#[server(ListNodeInstances, "/api", "Url", "/list_nodes")]
+#[server(ListNodeInstances, "/api", "Url", "/nodes/list")]
 pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
     let latest_bin_version = context.latest_bin_version.lock().await.clone();
@@ -78,16 +75,9 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
     })
 }
 
-// Create and add a new node instance returning its info
-#[server(CreateNodeInstance, "/api", "Url", "/create_node")]
-pub async fn create_node_instance(node_opts: NodeOpts) -> Result<NodeInstanceInfo, ServerFnError> {
-    let context = expect_context::<ServerGlobalState>();
-    helper_create_node_instance(node_opts, &context).await
-}
-
 /// Helper to create a node instance
 #[cfg(feature = "ssr")]
-pub async fn helper_create_node_instance(
+pub(crate) async fn helper_create_node_instance(
     node_opts: NodeOpts,
     context: &ServerGlobalState,
 ) -> Result<NodeInstanceInfo, ServerFnError> {
@@ -119,7 +109,7 @@ pub async fn helper_create_node_instance(
 }
 
 // Delete a node instance with given id
-#[server(DeleteNodeInstance, "/api", "Url", "/delete_node")]
+#[server(DeleteNodeInstance, "/api", "Url", "/nodes/delete")]
 pub async fn delete_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
     logging::log!("Deleting node node with Id: {node_id} ...");
     let context = expect_context::<ServerGlobalState>();
@@ -140,16 +130,9 @@ pub async fn delete_node_instance(node_id: NodeId) -> Result<(), ServerFnError> 
     Ok(())
 }
 
-// Start a node instance with given id
-#[server(StartNodeInstance, "/api", "Url", "/start_node")]
-pub async fn start_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
-    let context = expect_context::<ServerGlobalState>();
-    helper_start_node_instance(node_id, &context).await
-}
-
 // Helper to start a node instance with given id
 #[cfg(feature = "ssr")]
-async fn helper_start_node_instance(
+pub(crate) async fn helper_start_node_instance(
     node_id: NodeId,
     context: &ServerGlobalState,
 ) -> Result<(), ServerFnError> {
@@ -182,17 +165,9 @@ async fn helper_start_node_instance(
     Ok(())
 }
 
-// Stop a node instance with given id
-#[server(StopNodeInstance, "/api", "Url", "/stop_node")]
-pub async fn stop_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
-    logging::log!("Stopping node with Id: {node_id} ...");
-    let context = expect_context::<ServerGlobalState>();
-    helper_stop_node_instance(node_id, &context, NodeStatus::Stopping).await
-}
-
 // Helper to stop a node instance with given id
 #[cfg(feature = "ssr")]
-async fn helper_stop_node_instance(
+pub(crate) async fn helper_stop_node_instance(
     node_id: NodeId,
     context: &ServerGlobalState,
     status: NodeStatus,
@@ -230,7 +205,7 @@ async fn helper_stop_node_instance(
 }
 
 // Upgrade a node instance with given id
-#[server(UpgradeNodeInstance, "/api", "Url", "/upgrade_node")]
+#[server(UpgradeNodeInstance, "/api", "Url", "/nodes/upgrade")]
 pub async fn upgrade_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
     logging::log!("Upgrading node with Id: {node_id} ...");
     let context = expect_context::<ServerGlobalState>();
@@ -294,7 +269,7 @@ pub(crate) async fn helper_upgrade_node_instance(
 }
 
 // Recycle a node instance by restarting it with a new node peer-id
-#[server(RecycleNodeInstance, "/api", "Url", "/recycle_node_instance")]
+#[server(RecycleNodeInstance, "/api", "Url", "/nodes/recycle")]
 pub async fn recycle_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
     logging::log!("Recycling node instance with Id: {node_id} ...");

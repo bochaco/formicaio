@@ -1,4 +1,7 @@
-use super::{node_instance::NodeId, server_api_types::NodeOpts};
+use super::{
+    node_instance::{NodeId, NodeInstanceInfo},
+    server_api_types::NodeOpts,
+};
 
 use self::server_fn::codec::{ByteStream, Streaming};
 use leptos::prelude::*;
@@ -8,7 +11,7 @@ use std::collections::HashMap;
 mod ssr_imports_and_defs {
     pub use crate::{
         app::{BgTasksCmds, ServerGlobalState},
-        node_instance::NodeInstancesBatch,
+        node_instance::{NodeInstancesBatch, NodeStatus},
     };
     pub use futures_util::StreamExt;
     pub use leptos::logging;
@@ -24,8 +27,30 @@ pub use super::server_api_docker::*;
 #[cfg(feature = "native")]
 pub use super::server_api_native::*;
 
+// Create and add a new node instance returning its info
+#[server(CreateNodeInstance, "/api", "Url", "/nodes/create")]
+pub async fn create_node_instance(node_opts: NodeOpts) -> Result<NodeInstanceInfo, ServerFnError> {
+    let context = expect_context::<ServerGlobalState>();
+    helper_create_node_instance(node_opts, &context).await
+}
+
+// Start a node instance with given id
+#[server(StartNodeInstance, "/api", "Url", "/nodes/start")]
+pub async fn start_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
+    let context = expect_context::<ServerGlobalState>();
+    helper_start_node_instance(node_id, &context).await
+}
+
+// Stop a node instance with given id
+#[server(StopNodeInstance, "/api", "Url", "/nodes/stop")]
+pub async fn stop_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
+    logging::log!("Stopping node with Id: {node_id} ...");
+    let context = expect_context::<ServerGlobalState>();
+    helper_stop_node_instance(node_id, &context, NodeStatus::Stopping).await
+}
+
 // Start streaming logs from a node instance with given id
-#[server(output = Streaming, name = StartNodeLogsStream, prefix = "/api", endpoint = "/node_logs_stream")]
+#[server(output = Streaming, name = StartNodeLogsStream, prefix = "/api", endpoint = "/nodes/logs_stream")]
 pub async fn start_node_logs_stream(node_id: NodeId) -> Result<ByteStream, ServerFnError> {
     logging::log!("Starting logs stream from node with Id: {node_id} ...");
     let context = expect_context::<ServerGlobalState>();
@@ -46,7 +71,7 @@ pub async fn start_node_logs_stream(node_id: NodeId) -> Result<ByteStream, Serve
 }
 
 // Retrieve the metrics for a node instance with given id and filters
-#[server(NodeMetrics, "/api", "Url", "/node_metrics")]
+#[server(NodeMetrics, "/api", "Url", "/nodes/metrics")]
 pub async fn node_metrics(
     node_id: NodeId,
     since: Option<i64>,
@@ -63,7 +88,7 @@ pub async fn node_metrics(
 }
 
 // Retrieve the settings
-#[server(GetSettings, "/api", "Url", "/get_settings")]
+#[server(GetSettings, "/api", "Url", "/settings/get")]
 pub async fn get_settings() -> Result<super::server_api_types::AppSettings, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
     let settings = context.db_client.get_settings().await;
@@ -72,7 +97,7 @@ pub async fn get_settings() -> Result<super::server_api_types::AppSettings, Serv
 }
 
 // Update the settings
-#[server(UpdateSettings, "/api", "Url", "/update_settings")]
+#[server(UpdateSettings, "/api", "Url", "/settings/set")]
 pub async fn update_settings(
     settings: super::server_api_types::AppSettings,
 ) -> Result<(), ServerFnError> {
@@ -85,12 +110,7 @@ pub async fn update_settings(
 }
 
 // Prepare a batch of node instances creation
-#[server(
-    PrepareNodeInstancesBatch,
-    "/api",
-    "Url",
-    "/prepare_node_instances_batch"
-)]
+#[server(PrepareNodeInstancesBatch, "/api", "Url", "/batch/prepare")]
 pub async fn prepare_node_instances_batch(
     node_opts: NodeOpts,
     count: u16,
@@ -165,12 +185,7 @@ async fn run_batches(context: ServerGlobalState) {
 }
 
 // Cancel all node instances creation batches
-#[server(
-    CancelNodeInstancesBatch,
-    "/api",
-    "Url",
-    "/cancel_node_instances_batch"
-)]
+#[server(CancelNodeInstancesBatch, "/api", "Url", "/batch/cancel")]
 pub async fn cancel_node_instances_batch() -> Result<(), ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
     logging::log!("Cancelling all node instances creation batches ...");
