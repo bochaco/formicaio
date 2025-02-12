@@ -1,16 +1,25 @@
 # Formicaio
 
-Le formiche sono insetti sociali che vivono in colonie e sono 
-note per la loro organizzazione e cooperazione.
+## Table of Contents
+
+- [Introduction](#introduction)
+- [How to use](#how-to-use)
+- [Running a native executable on Linux, Windows, and macOS](#running-a-native-executable-on-linux-windows-and-macos)
+- [UmbrelOS](#umbrelos)
+- [Linux (amd64/arm64) with Docker](#linux-amd64arm64-with-docker)
+- [Linux/Windows/MacOS (amd64/arm64) with Podman](#linuxwindowsmacos-amd64arm64-with-podman)
+- [Displaying nodes stats on external LCD device](#displaying-nodes-stats-on-external-lcd-device)
+- [Disclaimer](#disclaimer)
+- [License](#license)
+
+## Introduction
+
+*Le formiche sono insetti sociali che vivono in colonie e sono note per la loro organizzazione e cooperazione.*
 
 Ants are social insects that live in colonies and are 
 known for their organization and cooperation.
 
-Simplify your decentralized experience with this intuitive application, 
-designed to streamline your daily tasks when running nodes from home 
-on peer-to-peer (P2P) networks, like [Autonomi](https://autonomi.com) network nodes. Seamlessly participate in online communities using the integrated Nostr client, and manage your digital assets with ease through the built-in wallet. Receive, send,
-and store tokens, rewards, and coins earned from running nodes or received 
-from third-party sources, all within a single, user-friendly interface.
+Simplify your decentralized experience with this intuitive application to run nodes on peer-to-peer (P2P) networks, like [Autonomi](https://autonomi.com) network currently supported.
 
 <img src="img/screenshot_01.png" width="400" height="219" />
 <img src="img/screenshot_02.png" width="300" height="367" />
@@ -26,7 +35,7 @@ Formicaio can be deployed/executed in several ways:
 - on Linux (amd64/arm64) with [Docker](https://www.docker.com) or [Podman](https://podman.io)
 - on Windows/MacOS with Podman
 
-### Running a native executable on Linux, Windows, and macOS
+## Running a native executable on Linux, Windows, and macOS
 
 To launch Formicaio:
 1. Download the package for your preferred platform from [latest release](https://github.com/bochaco/formicaio/releases).
@@ -46,13 +55,13 @@ On both macOS and Windows, you may need to authorize the application to run it a
 
 **Note for macOS Users**: It is recommended to launch Formicaio from a terminal, double-clicking the executable may not work properly.
 
-### UmbrelOS
+## UmbrelOS
 
 This application has not yet been published on the official UmbrelOS app store. However, you can still install and run it on any UmbrelOS device using the [Formicaio community app store](https://github.com/bochaco/formicaio-app-store). To do this, simply add the GitHub URL (https://github.com/bochaco/formicaio-app-store) through the UmbrelOS user interface, as demonstrated in the following demo:
 
 https://user-images.githubusercontent.com/10330103/197889452-e5cd7e96-3233-4a09-b475-94b754adc7a3.mp4
 
-### Linux (amd64/arm64) with Docker
+## Linux (amd64/arm64) with Docker
 
 This application can also be launched on a Linux (amd64/arm64) machine using Docker Compose with the following commands:
 
@@ -81,7 +90,7 @@ For stopping the Formicaio app and services simply run:
 $ docker compose down
 ```
 
-### Linux/Windows/MacOS (amd64/arm64) with Podman
+## Linux/Windows/MacOS (amd64/arm64) with Podman
 
 Formicaio can be deployed and run using [Podman](https://podman.io/) instead of Docker on Linux, Windows, or macOS. To get started, you'll need to install Podman by following the instructions available at https://podman.io/docs/installation.
 You can choose to install either Podman Desktop or just the command-line interface (CLI), depending on your preference and the installation options available for your platform.
