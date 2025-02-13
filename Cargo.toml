@@ -7,8 +7,8 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-alloy = { version = "0.7", default-features = false, features = ["reqwest-rustls-tls","provider-http"], optional = true }
-alloy-contract = { version = "0.7", default-features = false, optional = true }
+alloy = { version = "0.8", default-features = false, features = ["reqwest-rustls-tls","provider-http"], optional = true }
+alloy-contract = { version = "0.8", default-features = false, optional = true }
 alloy-primitives = { version = "0.8", features = ["serde"] }
 alloy-sol-types = { version = "0.8", default-features = false, features = ["json"], optional = true }
 ant-releases = { version = "0.4.0", optional = true }
