@@ -2,13 +2,13 @@ name: build and package release native mode binaries
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "feat-improve-release-in-gh" ]
   pull_request:
     branches: [ "main" ]
 
 jobs:
   extract_version:
-    if: "startsWith(github.event.head_commit.message, 'chore: set version to v')"
+    if: "startsWith(github.event.head_commit.message, 'chore: testing version to v')"
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.get_version.outputs.version }}
@@ -28,7 +28,7 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
   build:
-    if: "startsWith(github.event.head_commit.message, 'chore: set version to v')"
+    if: "startsWith(github.event.head_commit.message, 'chore: testing version to v')"
     name: build
     runs-on: ${{ matrix.os }}
     needs: extract_version  # Ensure this job runs after the version extraction
