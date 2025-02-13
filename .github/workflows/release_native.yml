@@ -7,10 +7,31 @@ on:
     branches: [ "main" ]
 
 jobs:
+  extract_version:
+    if: "startsWith(github.event.head_commit.message, 'chore: set version to v')"
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get version from commit message
+        id: get_version
+        run: |
+          # Get the commit message
+          COMMIT_MESSAGE=$(git log -1 --pretty=%B)
+          # Extract version tag (assuming the version is in the format "vX.Y.Z")
+          VERSION=$(echo "$COMMIT_MESSAGE" | grep -oP 'v\K\d+\.\d+\.\d+$')
+          echo "Version: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
   build:
-    if: "startsWith(github.event.head_commit.message, 'chore: set version to')"
+    if: "startsWith(github.event.head_commit.message, 'chore: set version to v')"
     name: build
     runs-on: ${{ matrix.os }}
+    needs: extract_version  # Ensure this job runs after the version extraction
     strategy:
       matrix:
         include:
@@ -103,6 +124,6 @@ jobs:
       - name: Upload release_artifacts
         uses: actions/upload-artifact@main
         with:
-          name: formicaio-${{ matrix.target }}
+          name: formicaio-v${{ needs.extract_version.outputs.version }}-${{ matrix.target }}
           path: |
             release_artifacts/**
