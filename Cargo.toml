@@ -95,6 +95,22 @@ lto = true
 codegen-units = 1
 panic = "abort"
 
+# The two following sections are to workaround an issue with 
+# upgrading leptos_axum from v0.7.5 to v0.7.7.
+
+[target.aarch64-apple-darwin]
+linker = "rust-lld"
+# NOTE: `rustdoc` doesn't currently respect the `linker` setting — keep an eye
+# on this issue: https://github.com/rust-lang/rust/issues/125657
+rustdocflags = ["-Clink-arg=-fuse-ld=lld"]
+
+# NOTE: Also annoyingly, `target.<cfg>` doesn't let you set `rustdocflags`, so
+# something like `[target.'cfg(target_os = "macos")']` doesn't work here and
+# this repetition is needed...
+[target.x86_64-apple-darwin]
+linker = "rust-lld"
+rustdocflags = ["-Clink-arg=-fuse-ld=lld"]
+
 [package.metadata.cross.build.env]
 # Environment variables to be passed through to the cross container.
 passthrough = ["LEPTOS_OUTPUT_NAME=formicaio"]
