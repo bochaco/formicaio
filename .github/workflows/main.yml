@@ -2,9 +2,7 @@ name: Docker Image CI
 
 on:
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "feat-release-docker-with-native-app" ]
 
 jobs:
   extract_version:
@@ -52,6 +50,8 @@ jobs:
           platforms: linux/amd64
           cache-from: type=registry,ref=bochaco/formicaio-gh:buildcache-v${{ needs.extract_version.outputs.version }}-amd64
           cache-to: type=registry,ref=bochaco/formicaio-gh:buildcache-v${{ needs.extract_version.outputs.version }}-amd64
+          build-args: |
+            BUILD_ARGS=--features native
 
       - name: Build for arm64 and cache it
         uses: docker/build-push-action@v6
@@ -59,6 +59,8 @@ jobs:
           platforms: linux/arm64
           cache-from: type=registry,ref=bochaco/formicaio-gh:buildcache-v${{ needs.extract_version.outputs.version }}-arm64
           cache-to: type=registry,ref=bochaco/formicaio-gh:buildcache-v${{ needs.extract_version.outputs.version }}-arm64
+          build-args: |
+            BUILD_ARGS=--features native
 
       - name: Build multiplatform from cache and push
         uses: docker/build-push-action@v6
@@ -68,5 +70,7 @@ jobs:
           cache-from: |
             type=registry,ref=bochaco/formicaio-gh:buildcache-v${{ needs.extract_version.outputs.version }}-arm64
             type=registry,ref=bochaco/formicaio-gh:buildcache-v${{ needs.extract_version.outputs.version }}-amd64
-          tags: ${{ vars.DOCKERHUB_USERNAME }}/formicaio-gh:latest
+          tags: ${{ vars.DOCKERHUB_USERNAME }}/formicaio-gh:0.3.0-native
+          build-args: |
+            BUILD_ARGS=--features native
           output: type=image
