@@ -7,7 +7,7 @@ services:
   formicaio_proxy:
     image: bochaco/formicaio_proxy:latest
     environment:
-      FORMICAIO_ADDR: host.docker.internal:3000
+      FORMICAIO_ADDR: host.docker.internal:3100
       FORMICAIO_PROXY_PORT: 52101
     extra_hosts:
       - host.docker.internal:host-gateway
@@ -21,9 +21,9 @@ services:
     environment:
       DB_PATH: /data
       NODE_MGR_ROOT_DIR: /data
-      LEPTOS_SITE_ADDR: 0.0.0.0:3000
+      LEPTOS_SITE_ADDR: 0.0.0.0:3100
     volumes:
-      - ./docker_volumes/formicaio:/data
+      - ${APP_DATA_DIR}/data/formicaio:/data
     devices:
       - /dev:/dev
     container_name: formicaio-apps-formicaio_formicaio_1
