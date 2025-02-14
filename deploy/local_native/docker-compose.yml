@@ -1,6 +1,6 @@
 services:
   formicaio:
-    image: bochaco/formicaio:native
+    image: bochaco/formicaio:latest-native
     privileged: true
     network_mode: host
     stop_grace_period: 5s
