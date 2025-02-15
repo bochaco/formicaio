@@ -465,8 +465,9 @@ async fn balance_checker_task(
     bg_tasks_cmds_tx: broadcast::Sender<BgTasksCmds>,
     global_stats: Arc<Mutex<Stats>>,
 ) {
-    // cache retrieved rewards balances to not query more than once per address
-    let mut updated_balances = HashMap::<Address, U256>::new();
+    // cache retrieved rewards balances to not query more than once per address,
+    // as well as how many nodes have each address set for rewards.
+    let mut updated_balances = HashMap::<Address, (U256, u64)>::new();
 
     // Let's trigger a first check now
     let mut bg_tasks_cmds_rx = bg_tasks_cmds_tx.subscribe();
@@ -531,7 +532,7 @@ async fn balance_checker_task(
                     )
                     .await;
 
-                    let total_balance: U256 = updated_balances.values().sum();
+                    let total_balance: U256 = updated_balances.values().map(|(b, _)| b).sum();
                     update_balance_lcd_stats(&lcd_stats, total_balance).await;
                     global_stats.lock().await.total_balance = total_balance;
                 }
@@ -542,8 +543,13 @@ async fn balance_checker_task(
                     .as_ref()
                     .map(|addr| addr.parse::<Address>())
                 {
-                    updated_balances.remove(&address);
-                    let total_balance: U256 = updated_balances.values().sum();
+                    if let Some((_, num_nodes)) = updated_balances.get_mut(&address) {
+                        *num_nodes -= 1;
+                        if *num_nodes == 0 {
+                            let _ = updated_balances.remove(&address);
+                        }
+                    }
+                    let total_balance: U256 = updated_balances.values().map(|(b, _)| b).sum();
                     update_balance_lcd_stats(&lcd_stats, total_balance).await;
                     global_stats.lock().await.total_balance = total_balance;
                 }
@@ -562,7 +568,7 @@ async fn balance_checker_task(
                             )
                             .await;
 
-                            let new_balance: U256 = updated_balances.values().sum();
+                            let new_balance: U256 = updated_balances.values().map(|(b, _)| b).sum();
                             update_balance_lcd_stats(&lcd_stats, new_balance).await;
                             total_balance = new_balance
                         }
@@ -586,7 +592,7 @@ async fn retrieve_current_balances<T: Transport + Clone, P: Provider<T, N>, N: N
     nodes: impl IntoIterator<Item = NodeInstanceInfo>,
     token_contract: &TokenContract::TokenContractInstance<T, P, N>,
     db_client: &DbClient,
-    updated_balances: &mut HashMap<Address, U256>,
+    updated_balances: &mut HashMap<Address, (U256, u64)>,
 ) {
     for node_info in nodes.into_iter() {
         let node_short_id = node_info.short_node_id();
@@ -595,7 +601,9 @@ async fn retrieve_current_balances<T: Transport + Clone, P: Provider<T, N>, N: N
             .as_ref()
             .map(|addr| addr.parse::<Address>())
         {
-            let new_balance = if let Some(balance) = updated_balances.get(&address) {
+            let new_balance = if let Some((balance, num_nodes)) = updated_balances.get_mut(&address)
+            {
+                *num_nodes += 1;
                 balance.to_string()
             } else {
                 // query the balance to the ERC20 contract
@@ -608,7 +616,7 @@ async fn retrieve_current_balances<T: Transport + Clone, P: Provider<T, N>, N: N
                 {
                     Ok(Ok(balance)) => {
                         let balance = balance._0;
-                        updated_balances.insert(address, balance);
+                        updated_balances.insert(address, (balance, 1));
                         balance.to_string()
                     }
                     Ok(Err(err)) => {
