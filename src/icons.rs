@@ -318,3 +318,28 @@ pub fn IconSelectAll() -> impl IntoView {
         </svg>
     }
 }
+
+#[component]
+pub fn IconSelectActives() -> impl IntoView {
+    view! {
+        <svg
+            class="w-6 h-6"
+            aria-hidden="true"
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            fill="none"
+            viewBox="0 0 24 24"
+        >
+            <polygon points="4,4 12,8 4,12" fill="currentColor" stroke-width="2" />
+            <path
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M10 15 13 20 20 9"
+            />
+            <rect stroke="currentColor" width="22" height="22" x="1" y="1" stroke-width="2" />
+        </svg>
+    }
+}

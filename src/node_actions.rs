@@ -1,10 +1,7 @@
 use super::{
     app::{get_addr_from_metamask, ClientGlobalState, NODES_LIST_POLLING_FREQ_MILLIS},
     helpers::{add_node_instances, remove_node_instance, show_alert_msg},
-    icons::{
-        IconAddNode, IconCancel, IconManageNodes, IconOpenActionsMenu, IconPasteAddr, IconRecycle,
-        IconRemove, IconSelectAll, IconStartNode, IconStopNode, IconUpgradeNode,
-    },
+    icons::*,
     node_instance::{NodeInstanceInfo, NodeStatus},
     server_api::{
         recycle_node_instance, start_node_instance, stop_node_instance, upgrade_node_instance,
@@ -162,6 +159,48 @@ pub fn NodesActionsView(home_net_only: bool) -> impl IntoView {
                     class="absolute z-10 invisible inline-block w-auto px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700"
                 >
                     Select all
+                    <div class="tooltip-arrow" data-popper-arrow></div>
+                </div>
+
+                <button
+                    type="button"
+                    on:click=move |_| {
+                        context
+                            .selecting_nodes
+                            .update(|(enabled, _, selected)| {
+                                *enabled = true;
+                                context
+                                    .nodes
+                                    .read()
+                                    .1
+                                    .iter()
+                                    .filter(|(_, n)| n.read().status.is_active())
+                                    .for_each(|(id, _)| {
+                                        selected.insert(id.clone());
+                                    });
+                            });
+                    }
+                    data-tooltip-target="tooltip-select-actives"
+                    data-tooltip-placement="left"
+                    class=move || {
+                        if is_selecting_nodes() {
+                            "hidden"
+                        } else if is_selection_executing() || context.nodes.read().1.is_empty() {
+                            "btn-disabled btn-manage-nodes-action"
+                        } else {
+                            "btn-manage-nodes-action"
+                        }
+                    }
+                >
+                    <IconSelectActives />
+                    <span class="sr-only">Select actives</span>
+                </button>
+                <div
+                    id="tooltip-select-actives"
+                    role="tooltip"
+                    class="absolute z-10 invisible inline-block w-auto px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700"
+                >
+                    Select actives
                     <div class="tooltip-arrow" data-popper-arrow></div>
                 </div>
 
