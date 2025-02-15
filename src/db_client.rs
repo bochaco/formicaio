@@ -409,7 +409,7 @@ impl DbClient {
     }
 
     // Update node metadata onto local cache DB by specifying specific fields and new values
-    pub async fn update_node_metadata_fields(&self, node_id: &str, fields_values: &[(&str, &str)]) {
+    async fn update_node_metadata_fields(&self, node_id: &str, fields_values: &[(&str, &str)]) {
         let (updates, mut params) =
             fields_values
                 .iter()
@@ -437,6 +437,12 @@ impl DbClient {
     // Convenient method to update node status field on local cache DB
     pub async fn update_node_status(&self, node_id: &str, status: NodeStatus) {
         self.update_node_metadata_fields(node_id, &[("status", &json!(&status).to_string())])
+            .await
+    }
+
+    // Convenient method to update node balance field on local cache DB
+    pub async fn update_node_balance(&self, node_id: &str, balance: &str) {
+        self.update_node_metadata_fields(node_id, &[("balance", balance)])
             .await
     }
 

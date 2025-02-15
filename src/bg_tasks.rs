@@ -625,7 +625,7 @@ async fn retrieve_current_balances<T: Transport + Clone, P: Provider<T, N>, N: N
             };
 
             db_client
-                .update_node_metadata_fields(&node_info.node_id, &[("balance", &new_balance)])
+                .update_node_balance(&node_info.node_id, &new_balance)
                 .await;
         } else {
             logging::log!("No valid rewards address set for node {node_short_id}.");
