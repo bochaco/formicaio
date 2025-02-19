@@ -63,7 +63,7 @@ async fn main() {
     // Let's read currently cached settings to use and push it to channel
     let settings = db_client.get_settings().await;
     // List of node instaces batches currently in progress
-    let node_instaces_batches = Arc::new(Mutex::new((broadcast::channel(3).0, Vec::new())));
+    let node_action_batches = Arc::new(Mutex::new((broadcast::channel(3).0, Vec::new())));
     // Flag which indicates if there is an active client querying the public API.
     let server_api_hit = Arc::new(Mutex::new(false));
     let stats = Arc::new(Mutex::new(Stats::default()));
@@ -105,7 +105,7 @@ async fn main() {
         nodes_metrics,
         node_status_locked,
         bg_tasks_cmds_tx,
-        node_instaces_batches,
+        node_action_batches,
         stats,
     };
 

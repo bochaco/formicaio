@@ -1,4 +1,4 @@
-use super::node_instance::NodeInstanceInfo;
+use super::node_instance::{NodeId, NodeInstanceInfo};
 
 use alloy_primitives::U256;
 use serde::{Deserialize, Serialize};
@@ -10,7 +10,7 @@ pub struct NodesInstancesInfo {
     pub latest_bin_version: Option<String>,
     pub nodes: HashMap<String, NodeInstanceInfo>,
     pub stats: Stats,
-    pub batch_in_progress: Option<BatchInProgress>,
+    pub scheduled_batches: Vec<NodesActionsBatch>,
 }
 
 /// Application settings values.
@@ -69,13 +69,38 @@ pub struct Stats {
     pub relevant_records: usize,
 }
 
-/// Information about any actively running nodes creation batch.
-#[derive(Clone, Default, Serialize, Deserialize)]
-pub struct BatchInProgress {
-    pub created: u16,
-    pub total: u16,
-    pub auto_start: bool,
+/// Information of a node action batch
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct NodesActionsBatch {
+    pub id: u16,
+    pub status: String,
+    pub batch_type: BatchType,
     pub interval_secs: u64,
+    pub complete: u16,
+}
+
+impl NodesActionsBatch {
+    /// Create a new instance
+    pub fn new(id: u16, batch_type: BatchType, interval_secs: u64) -> Self {
+        Self {
+            id,
+            status: "scheduled".to_string(),
+            batch_type,
+            interval_secs,
+            complete: 0,
+        }
+    }
+}
+
+/// Type of batch and corresponding info needed to execute it
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum BatchType {
+    Create { node_opts: NodeOpts, count: u16 },
+    Start(Vec<NodeId>),
+    Stop(Vec<NodeId>),
+    Upgrade(Vec<NodeId>),
+    Recycle(Vec<NodeId>),
+    Remove(Vec<NodeId>),
 }
 
 /// Options when creating a new node instance.

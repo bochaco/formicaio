@@ -1,4 +1,4 @@
-use super::{app::ClientGlobalState, server_api_types::NodeOpts};
+use super::app::ClientGlobalState;
 
 use alloy_primitives::U256;
 use leptos::prelude::*;
@@ -160,13 +160,4 @@ impl NodeInstanceInfo {
             )
         })
     }
-}
-
-// Information of a batch of node intances creation
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct NodeInstancesBatch {
-    pub node_opts: NodeOpts,
-    pub created: u16,
-    pub total: u16,
-    pub interval_secs: u64,
 }

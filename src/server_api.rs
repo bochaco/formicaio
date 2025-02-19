@@ -1,6 +1,6 @@
 use super::{
     node_instance::{NodeId, NodeInstanceInfo},
-    server_api_types::NodeOpts,
+    server_api_types::{BatchType, NodeOpts},
 };
 
 use self::server_fn::codec::{ByteStream, Streaming};
@@ -11,10 +11,12 @@ use std::collections::HashMap;
 mod ssr_imports_and_defs {
     pub use crate::{
         app::{BgTasksCmds, ServerGlobalState},
-        node_instance::{NodeInstancesBatch, NodeStatus},
+        node_instance::NodeStatus,
+        server_api_types::NodesActionsBatch,
     };
     pub use futures_util::StreamExt;
     pub use leptos::logging;
+    pub use rand::Rng;
     pub use std::time::Duration;
     pub use tokio::{select, time::sleep};
 }
@@ -110,27 +112,18 @@ pub async fn update_settings(
 }
 
 // Prepare a batch of node instances creation
-#[server(PrepareNodeInstancesBatch, "/api", "Url", "/batch/prepare")]
-pub async fn prepare_node_instances_batch(
-    node_opts: NodeOpts,
-    count: u16,
+#[server(PrepareNodesActionsBatch, "/api", "Url", "/batch/new")]
+pub async fn node_action_batch(
+    batch_type: BatchType,
     interval_secs: u64,
-) -> Result<(), ServerFnError> {
+) -> Result<u16, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
-    logging::log!(
-        "Creating new batch of {count} nodes with port range starting at {} ...",
-        node_opts.port
-    );
+    let batch_id = rand::thread_rng().gen_range(0..=u16::MAX);
+    let batch_info = NodesActionsBatch::new(batch_id, batch_type, interval_secs);
+    logging::log!("Creating new batch with id {batch_id}: {batch_info:?}");
 
-    let batch_info = NodeInstancesBatch {
-        node_opts,
-        created: 0,
-        total: count,
-        interval_secs,
-    };
-    logging::log!("New batch created: {batch_info:?}");
     let len = {
-        let batches = &mut context.node_instaces_batches.lock().await.1;
+        let batches = &mut context.node_action_batches.lock().await.1;
         batches.push(batch_info);
         batches.len()
     };
@@ -138,61 +131,80 @@ pub async fn prepare_node_instances_batch(
         tokio::spawn(run_batches(context));
     }
 
-    Ok(())
+    Ok(batch_id)
 }
 
 #[cfg(feature = "ssr")]
 async fn run_batches(context: ServerGlobalState) {
-    let mut cancel_rx = context.node_instaces_batches.lock().await.0.subscribe();
+    let mut cancel_rx = context.node_action_batches.lock().await.0.subscribe();
 
     loop {
-        let next_batch = context
-            .node_instaces_batches
-            .lock()
-            .await
-            .1
-            .first()
-            .cloned();
+        let batch_info =
+            if let Some(next_batch) = context.node_action_batches.lock().await.1.first_mut() {
+                let mut batch = next_batch.clone();
+                batch.status = "in progress".to_string();
+                *next_batch = batch.clone();
+                batch
+            } else {
+                return;
+            };
 
-        if let Some(batch_info) = next_batch {
-            let total = batch_info.total;
-            logging::log!("Started node instances creation batch of {total} nodes ...");
-            for i in 0..total {
-                select! {
-                    _ = cancel_rx.recv() => return,
-                    _ = sleep(Duration::from_secs(batch_info.interval_secs)) => {
-                        let mut node_opts = batch_info.node_opts.clone();
-                        node_opts.port += i;
-                        node_opts.metrics_port += i;
-                        if let Err(err) = helper_create_node_instance(node_opts, &context).await {
-                            logging::log!(
-                                "Failed to create node instance {i}/{total} as part of a batch: {err}"
-                            );
-                        }
+        match batch_info.batch_type {
+            BatchType::Create {
+                ref node_opts,
+                count,
+            } => {
+                logging::log!("Started node instances creation batch of {count} nodes ...");
+                let mut i = 0;
+                loop {
+                    select! {
+                        id = cancel_rx.recv() => match id {
+                            Ok(id) if id == batch_info.id => break,
+                            _ => {}
+                        },
+                        _ = sleep(Duration::from_secs(batch_info.interval_secs)) => {
+                            let mut node_opts_clone = node_opts.clone();
+                            node_opts_clone.port += i;
+                            node_opts_clone.metrics_port += i;
+                            i += 1;
+                            if let Err(err) = helper_create_node_instance(node_opts_clone, &context).await {
+                                logging::log!(
+                                    "Failed to create node instance {i}/{count} as part of a batch: {err}"
+                                );
+                            } else if let Some(ref mut b) = context.node_action_batches.lock().await.1
+                                        .iter_mut()
+                                        .find(|batch| batch.id == batch_info.id) {
+                                b.complete += 1;
+                            }
 
-                        if let Some(b) = context.node_instaces_batches.lock().await.1.get_mut(0) {
-                            b.created += 1;
+                            if i == count {
+                                break;
+                            }
                         }
                     }
                 }
             }
-
-            let _ = context.node_instaces_batches.lock().await.1.remove(0);
-        } else {
-            return;
+            other => logging::error!("Batch of type {other:?} not yet supported. Discarding it."),
         }
+
+        context
+            .node_action_batches
+            .lock()
+            .await
+            .1
+            .retain(|batch| batch.id != batch_info.id);
     }
 }
 
 // Cancel all node instances creation batches
-#[server(CancelNodeInstancesBatch, "/api", "Url", "/batch/cancel")]
-pub async fn cancel_node_instances_batch() -> Result<(), ServerFnError> {
+#[server(CancelNodesActionsBatch, "/api", "Url", "/batch/cancel")]
+pub async fn cancel_batch(batch_id: u16) -> Result<(), ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
-    logging::log!("Cancelling all node instances creation batches ...");
+    logging::log!("Cancelling node action batch {batch_id} ...");
 
-    let mut guard = context.node_instaces_batches.lock().await;
-    guard.0.send(())?;
-    guard.1.clear();
+    let mut guard = context.node_action_batches.lock().await;
+    guard.0.send(batch_id)?;
+    guard.1.retain(|batch| batch.id != batch_id);
 
     Ok(())
 }

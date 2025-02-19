@@ -2,10 +2,9 @@ use super::{
     app::ClientGlobalState,
     node_instance::{NodeId, NodeInstanceInfo},
     server_api::{
-        create_node_instance, delete_node_instance, prepare_node_instances_batch,
-        start_node_logs_stream,
+        create_node_instance, delete_node_instance, node_action_batch, start_node_logs_stream,
     },
-    server_api_types::{BatchInProgress, NodeOpts},
+    server_api_types::{BatchType, NodeOpts, NodesActionsBatch},
 };
 
 use alloy_primitives::U256;
@@ -64,23 +63,15 @@ pub async fn add_node_instances(
     });
 
     if count > 1 {
-        let auto_start = node_opts.auto_start;
-        prepare_node_instances_batch(node_opts, count, interval_secs).await?;
+        let batch_type = BatchType::Create { node_opts, count };
+        let batch_id = node_action_batch(batch_type.clone(), interval_secs).await?;
         context.nodes.update(|items| {
             items.1.remove(&tmp_node_id);
         });
-        context.batch_in_progress.update(|info| {
-            if let Some(b) = info {
-                b.total += count;
-            } else {
-                *info = Some(BatchInProgress {
-                    created: 0,
-                    total: count,
-                    auto_start,
-                    interval_secs,
-                });
-            }
-        })
+        let batch_info = NodesActionsBatch::new(batch_id, batch_type, interval_secs);
+        context
+            .scheduled_batches
+            .update(|batches| batches.push(RwSignal::new(batch_info)))
     } else {
         let node_info = create_node_instance(node_opts).await?;
         context.nodes.update(|items| {

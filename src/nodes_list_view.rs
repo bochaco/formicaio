@@ -8,8 +8,8 @@ use super::{
     },
     node_actions::NodeAction,
     node_instance::NodeInstanceInfo,
-    server_api::cancel_node_instances_batch,
-    server_api_types::BatchInProgress,
+    server_api::cancel_batch,
+    server_api_types::{BatchType, NodesActionsBatch},
 };
 
 use alloy_primitives::utils::format_units;
@@ -49,7 +49,7 @@ pub fn NodesListView() -> impl IntoView {
         >
 
             <div class="flex flex-wrap">
-                <BatchInProgressView batch_info=context.batch_in_progress />
+                <NodesActionsBatchesView />
 
                 <For each=move || sorted_nodes.get() key=|(node_id, _)| node_id.clone() let:child>
                     <Show
@@ -135,84 +135,95 @@ fn CreatingNodeInstanceView() -> impl IntoView {
 }
 
 #[component]
-fn BatchInProgressView(batch_info: RwSignal<Option<BatchInProgress>>) -> impl IntoView {
-    let progress = move || {
-        (batch_info.get().unwrap_or_default().created * 100)
-            / batch_info.get().unwrap_or_default().total
-    };
+fn NodesActionsBatchesView() -> impl IntoView {
+    let context = expect_context::<ClientGlobalState>();
 
     view! {
-        <Show when=move || batch_info.read().is_some()>
-            <div class="max-w-sm w-80 m-2 p-4 bg-white border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700">
-                <div class="flex justify-end">
-                    <div class="tooltip tooltip-bottom tooltip-info" data-tip="cancel">
-                        <button
-                            class="btn-node-action"
-                            on:click=move |_| spawn_local({
-                                batch_info.update(|info| *info = None);
-                                async move {
-                                    if let Err(err) = cancel_node_instances_batch().await {
-                                        let msg = format!(
-                                            "Failed to cancel nodes creation batch: {err:?}",
-                                        );
-                                        logging::log!("{msg}");
-                                        show_alert_msg(msg);
-                                    }
+        <For each=move || context.scheduled_batches.get() key=|batch| batch.read().id let:child>
+            <ActionBatchView batch_info=child />
+        </For>
+    }
+}
+
+#[component]
+fn ActionBatchView(batch_info: RwSignal<NodesActionsBatch>) -> impl IntoView {
+    let context = expect_context::<ClientGlobalState>();
+    let batch_id = batch_info.get_untracked().id;
+    let batch_type = batch_info.get_untracked().batch_type;
+    let (count, batch_type_str, auto_start) = match &batch_type {
+        BatchType::Create { count, node_opts } => (*count, "create", node_opts.auto_start),
+        BatchType::Start(l) => (l.len() as u16, "start", false),
+        BatchType::Stop(l) => (l.len() as u16, "stop", false),
+        BatchType::Upgrade(l) => (l.len() as u16, "upgrade", false),
+        BatchType::Recycle(l) => (l.len() as u16, "recycle", false),
+        BatchType::Remove(l) => (l.len() as u16, "remove", false),
+    };
+    let progress = move || (batch_info.read().complete * 100) / count;
+
+    view! {
+        <div class="max-w-sm w-80 m-2 p-4 bg-white border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700">
+            <div class="flex justify-end">
+                <div class="tooltip tooltip-bottom tooltip-info" data-tip="cancel">
+                    <button
+                        class="btn-node-action"
+                        on:click=move |_| spawn_local({
+                            context
+                                .scheduled_batches
+                                .update(|batches| {
+                                    batches.retain(|b| { b.read_untracked().id != batch_id })
+                                });
+                            async move {
+                                if let Err(err) = cancel_batch(batch_id).await {
+                                    let msg = format!(
+                                        "Failed to cancel node action batch: {err:?}",
+                                    );
+                                    logging::log!("{msg}");
+                                    show_alert_msg(msg);
                                 }
-                            })
-                        >
-                            <IconCancel />
-                        </button>
-                    </div>
+                            }
+                        })
+                    >
+                        <IconCancel />
+                    </button>
                 </div>
-
-                <h2 class="mb-2 text-lg font-semibold text-gray-900 dark:text-white">
-                    Batch in progress:
-                </h2>
-                <ul class="max-w-md space-y-1 text-gray-500 list-disc list-inside dark:text-gray-400">
-                    <li>
-                        "Total number of nodes to create: "
-                        {batch_info.get().unwrap_or_default().total}
-                    </li>
-                    <li>
-                        "Delay between the creation of each node: "
-                        {batch_info.get().unwrap_or_default().interval_secs} " secs."
-                    </li>
-                    <li>
-                        "Auto-start nodes upon creation: "
-                        {if batch_info.get().unwrap_or_default().auto_start { "Yes" } else { "No" }}
-                    </li>
-                </ul>
-
-                <div class="mt-12">
-                    <div class="flex justify-between mb-1">
-                        <span class="text-base font-medium text-purple-700 dark:text-purple-500">
-                            Nodes creation batch
-                        </span>
-                        <span class="text-sm font-medium text-purple-700 dark:text-purple-500">
-                            {move || {
-                                format!(
-                                    "{}/{}",
-                                    batch_info.get().unwrap_or_default().created,
-                                    batch_info.get().unwrap_or_default().total,
-                                )
-                            }}
-
-                        </span>
-                    </div>
-                    <div class="w-full bg-purple-300 rounded-full h-6 dark:bg-gray-700">
-                        <div
-                            class="bg-purple-600 h-6 text-center text-purple-100 rounded-full dark:bg-purple-500"
-                            style=move || format!("width: {}%", progress())
-                        >
-                            {move || progress()}
-                            "%"
-                        </div>
-                    </div>
-                </div>
-
             </div>
-        </Show>
+
+            <h2 class="mb-2 text-lg font-semibold text-gray-900 dark:text-white">
+                "Batch " {move || batch_info.read().status.clone()} ":"
+            </h2>
+            <ul class="max-w-md space-y-1 text-gray-500 list-disc list-inside dark:text-gray-400">
+                <li>"Total number of nodes to " {batch_type_str} ": " {count}</li>
+                <li>
+                    "Delay between each node action: " {batch_info.get_untracked().interval_secs}
+                    " secs."
+                </li>
+                <Show when=move || matches!(batch_type, BatchType::Create { .. })>
+                    <li>
+                        "Auto-start nodes upon creation: " {if auto_start { "Yes" } else { "No" }}
+                    </li>
+                </Show>
+            </ul>
+
+            <div class="mt-12">
+                <div class="flex justify-between mb-1">
+                    <span class="text-base font-medium text-purple-700 dark:text-purple-500">
+                        Nodes actions batch
+                    </span>
+                    <span class="text-sm font-medium text-purple-700 dark:text-purple-500">
+                        {move || { format!("{}/{}", batch_info.read().complete, count) }}
+                    </span>
+                </div>
+                <div class="w-full bg-purple-300 rounded-full h-6 dark:bg-gray-700">
+                    <div
+                        class="bg-purple-600 h-6 text-center text-purple-100 rounded-full dark:bg-purple-500"
+                        style=move || format!("width: {}%", progress())
+                    >
+                        {move || progress()}
+                        "%"
+                    </div>
+                </div>
+            </div>
+        </div>
     }
 }
 

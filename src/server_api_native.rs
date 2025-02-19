@@ -9,7 +9,7 @@ mod ssr_imports_and_defs {
         db_client::DbClient,
         node_instance::{NodeInstanceInfo, NodeStatus},
         node_manager::{NodeManager, NodeManagerError},
-        server_api_types::{BatchInProgress, NodeOpts},
+        server_api_types::NodeOpts,
     };
     pub use alloy_primitives::Address;
     pub use chrono::{DateTime, Utc};
@@ -51,27 +51,13 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
         }
     }
 
-    let batches = &context.node_instaces_batches.lock().await.1;
-    let batch_in_progress = if let Some(b) = batches.first() {
-        let init = BatchInProgress {
-            auto_start: b.node_opts.auto_start,
-            interval_secs: b.interval_secs,
-            ..Default::default()
-        };
-        Some(batches.iter().fold(init, |mut acc, b| {
-            acc.created += b.created;
-            acc.total += b.total;
-            acc
-        }))
-    } else {
-        None
-    };
+    let scheduled_batches = context.node_action_batches.lock().await.1.clone();
 
     Ok(NodesInstancesInfo {
         latest_bin_version: latest_bin_version.map(|v| v.to_string()),
         nodes,
         stats,
-        batch_in_progress,
+        scheduled_batches,
     })
 }
 

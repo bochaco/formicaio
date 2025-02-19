@@ -13,7 +13,7 @@ use super::{
     node_actions::NodesActionsView,
     node_instance::{NodeId, NodeInstanceInfo},
     nodes_list_view::NodesListView,
-    server_api_types::{BatchInProgress, Stats},
+    server_api_types::{NodesActionsBatch, Stats},
     sort_nodes::{NodesSortStrategy, SortStrategyView},
     stats::AggregatedStatsView,
 };
@@ -82,10 +82,10 @@ pub struct ServerGlobalState {
     pub nodes_metrics: Arc<Mutex<super::metrics_client::NodesMetrics>>,
     pub node_status_locked: ImmutableNodeStatus,
     pub bg_tasks_cmds_tx: broadcast::Sender<BgTasksCmds>,
-    pub node_instaces_batches: Arc<
+    pub node_action_batches: Arc<
         Mutex<(
-            broadcast::Sender<()>,
-            Vec<super::node_instance::NodeInstancesBatch>,
+            broadcast::Sender<u16>,
+            Vec<super::server_api_types::NodesActionsBatch>,
         )>,
     >,
     pub stats: Arc<Mutex<Stats>>,
@@ -148,7 +148,7 @@ pub struct ClientGlobalState {
     // List of alerts to be shown in the UI
     pub alerts: RwSignal<Vec<(u64, String)>>,
     // Information about node instances batch currently in progress
-    pub batch_in_progress: RwSignal<Option<BatchInProgress>>,
+    pub scheduled_batches: RwSignal<Vec<RwSignal<NodesActionsBatch>>>,
     // Keep track of nodes being selected and if selection is on/off
     pub selecting_nodes: RwSignal<(bool, bool, HashSet<NodeId>)>,
     // How to sort nodes to display them on the list
@@ -188,7 +188,7 @@ pub fn App() -> impl IntoView {
         metrics_update_on_for: RwSignal::new(None),
         latest_bin_version: RwSignal::new(None),
         alerts: RwSignal::new(vec![]),
-        batch_in_progress: RwSignal::new(None),
+        scheduled_batches: RwSignal::new(vec![]),
         selecting_nodes: RwSignal::new((false, false, HashSet::new())),
         nodes_sort_strategy: RwSignal::new(NodesSortStrategy::CreationDate(true)),
     });
@@ -263,10 +263,29 @@ fn spawn_nodes_list_polling() {
 
                     context.stats.update(|s| *s = info.stats);
 
-                    // update info about node instances batch in progress
-                    context
-                        .batch_in_progress
-                        .update(|b| *b = info.batch_in_progress);
+                    // update info about node action batches in progress
+                    context.scheduled_batches.update(|cx_batches| {
+                        // first let's get rid of those removed remotely
+                        cx_batches.retain(|cx_b| {
+                            info.scheduled_batches
+                                .iter()
+                                .any(|b| b.id == cx_b.read_untracked().id)
+                        });
+                        // now update and/or add those which are new
+                        info.scheduled_batches.into_iter().enumerate().for_each(
+                            |(index, batch)| {
+                                if let Some(cx_batch) = cx_batches.get(index) {
+                                    if cx_batch.read_untracked().id == batch.id {
+                                        cx_batch.update(|b| *b = batch);
+                                    } else {
+                                        cx_batches.insert(index, RwSignal::new(batch));
+                                    }
+                                } else {
+                                    cx_batches.insert(index, RwSignal::new(batch));
+                                }
+                            },
+                        );
+                    });
 
                     // first let's get rid of those removed remotely
                     context.nodes.update(|(loaded, cx_nodes)| {
