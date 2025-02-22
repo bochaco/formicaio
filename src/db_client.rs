@@ -469,7 +469,7 @@ impl DbClient {
     // Helper to retrieve node status
     async fn get_node_status(&self, node_id: &str) -> NodeStatus {
         let db_lock = self.db.lock().await;
-        match sqlx::query("SELECT status FROM nodes WHERE id = ?")
+        match sqlx::query("SELECT status FROM nodes WHERE node_id = ?")
             .bind(node_id)
             .fetch_one(&*db_lock)
             .await

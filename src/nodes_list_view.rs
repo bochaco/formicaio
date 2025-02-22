@@ -158,7 +158,13 @@ fn ActionBatchView(batch_info: RwSignal<NodesActionsBatch>) -> impl IntoView {
         BatchType::Recycle(l) => (l.len() as u16, "RECYCLE", false),
         BatchType::Remove(l) => (l.len() as u16, "REMOVE", false),
     };
-    let progress = move || (batch_info.read().complete * 100) / count;
+    let progress = move || {
+        if count > 0 {
+            (batch_info.read().complete * 100) / count
+        } else {
+            0
+        }
+    };
 
     view! {
         <div class="max-w-sm w-80 m-2 p-4 bg-white border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700">

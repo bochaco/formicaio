@@ -5,8 +5,12 @@
 async fn main() {
     use axum::Router;
     use formicaio::{
-        app::*, bg_tasks::spawn_bg_tasks, db_client::DbClient, metrics_client::NodesMetrics,
-        server_api_types::Stats,
+        app::*,
+        bg_tasks::spawn_bg_tasks,
+        db_client::DbClient,
+        metrics_client::NodesMetrics,
+        server_api::helper_node_action_batch,
+        server_api_types::{BatchType, Stats},
     };
     use leptos::{logging, prelude::*};
     use leptos_axum::{generate_route_list, LeptosRoutes};
@@ -68,31 +72,6 @@ async fn main() {
     let server_api_hit = Arc::new(Mutex::new(false));
     let stats = Arc::new(Mutex::new(Stats::default()));
 
-    #[cfg(feature = "native")]
-    {
-        // let's make sure we have node binary installed before continuing
-        let version = node_manager
-            .upgrade_master_node_binary(None)
-            .await
-            .expect("Failed to download node binary");
-        *latest_bin_version.lock().await = Some(version);
-    }
-
-    spawn_bg_tasks(
-        #[cfg(not(feature = "native"))]
-        docker_client.clone(),
-        #[cfg(feature = "native")]
-        node_manager.clone(),
-        latest_bin_version.clone(),
-        nodes_metrics.clone(),
-        db_client.clone(),
-        server_api_hit.clone(),
-        node_status_locked.clone(),
-        bg_tasks_cmds_tx.clone(),
-        stats.clone(),
-        settings,
-    );
-
     let app_state = ServerGlobalState {
         leptos_options: leptos_options.clone(),
         db_client,
@@ -108,6 +87,31 @@ async fn main() {
         node_action_batches,
         stats,
     };
+
+    #[cfg(feature = "native")]
+    {
+        // let's make sure we have node binary installed before continuing
+        let version = app_state
+            .node_manager
+            .upgrade_master_node_binary(None)
+            .await
+            .expect("Failed to download node binary");
+        *app_state.latest_bin_version.lock().await = Some(version);
+
+        // let's create a batch to start nodes which were Active
+        let nodes_in_db = app_state.db_client.get_nodes_list().await;
+        let active_nodes = nodes_in_db
+            .into_iter()
+            .filter(|(_, node_info)| node_info.status.is_active())
+            .map(|(id, _)| id)
+            .collect::<Vec<_>>();
+
+        if !active_nodes.is_empty() {
+            let _ = helper_node_action_batch(BatchType::Start(active_nodes), 1, &app_state).await;
+        }
+    }
+
+    spawn_bg_tasks(app_state.clone(), settings);
 
     let app = Router::new()
         .leptos_routes(&app_state, routes, {

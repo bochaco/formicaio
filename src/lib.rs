@@ -26,7 +26,7 @@ pub mod node_instance;
 #[cfg(all(feature = "ssr", feature = "native"))]
 pub mod node_manager;
 mod nodes_list_view;
-mod server_api;
+pub mod server_api;
 #[cfg(not(feature = "native"))]
 mod server_api_docker;
 #[cfg(feature = "native")]

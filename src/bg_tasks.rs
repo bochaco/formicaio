@@ -1,13 +1,8 @@
-#[cfg(not(feature = "native"))]
-use super::docker_client::DockerClient;
-#[cfg(feature = "native")]
-use super::node_manager::NodeManager;
-
 #[cfg(not(feature = "lcd-disabled"))]
 use super::lcd::display_stats_on_lcd;
 
 use super::{
-    app::{BgTasksCmds, ImmutableNodeStatus, METRICS_MAX_SIZE_PER_NODE},
+    app::{BgTasksCmds, ImmutableNodeStatus, ServerGlobalState, METRICS_MAX_SIZE_PER_NODE},
     bg_helpers::{NodeManagerProxy, TasksContext},
     db_client::DbClient,
     helpers::truncated_balance_str,
@@ -54,19 +49,7 @@ sol!(
 );
 
 // Spawn any required background tasks
-#[allow(clippy::too_many_arguments)]
-pub fn spawn_bg_tasks(
-    #[cfg(not(feature = "native"))] docker_client: DockerClient,
-    #[cfg(feature = "native")] node_manager: NodeManager,
-    latest_bin_version: Arc<Mutex<Option<Version>>>,
-    nodes_metrics: Arc<Mutex<NodesMetrics>>,
-    db_client: DbClient,
-    server_api_hit: Arc<Mutex<bool>>,
-    node_status_locked: ImmutableNodeStatus,
-    bg_tasks_cmds_tx: broadcast::Sender<BgTasksCmds>,
-    global_stats: Arc<Mutex<Stats>>,
-    settings: AppSettings,
-) {
+pub fn spawn_bg_tasks(context: ServerGlobalState, settings: AppSettings) {
     logging::log!("App settings to use: {settings:#?}");
     let mut ctx = TasksContext::from(settings);
 
@@ -84,34 +67,34 @@ pub fn spawn_bg_tasks(
     if ctx.app_settings.lcd_display_enabled {
         tokio::spawn(display_stats_on_lcd(
             ctx.app_settings.clone(),
-            bg_tasks_cmds_tx.subscribe(),
+            context.bg_tasks_cmds_tx.subscribe(),
             lcd_stats.clone(),
         ));
     }
 
     #[cfg(not(feature = "native"))]
     let node_mgr_proxy = NodeManagerProxy {
-        db_client: db_client.clone(),
-        docker_client,
+        db_client: context.db_client.clone(),
+        docker_client: context.docker_client.clone(),
     };
     #[cfg(feature = "native")]
     let node_mgr_proxy = NodeManagerProxy {
-        db_client: db_client.clone(),
-        node_manager,
+        db_client: context.db_client.clone(),
+        node_manager: context.node_manager.clone(),
     };
 
     // Spawn task which checks address balances as requested on the provided channel
     tokio::spawn(balance_checker_task(
         ctx.app_settings.clone(),
         node_mgr_proxy.clone(),
-        db_client.clone(),
+        context.db_client.clone(),
         lcd_stats.clone(),
-        bg_tasks_cmds_tx.clone(),
-        global_stats.clone(),
+        context.bg_tasks_cmds_tx.clone(),
+        context.stats.clone(),
     ));
 
     tokio::spawn(async move {
-        let mut bg_tasks_cmds_rx = bg_tasks_cmds_tx.subscribe();
+        let mut bg_tasks_cmds_rx = context.bg_tasks_cmds_tx.subscribe();
         loop {
             select! {
                 settings = bg_tasks_cmds_rx.recv() => {
@@ -126,7 +109,7 @@ pub fn spawn_bg_tasks(
                             // perhaps we need websockets for errors like this one.
                             tokio::spawn(display_stats_on_lcd(
                                 s.clone(),
-                                bg_tasks_cmds_tx.subscribe(),
+                                context.bg_tasks_cmds_tx.subscribe(),
                                 lcd_stats.clone()
                             ));
                         }
@@ -145,18 +128,18 @@ pub fn spawn_bg_tasks(
                 _ = ctx.node_bin_version_check.tick() => {
                     tokio::spawn(check_node_bin_version(
                         node_mgr_proxy.clone(),
-                        latest_bin_version.clone(),
-                        db_client.clone(),
-                        node_status_locked.clone()
+                        context.latest_bin_version.clone(),
+                        context.db_client.clone(),
+                        context.node_status_locked.clone()
                     ));
                 },
                 _ = ctx.balances_retrieval.tick() => {
-                    let _ = bg_tasks_cmds_tx.send(BgTasksCmds::CheckAllBalances);
+                    let _ = context.bg_tasks_cmds_tx.send(BgTasksCmds::CheckAllBalances);
                 },
                 _ = ctx.metrics_pruning.tick() => {
                     tokio::spawn(prune_metrics(
                         node_mgr_proxy.clone(),
-                        db_client.clone()
+                        context.db_client.clone()
                     ));
                 },
                 _ = ctx.nodes_metrics_polling.tick() => {
@@ -167,12 +150,12 @@ pub fn spawn_bg_tasks(
                     // with multiple overlapping tasks being launched.
                     update_nodes_info(
                         &node_mgr_proxy,
-                        &nodes_metrics,
-                        &db_client,
-                        &node_status_locked,
+                        &context.nodes_metrics,
+                        &context.db_client,
+                        &context.node_status_locked,
                         query_bin_version,
                         &lcd_stats,
-                        global_stats.clone()
+                        context.stats.clone()
 
                     ).await;
                     // reset interval to start next period from this instant,
@@ -182,12 +165,12 @@ pub fn spawn_bg_tasks(
                 _ = ctx.nodes_status_polling.tick() => {
                     // we poll node status only if a client is currently querying the API,
                     // and only if the metrics polling is not frequent enough
-                    let api_hit = *server_api_hit.lock().await;
+                    let api_hit = *context.server_api_hit.lock().await;
                     if !api_hit || 2 * ctx.nodes_status_polling.period() > ctx.nodes_metrics_polling.period() {
                         continue;
                     }
 
-                    *server_api_hit.lock().await = false;
+                    *context.server_api_hit.lock().await = false;
                     match node_mgr_proxy.get_nodes_list(true).await {
                         Ok(nodes) => {
                             let total_nodes = nodes.len();
@@ -195,7 +178,7 @@ pub fn spawn_bg_tasks(
                             let mut num_inactive_nodes = 0;
 
                             for node_info in nodes.into_iter() {
-                                update_node_metadata(&node_info, &db_client, &node_status_locked).await;
+                                update_node_metadata(&node_info, &context.db_client, &context.node_status_locked).await;
                                 if node_info.status.is_active() {
                                     num_active_nodes += 1;
                                 } else if node_info.status.is_inactive() {
@@ -203,7 +186,7 @@ pub fn spawn_bg_tasks(
                                 }
                             }
 
-                            let mut guard = global_stats.lock().await;
+                            let mut guard = context.stats.lock().await;
                             guard.total_nodes = total_nodes;
                             guard.active_nodes = num_active_nodes;
                             guard.inactive_nodes = num_inactive_nodes;

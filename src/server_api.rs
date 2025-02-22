@@ -137,13 +137,23 @@ pub async fn update_settings(
     Ok(())
 }
 
-// Prepare a batch of node instances creation
+/// Prepare a node actions batch
 #[server(PrepareNodesActionsBatch, "/api", "Url", "/batch/new")]
 pub async fn node_action_batch(
     batch_type: BatchType,
     interval_secs: u64,
 ) -> Result<u16, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
+    helper_node_action_batch(batch_type, interval_secs, &context).await
+}
+
+// Helper to prepare a node actions batch
+#[cfg(feature = "ssr")]
+pub async fn helper_node_action_batch(
+    batch_type: BatchType,
+    interval_secs: u64,
+    context: &ServerGlobalState,
+) -> Result<u16, ServerFnError> {
     match &batch_type {
         BatchType::Create { .. } => {}
         BatchType::Start(l)
@@ -153,6 +163,9 @@ pub async fn node_action_batch(
         | BatchType::Remove(l) => {
             // TODO: filter out nodes which are already part of a batch,
             // perhaps even return an error...?...
+            if l.is_empty() {
+                return Err(ServerFnError::new("Empty list of node ids received."));
+            }
 
             // let's lock all nodes which are part of the batch,
             // so the user cannot action on it till the batch is completed or cancelled.
@@ -179,7 +192,7 @@ pub async fn node_action_batch(
         batches.len()
     };
     if len == 1 {
-        tokio::spawn(run_batches(context));
+        tokio::spawn(run_batches(context.clone()));
     }
 
     Ok(batch_id)
