@@ -152,20 +152,23 @@ pub(crate) async fn helper_delete_node_instance(
 ) -> Result<(), ServerFnError> {
     let mut node_info = NodeInstanceInfo::new(node_id);
     context.db_client.get_node_metadata(&mut node_info).await;
-    context
-        .db_client
-        .delete_node_metadata(&node_info.node_id)
-        .await;
-
     if node_info.status.is_active() {
         // kill node's process
         context.node_manager.kill_node(&node_info.node_id).await?;
     }
-    // remove node's directory
+
+    // remove node's metadata and directory
     context
+        .db_client
+        .delete_node_metadata(&node_info.node_id)
+        .await;
+    if let Err(err) = context
         .node_manager
         .remove_node_dir(&node_info.node_id)
-        .await?;
+        .await
+    {
+        logging::warn!("Failed to remove node's directory: {err:?}");
+    }
 
     context
         .nodes_metrics

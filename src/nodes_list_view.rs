@@ -151,12 +151,12 @@ fn ActionBatchView(batch_info: RwSignal<NodesActionsBatch>) -> impl IntoView {
     let batch_id = batch_info.get_untracked().id;
     let batch_type = batch_info.get_untracked().batch_type;
     let (count, batch_type_str, auto_start) = match &batch_type {
-        BatchType::Create { count, node_opts } => (*count, "create", node_opts.auto_start),
-        BatchType::Start(l) => (l.len() as u16, "start", false),
-        BatchType::Stop(l) => (l.len() as u16, "stop", false),
-        BatchType::Upgrade(l) => (l.len() as u16, "upgrade", false),
-        BatchType::Recycle(l) => (l.len() as u16, "recycle", false),
-        BatchType::Remove(l) => (l.len() as u16, "remove", false),
+        BatchType::Create { count, node_opts } => (*count, "CREATE", node_opts.auto_start),
+        BatchType::Start(l) => (l.len() as u16, "START", false),
+        BatchType::Stop(l) => (l.len() as u16, "STOP", false),
+        BatchType::Upgrade(l) => (l.len() as u16, "UPGRADE", false),
+        BatchType::Recycle(l) => (l.len() as u16, "RECYCLE", false),
+        BatchType::Remove(l) => (l.len() as u16, "REMOVE", false),
     };
     let progress = move || (batch_info.read().complete * 100) / count;
 
@@ -249,6 +249,7 @@ fn NodeInstanceView(
     };
 
     let is_transitioning = move || info.read().status.is_transitioning();
+    let is_locked = move || info.read().status.is_locked();
 
     let peer_id = move || {
         info.read()
@@ -341,13 +342,17 @@ fn NodeInstanceView(
             <div class="mt-2">
                 <p>
                     <span class="node-info-item">"Status: "</span>
-                    {move || {
-                        if is_transitioning() {
-                            format!("{} ...", info.read().status)
-                        } else {
-                            format!("{}, {}", info.read().status, info.read().status_info)
-                        }
-                    }}
+                    <span class=move || {
+                        if is_locked() { "node-info-item-highlight" } else { "" }
+                    }>
+                        {move || {
+                            if is_transitioning() {
+                                format!("{} ...", info.read().status)
+                            } else {
+                                format!("{}, {}", info.read().status, info.read().status_info)
+                            }
+                        }}
+                    </span>
                 </p>
                 <span class=move || { if is_transitioning() { "opacity-60" } else { "" } }>
                     <p>

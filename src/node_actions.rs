@@ -142,8 +142,9 @@ pub fn NodesActionsView(home_net_only: bool) -> impl IntoView {
                                     .nodes
                                     .read()
                                     .1
-                                    .keys()
-                                    .for_each(|id| {
+                                    .iter()
+                                    .filter(|(_, n)| !n.read().status.is_locked())
+                                    .for_each(|(id, _)| {
                                         selected.insert(id.clone());
                                     });
                             });
@@ -176,7 +177,9 @@ pub fn NodesActionsView(home_net_only: bool) -> impl IntoView {
                                     .read()
                                     .1
                                     .iter()
-                                    .filter(|(_, n)| n.read().status.is_active())
+                                    .filter(|(_, n)| {
+                                        n.read().status.is_active() && !n.read().status.is_locked()
+                                    })
                                     .for_each(|(id, _)| {
                                         selected.insert(id.clone());
                                     });
@@ -732,7 +735,7 @@ fn apply_on_selected(action: NodeAction, context: ClientGlobalState) {
                             if let Some(node_info) = nodes.get(&node_id) {
                                 node_info.update(|n| {
                                     let mut updated = n.clone();
-                                    updated.status = NodeStatus::Locked;
+                                    updated.status = NodeStatus::Locked(Box::new(n.status.clone()));
                                     *n = updated;
                                 })
                             }

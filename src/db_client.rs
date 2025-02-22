@@ -319,7 +319,7 @@ impl DbClient {
         }
     }
 
-    // Update node metadata on local cache DB
+    // Update node metadata
     pub async fn update_node_metadata(&self, info: &NodeInstanceInfo, update_status: bool) {
         let mut updates = Vec::new();
         let mut params = Vec::new();
@@ -434,16 +434,55 @@ impl DbClient {
         }
     }
 
-    // Convenient method to update node status field on local cache DB
+    // Convenient method to update node status field
     pub async fn update_node_status(&self, node_id: &str, status: NodeStatus) {
         self.update_node_metadata_fields(node_id, &[("status", &json!(&status).to_string())])
             .await
     }
 
-    // Convenient method to update node balance field on local cache DB
+    // Convenient method to lock node status field and status-changed timestamp
+    pub async fn set_node_status_to_locked(&self, node_id: &str) {
+        let current_status = self.get_node_status(node_id).await;
+        self.update_node_metadata_fields(
+            node_id,
+            &[(
+                "status",
+                &json!(&NodeStatus::Locked(Box::new(current_status))).to_string(),
+            )],
+        )
+        .await
+    }
+
+    // Convenient method to unlock node status and set it to its previous status
+    pub async fn unlock_node_status(&self, node_id: &str) {
+        let prev_status = self.get_node_status(node_id).await;
+        self.update_node_metadata_fields(node_id, &[("status", &json!(&prev_status).to_string())])
+            .await
+    }
+
+    // Convenient method to update node balance field
     pub async fn update_node_balance(&self, node_id: &str, balance: &str) {
         self.update_node_metadata_fields(node_id, &[("balance", balance)])
             .await
+    }
+
+    // Helper to retrieve node status
+    async fn get_node_status(&self, node_id: &str) -> NodeStatus {
+        let db_lock = self.db.lock().await;
+        match sqlx::query("SELECT status FROM nodes WHERE id = ?")
+            .bind(node_id)
+            .fetch_one(&*db_lock)
+            .await
+        {
+            Ok(row) => {
+                let str = row.get::<String, _>("status");
+                serde_json::from_str(&str).unwrap_or(NodeStatus::Inactive)
+            }
+            Err(err) => {
+                logging::log!("Sqlite status query error: {err}");
+                NodeStatus::Inactive
+            }
+        }
     }
 
     // Retrieve node metrics from local cache DB

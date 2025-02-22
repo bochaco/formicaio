@@ -38,8 +38,9 @@ pub enum NodeStatus {
     // change, e.g. Restarting, Upgrading, we set to this state till we get actual state
     // from the server during our polling cycle. The string describes the type of transition.
     Transitioned(String),
-    // Locked, users cannot change its status by executing any type of action on it
-    Locked,
+    // Locked, users cannot change its status by executing any type of action on it.
+    // It also holds the current status.
+    Locked(Box<NodeStatus>),
 }
 
 impl NodeStatus {
@@ -77,7 +78,7 @@ impl NodeStatus {
         matches!(self, Self::Transitioned(_))
     }
     pub fn is_locked(&self) -> bool {
-        matches!(self, Self::Locked)
+        matches!(self, Self::Locked(_))
     }
 }
 
@@ -85,6 +86,7 @@ impl fmt::Display for NodeStatus {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Transitioned(s) => write!(f, "{s}"),
+            Self::Locked(s) => write!(f, "{s} (batched)"),
             other => write!(f, "{other:?}"),
         }
     }

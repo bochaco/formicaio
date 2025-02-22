@@ -151,14 +151,15 @@ pub async fn node_action_batch(
         | BatchType::Upgrade(l)
         | BatchType::Recycle(l)
         | BatchType::Remove(l) => {
+            // TODO: filter out nodes which are already part of a batch,
+            // perhaps even return an error...?...
+
             // let's lock all nodes which are part of the batch,
             // so the user cannot action on it till the batch is completed or cancelled.
             let duration = Duration::from_secs(3_600_000);
             for node_id in l.iter() {
-                context
-                    .db_client
-                    .update_node_status(node_id, NodeStatus::Locked)
-                    .await;
+                context.db_client.set_node_status_to_locked(node_id).await;
+
                 // let's also prevent the backend from updating its status
                 context
                     .node_status_locked
@@ -251,7 +252,7 @@ async fn run_batches(context: ServerGlobalState) {
                         batch_id = cancel_rx.recv() => {
                             if matches!(batch_id, Ok(id) if id == batch_info.id) {
                                 for node_id in nodes.iter().skip(i) {
-                                    context.node_status_locked.remove(node_id).await;
+                                    context.db_client.unlock_node_status(node_id).await;
                                 }
                                 break;
                             }
