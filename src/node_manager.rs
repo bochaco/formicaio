@@ -282,11 +282,11 @@ impl NodeManager {
     }
 
     // Remove node's data dir
-    pub async fn remove_node_dir(&self, node_id: &NodeId) -> Result<(), NodeManagerError> {
+    pub async fn remove_node_dir(&self, node_id: &NodeId) {
         let node_data_dir = self.root_dir.join(DEFAULT_NODE_DATA_FOLDER).join(node_id);
-        remove_dir_all(node_data_dir).await?;
-
-        Ok(())
+        if let Err(err) = remove_dir_all(&node_data_dir).await {
+            logging::warn!("Failed to remove node's dir {node_data_dir:?}: {err:?}");
+        }
     }
 
     // Retrieve version of the node binary and its peer id

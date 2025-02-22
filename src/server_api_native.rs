@@ -162,13 +162,10 @@ pub(crate) async fn helper_delete_node_instance(
         .db_client
         .delete_node_metadata(&node_info.node_id)
         .await;
-    if let Err(err) = context
+    context
         .node_manager
         .remove_node_dir(&node_info.node_id)
-        .await
-    {
-        logging::warn!("Failed to remove node's directory: {err:?}");
-    }
+        .await;
 
     context
         .nodes_metrics
