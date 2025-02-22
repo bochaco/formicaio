@@ -38,6 +38,8 @@ pub enum NodeStatus {
     // change, e.g. Restarting, Upgrading, we set to this state till we get actual state
     // from the server during our polling cycle. The string describes the type of transition.
     Transitioned(String),
+    // Locked, users cannot change its status by executing any type of action on it
+    Locked,
 }
 
 impl NodeStatus {
@@ -73,6 +75,9 @@ impl NodeStatus {
     }
     pub fn is_transitioned(&self) -> bool {
         matches!(self, Self::Transitioned(_))
+    }
+    pub fn is_locked(&self) -> bool {
+        matches!(self, Self::Locked)
     }
 }
 

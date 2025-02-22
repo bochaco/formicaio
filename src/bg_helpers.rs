@@ -117,14 +117,19 @@ impl NodeManagerProxy {
         &self,
         node_id: &NodeId,
         node_status_locked: &ImmutableNodeStatus,
-    ) -> Result<(), DockerClientError> {
-        helper_upgrade_node_instance(
+    ) {
+        if let Err(err) = helper_upgrade_node_instance(
             node_id,
             node_status_locked,
             &self.db_client,
             &self.docker_client,
         )
         .await
+        {
+            logging::log!(
+                "Failed to auto-upgrade node binary for node instance {node_id}: {err:?}."
+            );
+        }
     }
 
     pub async fn pull_formica_image(&self) -> Result<(), DockerClientError> {
@@ -176,14 +181,19 @@ impl NodeManagerProxy {
         &self,
         node_id: &NodeId,
         node_status_locked: &ImmutableNodeStatus,
-    ) -> Result<(), NodeManagerError> {
-        helper_upgrade_node_instance(
+    ) {
+        if let Err(err) = helper_upgrade_node_instance(
             node_id,
             node_status_locked,
             &self.db_client,
             &self.node_manager,
         )
         .await
+        {
+            logging::log!(
+                "Failed to auto-upgrade node binary for node instance {node_id}: {err:?}."
+            );
+        }
     }
 
     pub async fn pull_formica_image(&self) -> Result<(), NodeManagerError> {

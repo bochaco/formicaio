@@ -236,15 +236,16 @@ fn NodeInstanceView(
 ) -> impl IntoView {
     let context = expect_context::<ClientGlobalState>();
     let is_selected = move || {
-        context
-            .selecting_nodes
-            .read()
-            .2
-            .contains(&info.read_untracked().node_id)
+        info.read().status.is_locked()
+            || context
+                .selecting_nodes
+                .read()
+                .1
+                .contains(&info.read_untracked().node_id)
     };
-    let is_selection_on = move || {
-        let (is_selecting_nodes, is_selection_executing, _) = *context.selecting_nodes.read();
-        is_selecting_nodes && (!is_selection_executing || is_selected())
+    let is_show_node_select = move || {
+        let (is_selecting_nodes, _) = *context.selecting_nodes.read();
+        is_selecting_nodes || info.read().status.is_locked()
     };
 
     let is_transitioning = move || info.read().status.is_transitioning();
@@ -270,14 +271,14 @@ fn NodeInstanceView(
     };
 
     let node_card_clicked = move || {
-        let (is_selecting, is_executing, _) = *context.selecting_nodes.read();
-        if is_selecting && !is_executing {
+        let (is_selecting, _) = *context.selecting_nodes.read_untracked();
+        if is_selecting && !info.read_untracked().status.is_locked() {
             if is_selected() {
-                context.selecting_nodes.update(|(_, _, selected)| {
+                context.selecting_nodes.update(|(_, selected)| {
                     selected.remove(&info.read_untracked().node_id);
                 })
             } else {
-                context.selecting_nodes.update(|(_, _, selected)| {
+                context.selecting_nodes.update(|(_, selected)| {
                     selected.insert(info.read_untracked().node_id.clone());
                 })
             }
@@ -317,7 +318,7 @@ fn NodeInstanceView(
         >
 
             <div class="flex justify-end">
-                <Show when=move || is_selection_on()>
+                <Show when=move || is_show_node_select()>
                     <NodeSelection info />
                 </Show>
 
@@ -550,13 +551,13 @@ fn NodeInstanceView(
 #[component]
 fn NodeSelection(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
     let context = expect_context::<ClientGlobalState>();
-    let is_selection_executing = move || context.selecting_nodes.read().1;
     let is_selected = move || {
-        context
-            .selecting_nodes
-            .read()
-            .2
-            .contains(&info.read_untracked().node_id)
+        info.read().status.is_locked()
+            || context
+                .selecting_nodes
+                .read()
+                .1
+                .contains(&info.read_untracked().node_id)
     };
 
     view! {
@@ -565,7 +566,7 @@ fn NodeSelection(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                 <input
                     type="checkbox"
                     prop:checked=is_selected
-                    prop:disabled=is_selection_executing
+                    prop:disabled=move || info.read().status.is_locked()
                     class=move || {
                         if info.read().status.is_transitioning() {
                             "hidden"
@@ -684,7 +685,8 @@ fn ButtonStopStart(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
         <div class="tooltip tooltip-bottom tooltip-info" data-tip=tip>
             <button
                 class=move || match (
-                    is_selecting_nodes() || info.read().status.is_transitioning(),
+                    is_selecting_nodes() || info.read().status.is_locked()
+                        || info.read().status.is_transitioning(),
                     info.read().status.is_active(),
                 ) {
                     (true, true) => "btn-disabled-node-action btn-node-action-active",
@@ -728,7 +730,9 @@ fn ButtonUpgrade(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
             <button
                 type="button"
                 class=move || {
-                    if is_selecting_nodes() || info.read().status.is_transitioning() {
+                    if is_selecting_nodes() || info.read().status.is_locked()
+                        || info.read().status.is_transitioning()
+                    {
                         "btn-disabled-node-action"
                     } else {
                         "btn-node-action"
@@ -754,7 +758,7 @@ fn ButtonRecycle(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
             <button
                 class=move || {
                     if !is_selecting_nodes() && !info.read().status.is_transitioning()
-                        && info.read().peer_id.is_some()
+                        && !info.read().status.is_locked() && info.read().peer_id.is_some()
                     {
                         "btn-node-action"
                     } else {

@@ -103,6 +103,12 @@ pub enum BatchType {
     Remove(Vec<NodeId>),
 }
 
+impl BatchType {
+    pub fn is_not_create(&self) -> bool {
+        !matches!(self, Self::Create { .. })
+    }
+}
+
 /// Options when creating a new node instance.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct NodeOpts {

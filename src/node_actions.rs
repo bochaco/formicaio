@@ -1,24 +1,26 @@
 use super::{
-    app::{get_addr_from_metamask, ClientGlobalState, NODES_LIST_POLLING_FREQ_MILLIS},
+    app::{get_addr_from_metamask, ClientGlobalState},
     helpers::{add_node_instances, remove_node_instance, show_alert_msg},
     icons::*,
     node_instance::{NodeInstanceInfo, NodeStatus},
     server_api::{
-        recycle_node_instance, start_node_instance, stop_node_instance, upgrade_node_instance,
+        node_action_batch, recycle_node_instance, start_node_instance, stop_node_instance,
+        upgrade_node_instance,
     },
-    server_api_types::NodeOpts,
+    server_api_types::{BatchType, NodeOpts, NodesActionsBatch},
 };
 
 use alloy_primitives::Address;
-use gloo_timers::future::sleep;
 use leptos::{logging, prelude::*, task::spawn_local};
-use std::{num::ParseIntError, time::Duration};
+use std::num::ParseIntError;
 
 const DEFAULT_NODE_PORT: u16 = 12000;
 const DEFAULT_METRICS_PORT: u16 = 14000;
 
 // Expected length of entered hex-encoded rewards address.
 const REWARDS_ADDR_LENGTH: usize = 40;
+
+const NODES_ACTIONS_DELAY_SECS: u64 = 1;
 
 // Action to apply on a node instance
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -103,9 +105,17 @@ impl NodeAction {
 pub fn NodesActionsView(home_net_only: bool) -> impl IntoView {
     let context = expect_context::<ClientGlobalState>();
     let is_selecting_nodes = move || context.selecting_nodes.read().0;
-    let is_selection_executing = move || context.selecting_nodes.read().1;
-    let show_actions_menu = RwSignal::new(false);
+    let btn_nodes_action_class = move || {
+        if is_selecting_nodes() {
+            "hidden"
+        } else if context.nodes.read().1.is_empty() {
+            "btn-disabled btn-manage-nodes-action"
+        } else {
+            "btn-manage-nodes-action"
+        }
+    };
 
+    let show_actions_menu = RwSignal::new(false);
     // signal to toggle the panel to add nodes
     let modal_visibility = RwSignal::new(false);
 
@@ -126,7 +136,7 @@ pub fn NodesActionsView(home_net_only: bool) -> impl IntoView {
                     on:click=move |_| {
                         context
                             .selecting_nodes
-                            .update(|(enabled, _, selected)| {
+                            .update(|(enabled, selected)| {
                                 *enabled = true;
                                 context
                                     .nodes
@@ -140,15 +150,7 @@ pub fn NodesActionsView(home_net_only: bool) -> impl IntoView {
                     }
                     data-tooltip-target="tooltip-select-all"
                     data-tooltip-placement="left"
-                    class=move || {
-                        if is_selecting_nodes() {
-                            "hidden"
-                        } else if is_selection_executing() || context.nodes.read().1.is_empty() {
-                            "btn-disabled btn-manage-nodes-action"
-                        } else {
-                            "btn-manage-nodes-action"
-                        }
-                    }
+                    class=btn_nodes_action_class
                 >
                     <IconSelectAll />
                     <span class="sr-only">Select all</span>
@@ -167,7 +169,7 @@ pub fn NodesActionsView(home_net_only: bool) -> impl IntoView {
                     on:click=move |_| {
                         context
                             .selecting_nodes
-                            .update(|(enabled, _, selected)| {
+                            .update(|(enabled, selected)| {
                                 *enabled = true;
                                 context
                                     .nodes
@@ -182,15 +184,7 @@ pub fn NodesActionsView(home_net_only: bool) -> impl IntoView {
                     }
                     data-tooltip-target="tooltip-select-actives"
                     data-tooltip-placement="left"
-                    class=move || {
-                        if is_selecting_nodes() {
-                            "hidden"
-                        } else if is_selection_executing() || context.nodes.read().1.is_empty() {
-                            "btn-disabled btn-manage-nodes-action"
-                        } else {
-                            "btn-manage-nodes-action"
-                        }
-                    }
+                    class=btn_nodes_action_class
                 >
                     <IconSelectActives />
                     <span class="sr-only">Select actives</span>
@@ -207,19 +201,11 @@ pub fn NodesActionsView(home_net_only: bool) -> impl IntoView {
                 <button
                     type="button"
                     on:click=move |_| {
-                        context.selecting_nodes.update(|(enabled, _, _)| *enabled = true);
+                        context.selecting_nodes.update(|(enabled, _)| *enabled = true);
                     }
                     data-tooltip-target="tooltip-manage"
                     data-tooltip-placement="left"
-                    class=move || {
-                        if is_selecting_nodes() {
-                            "hidden"
-                        } else if is_selection_executing() || context.nodes.read().1.is_empty() {
-                            "btn-disabled btn-manage-nodes-action"
-                        } else {
-                            "btn-manage-nodes-action"
-                        }
-                    }
+                    class=btn_nodes_action_class
                 >
                     <IconManageNodes />
                     <span class="sr-only">Manage</span>
@@ -649,7 +635,7 @@ fn ActionsOnSelected(show_actions_menu: RwSignal<bool>) -> impl IntoView {
                 show_actions_menu.set(false);
                 context
                     .selecting_nodes
-                    .update(|(enabled, _, selected)| {
+                    .update(|(enabled, selected)| {
                         selected.clear();
                         *enabled = false;
                     })
@@ -715,47 +701,51 @@ fn ActionsOnSelected(show_actions_menu: RwSignal<bool>) -> impl IntoView {
 
 // Helper to apply an action on the set of nodes selected by the user
 fn apply_on_selected(action: NodeAction, context: ClientGlobalState) {
-    context
+    let selected: Vec<_> = context
         .selecting_nodes
-        .update(|(_, executing, _)| *executing = true);
-    let selected = &context.selecting_nodes.read_untracked().2;
-    let nodes = context
-        .nodes
-        .read_untracked()
+        .get_untracked()
         .1
-        .values()
-        .filter(|n| selected.contains(&n.read_untracked().node_id))
-        .cloned()
-        .collect::<Vec<_>>();
+        .into_iter()
+        .collect();
+
+    let batch_type = match action {
+        NodeAction::Start => BatchType::Start(selected),
+        NodeAction::Stop => BatchType::Stop(selected),
+        NodeAction::Upgrade => BatchType::Upgrade(selected),
+        NodeAction::Recycle => BatchType::Recycle(selected),
+        NodeAction::Remove => BatchType::Remove(selected),
+    };
 
     spawn_local(async move {
-        let was_cancelled = move || !context.selecting_nodes.read_untracked().0;
-        for info in nodes {
-            if was_cancelled() {
-                break;
+        match node_action_batch(batch_type.clone(), NODES_ACTIONS_DELAY_SECS).await {
+            Ok(batch_id) => {
+                let batch_info =
+                    NodesActionsBatch::new(batch_id, batch_type, NODES_ACTIONS_DELAY_SECS);
+                // update context for a better UX, this will get updated in next poll anyways
+                context
+                    .scheduled_batches
+                    .update(|batches| batches.push(RwSignal::new(batch_info)));
+                context.selecting_nodes.update(|(enabled, selected)| {
+                    *enabled = false;
+                    context.nodes.update(|(_, nodes)| {
+                        selected.drain().for_each(|node_id| {
+                            if let Some(node_info) = nodes.get(&node_id) {
+                                node_info.update(|n| {
+                                    let mut updated = n.clone();
+                                    updated.status = NodeStatus::Locked;
+                                    *n = updated;
+                                })
+                            }
+                        });
+                    });
+                });
             }
-
-            action.apply(&info).await;
-            context.selecting_nodes.update(|(_, _, selected)| {
-                selected.remove(&info.read_untracked().node_id);
-            });
-
-            // let's await for it to finish transitioning unless it was a removal action
-            while action != NodeAction::Remove
-                && !was_cancelled()
-                && info.read_untracked().status.is_transitioning()
-            {
-                sleep(Duration::from_millis(NODES_LIST_POLLING_FREQ_MILLIS)).await;
+            Err(err) => {
+                let msg = format!("Failed to schedule batch of {action:?}: {err:?}");
+                logging::error!("{msg}");
+                show_alert_msg(msg);
             }
         }
-
-        context
-            .selecting_nodes
-            .update(|(enabled, executing, selected)| {
-                *enabled = false;
-                *executing = false;
-                selected.clear();
-            });
     });
 }
 
@@ -768,12 +758,11 @@ fn NodeActionButton(
 ) -> impl IntoView {
     let context = expect_context::<ClientGlobalState>();
     let is_selecting_nodes = move || context.selecting_nodes.read().0;
-    let is_selection_executing = move || context.selecting_nodes.read().1;
     let id = label.replace(" ", "-");
     let actions_class = move || {
         if !is_selecting_nodes() {
             "hidden"
-        } else if is_selection_executing() || context.selecting_nodes.read().2.is_empty() {
+        } else if context.selecting_nodes.read().1.is_empty() {
             "btn-manage-nodes-action btn-disabled"
         } else {
             "btn-manage-nodes-action"

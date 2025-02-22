@@ -248,12 +248,9 @@ async fn check_node_bin_version(
             {
                 Ok(Some((node_id, v))) => {
                     logging::log!("Auto-upgrading node binary from v{v} to v{latest_version} for node instance {node_id} ...");
-                    if let Err(err) = node_mgr_proxy
+                    node_mgr_proxy
                         .upgrade_node_instance(&node_id, &node_status_locked)
-                        .await
-                    {
-                        logging::log!("Failed to auto-upgrade node binary for node instance {node_id}: {err:?}.");
-                    }
+                        .await;
 
                     let delay = db_client.get_settings().await.nodes_auto_upgrade_delay;
                     sleep(delay).await;

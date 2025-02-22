@@ -9,7 +9,7 @@ mod ssr_imports_and_defs {
     pub use crate::{
         app::{BgTasksCmds, ImmutableNodeStatus, ServerGlobalState},
         db_client::DbClient,
-        docker_client::{DockerClient, DockerClientError, UPGRADE_NODE_BIN_TIMEOUT_SECS},
+        docker_client::{DockerClient, UPGRADE_NODE_BIN_TIMEOUT_SECS},
         node_instance::{NodeInstanceInfo, NodeStatus},
         server_api_types::NodeOpts,
     };
@@ -23,7 +23,7 @@ mod ssr_imports_and_defs {
 #[cfg(feature = "ssr")]
 use ssr_imports_and_defs::*;
 
-// Obtain the list of existing nodes instances with their info
+/// Obtain the list of existing nodes instances with their info
 #[server(ListNodeInstances, "/api", "Url", "/nodes/list")]
 pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
@@ -61,7 +61,7 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
     })
 }
 
-/// Helper to create a node instance
+// Helper to create a node instance
 #[cfg(feature = "ssr")]
 pub(crate) async fn helper_create_node_instance(
     node_opts: NodeOpts,
@@ -94,11 +94,12 @@ pub(crate) async fn helper_create_node_instance(
     Ok(node_info)
 }
 
-// Delete a node instance with given id
-#[server(DeleteNodeInstance, "/api", "Url", "/nodes/delete")]
-pub async fn delete_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
-    logging::log!("Deleting node node with Id: {node_id} ...");
-    let context = expect_context::<ServerGlobalState>();
+// Helper to delete a node instance with given id
+#[cfg(feature = "ssr")]
+pub(crate) async fn helper_delete_node_instance(
+    node_id: NodeId,
+    context: &ServerGlobalState,
+) -> Result<(), ServerFnError> {
     let node_info = context.docker_client.get_container_info(&node_id).await?;
     context.docker_client.delete_container(&node_id).await?;
     context.db_client.delete_node_metadata(&node_id).await;
@@ -190,7 +191,7 @@ pub(crate) async fn helper_stop_node_instance(
     Ok(res?)
 }
 
-// Upgrade a node instance with given id
+/// Upgrade a node instance with given id
 #[server(UpgradeNodeInstance, "/api", "Url", "/nodes/upgrade")]
 pub async fn upgrade_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
     logging::log!("Upgrading node with Id: {node_id} ...");
@@ -207,14 +208,14 @@ pub async fn upgrade_node_instance(node_id: NodeId) -> Result<(), ServerFnError>
     Ok(())
 }
 
-/// Helper to upgrade a node instance with given id
+// Helper to upgrade a node instance with given id
 #[cfg(feature = "ssr")]
 pub(crate) async fn helper_upgrade_node_instance(
     node_id: &NodeId,
     node_status_locked: &ImmutableNodeStatus,
     db_client: &DbClient,
     docker_client: &DockerClient,
-) -> Result<(), DockerClientError> {
+) -> Result<(), ServerFnError> {
     // TODO: use docker 'extract' api to simply copy the new node binary into the container.
     node_status_locked
         .insert(
@@ -254,11 +255,12 @@ pub(crate) async fn helper_upgrade_node_instance(
     Ok(())
 }
 
-// Recycle a node instance by restarting it with a new node peer-id
-#[server(RecycleNodeInstance, "/api", "Url", "/nodes/recycle")]
-pub async fn recycle_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
-    let context = expect_context::<ServerGlobalState>();
-    logging::log!("Recycling node instance with Id: {node_id} ...");
+// Helper to recycle a node instance by restarting it with a new node peer-id
+#[cfg(feature = "ssr")]
+pub(crate) async fn helper_recycle_node_instance(
+    node_id: NodeId,
+    context: &ServerGlobalState,
+) -> Result<(), ServerFnError> {
     context
         .node_status_locked
         .insert(node_id.clone(), Duration::from_secs(20))

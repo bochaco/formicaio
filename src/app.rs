@@ -150,7 +150,7 @@ pub struct ClientGlobalState {
     // Information about node instances batch currently in progress
     pub scheduled_batches: RwSignal<Vec<RwSignal<NodesActionsBatch>>>,
     // Keep track of nodes being selected and if selection is on/off
-    pub selecting_nodes: RwSignal<(bool, bool, HashSet<NodeId>)>,
+    pub selecting_nodes: RwSignal<(bool, HashSet<NodeId>)>,
     // How to sort nodes to display them on the list
     pub nodes_sort_strategy: RwSignal<NodesSortStrategy>,
 }
@@ -189,7 +189,7 @@ pub fn App() -> impl IntoView {
         latest_bin_version: RwSignal::new(None),
         alerts: RwSignal::new(vec![]),
         scheduled_batches: RwSignal::new(vec![]),
-        selecting_nodes: RwSignal::new((false, false, HashSet::new())),
+        selecting_nodes: RwSignal::new((false, HashSet::new())),
         nodes_sort_strategy: RwSignal::new(NodesSortStrategy::CreationDate(true)),
     });
 
