@@ -107,6 +107,17 @@ impl BatchType {
     pub fn is_not_create(&self) -> bool {
         !matches!(self, Self::Create { .. })
     }
+
+    pub fn ids(&self) -> Vec<NodeId> {
+        match self {
+            Self::Create { .. } => vec![],
+            Self::Start(ids) => ids.clone(),
+            Self::Stop(ids) => ids.clone(),
+            Self::Upgrade(ids) => ids.clone(),
+            Self::Recycle(ids) => ids.clone(),
+            Self::Remove(ids) => ids.clone(),
+        }
+    }
 }
 
 /// Options when creating a new node instance.

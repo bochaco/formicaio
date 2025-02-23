@@ -264,9 +264,6 @@ async fn run_batches(context: ServerGlobalState) {
                     select! {
                         batch_id = cancel_rx.recv() => {
                             if matches!(batch_id, Ok(id) if id == batch_info.id) {
-                                for node_id in nodes.iter().skip(i) {
-                                    context.db_client.unlock_node_status(node_id).await;
-                                }
                                 break;
                             }
                         },
@@ -329,7 +326,13 @@ pub async fn cancel_batch(batch_id: u16) -> Result<(), ServerFnError> {
 
     let mut guard = context.node_action_batches.lock().await;
     guard.0.send(batch_id)?;
-    guard.1.retain(|batch| batch.id != batch_id);
+
+    if let Some(index) = guard.1.iter().position(|b| b.id == batch_id) {
+        let batch = guard.1.remove(index);
+        for node_id in batch.batch_type.ids().iter() {
+            context.db_client.unlock_node_status(node_id).await;
+        }
+    }
 
     Ok(())
 }

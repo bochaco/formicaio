@@ -455,9 +455,13 @@ impl DbClient {
 
     // Convenient method to unlock node status and set it to its previous status
     pub async fn unlock_node_status(&self, node_id: &str) {
-        let prev_status = self.get_node_status(node_id).await;
-        self.update_node_metadata_fields(node_id, &[("status", &json!(&prev_status).to_string())])
+        if let NodeStatus::Locked(prev_status) = self.get_node_status(node_id).await {
+            self.update_node_metadata_fields(
+                node_id,
+                &[("status", &json!(prev_status).to_string())],
+            )
             .await
+        }
     }
 
     // Convenient method to update node balance field

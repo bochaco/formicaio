@@ -20,7 +20,7 @@ use std::{
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
 use thiserror::Error;
 use tokio::{
-    fs::{create_dir_all, remove_dir_all, remove_file, File},
+    fs::{create_dir_all, metadata, remove_dir_all, remove_file, File},
     io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt, BufReader, SeekFrom},
     sync::Mutex,
     time::sleep,
@@ -157,6 +157,15 @@ impl NodeManager {
             .join(DEFAULT_NODE_DATA_FOLDER)
             .join(node_id)
             .join(DEFAULT_LOGS_FOLDER);
+
+        // if node dir and binary don't exist we create them
+        if let Err(err) = metadata(&node_bin_path).await {
+            if err.kind() == std::io::ErrorKind::NotFound {
+                self.new_node(node_info).await?;
+            } else {
+                return Err(err.into());
+            }
+        }
 
         let mut args = if home_network {
             vec!["--home-network".to_string()]
