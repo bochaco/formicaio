@@ -5,12 +5,8 @@
 async fn main() {
     use axum::Router;
     use formicaio::{
-        app::*,
-        bg_tasks::spawn_bg_tasks,
-        db_client::DbClient,
-        metrics_client::NodesMetrics,
-        server_api::helper_node_action_batch,
-        server_api_types::{BatchType, Stats},
+        app::*, bg_tasks::spawn_bg_tasks, db_client::DbClient, metrics_client::NodesMetrics,
+        server_api_types::Stats,
     };
     use leptos::{logging, prelude::*};
     use leptos_axum::{generate_route_list, LeptosRoutes};
@@ -107,7 +103,12 @@ async fn main() {
             .collect::<Vec<_>>();
 
         if !active_nodes.is_empty() {
-            let _ = helper_node_action_batch(BatchType::Start(active_nodes), 1, &app_state).await;
+            let _ = formicaio::server_api::helper_node_action_batch(
+                formicaio::server_api_types::BatchType::Start(active_nodes),
+                0,
+                &app_state,
+            )
+            .await;
         }
     }
 

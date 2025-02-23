@@ -350,15 +350,14 @@ fn NodeInstanceView(
                     <span class="node-info-item">"Status: "</span>
                     <span class=move || {
                         if is_locked() { "node-info-item-highlight" } else { "" }
-                    }>
-                        {move || {
-                            if is_transitioning() {
-                                format!("{} ...", info.read().status)
-                            } else {
-                                format!("{}, {}", info.read().status, info.read().status_info)
-                            }
-                        }}
-                    </span>
+                    }>{move || info.get().status.to_string()}</span>
+                    {move || {
+                        if is_transitioning() {
+                            " ...".to_string()
+                        } else {
+                            format!(", {}", info.read().status_info)
+                        }
+                    }}
                 </p>
                 <span class=move || { if is_transitioning() { "opacity-60" } else { "" } }>
                     <p>
@@ -518,16 +517,18 @@ fn NodeInstanceView(
                             </div>
                         </div>
                     </p>
-                    <p>
-                        <Show
-                            when=move || !info.read().home_network
-                            fallback=|| {
-                                view! {
+                    <Show
+                        when=move || !info.read().home_network
+                        fallback=|| {
+                            view! {
+                                <p>
                                     <span class="node-info-item">"Home-network: "</span>
                                     "On"
-                                }
+                                </p>
                             }
-                        >
+                        }
+                    >
+                        <p>
                             <div class="flex flex-row">
                                 <div class="basis-1/2">
                                     <span class="node-info-item">"Home-network: "</span>
@@ -542,8 +543,12 @@ fn NodeInstanceView(
                                     </div>
                                 </div>
                             </div>
-                        </Show>
-                    </p>
+                        </p>
+                        <p>
+                            <span class="node-info-item">"Connected relay clients: "</span>
+                            {move || value_or_dash(info.get().connected_relay_clients)}
+                        </p>
+                    </Show>
                     <p>
                         <span class="node-info-item">"Created: "</span>
                         {move || {

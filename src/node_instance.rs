@@ -115,6 +115,7 @@ pub struct NodeInstanceInfo {
     pub mem_used: Option<f64>,
     pub cpu_usage: Option<f64>,
     pub connected_peers: Option<usize>,
+    pub connected_relay_clients: Option<usize>,
     pub kbuckets_peers: Option<usize>,
     pub shunned_count: Option<usize>,
     pub net_size: Option<usize>,

@@ -19,8 +19,8 @@ const DEFAULT_METRICS_PORT: u16 = 14000;
 
 // Expected length of entered hex-encoded rewards address.
 const REWARDS_ADDR_LENGTH: usize = 40;
-
-const NODES_ACTIONS_DELAY_SECS: u64 = 1;
+// Delay between each action in a running batch
+const NODES_ACTIONS_DELAY_SECS: u64 = 0;
 
 // Action to apply on a node instance
 #[derive(Clone, Copy, Debug, PartialEq)]
