@@ -12,15 +12,12 @@ RUN npm install tailwindcss
 # Now let's use a build env with Rust for the app
 FROM rust:1-alpine AS builder
 
-# Install cargo-binstall, which makes it easier to install other
-# cargo extensions like cargo-leptos
-# Install cargo-binstall for Linux amd64/arm64
-RUN export TARGET="$(uname -m)" && wget -O cargo-binstall-linux-musl.tgz https://github.com/cargo-bins/cargo-binstall/releases/latest/download/cargo-binstall-$TARGET-unknown-linux-musl.tgz
-RUN tar -xvf cargo-binstall-linux-musl.tgz
-RUN cp cargo-binstall /usr/local/cargo/bin
-
 RUN apk update && \
     apk add --no-cache bash curl npm libc-dev binaryen
+
+# Install cargo-binstall, which makes it easier to install other
+# cargo extensions like cargo-leptos
+RUN curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
 
 # Install cargo-leptos
 RUN cargo binstall cargo-leptos -y
