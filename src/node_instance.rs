@@ -27,9 +27,6 @@ pub enum NodeStatus {
     Stopping,
     // A node not connected to any peer on the network is considered Inactive.
     Inactive,
-    // When a node is running and connected to peers on the network but it's
-    // being considered a bad node by them, then this node is considered Shunned.
-    Shunned,
     Removing,
     Upgrading,
     // The node's peer-id is cleared and restarted with a fresh new one
@@ -48,13 +45,18 @@ impl NodeStatus {
         matches!(self, Self::Creating)
     }
     pub fn is_active(&self) -> bool {
-        matches!(self, Self::Active)
+        match self {
+            Self::Active => true,
+            Self::Locked(s) => s.is_active(),
+            _ => false,
+        }
     }
     pub fn is_inactive(&self) -> bool {
-        matches!(self, Self::Inactive)
-    }
-    pub fn is_shunned(&self) -> bool {
-        matches!(self, Self::Shunned)
+        match self {
+            Self::Inactive => true,
+            Self::Locked(s) => s.is_inactive(),
+            _ => false,
+        }
     }
     pub fn is_recycling(&self) -> bool {
         matches!(self, Self::Recycling)
