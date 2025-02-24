@@ -44,6 +44,12 @@ To launch Formicaio:
 
 Upon startup, Formicaio will automatically download the latest node binary available. Once this process is complete, the GUI frontend will be accessible at http://localhost:52100.
 
+For upgrading Formicaio, if you are already running a previous version, stop/kill the Formicaio application, download the new version and unzip it on top of the same folder where you unzipped the previous version, e.g.:
+```
+$ unzip -o formicaio-v<version>-<target-platform>.zip -d <path-to-existing-formicaio-folder>
+```
+Then simply just run the new `formicaio` / `formicaio.exe` binary from that same folder.
+
 #### Formicaio and nodes files/data
 All Formicaio and nodes files/data are stored within the same directory from which the application is executed. Please note that deleting this folder will remove all data associated with the nodes and the Formicaio database.
 
