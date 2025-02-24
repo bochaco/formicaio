@@ -50,6 +50,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           platforms: linux/amd64
+          load: true
           cache-from: type=registry,ref=bochaco/formicaio-gh:buildcache-v${{ needs.extract_version.outputs.version }}-amd64
           cache-to: type=registry,ref=bochaco/formicaio-gh:buildcache-v${{ needs.extract_version.outputs.version }}-amd64
 
@@ -57,6 +58,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           platforms: linux/arm64
+          load: true
           cache-from: type=registry,ref=bochaco/formicaio-gh:buildcache-v${{ needs.extract_version.outputs.version }}-arm64
           cache-to: type=registry,ref=bochaco/formicaio-gh:buildcache-v${{ needs.extract_version.outputs.version }}-arm64
 
@@ -68,5 +70,5 @@ jobs:
           cache-from: |
             type=registry,ref=bochaco/formicaio-gh:buildcache-v${{ needs.extract_version.outputs.version }}-arm64
             type=registry,ref=bochaco/formicaio-gh:buildcache-v${{ needs.extract_version.outputs.version }}-amd64
-          tags: ${{ vars.DOCKERHUB_USERNAME }}/formicaio-gh:latest
+          tags: ${{ vars.DOCKERHUB_USERNAME }}/formicaio:latest
           output: type=image

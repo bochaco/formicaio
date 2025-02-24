@@ -69,7 +69,7 @@ jobs:
 
       - name: Install cargo build tools
         shell: bash
-        run: cargo binstall --no-confirm cargo-leptos
+        run: cargo binstall --no-confirm cargo-leptos@0.2.26
 
       - name: Install musl-tools
         if: startsWith(matrix.target, 'x86_64-unknown-linux-musl')
