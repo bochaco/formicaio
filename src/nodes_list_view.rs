@@ -519,11 +519,19 @@ fn NodeInstanceView(
                     </p>
                     <Show
                         when=move || !info.read().home_network
-                        fallback=|| {
+                        fallback=move || {
                             view! {
                                 <p>
-                                    <span class="node-info-item">"Home-network: "</span>
-                                    "On"
+                                    <div class="flex flex-row">
+                                        <div class="basis-2/3">
+                                            <span class="node-info-item">"Home-network: "</span>
+                                            "On"
+                                        </div>
+                                        <div class="basis-1/3">
+                                            <span class="node-info-item">"UPnP: "</span>
+                                            {move || if info.read().upnp { "On" } else { "Off" }}
+                                        </div>
+                                    </div>
                                 </p>
                             }
                         }

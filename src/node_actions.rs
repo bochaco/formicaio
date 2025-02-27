@@ -307,6 +307,7 @@ fn AddNodesForm(modal_visibility: RwSignal<bool>, home_net_only: bool) -> impl I
         "0x".to_string(),
     )));
     let home_network = RwSignal::new(true);
+    let upnp = RwSignal::new(true);
     let node_logs = RwSignal::new(true);
     let auto_start = RwSignal::new(false);
     let interval = RwSignal::new(Ok(60));
@@ -364,7 +365,13 @@ fn AddNodesForm(modal_visibility: RwSignal<bool>, home_net_only: bool) -> impl I
                     id="home-network"
                     type="checkbox"
                     disabled=home_net_only
-                    on:change=move |ev| { home_network.set(event_target_checked(&ev)) }
+                    on:change=move |ev| {
+                        let enabled = event_target_checked(&ev);
+                        home_network.set(enabled);
+                        if !enabled {
+                            upnp.set(false);
+                        }
+                    }
                     class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
                 />
                 <label
@@ -388,6 +395,19 @@ fn AddNodesForm(modal_visibility: RwSignal<bool>, home_net_only: bool) -> impl I
                             "Home-network mode cannot be disabled in this deployment."
                         </span>
                     </Show>
+                </label>
+            </div>
+            <div class="flex items-center">
+                <input
+                    prop:checked=move || upnp.get()
+                    id="upnp"
+                    type="checkbox"
+                    disabled=move || !home_network.get()
+                    on:change=move |ev| { upnp.set(event_target_checked(&ev)) }
+                    class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                />
+                <label for="upnp" class="ms-2 text-sm font-medium text-gray-900 dark:text-gray-300">
+                    "Try to use UPnP to open a port in the home router and allow incoming connections."
                 </label>
             </div>
             <div class="hidden flex items-center">
@@ -427,6 +447,7 @@ fn AddNodesForm(modal_visibility: RwSignal<bool>, home_net_only: bool) -> impl I
                             metrics_port: m,
                             rewards_addr: addr.strip_prefix("0x").unwrap_or(&addr).to_string(),
                             home_network: home_network.get(),
+                            upnp: upnp.get(),
                             node_logs: node_logs.get(),
                             auto_start: auto_start.get(),
                         };

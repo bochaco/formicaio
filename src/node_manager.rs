@@ -147,6 +147,7 @@ impl NodeManager {
                     "rewards address".to_string(),
                 ))?;
         let home_network = node_info.home_network;
+        let upnp = node_info.upnp;
         let node_logs = node_info.node_logs;
 
         let node_data_dir = self.root_dir.join(DEFAULT_NODE_DATA_FOLDER).join(node_id);
@@ -172,6 +173,10 @@ impl NodeManager {
         } else {
             vec![]
         };
+
+        if upnp {
+            args.push("--upnp".to_string());
+        }
 
         args.push("--port".to_string());
         args.push(port.to_string());

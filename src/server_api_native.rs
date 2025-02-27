@@ -121,6 +121,7 @@ pub(crate) async fn helper_create_node_instance(
         metrics_port: Some(node_opts.metrics_port),
         rewards_addr: Some(node_opts.rewards_addr),
         home_network: node_opts.home_network,
+        upnp: node_opts.upnp,
         node_logs: node_opts.node_logs,
         ..Default::default()
     };

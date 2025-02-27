@@ -110,6 +110,7 @@ pub struct NodeInstanceInfo {
     pub balance: Option<U256>,
     pub rewards_addr: Option<String>, // hex-encoded rewards address
     pub home_network: bool,
+    pub upnp: bool,
     pub node_logs: bool,
     pub rewards: Option<U256>,
     pub records: Option<usize>,

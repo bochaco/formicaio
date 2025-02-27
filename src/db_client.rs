@@ -69,6 +69,7 @@ struct CachedNodeMetadata {
     balance: String,
     rewards_addr: String,
     home_network: bool,
+    upnp: bool,
     node_logs: bool,
     records: String,
     connected_peers: String,
@@ -113,6 +114,7 @@ impl CachedNodeMetadata {
             }
         }
         info.home_network = self.home_network;
+        info.upnp = self.upnp;
         info.node_logs = self.node_logs;
         if !self.balance.is_empty() {
             if let Ok(v) = U256::from_str(&self.balance) {
@@ -282,10 +284,10 @@ impl DbClient {
     pub async fn insert_node_metadata(&self, info: &NodeInstanceInfo) {
         let query_str = "INSERT OR REPLACE INTO nodes (\
                 node_id, created, status_changed, status, \
-                port, metrics_port, \
-                rewards_addr, home_network, node_logs, \
+                port, metrics_port, rewards_addr, \
+                home_network, upnp, node_logs, \
                 records, connected_peers, kbuckets_peers \
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             .to_string();
 
         let db_lock = self.db.lock().await;
@@ -301,6 +303,7 @@ impl DbClient {
             .bind(info.metrics_port)
             .bind(info.rewards_addr.clone())
             .bind(info.home_network)
+            .bind(info.upnp)
             .bind(info.node_logs)
             .bind(info.records.map_or("".to_string(), |v| v.to_string()))
             .bind(

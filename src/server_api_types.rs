@@ -127,6 +127,7 @@ pub struct NodeOpts {
     pub metrics_port: u16,
     pub rewards_addr: String,
     pub home_network: bool,
+    pub upnp: bool,
     pub node_logs: bool,
     pub auto_start: bool,
 }

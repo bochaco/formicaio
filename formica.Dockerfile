@@ -37,6 +37,8 @@ ENV REWARDS_ADDR_ARG=''
 # If this not enabled and the node is behind a NAT, the node is terminated.
 ENV HOME_NETWORK_ARG='--home-network'
 
+ENV UPNP_ARG='--upnp'
+
 # Define whether to enable node logs.
 ENV NODE_LOGS_ARG='--log-output-dest /app/node_data/logs'
 
@@ -48,6 +50,7 @@ CMD ["sh", "-c", \
       "if [ -e '/app/node_data/secret-key-recycle' ]; then rm -f /app/node_data/secret-key*; fi \
       && /app/antnode \
       ${HOME_NETWORK_ARG} \
+      ${UPNP_ARG} \
       --port ${NODE_PORT} \
       --metrics-server-port ${METRICS_PORT} \
       --root-dir /app/node_data \
