@@ -6,7 +6,7 @@ use super::{
 
 use alloy_primitives::U256;
 use chrono::Utc;
-use leptos::{logging, prelude::*};
+use leptos::prelude::*;
 use std::{collections::HashMap, str::FromStr};
 use thiserror::Error;
 
@@ -58,10 +58,10 @@ impl NodeMetricsClient {
 
     // Fetch, filter, and return the predefined type of metrics.
     pub async fn fetch_metrics(&self) -> Result<Vec<NodeMetric>, MetricsClientError> {
-        logging::log!(
-            "Sending request to node metrics server: {} ...",
-            self.endpoint
-        );
+        //logging::log!(
+        //    "Sending request to node metrics server: {} ...",
+        //    self.endpoint
+        //);
 
         let response = reqwest::get(&self.endpoint).await?.text().await?;
 
