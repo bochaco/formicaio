@@ -192,13 +192,17 @@ pub(crate) async fn helper_start_node_instance(
         .node_status_locked
         .insert(node_id.clone(), Duration::from_secs(20))
         .await;
+
+    let mut node_info = NodeInstanceInfo::new(node_id.clone());
+    context.db_client.get_node_metadata(&mut node_info).await;
+    if node_info.status.is_active() {
+        return Ok(());
+    }
+
     context
         .db_client
         .update_node_status(&node_id, NodeStatus::Restarting)
         .await;
-
-    let mut node_info = NodeInstanceInfo::new(node_id.clone());
-    context.db_client.get_node_metadata(&mut node_info).await;
     context.node_manager.spawn_new_node(&mut node_info).await?;
 
     node_info.status = NodeStatus::Active;

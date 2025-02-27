@@ -270,6 +270,7 @@ async fn run_batches(context: ServerGlobalState) {
                         _ = sleep(Duration::from_secs(batch_info.interval_secs)) => {
                             let node_id = nodes[i].clone();
                             context.node_status_locked.remove(&node_id).await;
+                            context.db_client.unlock_node_status(&node_id).await;
                             let res = match batch_info.batch_type {
                                 BatchType::Start(_) => helper_start_node_instance(node_id, &context).await,
                                 BatchType::Stop(_) => helper_stop_node_instance(node_id,&context,NodeStatus::Stopping).await,
