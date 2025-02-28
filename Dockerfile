@@ -13,14 +13,14 @@ RUN npm install tailwindcss
 FROM rust:1-alpine AS builder
 
 RUN apk update && \
-    apk add --no-cache bash curl npm libc-dev binaryen
+    apk add --no-cache bash curl npm libc-dev binaryen openssl ca-certificates
 
 # Install cargo-binstall, which makes it easier to install other
 # cargo extensions like cargo-leptos
 RUN curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
 
 # Install cargo-leptos
-RUN cargo binstall cargo-leptos@0.2.26 -y
+RUN cargo install cargo-leptos@0.2.26 --locked
 
 # Add the WASM target
 RUN rustup target add wasm32-unknown-unknown
