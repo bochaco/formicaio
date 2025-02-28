@@ -47,8 +47,6 @@ const GITHUB_API_URL: &str = "https://api.github.com";
 pub enum NodeManagerError {
     #[error("Failed to create a new node: {0}")]
     CannotCreateNode(String),
-    #[error("Node not found with id: {0}")]
-    NodeNotFound(NodeId),
     #[error("Node bin version not found at {0:?}")]
     NodeBinVersionNotFound(PathBuf),
     #[error("Missing '{0}' information to spawn node")]
@@ -266,13 +264,14 @@ impl NodeManager {
     }
 
     // Kill node's process
-    pub async fn kill_node(&self, node_id: &NodeId) -> Result<(), NodeManagerError> {
-        let mut child = self
-            .nodes
-            .lock()
-            .await
-            .remove(node_id)
-            .ok_or(NodeManagerError::NodeNotFound(node_id.clone()))?;
+    pub async fn kill_node(&self, node_id: &NodeId) {
+        let mut child = match self.nodes.lock().await.remove(node_id) {
+            Some(child) => child,
+            None => {
+                logging::error!("Failed to kill node, node not found with id: {node_id}");
+                return;
+            }
+        };
 
         if let Err(err) = child.kill() {
             logging::warn!("Failed to kill process for node {node_id}: {err:?}");
@@ -291,8 +290,6 @@ impl NodeManager {
                 logging::warn!("Error when checking killed node process: {err:?}");
             }
         }
-
-        Ok(())
     }
 
     // Remove node's data dir

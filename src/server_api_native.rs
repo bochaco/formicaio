@@ -155,7 +155,7 @@ pub(crate) async fn helper_delete_node_instance(
     context.db_client.get_node_metadata(&mut node_info).await;
     if node_info.status.is_active() {
         // kill node's process
-        context.node_manager.kill_node(&node_info.node_id).await?;
+        context.node_manager.kill_node(&node_info.node_id).await;
     }
 
     // remove node's metadata and directory
@@ -230,31 +230,29 @@ pub(crate) async fn helper_stop_node_instance(
         .await;
     context.db_client.update_node_status(&node_id, status).await;
 
-    let res = context.node_manager.kill_node(&node_id).await;
+    context.node_manager.kill_node(&node_id).await;
 
-    if res.is_ok() {
-        // set connected/kbucket peers back to 0 and update cache
-        let node_info = NodeInstanceInfo {
-            node_id: node_id.clone(),
-            status: NodeStatus::Inactive,
-            status_changed: Some(Utc::now().timestamp() as u64),
-            pid: Some(0),
-            connected_peers: Some(0),
-            kbuckets_peers: Some(0),
-            records: Some(0),
-            ips: Some("".to_string()),
-            ..Default::default()
-        };
+    // set connected/kbucket peers back to 0 and update cache
+    let node_info = NodeInstanceInfo {
+        node_id: node_id.clone(),
+        status: NodeStatus::Inactive,
+        status_changed: Some(Utc::now().timestamp() as u64),
+        pid: Some(0),
+        connected_peers: Some(0),
+        kbuckets_peers: Some(0),
+        records: Some(0),
+        ips: Some("".to_string()),
+        ..Default::default()
+    };
 
-        context
-            .db_client
-            .update_node_metadata(&node_info, true)
-            .await;
-    }
+    context
+        .db_client
+        .update_node_metadata(&node_info, true)
+        .await;
 
     context.node_status_locked.remove(&node_id).await;
 
-    Ok(res?)
+    Ok(())
 }
 
 /// Upgrade a node instance with given id

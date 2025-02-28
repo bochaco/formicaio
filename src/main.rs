@@ -103,6 +103,14 @@ async fn main() {
             .collect::<Vec<_>>();
 
         if !active_nodes.is_empty() {
+            // let's set them to inactive otherwise they won't be started
+            for node_id in active_nodes.iter() {
+                app_state
+                    .db_client
+                    .update_node_status(node_id, formicaio::node_instance::NodeStatus::Inactive)
+                    .await;
+            }
+
             let _ = formicaio::server_api::helper_node_action_batch(
                 formicaio::server_api_types::BatchType::Start(active_nodes),
                 0,
