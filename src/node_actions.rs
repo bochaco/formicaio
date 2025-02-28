@@ -365,13 +365,7 @@ fn AddNodesForm(modal_visibility: RwSignal<bool>, home_net_only: bool) -> impl I
                     id="home-network"
                     type="checkbox"
                     disabled=home_net_only
-                    on:change=move |ev| {
-                        let enabled = event_target_checked(&ev);
-                        home_network.set(enabled);
-                        if !enabled {
-                            upnp.set(false);
-                        }
-                    }
+                    on:change=move |ev| home_network.set(event_target_checked(&ev))
                     class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
                 />
                 <label
@@ -402,12 +396,14 @@ fn AddNodesForm(modal_visibility: RwSignal<bool>, home_net_only: bool) -> impl I
                     prop:checked=move || upnp.get()
                     id="upnp"
                     type="checkbox"
-                    disabled=move || !home_network.get()
                     on:change=move |ev| { upnp.set(event_target_checked(&ev)) }
                     class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
                 />
                 <label for="upnp" class="ms-2 text-sm font-medium text-gray-900 dark:text-gray-300">
                     "Try to use UPnP to open a port in the home router and allow incoming connections."
+                    <span class="font-bold dark:font-bold">
+                        "If your router does not support UPnP, your node/s may struggle to connect to any peers. In this situation, create new node/s with UPnP disabled."
+                    </span>
                 </label>
             </div>
             <div class="hidden flex items-center">
