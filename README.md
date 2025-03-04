@@ -26,6 +26,7 @@ Simplify your decentralized experience with this intuitive application to run no
 <img src="img/screenshot_03.png" width="400" height="219" />
 <img src="img/screenshot_04.png" width="300" height="367" />
 <img src="img/screenshot_05.png" width="400" height="219" />
+<img src="img/screenshot_06.png" width="400" height="219" />
 
 ## How to use:
 
@@ -40,9 +41,14 @@ Formicaio can be deployed/executed in several ways:
 To launch Formicaio:
 1. Download the package for your preferred platform from [latest release](https://github.com/bochaco/formicaio/releases).
 2. Unzip it to your desired location.
-3. Run the `formicaio` / `formicaio.exe` binary.
+3. Run the backed using the binary: `formicaio start` / `formicaio.exe start`
 
 Upon startup, Formicaio will automatically download the latest node binary available. Once this process is complete, the GUI frontend will be accessible at http://localhost:52100.
+
+The same binary can be used to run CLI commands. In order to get a list of available commands and options, simply run:
+```
+$ formicaio --help
+```
 
 For upgrading Formicaio, if you are already running a previous version, stop/kill the Formicaio application, download the new version and unzip it on top of the same folder where you unzipped the previous version, e.g.:
 ```
