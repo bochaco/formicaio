@@ -39,10 +39,6 @@ COPY . .
 ARG BUILD_ARGS
 ENV BUILD_ARGS=${BUILD_ARGS}
 
-# Define build args argument
-ARG BUILD_ARGS
-ENV BUILD_ARGS=${BUILD_ARGS}
-
 # Build the app
 RUN cargo leptos build --release $BUILD_ARGS -vv
 
