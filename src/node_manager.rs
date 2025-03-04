@@ -17,7 +17,7 @@ use std::{
     sync::Arc,
     time::Duration,
 };
-use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
+use sysinfo::{ProcessRefreshKind, ProcessStatus, ProcessesToUpdate, System};
 use thiserror::Error;
 use tokio::{
     fs::{create_dir_all, metadata, remove_dir_all, remove_file, File},
@@ -252,24 +252,45 @@ impl NodeManager {
             ProcessRefreshKind::nothing(),
         );
 
-        // Display processes ID, name na disk usage:
-        let pids = sys
+        let mut pids = HashSet::new();
+
+        for process in sys
             .processes_by_exact_name(NODE_BIN_NAME.as_ref())
             // filter out threads
             .filter(|p| p.thread_kind().is_none())
-            .map(|process| process.pid().as_u32())
-            .collect::<HashSet<_>>();
+        {
+            let pid = process.pid().as_u32();
+            if process.status() != ProcessStatus::Zombie {
+                pids.insert(pid);
+                continue;
+            }
+
+            // we need to kill/wait for child zombie
+            let id = self
+                .nodes
+                .lock()
+                .await
+                .iter()
+                .find(|(_, c)| c.id() == pid)
+                .map(|(id, _)| id.clone());
+            if let Some(node_id) = id {
+                let code = self.kill_node(&node_id).await;
+                logging::log!(
+                    "Process with PID {pid} exited (node id: {node_id}) with code: {code:?}"
+                );
+            }
+        }
 
         Ok(pids)
     }
 
     // Kill node's process
-    pub async fn kill_node(&self, node_id: &NodeId) {
+    pub async fn kill_node(&self, node_id: &NodeId) -> Option<i32> {
         let mut child = match self.nodes.lock().await.remove(node_id) {
             Some(child) => child,
             None => {
                 logging::error!("Failed to kill node, node not found with id: {node_id}");
-                return;
+                return None;
             }
         };
 
@@ -280,14 +301,19 @@ impl NodeManager {
         }
 
         match child.wait_with_output() {
-            Ok(output) if output.status.success() || output.status.code().is_none() => {}
+            Ok(output) if output.status.success() || output.status.code().is_none() => {
+                output.status.code()
+            }
             Ok(output) => {
+                let status = output.status;
                 let stderr = String::from_utf8_lossy(&output.stderr);
                 let stdout = String::from_utf8_lossy(&output.stdout);
-                logging::warn!("Error when checking killed node process: {stderr} {stdout}");
+                logging::warn!("Killed node: {status:?}, stderr: '{stderr}', stdout: '{stdout}'");
+                output.status.code()
             }
             Err(err) => {
                 logging::warn!("Error when checking killed node process: {err:?}");
+                None
             }
         }
     }
