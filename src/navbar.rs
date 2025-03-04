@@ -8,6 +8,7 @@ use super::{
 #[derive(Clone, PartialEq)]
 pub enum AppScreen {
     Nodes,
+    Terminal,
     About,
 }
 
@@ -64,6 +65,16 @@ pub fn NavBar() -> impl IntoView {
                                 aria-current="page"
                             >
                                 Nodes
+                            </a>
+                        </li>
+                        <li>
+                            <a
+                                href="/terminal"
+                                on:click=move |_| active_screen.update(|a| *a = AppScreen::Terminal)
+                                class=move || menu_item_class(AppScreen::Terminal)
+                                aria-current="page"
+                            >
+                                Terminal
                             </a>
                         </li>
                         <li>

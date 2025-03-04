@@ -37,11 +37,13 @@ leptos_meta = { version = "0.7" }
 leptos_router = { version = "0.7" }
 libp2p-identity = { version = "0.2", features = ["peerid","ed25519"], optional = true }
 local-ip-address = { version = "0.6", optional = true }
+prettytable = "0.10.0"
 rand = "0.8"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"], optional = true }
 semver = { version = "1.0", optional = true }
 serde = "1.0"
 serde_json = "1.0"
+structopt = "0.3"
 sqlx = { version = "0.8", default-features = false, features = ["derive","migrate","runtime-tokio","tls-rustls","sqlite"], optional = true }
 sysinfo = { version = "0.33", default-features = false, features = ["system"], optional = true }
 thiserror = "2"
@@ -102,6 +104,7 @@ passthrough = ["LEPTOS_OUTPUT_NAME=formicaio"]
 [package.metadata.leptos]
 # The name used by wasm-bindgen/cargo-leptos for the JS/WASM bundle. Defaults to the crate name
 output-name = "formicaio"
+bin-target = "formicaio"
 
 # The site root folder is where cargo-leptos generate all output. WARNING: all content of this folder will be erased on a rebuild. Use it in your server setup.
 site-root = "target/site"

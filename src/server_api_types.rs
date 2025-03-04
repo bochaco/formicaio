@@ -1,14 +1,38 @@
-use super::node_instance::{NodeId, NodeInstanceInfo};
+pub use super::node_instance::{NodeId, NodeInstanceInfo, NodeStatus};
 
 use alloy_primitives::U256;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, fmt, time::Duration};
+
+/// List of nodes
+pub type NodeList = HashMap<String, NodeInstanceInfo>;
+
+/// API filters
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct QueryFilter {
+    pub node_ids: Option<Vec<NodeId>>,
+    pub status: Option<Vec<NodeStatus>>,
+}
+
+impl QueryFilter {
+    pub fn passes(&self, node_id: &NodeId, status: &NodeStatus) -> bool {
+        self.node_ids
+            .as_ref()
+            .map(|ids| ids.contains(node_id))
+            .unwrap_or(true)
+            && self
+                .status
+                .as_ref()
+                .map(|s| s.contains(status))
+                .unwrap_or(true)
+    }
+}
 
 /// List of nodes, stats and currently running batch.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct NodesInstancesInfo {
     pub latest_bin_version: Option<String>,
-    pub nodes: HashMap<String, NodeInstanceInfo>,
+    pub nodes: NodeList,
     pub stats: Stats,
     pub scheduled_batches: Vec<NodesActionsBatch>,
 }
@@ -84,7 +108,7 @@ impl NodesActionsBatch {
     pub fn new(id: u16, batch_type: BatchType, interval_secs: u64) -> Self {
         Self {
             id,
-            status: "scheduled".to_string(),
+            status: "Scheduled".to_string(),
             batch_type,
             interval_secs,
             complete: 0,
@@ -116,6 +140,19 @@ impl BatchType {
             Self::Upgrade(ids) => ids.clone(),
             Self::Recycle(ids) => ids.clone(),
             Self::Remove(ids) => ids.clone(),
+        }
+    }
+}
+
+impl fmt::Display for BatchType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            BatchType::Create { .. } => write!(f, "CREATE"),
+            BatchType::Start(_) => write!(f, "START"),
+            BatchType::Stop(_) => write!(f, "STOP"),
+            BatchType::Upgrade(_) => write!(f, "UPGRADE"),
+            BatchType::Recycle(_) => write!(f, "RECYCLE"),
+            BatchType::Remove(_) => write!(f, "REMOVE"),
         }
     }
 }

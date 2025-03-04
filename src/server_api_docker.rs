@@ -1,4 +1,7 @@
-use super::{node_instance::NodeId, server_api_types::NodesInstancesInfo};
+use super::{
+    node_instance::NodeId,
+    server_api_types::{NodesInstancesInfo, QueryFilter},
+};
 
 use leptos::prelude::*;
 #[cfg(feature = "ssr")]
@@ -13,7 +16,6 @@ mod ssr_imports_and_defs {
         node_instance::{NodeInstanceInfo, NodeStatus},
         server_api_types::NodeOpts,
     };
-    pub use alloy_primitives::Address;
     pub use chrono::Utc;
     pub use futures_util::StreamExt;
     pub use leptos::logging;
@@ -25,7 +27,9 @@ use ssr_imports_and_defs::*;
 
 /// Obtain the list of existing nodes instances with their info
 #[server(ListNodeInstances, "/api", "Url", "/nodes/list")]
-pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
+pub async fn nodes_instances(
+    filter: Option<QueryFilter>,
+) -> Result<NodesInstancesInfo, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
     let latest_bin_version = context.latest_bin_version.lock().await.clone();
     let nodes_list = context.docker_client.get_containers_list(true).await?;
@@ -37,6 +41,13 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
         // we first read node metadata cached in the database
         // TODO: fetch metadata of all nodes from DB with a single DB call
         context.db_client.get_node_metadata(&mut node_info).await;
+
+        // TODO: pass the filter/s to docker-client
+        if let Some(ref filter) = filter {
+            if !filter.passes(&node_info.short_node_id(), &node_info.status) {
+                continue;
+            }
+        }
 
         // if the node is Active, let's also get up to date metrics
         // info that was retrieved through the metrics server
@@ -69,8 +80,6 @@ pub(crate) async fn helper_create_node_instance(
 ) -> Result<NodeInstanceInfo, ServerFnError> {
     logging::log!("Creating new node with port {} ...", node_opts.port);
     let auto_start = node_opts.auto_start;
-    let _ = node_opts.rewards_addr.parse::<Address>()?;
-
     let node_id = context
         .docker_client
         .create_new_container(node_opts)
@@ -123,6 +132,11 @@ pub(crate) async fn helper_start_node_instance(
     node_id: NodeId,
     context: &ServerGlobalState,
 ) -> Result<(), ServerFnError> {
+    let _ = context
+        .db_client
+        .check_node_is_not_batched(&node_id)
+        .await?;
+
     logging::log!("Starting node with Id: {node_id} ...");
 
     context
@@ -157,13 +171,21 @@ pub(crate) async fn helper_start_node_instance(
 pub(crate) async fn helper_stop_node_instance(
     node_id: NodeId,
     context: &ServerGlobalState,
-    status: NodeStatus,
+    transient_status: NodeStatus,
 ) -> Result<(), ServerFnError> {
+    let _ = context
+        .db_client
+        .check_node_is_not_batched(&node_id)
+        .await?;
+
     context
         .node_status_locked
         .insert(node_id.clone(), Duration::from_secs(20))
         .await;
-    context.db_client.update_node_status(&node_id, status).await;
+    context
+        .db_client
+        .update_node_status(&node_id, transient_status)
+        .await;
 
     let res = context.docker_client.stop_container(&node_id).await;
 
@@ -216,6 +238,8 @@ pub(crate) async fn helper_upgrade_node_instance(
     db_client: &DbClient,
     docker_client: &DockerClient,
 ) -> Result<(), ServerFnError> {
+    let _ = db_client.check_node_is_not_batched(node_id).await?;
+
     // TODO: use docker 'extract' api to simply copy the new node binary into the container.
     node_status_locked
         .insert(
@@ -261,6 +285,11 @@ pub(crate) async fn helper_recycle_node_instance(
     node_id: NodeId,
     context: &ServerGlobalState,
 ) -> Result<(), ServerFnError> {
+    let _ = context
+        .db_client
+        .check_node_is_not_batched(&node_id)
+        .await?;
+
     context
         .node_status_locked
         .insert(node_id.clone(), Duration::from_secs(20))

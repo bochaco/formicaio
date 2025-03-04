@@ -4,21 +4,18 @@ use super::{
     icons::*,
     node_instance::{NodeInstanceInfo, NodeStatus},
     server_api::{
-        node_action_batch, recycle_node_instance, start_node_instance, stop_node_instance,
-        upgrade_node_instance,
+        node_action_batch, parse_and_validate_addr, recycle_node_instance, start_node_instance,
+        stop_node_instance, upgrade_node_instance,
     },
     server_api_types::{BatchType, NodeOpts, NodesActionsBatch},
 };
 
-use alloy_primitives::Address;
 use leptos::{logging, prelude::*, task::spawn_local};
 use std::num::ParseIntError;
 
 const DEFAULT_NODE_PORT: u16 = 12000;
 const DEFAULT_METRICS_PORT: u16 = 14000;
 
-// Expected length of entered hex-encoded rewards address.
-const REWARDS_ADDR_LENGTH: usize = 40;
 // Delay between each action in a running batch
 const NODES_ACTIONS_DELAY_SECS: u64 = 0;
 
@@ -544,30 +541,9 @@ pub fn RewardsAddrInput(
     label: &'static str,
 ) -> impl IntoView {
     let validate_and_set = move |input_str: String| {
-        let value = input_str
-            .strip_prefix("0x")
-            .unwrap_or(&input_str)
-            .to_string();
-
-        let res = if value.len() != REWARDS_ADDR_LENGTH {
-            Err((
-                "Unexpected length of rewards address".to_string(),
-                input_str,
-            ))
-        } else if hex::decode(&value).is_err() {
-            Err((
-                "The address entered is not hex-encoded".to_string(),
-                input_str,
-            ))
-        } else if value.to_lowercase() == value || value.to_uppercase() == value {
-            // it's a non-checksummed address
-            Ok(input_str)
-        } else {
-            // validate checksum
-            match Address::parse_checksummed(format!("0x{value}"), None) {
-                Ok(_) => Ok(input_str),
-                Err(_) => Err(("Checksum validation failed".to_string(), input_str)),
-            }
+        let res = match parse_and_validate_addr(&input_str) {
+            Ok(_) => Ok(input_str),
+            Err(err) => Err((err, input_str)),
         };
 
         signal.set(res);

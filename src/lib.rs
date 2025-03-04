@@ -6,6 +6,7 @@ mod bg_helpers;
 #[cfg(feature = "ssr")]
 pub mod bg_tasks;
 mod chart_view;
+pub mod cli_cmds;
 #[cfg(feature = "ssr")]
 pub mod db_client;
 #[cfg(all(feature = "ssr", not(feature = "native")))]
@@ -35,6 +36,7 @@ pub mod server_api_types;
 mod settings;
 mod sort_nodes;
 mod stats;
+mod terminal;
 
 #[cfg(feature = "hydrate")]
 #[wasm_bindgen::prelude::wasm_bindgen]

@@ -3,6 +3,28 @@
 #[cfg(feature = "ssr")]
 #[tokio::main]
 async fn main() {
+    use formicaio::cli_cmds::*;
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+    use structopt::StructOpt;
+
+    let cmds = CliCmds::from_args();
+    match cmds.sub_cmds {
+        CliSubCmds::Start => start_backend(cmds.addr).await,
+        CliSubCmds::CliCommands(cmd) => {
+            let res = cmd
+                .send_request(cmds.addr.unwrap_or(SocketAddr::new(
+                    IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
+                    52100,
+                )))
+                .await
+                .expect("ERROR:");
+            res.printstd();
+        }
+    }
+}
+
+#[cfg(feature = "ssr")]
+async fn start_backend(listen_addr: Option<std::net::SocketAddr>) {
     use axum::Router;
     use formicaio::{
         app::*, bg_tasks::spawn_bg_tasks, db_client::DbClient, metrics_client::NodesMetrics,
@@ -37,7 +59,7 @@ async fn main() {
     }
 
     logging::log!("Web service config: {leptos_options:?}");
-    let addr = leptos_options.site_addr;
+    let listen_addr = listen_addr.unwrap_or(leptos_options.site_addr);
     let routes = generate_route_list(App);
 
     // We'll keep the database and Docker clients instances in server global state.
@@ -131,10 +153,10 @@ async fn main() {
         ))
         .with_state(app_state);
 
-    let listener = tokio::net::TcpListener::bind(&addr)
+    let listener = tokio::net::TcpListener::bind(&listen_addr)
         .await
         .expect("Failed to bind to TCP address");
-    logging::log!("listening on http://{}", &addr);
+    logging::log!("listening on http://{}", &listen_addr);
     axum::serve(listener, app.into_make_service())
         .await
         .expect("Failed to start HTTP listener");

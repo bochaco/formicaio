@@ -1,4 +1,7 @@
-use super::{node_instance::NodeId, server_api_types::NodesInstancesInfo};
+use super::{
+    node_instance::NodeId,
+    server_api_types::{NodesInstancesInfo, QueryFilter},
+};
 
 use leptos::prelude::*;
 
@@ -28,9 +31,11 @@ mod ssr_imports_and_defs {
 #[cfg(feature = "ssr")]
 use ssr_imports_and_defs::*;
 
-/// Obtain the list of existing nodes instances with their info
+/// Obtain the list of existing nodes instances with their info.
 #[server(ListNodeInstances, "/api", "Url", "/nodes/list")]
-pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
+pub async fn nodes_instances(
+    filter: Option<QueryFilter>,
+) -> Result<NodesInstancesInfo, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
     *context.server_api_hit.lock().await = true;
 
@@ -38,6 +43,11 @@ pub async fn nodes_instances() -> Result<NodesInstancesInfo, ServerFnError> {
     let stats = context.stats.lock().await.clone();
 
     let mut nodes = context.db_client.get_nodes_list().await;
+    // TODO: pass the filter/s to the db-client
+    if let Some(filter) = filter {
+        nodes.retain(|_, info| filter.passes(&info.short_node_id(), &info.status));
+    }
+
     for (_, node_info) in nodes.iter_mut() {
         helper_gen_status_info(node_info);
         if node_info.status.is_active() {
@@ -188,17 +198,19 @@ pub(crate) async fn helper_start_node_instance(
     node_id: NodeId,
     context: &ServerGlobalState,
 ) -> Result<(), ServerFnError> {
+    let mut node_info = context
+        .db_client
+        .check_node_is_not_batched(&node_id)
+        .await?;
+    if node_info.status.is_active() {
+        return Ok(());
+    }
+
     logging::log!("Starting node with Id: {node_id} ...");
     context
         .node_status_locked
         .insert(node_id.clone(), Duration::from_secs(20))
         .await;
-
-    let mut node_info = NodeInstanceInfo::new(node_id.clone());
-    context.db_client.get_node_metadata(&mut node_info).await;
-    if node_info.status.is_active() {
-        return Ok(());
-    }
 
     context
         .db_client
@@ -222,13 +234,21 @@ pub(crate) async fn helper_start_node_instance(
 pub(crate) async fn helper_stop_node_instance(
     node_id: NodeId,
     context: &ServerGlobalState,
-    status: NodeStatus,
+    transient_status: NodeStatus,
 ) -> Result<(), ServerFnError> {
+    let _ = context
+        .db_client
+        .check_node_is_not_batched(&node_id)
+        .await?;
+
     context
         .node_status_locked
         .insert(node_id.clone(), Duration::from_secs(20))
         .await;
-    context.db_client.update_node_status(&node_id, status).await;
+    context
+        .db_client
+        .update_node_status(&node_id, transient_status)
+        .await;
 
     context.node_manager.kill_node(&node_id).await;
 
@@ -258,8 +278,6 @@ pub(crate) async fn helper_stop_node_instance(
 /// Upgrade a node instance with given id
 #[server(UpgradeNodeInstance, "/api", "Url", "/nodes/upgrade")]
 pub async fn upgrade_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
-    // TODO: check if node is not locked
-
     logging::log!("Upgrading node with Id: {node_id} ...");
     let context = expect_context::<ServerGlobalState>();
 
@@ -282,6 +300,8 @@ pub(crate) async fn helper_upgrade_node_instance(
     db_client: &DbClient,
     node_manager: &NodeManager,
 ) -> Result<(), ServerFnError> {
+    let mut node_info = db_client.check_node_is_not_batched(node_id).await?;
+
     node_status_locked
         .insert(
             node_id.clone(),
@@ -291,9 +311,6 @@ pub(crate) async fn helper_upgrade_node_instance(
     db_client
         .update_node_status(node_id, NodeStatus::Upgrading)
         .await;
-
-    let mut node_info = NodeInstanceInfo::new(node_id.clone());
-    db_client.get_node_metadata(&mut node_info).await;
 
     let res = node_manager.upgrade_node(&mut node_info).await;
 
@@ -320,6 +337,11 @@ pub(crate) async fn helper_recycle_node_instance(
     node_id: NodeId,
     context: &ServerGlobalState,
 ) -> Result<(), ServerFnError> {
+    let mut node_info = context
+        .db_client
+        .check_node_is_not_batched(&node_id)
+        .await?;
+
     context
         .node_status_locked
         .insert(node_id.clone(), Duration::from_secs(20))
@@ -328,9 +350,6 @@ pub(crate) async fn helper_recycle_node_instance(
         .db_client
         .update_node_status(&node_id, NodeStatus::Recycling)
         .await;
-
-    let mut node_info = NodeInstanceInfo::new(node_id.clone());
-    context.db_client.get_node_metadata(&mut node_info).await;
 
     context
         .node_manager

@@ -150,13 +150,10 @@ fn ActionBatchView(batch_info: RwSignal<NodesActionsBatch>) -> impl IntoView {
     let context = expect_context::<ClientGlobalState>();
     let batch_id = batch_info.get_untracked().id;
     let batch_type = batch_info.get_untracked().batch_type;
-    let (count, batch_type_str, auto_start) = match &batch_type {
-        BatchType::Create { count, node_opts } => (*count, "CREATE", node_opts.auto_start),
-        BatchType::Start(l) => (l.len() as u16, "START", false),
-        BatchType::Stop(l) => (l.len() as u16, "STOP", false),
-        BatchType::Upgrade(l) => (l.len() as u16, "UPGRADE", false),
-        BatchType::Recycle(l) => (l.len() as u16, "RECYCLE", false),
-        BatchType::Remove(l) => (l.len() as u16, "REMOVE", false),
+    let (count, auto_start) = if let BatchType::Create { count, node_opts } = &batch_type {
+        (*count, node_opts.auto_start)
+    } else {
+        (batch_type.ids().len() as u16, false)
     };
     let progress = move || {
         if count > 0 {
@@ -198,7 +195,7 @@ fn ActionBatchView(batch_info: RwSignal<NodesActionsBatch>) -> impl IntoView {
                 "Batch " {move || batch_info.read().status.clone()} ":"
             </h2>
             <ul class="max-w-md space-y-1 text-gray-500 list-disc list-inside dark:text-gray-400">
-                <li>"Total number of nodes to " {batch_type_str} ": " {count}</li>
+                <li>"Total number of nodes to " {batch_type.to_string()} ": " {count}</li>
                 <li>
                     "Delay between each node action: " {batch_info.get_untracked().interval_secs}
                     " secs."
@@ -257,17 +254,9 @@ fn NodeInstanceView(
     let is_transitioning = move || info.read().status.is_transitioning();
     let is_locked = move || info.read().status.is_locked();
 
-    let peer_id = move || {
-        info.read()
-            .short_peer_id()
-            .unwrap_or_else(|| " -".to_string())
-    };
+    let peer_id = move || value_or_dash(info.read().short_peer_id());
 
-    let rewards_addr = move || {
-        info.read()
-            .short_rewards_addr()
-            .unwrap_or_else(|| " -".to_string())
-    };
+    let rewards_addr = move || value_or_dash(info.read().short_rewards_addr());
 
     let display_if_active = move |v| {
         if info.read().status.is_active() {

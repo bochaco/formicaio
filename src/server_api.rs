@@ -3,9 +3,10 @@ use super::{
     server_api_types::{BatchType, NodeOpts},
 };
 
-use self::server_fn::codec::{ByteStream, Streaming};
+use alloy_primitives::Address;
 use leptos::prelude::*;
-use std::collections::HashMap;
+use leptos::server_fn::codec::{ByteStream, Streaming};
+use std::{collections::HashMap, str::FromStr};
 
 #[cfg(feature = "ssr")]
 mod ssr_imports_and_defs {
@@ -29,18 +30,23 @@ pub use super::server_api_docker::*;
 #[cfg(feature = "native")]
 pub use super::server_api_native::*;
 
+// Expected length of entered hex-encoded rewards address.
+const REWARDS_ADDR_LENGTH: usize = 40;
+
 // Create and add a new node instance returning its info
 #[server(CreateNodeInstance, "/api", "Url", "/nodes/create")]
 pub async fn create_node_instance(node_opts: NodeOpts) -> Result<NodeInstanceInfo, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
+
+    // validate rewards address before proceeding
+    parse_and_validate_addr(&node_opts.rewards_addr).map_err(ServerFnError::new)?;
+
     helper_create_node_instance(node_opts, &context).await
 }
 
 // Start a node instance with given id
 #[server(StartNodeInstance, "/api", "Url", "/nodes/start")]
 pub async fn start_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
-    // TODO: check if node is not locked
-
     let context = expect_context::<ServerGlobalState>();
     helper_start_node_instance(node_id, &context).await?;
     Ok(())
@@ -49,8 +55,6 @@ pub async fn start_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
 // Stop a node instance with given id
 #[server(StopNodeInstance, "/api", "Url", "/nodes/stop")]
 pub async fn stop_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
-    // TODO: check if node is not locked
-
     logging::log!("Stopping node with Id: {node_id} ...");
     let context = expect_context::<ServerGlobalState>();
     helper_stop_node_instance(node_id, &context, NodeStatus::Stopping).await?;
@@ -69,8 +73,6 @@ pub async fn delete_node_instance(node_id: NodeId) -> Result<(), ServerFnError> 
 // Recycle a node instance by restarting it with a new node peer-id
 #[server(RecycleNodeInstance, "/api", "Url", "/nodes/recycle")]
 pub async fn recycle_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
-    // TODO: check if node is not locked
-
     let context = expect_context::<ServerGlobalState>();
     logging::log!("Recycling node instance with Id: {node_id} ...");
     helper_recycle_node_instance(node_id, &context).await?;
@@ -155,7 +157,10 @@ pub async fn helper_node_action_batch(
     context: &ServerGlobalState,
 ) -> Result<u16, ServerFnError> {
     match &batch_type {
-        BatchType::Create { .. } => {}
+        BatchType::Create { node_opts, .. } => {
+            // validate rewards address before accepting the batch
+            parse_and_validate_addr(&node_opts.rewards_addr).map_err(ServerFnError::new)?;
+        }
         BatchType::Start(l)
         | BatchType::Stop(l)
         | BatchType::Upgrade(l)
@@ -206,7 +211,7 @@ async fn run_batches(context: ServerGlobalState) {
         let batch_info =
             if let Some(next_batch) = context.node_action_batches.lock().await.1.first_mut() {
                 let mut batch = next_batch.clone();
-                batch.status = "in progress".to_string();
+                batch.status = "In progress".to_string();
                 *next_batch = batch.clone();
                 batch
             } else {
@@ -331,9 +336,31 @@ pub async fn cancel_batch(batch_id: u16) -> Result<(), ServerFnError> {
     if let Some(index) = guard.1.iter().position(|b| b.id == batch_id) {
         let batch = guard.1.remove(index);
         for node_id in batch.batch_type.ids().iter() {
+            context.node_status_locked.remove(node_id).await;
             context.db_client.unlock_node_status(node_id).await;
         }
     }
 
     Ok(())
+}
+
+// Helper to parse and validate the rewards address
+pub fn parse_and_validate_addr(input_str: &str) -> Result<Address, String> {
+    let value = input_str
+        .strip_prefix("0x")
+        .unwrap_or(input_str)
+        .to_string();
+
+    if value.len() != REWARDS_ADDR_LENGTH {
+        Err("Unexpected length of rewards address".to_string())
+    } else if hex::decode(&value).is_err() {
+        Err("The address entered is not hex-encoded".to_string())
+    } else if value.to_lowercase() == value || value.to_uppercase() == value {
+        // it's a non-checksummed address
+        Address::from_str(&value).map_err(|err| err.to_string())
+    } else {
+        // validate checksum
+        Address::parse_checksummed(format!("0x{value}"), None)
+            .map_err(|_| "Checksum validation failed".to_string())
+    }
 }

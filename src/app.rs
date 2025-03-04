@@ -16,6 +16,7 @@ use super::{
     server_api_types::{NodesActionsBatch, Stats},
     sort_nodes::{NodesSortStrategy, SortStrategyView},
     stats::AggregatedStatsView,
+    terminal::TerminalView,
 };
 
 #[cfg(feature = "ssr")]
@@ -213,6 +214,7 @@ pub fn App() -> impl IntoView {
                 }>
                     <Route path=StaticSegment("/") view=HomeScreenView />
                     <Route path=StaticSegment("/about") view=AboutView />
+                    <Route path=StaticSegment("/terminal") view=TerminalView />
                 </Routes>
             </main>
         </Router>
@@ -248,7 +250,7 @@ fn spawn_nodes_list_polling() {
         logging::log!("Polling server every {NODES_LIST_POLLING_FREQ_MILLIS}ms. ...");
         let context = expect_context::<ClientGlobalState>();
         loop {
-            match nodes_instances().await {
+            match nodes_instances(None).await {
                 Err(err) => {
                     context.is_online.set(false);
                     logging::log!("Failed to get up to date nodes info from server: {err}");

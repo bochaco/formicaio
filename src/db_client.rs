@@ -205,26 +205,41 @@ impl DbClient {
     // Retrieve node metadata from local cache DB
     pub async fn get_node_metadata(&self, info: &mut NodeInstanceInfo) {
         let db_lock = self.db.lock().await;
-        match sqlx::query_as::<_, CachedNodeMetadata>("SELECT * FROM nodes WHERE node_id=?")
-            .bind(info.node_id.clone())
-            .fetch_all(&*db_lock)
-            .await
+        match sqlx::query_as::<_, CachedNodeMetadata>(
+            "SELECT * FROM nodes WHERE node_id LIKE ? || '%'",
+        )
+        .bind(info.node_id.clone())
+        .fetch_all(&*db_lock)
+        .await
         {
-            Ok(nodes) => {
-                for node in nodes {
-                    if node.node_id == info.node_id {
-                        node.merge_onto(info);
-                    }
+            Ok(records) => {
+                if let Some(node) = records.first() {
+                    node.merge_onto(info);
                 }
             }
             Err(err) => logging::log!("Sqlite query error: {err}"),
         }
     }
 
+    // Check the node is not part of a batch, i.e. is not in Locked state
+    pub async fn check_node_is_not_batched(
+        &self,
+        node_id: &NodeId,
+    ) -> Result<NodeInstanceInfo, ServerFnError> {
+        let mut node_info = NodeInstanceInfo::new(node_id.clone());
+        self.get_node_metadata(&mut node_info).await;
+        if node_info.status.is_locked() {
+            return Err(ServerFnError::new(
+                "Node is part of a running/scheduled batch".to_string(),
+            ));
+        }
+        Ok(node_info)
+    }
+
     // Retrieve node binary version from local cache DB
     pub async fn get_node_bin_version(&self, node_id: &str) -> Option<String> {
         let db_lock = self.db.lock().await;
-        match sqlx::query("SELECT bin_version FROM nodes WHERE node_id=?")
+        match sqlx::query("SELECT bin_version FROM nodes WHERE node_id LIKE ? || '%'")
             .bind(node_id)
             .fetch_all(&*db_lock)
             .await
@@ -377,7 +392,10 @@ impl DbClient {
             return; // no updates to make
         }
 
-        let query_str = format!("UPDATE nodes SET {} WHERE node_id=?", updates.join(", "));
+        let query_str = format!(
+            "UPDATE nodes SET {} WHERE node_id LIKE ? || '%'",
+            updates.join(", ")
+        );
         params.push(info.node_id.clone());
 
         let mut query = sqlx::query(&query_str);
@@ -401,7 +419,7 @@ impl DbClient {
     // Remove node metadata from local cache DB
     pub async fn delete_node_metadata(&self, node_id: &str) {
         let db_lock = self.db.lock().await;
-        match sqlx::query("DELETE FROM nodes WHERE node_id = ?")
+        match sqlx::query("DELETE FROM nodes WHERE node_id LIKE ? || '%'")
             .bind(node_id)
             .execute(&*db_lock)
             .await
@@ -423,7 +441,10 @@ impl DbClient {
                 });
         params.push(node_id);
 
-        let query_str = format!("UPDATE nodes SET {} WHERE node_id=?", updates.join(", "));
+        let query_str = format!(
+            "UPDATE nodes SET {} WHERE node_id LIKE ? || '%'",
+            updates.join(", ")
+        );
 
         let mut query = sqlx::query(&query_str);
         for p in params {
@@ -476,7 +497,7 @@ impl DbClient {
     // Helper to retrieve node status
     async fn get_node_status(&self, node_id: &str) -> NodeStatus {
         let db_lock = self.db.lock().await;
-        match sqlx::query("SELECT status FROM nodes WHERE node_id = ?")
+        match sqlx::query("SELECT status FROM nodes WHERE node_id LIKE ? || '%'")
             .bind(node_id)
             .fetch_one(&*db_lock)
             .await
@@ -486,7 +507,7 @@ impl DbClient {
                 serde_json::from_str(&str).unwrap_or(NodeStatus::Inactive)
             }
             Err(err) => {
-                logging::log!("Sqlite status query error: {err}");
+                logging::log!("Sqlite status query error: {err} == {node_id}");
                 NodeStatus::Inactive
             }
         }
@@ -498,7 +519,7 @@ impl DbClient {
         let mut node_metrics = Metrics::new();
 
         match sqlx::query(
-            "SELECT * FROM nodes_metrics WHERE node_id = ? AND timestamp > ? ORDER BY timestamp",
+            "SELECT * FROM nodes_metrics WHERE node_id LIKE ? || '%' AND timestamp > ? ORDER BY timestamp",
         )
         .bind(node_id.clone())
         .bind(since.unwrap_or_default())
@@ -553,7 +574,7 @@ impl DbClient {
     // Remove node metrics from local cache DB
     pub async fn delete_node_metrics(&self, node_id: &str) {
         let db_lock = self.db.lock().await;
-        match sqlx::query("DELETE FROM nodes_metrics WHERE node_id = ?")
+        match sqlx::query("DELETE FROM nodes_metrics WHERE node_id LIKE ? || '%'")
             .bind(node_id)
             .execute(&*db_lock)
             .await
@@ -568,10 +589,10 @@ impl DbClient {
         let db_lock = self.db.lock().await;
         match sqlx::query(
             "DELETE FROM nodes_metrics WHERE \
-                node_id = ? AND timestamp <= \
+                node_id LIKE ? || '%' AND timestamp <= \
                     (SELECT DISTINCT timestamp \
                         FROM nodes_metrics \
-                        WHERE node_id = ? \
+                        WHERE node_id LIKE ? || '%' \
                         ORDER BY timestamp DESC \
                         LIMIT 1 OFFSET ? \
                     )",
