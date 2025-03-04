@@ -122,7 +122,10 @@ async fn process_command(cmd: &str) -> Result<String, String> {
     args.extend(cmd.split(" "));
     match CliCommands::from_iter_safe(args.iter().filter(|arg| !arg.is_empty())) {
         Ok(cmd) => {
-            let response = cmd.process_command().await.unwrap();
+            let response = cmd
+                .process_command()
+                .await
+                .map_err(|err| format!("{err}\n"))?;
             let mut output = Vec::new();
             let mut cursor = Cursor::new(&mut output);
             response.print(&mut cursor).unwrap();

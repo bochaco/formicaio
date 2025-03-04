@@ -1,13 +1,13 @@
 use crate::{helpers::truncated_balance_str, server_api::*, server_api_types::*};
 
+#[cfg(feature = "ssr")]
+use eyre::{eyre, Result, WrapErr};
+
 use alloy_primitives::{utils::format_units, Address};
 use chrono::{DateTime, Local, Utc};
 use leptos::prelude::ServerFnError;
 use prettytable::{format, row, Table};
-use std::{
-    io::{Error, Write},
-    net::SocketAddr,
-};
+use std::{io::Write, net::SocketAddr};
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
@@ -142,13 +142,14 @@ pub struct NodeOptsCmd {
 }
 
 // Parser for the node status CLI args
-fn parse_node_status(src: &str) -> Result<NodeStatus, serde_json::Error> {
-    if let Some(first_char) = src.chars().next() {
+fn parse_node_status(src: &str) -> eyre::Result<NodeStatus> {
+    let status = if let Some(first_char) = src.chars().next() {
         let s = format!("\"{}{}\"", first_char.to_uppercase(), &src[1..]);
-        serde_json::from_str(&s)
+        serde_json::from_str(&s)?
     } else {
-        serde_json::from_str(src)
-    }
+        serde_json::from_str(src)?
+    };
+    Ok(status)
 }
 
 #[derive(Debug, PartialEq, StructOpt)]
@@ -293,7 +294,7 @@ impl CliCommands {
     }
 
     #[cfg(feature = "ssr")]
-    pub async fn send_request(&self, addr: SocketAddr) -> Result<CliCmdResponse, String> {
+    pub async fn send_request(&self, addr: SocketAddr) -> Result<CliCmdResponse> {
         let api_url = format!("http://{addr}/api");
 
         match &self {
@@ -450,7 +451,7 @@ fn value_or_dash<T: ToString>(val: Option<T>) -> String {
 }
 
 impl CliCmdResponse {
-    pub fn print<T: Write + ?Sized>(&self, out: &mut T) -> Result<(), Error> {
+    pub fn print<T: Write + ?Sized>(&self, out: &mut T) -> eyre::Result<()> {
         let tables = self.gen_print_table();
         for t in tables {
             t.print(out)?;
@@ -693,10 +694,7 @@ fn format_node_status(info: &NodeInstanceInfo) -> String {
 
 // Helper to send request and parse response
 #[cfg(feature = "ssr")]
-async fn send_req<T: serde::de::DeserializeOwned>(
-    url: &str,
-    body: Option<String>,
-) -> Result<T, String> {
+async fn send_req<T: serde::de::DeserializeOwned>(url: &str, body: Option<String>) -> Result<T> {
     let client = reqwest::Client::new();
     let mut req_builder = client.post(url);
 
@@ -707,13 +705,16 @@ async fn send_req<T: serde::de::DeserializeOwned>(
     let res = req_builder
         .send()
         .await
-        .map_err(|err| format!("Failed to send request: {err:?}"))?;
+        .map_err(|err| eyre!("Failed to send request: {err:?}"))?;
 
     if res.status().is_success() {
-        res.json::<T>().await.map_err(|err| format!("{err:?}"))
+        Ok(res.json::<T>().await?)
     } else {
-        let err_msg = format!("Faile decode response: {res:?}");
-        Err(res.text().await.unwrap_or(err_msg).to_string())
+        let err = res
+            .text()
+            .await
+            .wrap_err("Failed to decode response: {res:?}")?;
+        Err(eyre!(err))
     }
 }
 
@@ -725,7 +726,7 @@ async fn send_node_action_req(
     node_ids: &[NodeId],
     interval: u64,
     action_type: &str,
-) -> Result<CliCmdResponse, String> {
+) -> Result<CliCmdResponse> {
     if node_ids.len() > 1 {
         // create batch for multiple ids
         // TODO: use some crate which performs this serialisation

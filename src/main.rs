@@ -2,30 +2,31 @@
 
 #[cfg(feature = "ssr")]
 #[tokio::main]
-async fn main() {
+async fn main() -> eyre::Result<()> {
     use formicaio::cli_cmds::*;
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     use structopt::StructOpt;
 
     let cmds = CliCmds::from_args();
     match cmds.sub_cmds {
-        CliSubCmds::Start => start_backend(cmds.addr).await,
+        CliSubCmds::Start => start_backend(cmds.addr).await?,
         CliSubCmds::CliCommands(cmd) => {
             let res = cmd
                 .send_request(cmds.addr.unwrap_or(SocketAddr::new(
                     IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
                     52100,
                 )))
-                .await
-                .expect("ERROR:");
+                .await?;
             res.printstd();
         }
     }
+    Ok(())
 }
 
 #[cfg(feature = "ssr")]
-async fn start_backend(listen_addr: Option<std::net::SocketAddr>) {
+async fn start_backend(listen_addr: Option<std::net::SocketAddr>) -> eyre::Result<()> {
     use axum::Router;
+    use eyre::WrapErr;
     use formicaio::{
         app::*, bg_tasks::spawn_bg_tasks, db_client::DbClient, metrics_client::NodesMetrics,
         server_api_types::Stats,
@@ -43,7 +44,7 @@ async fn start_backend(listen_addr: Option<std::net::SocketAddr>) {
     // Alternately a file can be specified such as Some("Cargo.toml")
     // The file would need to be included with the executable when moved to deployment
     let mut leptos_options = get_configuration(None)
-        .expect("Failed to obtain Leptos config options from env values")
+        .wrap_err("Failed to obtain Leptos config options from env values")?
         .leptos_options;
 
     // we make sure some values are set to some
@@ -65,15 +66,15 @@ async fn start_backend(listen_addr: Option<std::net::SocketAddr>) {
     // We'll keep the database and Docker clients instances in server global state.
     let db_client = DbClient::connect()
         .await
-        .expect("Failed to initialise database");
+        .wrap_err("Failed to initialise database")?;
     #[cfg(not(feature = "native"))]
     let docker_client = formicaio::docker_client::DockerClient::new()
         .await
-        .expect("Failed to initialise Docker client");
+        .wrap_err("Failed to initialise Docker client")?;
     #[cfg(feature = "native")]
     let node_manager = formicaio::node_manager::NodeManager::new()
         .await
-        .expect("Failed to instantiate node manager");
+        .wrap_err("Failed to instantiate node manager")?;
 
     let latest_bin_version = Arc::new(Mutex::new(None));
     let nodes_metrics = Arc::new(Mutex::new(NodesMetrics::new(db_client.clone())));
@@ -113,7 +114,7 @@ async fn start_backend(listen_addr: Option<std::net::SocketAddr>) {
             .node_manager
             .upgrade_master_node_binary(None)
             .await
-            .expect("Failed to download node binary");
+            .wrap_err("Failed to download node binary")?;
         *app_state.latest_bin_version.lock().await = Some(version);
 
         // let's create a batch to start nodes which were Active
@@ -155,11 +156,13 @@ async fn start_backend(listen_addr: Option<std::net::SocketAddr>) {
 
     let listener = tokio::net::TcpListener::bind(&listen_addr)
         .await
-        .expect("Failed to bind to TCP address");
+        .wrap_err("Failed to bind to TCP address")?;
     logging::log!("listening on http://{}", &listen_addr);
     axum::serve(listener, app.into_make_service())
         .await
-        .expect("Failed to start HTTP listener");
+        .wrap_err("Failed to start HTTP listener")?;
+
+    Ok(())
 }
 
 #[cfg(not(feature = "ssr"))]
