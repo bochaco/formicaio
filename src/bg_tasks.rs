@@ -346,9 +346,11 @@ async fn update_nodes_info(
                         node_metrics.update_node_info(&mut node_info);
                     }
                     Ok(Err(err)) => {
+                        node_info.set_status_to_unknown();
                         logging::log!("Failed to fetch metrics from node {node_short_id}: {err}");
                     }
                     Err(_) => {
+                        node_info.set_status_to_unknown();
                         logging::log!("Timeout ({NODE_METRICS_QUERY_TIMEOUT:?}) while fetching metrics from node {node_short_id}.");
                     }
                 }

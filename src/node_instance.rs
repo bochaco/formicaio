@@ -1,6 +1,7 @@
 use super::app::ClientGlobalState;
 
 use alloy_primitives::U256;
+use chrono::Utc;
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -27,6 +28,9 @@ pub enum NodeStatus {
     Stopping,
     // A node not connected to any peer on the network is considered Inactive.
     Inactive,
+    // Its status is not known, it has been unreachable when trying fetch metrics.
+    // This status holds its previous known status.
+    Unknown(Box<NodeStatus>),
     Removing,
     Upgrading,
     // The node's peer-id is cleared and restarted with a fresh new one
@@ -47,16 +51,19 @@ impl NodeStatus {
     pub fn is_active(&self) -> bool {
         match self {
             Self::Active => true,
-            Self::Locked(s) => s.is_active(),
+            Self::Locked(s) | Self::Unknown(s) => s.is_active(),
             _ => false,
         }
     }
     pub fn is_inactive(&self) -> bool {
         match self {
             Self::Inactive => true,
-            Self::Locked(s) => s.is_inactive(),
+            Self::Locked(s) | Self::Unknown(s) => s.is_inactive(),
             _ => false,
         }
+    }
+    pub fn is_unknown(&self) -> bool {
+        matches!(self, Self::Unknown(_))
     }
     pub fn is_recycling(&self) -> bool {
         matches!(self, Self::Recycling)
@@ -89,6 +96,7 @@ impl fmt::Display for NodeStatus {
         match self {
             Self::Transitioned(s) => write!(f, "{s}"),
             Self::Locked(s) => write!(f, "{s} (batched)"),
+            Self::Unknown(s) => write!(f, "Unknown (it was {s})"),
             other => write!(f, "{other:?}"),
         }
     }
@@ -170,5 +178,21 @@ impl NodeInstanceInfo {
                 &addr[addr.len() - REWARDS_ADDR_PREFIX_SUFFIX_LEN..]
             )
         })
+    }
+
+    pub fn set_status_to_unknown(&mut self) {
+        if !self.status.is_unknown() {
+            self.status_changed = Some(Utc::now().timestamp() as u64);
+            self.status = NodeStatus::Unknown(Box::new(self.status.clone()));
+        }
+        self.mem_used = None;
+        self.cpu_usage = None;
+        self.records = Some(0);
+        self.relevant_records = None;
+        self.connected_peers = Some(0);
+        self.connected_relay_clients = None;
+        self.kbuckets_peers = Some(0);
+        self.shunned_count = None;
+        self.net_size = None;
     }
 }

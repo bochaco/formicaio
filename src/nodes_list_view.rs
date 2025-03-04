@@ -253,6 +253,7 @@ fn NodeInstanceView(
 
     let is_transitioning = move || info.read().status.is_transitioning();
     let is_locked = move || info.read().status.is_locked();
+    let is_unknown = move || info.read().status.is_unknown();
 
     let peer_id = move || value_or_dash(info.read().short_peer_id());
 
@@ -338,7 +339,13 @@ fn NodeInstanceView(
                 <p>
                     <span class="node-info-item">"Status: "</span>
                     <span class=move || {
-                        if is_locked() { "node-info-item-highlight" } else { "" }
+                        if is_locked() {
+                            "node-info-item-highlight"
+                        } else if is_unknown() {
+                            "node-info-item-warn"
+                        } else {
+                            ""
+                        }
                     }>{move || info.get().status.to_string()}</span>
                     {move || {
                         if is_transitioning() {
