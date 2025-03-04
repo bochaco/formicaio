@@ -75,4 +75,4 @@ ENV LEPTOS_SITE_ROOT="site"
 EXPOSE 52100
 
 # Run the server
-CMD ["/app/formicaio"]
+CMD ["sh", "-c", "/app/formicaio start --addr ${LEPTOS_SITE_ADDR}"]
