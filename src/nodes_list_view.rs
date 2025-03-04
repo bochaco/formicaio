@@ -615,7 +615,8 @@ fn NodeLogs(info: RwSignal<NodeInstanceInfo>, set_logs: WriteSignal<Vec<String>>
                 for="logs_stream_modal"
                 class=move || {
                     if !info.read_untracked().node_logs || is_selecting_nodes()
-                        || info.read().status.is_transitioning() || info.read().status.is_inactive()
+                        || info.read().status.is_transitioning()
+                        || (info.read().status.is_inactive() && !cfg!(feature = "native"))
                     {
                         "btn-disabled-node-action"
                     } else {
