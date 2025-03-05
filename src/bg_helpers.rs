@@ -13,7 +13,6 @@ use super::{
     server_api::helper_upgrade_node_instance,
     server_api_types::AppSettings,
 };
-use alloy_sol_types::sol;
 use leptos::logging;
 use semver::Version;
 use std::sync::Arc;
@@ -30,14 +29,6 @@ const FORMICA_IMAGE_PULLING_FREQ: Duration = Duration::from_secs(60 * 60 * 6); /
 
 // Frequency to poll node status from Docker engine
 const NODE_STATUS_POLLING_FREQ: Duration = Duration::from_secs(5);
-
-// ERC20 token contract ABI
-sol!(
-    #[allow(missing_docs)]
-    #[sol(rpc)]
-    TokenContract,
-    "artifacts/token_contract_abi.json"
-);
 
 // App settings and set of intervals used to schedule each of the tasks.
 pub struct TasksContext {

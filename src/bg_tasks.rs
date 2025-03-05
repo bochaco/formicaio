@@ -13,9 +13,9 @@ use super::{
 use alloy::{
     primitives::{Address, U256},
     providers::{Network, Provider, ProviderBuilder},
+    sol,
     transports::Transport,
 };
-use alloy_sol_types::sol;
 use leptos::logging;
 use semver::Version;
 use std::{
