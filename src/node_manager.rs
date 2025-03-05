@@ -124,7 +124,7 @@ impl NodeManager {
     pub async fn spawn_new_node(
         &self,
         node_info: &mut NodeInstanceInfo,
-    ) -> Result<(), NodeManagerError> {
+    ) -> Result<NodePid, NodeManagerError> {
         let node_id = &node_info.node_id;
         let port = node_info
             .port
@@ -214,7 +214,7 @@ impl NodeManager {
         match command.spawn() {
             Ok(child) => {
                 let pid = child.id();
-                logging::log!("Node process spawned with PID: {pid}");
+                logging::log!("Node process for {node_id} spawned with PID: {pid}");
                 self.nodes.lock().await.insert(node_id.to_string(), child);
                 node_info.pid = Some(pid);
                 // let's delay it for a moment so it generates the peer id
@@ -233,7 +233,7 @@ impl NodeManager {
                     }
                 }
 
-                Ok(())
+                Ok(pid)
             }
             Err(err) => {
                 logging::error!("Failed to spawn new node: {err:?}");
@@ -278,6 +278,8 @@ impl NodeManager {
                 logging::log!(
                     "Process with PID {pid} exited (node id: {node_id}) with code: {code:?}"
                 );
+            } else {
+                logging::warn!("Zombie process detected with pid {pid}: {process:?}");
             }
         }
 
@@ -306,13 +308,11 @@ impl NodeManager {
             }
             Ok(output) => {
                 let status = output.status;
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                logging::warn!("Killed node: {status:?}, stderr: '{stderr}', stdout: '{stdout}'");
+                logging::warn!("Killed process for node {node_id}: {status:?}");
                 output.status.code()
             }
             Err(err) => {
-                logging::warn!("Error when checking killed node process: {err:?}");
+                logging::warn!("Error when checking killed process for node {node_id}: {err:?}");
                 None
             }
         }

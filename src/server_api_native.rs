@@ -216,7 +216,8 @@ pub(crate) async fn helper_start_node_instance(
         .db_client
         .update_node_status(&node_id, NodeStatus::Restarting)
         .await;
-    context.node_manager.spawn_new_node(&mut node_info).await?;
+    let pid = context.node_manager.spawn_new_node(&mut node_info).await?;
+    context.db_client.update_node_pid(&node_id, pid).await;
 
     node_info.status = NodeStatus::Active;
     node_info.status_changed = Some(Utc::now().timestamp() as u64);
@@ -251,13 +252,13 @@ pub(crate) async fn helper_stop_node_instance(
         .await;
 
     context.node_manager.kill_node(&node_id).await;
+    context.db_client.update_node_pid(&node_id, 0).await;
 
     // set connected/kbucket peers back to 0 and update cache
     let node_info = NodeInstanceInfo {
         node_id: node_id.clone(),
         status: NodeStatus::Inactive,
         status_changed: Some(Utc::now().timestamp() as u64),
-        pid: Some(0),
         connected_peers: Some(0),
         kbuckets_peers: Some(0),
         records: Some(0),

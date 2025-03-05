@@ -1,6 +1,6 @@
 use super::{
     metrics::{Metrics, NodeMetric},
-    node_instance::{NodeId, NodeInstanceInfo, NodeStatus},
+    node_instance::{NodeId, NodeInstanceInfo, NodePid, NodeStatus},
     server_api_types::AppSettings,
 };
 
@@ -351,10 +351,6 @@ impl DbClient {
             updates.push("status_changed=?");
             params.push(status_changed.to_string());
         }
-        if let Some(pid) = &info.pid {
-            updates.push("pid=?");
-            params.push(pid.to_string());
-        }
         if let Some(peer_id) = &info.peer_id {
             updates.push("peer_id=?");
             params.push(peer_id.clone());
@@ -491,6 +487,13 @@ impl DbClient {
     // Convenient method to update node balance field
     pub async fn update_node_balance(&self, node_id: &str, balance: &str) {
         self.update_node_metadata_fields(node_id, &[("balance", balance)])
+            .await
+    }
+
+    // Explicit method to update node PID so the caller is aware the PID
+    // will be changed, otherwise it could cause problems if updated from the incorrect flow.
+    pub async fn update_node_pid(&self, node_id: &str, pid: NodePid) {
+        self.update_node_metadata_fields(node_id, &[("pid", &pid.to_string())])
             .await
     }
 
