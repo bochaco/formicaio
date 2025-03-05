@@ -63,6 +63,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "59febb24956a41c29bb5f450978fbe825bd6456b3f80586c8bd558dc882e7b6a"
 dependencies = [
  "alloy-consensus",
+ "alloy-contract",
  "alloy-core",
  "alloy-eips",
  "alloy-network",
@@ -140,7 +141,10 @@ version = "0.8.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "482f377cebceed4bb1fb5e7970f0805e2ab123d06701be9351b67ed6341e74aa"
 dependencies = [
+ "alloy-dyn-abi",
+ "alloy-json-abi",
  "alloy-primitives",
+ "alloy-sol-types",
 ]
 
 [[package]]
@@ -1851,9 +1855,7 @@ name = "formicaio"
 version = "0.4.2"
 dependencies = [
  "alloy",
- "alloy-contract",
  "alloy-primitives",
- "alloy-sol-types",
  "ant-releases",
  "apexcharts-rs",
  "async-stream",
