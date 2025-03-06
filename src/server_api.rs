@@ -1,6 +1,6 @@
 use super::{
     node_instance::{NodeId, NodeInstanceInfo},
-    server_api_types::{BatchType, NodeOpts},
+    server_api_types::{BatchOnMatch, BatchType, NodeOpts},
 };
 
 use alloy_primitives::Address;
@@ -13,7 +13,7 @@ mod ssr_imports_and_defs {
     pub use crate::{
         app::{BgTasksCmds, ServerGlobalState},
         node_instance::NodeStatus,
-        server_api_types::NodesActionsBatch,
+        server_api_types::{NodeFilter, NodesActionsBatch},
     };
     pub use futures_util::StreamExt;
     pub use leptos::logging;
@@ -140,12 +140,42 @@ pub async fn update_settings(
 }
 
 /// Prepare a node actions batch
-#[server(PrepareNodesActionsBatch, "/api", "Url", "/batch/new")]
+#[server(NewNodesActionsBatch, "/api", "Url", "/batch/new")]
 pub async fn node_action_batch(
     batch_type: BatchType,
     interval_secs: u64,
 ) -> Result<u16, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
+    helper_node_action_batch(batch_type, interval_secs, &context).await
+}
+
+/// Prepare a node actions batch based on matching rules
+#[server(PrepareNodesActionsBatch, "/api", "Url", "/batch/new_on_match")]
+pub async fn node_action_batch_on_match(
+    batch_on_match: BatchOnMatch,
+    interval_secs: u64,
+) -> Result<u16, ServerFnError> {
+    let context = expect_context::<ServerGlobalState>();
+    #[cfg(not(feature = "native"))]
+    let nodes_list = context.docker_client.get_containers_list(true).await?;
+    #[cfg(feature = "native")]
+    let nodes_list = context.db_client.get_nodes_list().await;
+
+    let matching_nodes = move |filter: NodeFilter| {
+        nodes_list
+            .into_iter()
+            .filter(|(_, info)| filter.matches(&info.short_node_id(), &info.status))
+            .map(|(_, info)| info.node_id)
+            .collect::<Vec<_>>()
+    };
+
+    let batch_type = match batch_on_match {
+        BatchOnMatch::StartOnMatch(filter) => BatchType::Start(matching_nodes(filter)),
+        BatchOnMatch::StopOnMatch(filter) => BatchType::Stop(matching_nodes(filter)),
+        BatchOnMatch::UpgradeOnMatch(filter) => BatchType::Upgrade(matching_nodes(filter)),
+        BatchOnMatch::RecycleOnMatch(filter) => BatchType::Recycle(matching_nodes(filter)),
+        BatchOnMatch::RemoveOnMatch(filter) => BatchType::Remove(matching_nodes(filter)),
+    };
     helper_node_action_batch(batch_type, interval_secs, &context).await
 }
 

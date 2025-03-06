@@ -48,7 +48,7 @@ pub enum NodesSubcommands {
         /// Multiple ids can be provided, e.g. '--id 726d63514a6d --id 59566d447968'.
         #[structopt(long)]
         id: Option<Vec<NodeId>>,
-        /// List only nodes wich match any of the provided status.
+        /// List nodes wich match any of the provided status.
         /// Multiple status can be provided, e.g. '--status active --status restarting'.
         #[structopt(long, parse(try_from_str = parse_node_status))]
         status: Option<Vec<NodeStatus>>,
@@ -63,7 +63,11 @@ pub enum NodesSubcommands {
         /// Remove nodes which match any of the provided id/s.
         /// Multiple ids can be provided, e.g. '--id 726d63514a6d --id 59566d447968'.
         #[structopt(long)]
-        id: Vec<NodeId>,
+        id: Option<Vec<NodeId>>,
+        /// Remove nodes wich match any of the provided status.
+        /// Multiple status can be provided, e.g. '--status active --status restarting'.
+        #[structopt(long, parse(try_from_str = parse_node_status))]
+        status: Option<Vec<NodeStatus>>,
         /// Interval between each action.
         #[structopt(long, default_value = "0")]
         interval: u64,
@@ -73,7 +77,11 @@ pub enum NodesSubcommands {
         /// Start nodes which match any of the provided id/s.
         /// Multiple ids can be provided, e.g. '--id 726d63514a6d --id 59566d447968'.
         #[structopt(long)]
-        id: Vec<NodeId>,
+        id: Option<Vec<NodeId>>,
+        /// Start nodes wich match any of the provided status.
+        /// Multiple status can be provided, e.g. '--status active --status restarting'.
+        #[structopt(long, parse(try_from_str = parse_node_status))]
+        status: Option<Vec<NodeStatus>>,
         /// Interval between each action.
         #[structopt(long, default_value = "0")]
         interval: u64,
@@ -83,7 +91,11 @@ pub enum NodesSubcommands {
         /// Stop nodes which match any of the provided id/s.
         /// Multiple ids can be provided, e.g. '--id 726d63514a6d --id 59566d447968'.
         #[structopt(long)]
-        id: Vec<NodeId>,
+        id: Option<Vec<NodeId>>,
+        /// Stop nodes wich match any of the provided status.
+        /// Multiple status can be provided, e.g. '--status active --status restarting'.
+        #[structopt(long, parse(try_from_str = parse_node_status))]
+        status: Option<Vec<NodeStatus>>,
         /// Interval between each action.
         #[structopt(long, default_value = "0")]
         interval: u64,
@@ -93,7 +105,11 @@ pub enum NodesSubcommands {
         /// Recycle nodes which match any of the provided id/s.
         /// Multiple ids can be provided, e.g. '--id 726d63514a6d --id 59566d447968'.
         #[structopt(long)]
-        id: Vec<NodeId>,
+        id: Option<Vec<NodeId>>,
+        /// Recycle nodes wich match any of the provided status.
+        /// Multiple status can be provided, e.g. '--status active --status restarting'.
+        #[structopt(long, parse(try_from_str = parse_node_status))]
+        status: Option<Vec<NodeStatus>>,
         /// Interval between each action.
         #[structopt(long, default_value = "0")]
         interval: u64,
@@ -103,7 +119,11 @@ pub enum NodesSubcommands {
         /// Upgrade nodes which match any of the provided id/s.
         /// Multiple ids can be provided, e.g. '--id 726d63514a6d --id 59566d447968'.
         #[structopt(long)]
-        id: Vec<NodeId>,
+        id: Option<Vec<NodeId>>,
+        /// Upgrade nodes wich match any of the provided status.
+        /// Multiple status can be provided, e.g. '--status active --status restarting'.
+        #[structopt(long, parse(try_from_str = parse_node_status))]
+        status: Option<Vec<NodeStatus>>,
         /// Interval between each action.
         #[structopt(long, default_value = "0")]
         interval: u64,
@@ -189,7 +209,7 @@ impl CliCommands {
                 status,
                 extended,
             }) => CliCmdResponse::Nodes(
-                nodes_instances(Some(QueryFilter {
+                nodes_instances(Some(NodeFilter {
                     node_ids: id.clone(),
                     status: status.clone(),
                 }))
@@ -222,57 +242,112 @@ impl CliCommands {
                     CliCmdResponse::NodeCreated(new_node)
                 }
             }
-            CliCommands::Nodes(NodesSubcommands::Remove { id, interval }) => {
-                if id.len() > 1 {
-                    let batch_id =
-                        node_action_batch(BatchType::Remove(id.clone()), *interval).await?;
-                    return Ok(CliCmdResponse::BatchCreated(batch_id));
+            CliCommands::Nodes(NodesSubcommands::Remove {
+                id,
+                status,
+                interval,
+            }) => {
+                // FIXME: bail out if no ids or status given
+                if let Some(batch_created) = try_create_batch(
+                    BatchOnMatch::RemoveOnMatch(NodeFilter::default()),
+                    id,
+                    status,
+                    *interval,
+                )
+                .await?
+                {
+                    return Ok(batch_created);
                 }
-                if let Some(node_id) = id.first() {
+
+                if let Some(node_id) = id.as_ref().and_then(|ids| ids.first()) {
                     delete_node_instance(node_id.clone()).await?;
                 }
                 CliCmdResponse::Success
             }
-            CliCommands::Nodes(NodesSubcommands::Start { id, interval }) => {
-                if id.len() > 1 {
-                    let batch_id =
-                        node_action_batch(BatchType::Start(id.clone()), *interval).await?;
-                    return Ok(CliCmdResponse::BatchCreated(batch_id));
+            CliCommands::Nodes(NodesSubcommands::Start {
+                id,
+                status,
+                interval,
+            }) => {
+                // FIXME: bail out if no ids or status given
+                if let Some(batch_created) = try_create_batch(
+                    BatchOnMatch::StartOnMatch(NodeFilter::default()),
+                    id,
+                    status,
+                    *interval,
+                )
+                .await?
+                {
+                    return Ok(batch_created);
                 }
-                if let Some(node_id) = id.first() {
+
+                if let Some(node_id) = id.as_ref().and_then(|ids| ids.first()) {
                     start_node_instance(node_id.clone()).await?;
                 }
                 CliCmdResponse::Success
             }
-            CliCommands::Nodes(NodesSubcommands::Stop { id, interval }) => {
-                if id.len() > 1 {
-                    let batch_id =
-                        node_action_batch(BatchType::Stop(id.clone()), *interval).await?;
-                    return Ok(CliCmdResponse::BatchCreated(batch_id));
+            CliCommands::Nodes(NodesSubcommands::Stop {
+                id,
+                status,
+                interval,
+            }) => {
+                // FIXME: bail out if no ids or status given
+                if let Some(batch_created) = try_create_batch(
+                    BatchOnMatch::StopOnMatch(NodeFilter::default()),
+                    id,
+                    status,
+                    *interval,
+                )
+                .await?
+                {
+                    return Ok(batch_created);
                 }
-                if let Some(node_id) = id.first() {
+
+                if let Some(node_id) = id.as_ref().and_then(|ids| ids.first()) {
                     stop_node_instance(node_id.clone()).await?;
                 }
                 CliCmdResponse::Success
             }
-            CliCommands::Nodes(NodesSubcommands::Recycle { id, interval }) => {
-                if id.len() > 1 {
-                    let batch_id =
-                        node_action_batch(BatchType::Recycle(id.clone()), *interval).await?;
-                    return Ok(CliCmdResponse::BatchCreated(batch_id));
+            CliCommands::Nodes(NodesSubcommands::Recycle {
+                id,
+                status,
+                interval,
+            }) => {
+                // FIXME: bail out if no ids or status given
+                if let Some(batch_created) = try_create_batch(
+                    BatchOnMatch::RecycleOnMatch(NodeFilter::default()),
+                    id,
+                    status,
+                    *interval,
+                )
+                .await?
+                {
+                    return Ok(batch_created);
                 }
-                if let Some(node_id) = id.first() {
+
+                if let Some(node_id) = id.as_ref().and_then(|ids| ids.first()) {
                     recycle_node_instance(node_id.clone()).await?;
                 }
                 CliCmdResponse::Success
             }
-            CliCommands::Nodes(NodesSubcommands::Upgrade { id, interval }) => {
-                if id.len() > 1 {
-                    let batch_id =
-                        node_action_batch(BatchType::Upgrade(id.clone()), *interval).await?;
-                    return Ok(CliCmdResponse::BatchCreated(batch_id));
+            CliCommands::Nodes(NodesSubcommands::Upgrade {
+                id,
+                status,
+                interval,
+            }) => {
+                // FIXME: bail out if no ids or status given
+                if let Some(batch_created) = try_create_batch(
+                    BatchOnMatch::UpgradeOnMatch(NodeFilter::default()),
+                    id,
+                    status,
+                    *interval,
+                )
+                .await?
+                {
+                    return Ok(batch_created);
                 }
-                if let Some(node_id) = id.first() {
+
+                if let Some(node_id) = id.as_ref().and_then(|ids| ids.first()) {
                     upgrade_node_instance(node_id.clone()).await?;
                 }
                 CliCmdResponse::Success
@@ -303,13 +378,9 @@ impl CliCommands {
                 status,
                 extended,
             }) => {
-                let filter = QueryFilter {
-                    node_ids: id.clone(),
-                    status: status.clone(),
-                };
                 // TODO: use some crate which performs this serialisation
                 let mut body = "".to_string();
-                if let Some(node_ids) = filter.node_ids {
+                if let Some(node_ids) = id {
                     for (i, id) in node_ids.iter().enumerate() {
                         if i > 0 {
                             body = format!("{body}&");
@@ -317,7 +388,7 @@ impl CliCommands {
                         body = format!("{body}filter[node_ids][{i}]={id}");
                     }
                 }
-                if let Some(status) = filter.status {
+                if let Some(status) = status {
                     for (i, s) in status.iter().enumerate() {
                         if i > 0 || !body.is_empty() {
                             body = format!("{body}&");
@@ -373,53 +444,83 @@ impl CliCommands {
                     }
                 }
             }
-            CliCommands::Nodes(NodesSubcommands::Remove { id, interval }) => {
+            CliCommands::Nodes(NodesSubcommands::Remove {
+                id,
+                status,
+                interval,
+            }) => {
+                // FIXME: bail out if no ids or status given
                 send_node_action_req(
                     &format!("{api_url}/nodes/delete"),
-                    &format!("{api_url}/batch/new"),
-                    id,
+                    &format!("{api_url}/batch/new_on_match"),
+                    &id.clone().unwrap_or_default(),
+                    &status.clone().unwrap_or_default(),
                     *interval,
-                    "Remove",
+                    "RemoveOnMatch",
                 )
                 .await
             }
-            CliCommands::Nodes(NodesSubcommands::Start { id, interval }) => {
+            CliCommands::Nodes(NodesSubcommands::Start {
+                id,
+                status,
+                interval,
+            }) => {
+                // FIXME: bail out if no ids or status given
                 send_node_action_req(
                     &format!("{api_url}/nodes/start"),
-                    &format!("{api_url}/batch/new"),
-                    id,
+                    &format!("{api_url}/batch/new_on_match"),
+                    &id.clone().unwrap_or_default(),
+                    &status.clone().unwrap_or_default(),
                     *interval,
-                    "Start",
+                    "StartOnMatch",
                 )
                 .await
             }
-            CliCommands::Nodes(NodesSubcommands::Stop { id, interval }) => {
+            CliCommands::Nodes(NodesSubcommands::Stop {
+                id,
+                status,
+                interval,
+            }) => {
+                // FIXME: bail out if no ids or status given
                 send_node_action_req(
                     &format!("{api_url}/nodes/stop"),
-                    &format!("{api_url}/batch/new"),
-                    id,
+                    &format!("{api_url}/batch/new_on_match"),
+                    &id.clone().unwrap_or_default(),
+                    &status.clone().unwrap_or_default(),
                     *interval,
-                    "Stop",
+                    "StopOnMatch",
                 )
                 .await
             }
-            CliCommands::Nodes(NodesSubcommands::Recycle { id, interval }) => {
+            CliCommands::Nodes(NodesSubcommands::Recycle {
+                id,
+                status,
+                interval,
+            }) => {
+                // FIXME: bail out if no ids or status given
                 send_node_action_req(
                     &format!("{api_url}/nodes/recycle"),
-                    &format!("{api_url}/batch/new"),
-                    id,
+                    &format!("{api_url}/batch/new_on_match"),
+                    &id.clone().unwrap_or_default(),
+                    &status.clone().unwrap_or_default(),
                     *interval,
-                    "Recycle",
+                    "RecycleOnMatch",
                 )
                 .await
             }
-            CliCommands::Nodes(NodesSubcommands::Upgrade { id, interval }) => {
+            CliCommands::Nodes(NodesSubcommands::Upgrade {
+                id,
+                status,
+                interval,
+            }) => {
+                // FIXME: bail out if no ids or status given
                 send_node_action_req(
                     &format!("{api_url}/nodes/upgrade"),
-                    &format!("{api_url}/batch/new"),
-                    id,
+                    &format!("{api_url}/batch/new_on_match"),
+                    &id.clone().unwrap_or_default(),
+                    &status.clone().unwrap_or_default(),
                     *interval,
-                    "Upgrade",
+                    "UpgradeOnMatch",
                 )
                 .await
             }
@@ -724,15 +825,19 @@ async fn send_node_action_req(
     url: &str,
     batch_url: &str,
     node_ids: &[NodeId],
+    status: &[NodeStatus],
     interval: u64,
     action_type: &str,
 ) -> Result<CliCmdResponse> {
-    if node_ids.len() > 1 {
-        // create batch for multiple ids
+    if node_ids.len() > 1 || !status.is_empty() {
+        // create batch for multiple ids and status
         // TODO: use some crate which performs this serialisation
         let mut body = "".to_string();
         for (i, node_id) in node_ids.iter().enumerate() {
-            body = format!("{body}batch_type[{action_type}][{i}]={node_id}&");
+            body = format!("{body}batch_on_match[{action_type}][node_ids][{i}]={node_id}&");
+        }
+        for (i, s) in status.iter().enumerate() {
+            body = format!("{body}batch_on_match[{action_type}][status][{i}]={s}&");
         }
         let body = format!("{body}interval_secs={interval}");
         let batch_id = send_req::<u16>(batch_url, Some(body)).await?;
@@ -744,5 +849,27 @@ async fn send_node_action_req(
     } else {
         send_req::<()>(url, None).await?;
         Ok(CliCmdResponse::Success)
+    }
+}
+
+// Helper to try to create a actions batch with a filter based
+// on the list of node ids and status provided by the user.
+async fn try_create_batch(
+    mut batch_type: BatchOnMatch,
+    id: &Option<Vec<NodeId>>,
+    status: &Option<Vec<NodeStatus>>,
+    interval: u64,
+) -> Result<Option<CliCmdResponse>, ServerFnError> {
+    if id.as_ref().map(|ids| ids.len()).unwrap_or(0) > 1
+        || status.as_ref().map(|s| s.len()).unwrap_or(0) > 0
+    {
+        batch_type.set_filter(NodeFilter {
+            node_ids: id.clone(),
+            status: status.clone(),
+        });
+        let batch_id = node_action_batch_on_match(batch_type, interval).await?;
+        Ok(Some(CliCmdResponse::BatchCreated(batch_id)))
+    } else {
+        Ok(None)
     }
 }

@@ -1,6 +1,6 @@
 use super::{
     node_instance::NodeId,
-    server_api_types::{NodesInstancesInfo, QueryFilter},
+    server_api_types::{NodeFilter, NodesInstancesInfo},
 };
 
 use leptos::prelude::*;
@@ -28,7 +28,7 @@ use ssr_imports_and_defs::*;
 /// Obtain the list of existing nodes instances with their info
 #[server(ListNodeInstances, "/api", "Url", "/nodes/list")]
 pub async fn nodes_instances(
-    filter: Option<QueryFilter>,
+    filter: Option<NodeFilter>,
 ) -> Result<NodesInstancesInfo, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
     let latest_bin_version = context.latest_bin_version.lock().await.clone();

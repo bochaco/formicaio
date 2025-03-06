@@ -9,22 +9,38 @@ pub type NodeList = HashMap<String, NodeInstanceInfo>;
 
 /// API filters
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct QueryFilter {
+pub struct NodeFilter {
     pub node_ids: Option<Vec<NodeId>>,
     pub status: Option<Vec<NodeStatus>>,
 }
 
-impl QueryFilter {
+impl NodeFilter {
     pub fn passes(&self, node_id: &NodeId, status: &NodeStatus) -> bool {
-        self.node_ids
-            .as_ref()
-            .map(|ids| ids.contains(node_id))
-            .unwrap_or(true)
-            && self
-                .status
+        if let Some(ids) = self.node_ids.as_ref() {
+            ids.contains(node_id)
+                || self
+                    .status
+                    .as_ref()
+                    .map(|s| s.contains(status))
+                    .unwrap_or(false)
+        } else {
+            self.status
                 .as_ref()
                 .map(|s| s.contains(status))
                 .unwrap_or(true)
+        }
+    }
+
+    pub fn matches(&self, node_id: &NodeId, status: &NodeStatus) -> bool {
+        self.node_ids
+            .as_ref()
+            .map(|ids| ids.contains(node_id))
+            .unwrap_or(false)
+            || self
+                .status
+                .as_ref()
+                .map(|s| s.contains(status))
+                .unwrap_or(false)
     }
 }
 
@@ -153,6 +169,28 @@ impl fmt::Display for BatchType {
             BatchType::Upgrade(_) => write!(f, "UPGRADE"),
             BatchType::Recycle(_) => write!(f, "RECYCLE"),
             BatchType::Remove(_) => write!(f, "REMOVE"),
+        }
+    }
+}
+
+/// Type of batch to create with the list of nodes that match the filter
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum BatchOnMatch {
+    StartOnMatch(NodeFilter),
+    StopOnMatch(NodeFilter),
+    UpgradeOnMatch(NodeFilter),
+    RecycleOnMatch(NodeFilter),
+    RemoveOnMatch(NodeFilter),
+}
+
+impl BatchOnMatch {
+    pub fn set_filter(&mut self, filter: NodeFilter) {
+        match self {
+            Self::StartOnMatch(f) => *f = filter,
+            Self::StopOnMatch(f) => *f = filter,
+            Self::UpgradeOnMatch(f) => *f = filter,
+            Self::RecycleOnMatch(f) => *f = filter,
+            Self::RemoveOnMatch(f) => *f = filter,
         }
     }
 }
