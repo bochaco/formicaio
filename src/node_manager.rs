@@ -429,7 +429,7 @@ impl NodeManager {
     pub async fn upgrade_node(
         &self,
         node_info: &mut NodeInstanceInfo,
-    ) -> Result<(), NodeManagerError> {
+    ) -> Result<NodePid, NodeManagerError> {
         logging::log!("[UPGRADE] Upgrading node {} ...", node_info.node_id);
 
         // restart node to run with new node version
@@ -439,9 +439,9 @@ impl NodeManager {
         // let's delay it for a moment so it closes files descriptors
         sleep(Duration::from_secs(4)).await;
 
-        self.spawn_new_node(node_info).await?;
+        let pid = self.spawn_new_node(node_info).await?;
 
-        Ok(())
+        Ok(pid)
     }
 
     // Download/upgrade the master node binary which is used for new nodes to be spawned.
@@ -501,7 +501,7 @@ impl NodeManager {
     pub async fn regenerate_peer_id(
         &self,
         node_info: &mut NodeInstanceInfo,
-    ) -> Result<(), NodeManagerError> {
+    ) -> Result<NodePid, NodeManagerError> {
         logging::log!(
             "[RECYCLE] Recycling node {} by clearing its peer-id ...",
             node_info.node_id
@@ -517,11 +517,14 @@ impl NodeManager {
 
         // restart node to obtain a new peer-id
         let _res = self.kill_node(&node_info.node_id).await;
-        self.spawn_new_node(node_info).await?;
+        let pid = self.spawn_new_node(node_info).await?;
 
-        logging::log!("Finished recycling node: {}", node_info.node_id);
+        logging::log!(
+            "Finished recycling node {}, new PID: {pid}",
+            node_info.node_id
+        );
 
-        Ok(())
+        Ok(pid)
     }
 
     // Return a node logs stream.

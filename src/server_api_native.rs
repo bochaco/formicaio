@@ -315,11 +315,13 @@ pub(crate) async fn helper_upgrade_node_instance(
 
     let res = node_manager.upgrade_node(&mut node_info).await;
 
-    if res.is_ok() {
+    if let Ok(pid) = res {
         logging::log!(
-            "Node binary upgraded to v{} in node {node_id}.",
+            "Node binary upgraded to v{} in node {node_id}, new PID: {pid}.",
             node_info.bin_version.as_deref().unwrap_or("[unknown]")
         );
+
+        db_client.update_node_pid(node_id, pid).await;
 
         node_info.status = NodeStatus::Transitioned("Upgraded".to_string());
         node_info.status_changed = Some(Utc::now().timestamp() as u64);
@@ -329,7 +331,8 @@ pub(crate) async fn helper_upgrade_node_instance(
 
     node_status_locked.remove(node_id).await;
 
-    Ok(res?)
+    res?;
+    Ok(())
 }
 
 // Helper to recycle a node instance by restarting it with a new node peer-id
@@ -352,10 +355,12 @@ pub(crate) async fn helper_recycle_node_instance(
         .update_node_status(&node_id, NodeStatus::Recycling)
         .await;
 
-    context
+    let pid = context
         .node_manager
         .regenerate_peer_id(&mut node_info)
         .await?;
+    context.db_client.update_node_pid(&node_id, pid).await;
+
     node_info.status = NodeStatus::Active;
     node_info.status_changed = Some(Utc::now().timestamp() as u64);
     context
