@@ -1,10 +1,14 @@
-use crate::{helpers::truncated_balance_str, server_api::*, server_api_types::*};
+use crate::{
+    helpers::truncated_balance_str, server_api::*, server_api_types::*,
+    sort_nodes::NodesSortStrategy,
+};
 
 #[cfg(feature = "ssr")]
-use eyre::{eyre, Result, WrapErr};
+use eyre::{Result, WrapErr};
 
 use alloy_primitives::{utils::format_units, Address};
 use chrono::{DateTime, Local, Utc};
+use eyre::eyre;
 use leptos::prelude::ServerFnError;
 use prettytable::{format, row, Table};
 use std::{io::Write, net::SocketAddr};
@@ -55,6 +59,9 @@ pub enum NodesSubcommands {
         /// Display all details of each listed node
         #[structopt(short, long, global = true)]
         extended: bool,
+        /// Sort nodes using chosen strategy
+        #[structopt(long, parse(try_from_str = parse_sort_strategy), possible_values = &NodesSortStrategy::variants().iter().map(|v| v.as_arg_str()).collect::<Vec<_>>())]
+        sort: Option<NodesSortStrategy>,
     },
     /// Create nodes instances
     Create(NodeOptsCmd),
@@ -172,6 +179,11 @@ fn parse_node_status(src: &str) -> eyre::Result<NodeStatus> {
     Ok(status)
 }
 
+// Parser for the node sort strategy CLI args
+fn parse_sort_strategy(src: &str) -> eyre::Result<NodesSortStrategy> {
+    NodesSortStrategy::from_str(src).ok_or(eyre!("Not a valid sort option: {src}"))
+}
+
 #[derive(Debug, PartialEq, StructOpt)]
 pub enum BatchesSubcommands {
     /// List running and scheduled nodes actions batches
@@ -191,7 +203,7 @@ pub enum SettingsSubcommands {
 
 #[derive(Debug)]
 pub enum CliCmdResponse {
-    Nodes(NodeList, bool),
+    Nodes(Vec<NodeInstanceInfo>, bool),
     NodeCreated(NodeInstanceInfo),
     Stats(Stats),
     Batches(Vec<NodesActionsBatch>),
@@ -208,15 +220,21 @@ impl CliCommands {
                 id,
                 status,
                 extended,
-            }) => CliCmdResponse::Nodes(
-                nodes_instances(Some(NodeFilter {
+                sort,
+            }) => {
+                let mut sorted_nodes = nodes_instances(Some(NodeFilter {
                     node_ids: id.clone(),
                     status: status.clone(),
                 }))
                 .await?
-                .nodes,
-                *extended,
-            ),
+                .nodes
+                .values()
+                .cloned()
+                .collect::<Vec<_>>();
+                let sort_strategy = sort.unwrap_or(NodesSortStrategy::NodeId(false));
+                sort_strategy.sort_items(&mut sorted_nodes);
+                CliCmdResponse::Nodes(sorted_nodes, *extended)
+            }
             CliCommands::Nodes(NodesSubcommands::Create(node_opts_cmd)) => {
                 let node_opts = NodeOpts {
                     port: node_opts_cmd.port,
@@ -377,6 +395,7 @@ impl CliCommands {
                 id,
                 status,
                 extended,
+                sort,
             }) => {
                 // TODO: use some crate which performs this serialisation
                 let mut body = "".to_string();
@@ -399,7 +418,13 @@ impl CliCommands {
 
                 send_req(&format!("{api_url}/nodes/list"), Some(body))
                     .await
-                    .map(|res: NodesInstancesInfo| CliCmdResponse::Nodes(res.nodes, *extended))
+                    .map(|res: NodesInstancesInfo| {
+                        let mut sorted_nodes = res.nodes.values().cloned().collect::<Vec<_>>();
+                        let sort_strategy = sort.unwrap_or(NodesSortStrategy::NodeId(false));
+                        sort_strategy.sort_items(&mut sorted_nodes);
+
+                        CliCmdResponse::Nodes(sorted_nodes, *extended)
+                    })
             }
             CliCommands::Nodes(NodesSubcommands::Create(opts)) => {
                 if opts.count > 1 {
@@ -574,7 +599,7 @@ impl CliCmdResponse {
         match self {
             CliCmdResponse::Nodes(nodes, extended) => {
                 if *extended {
-                    for info in nodes.values() {
+                    for info in nodes {
                         let mut table = Table::new();
                         table.set_format(*format::consts::FORMAT_NO_LINESEP_WITH_TITLE);
                         table.set_titles(row!["Node Id", info.short_node_id()]);
@@ -651,7 +676,7 @@ impl CliCmdResponse {
                         "Conn. peers",
                         "Status"
                     ]);
-                    for info in nodes.values() {
+                    for info in nodes {
                         table.add_row(row![
                             info.short_node_id(),
                             value_or_dash(info.mem_used.map(|v| format!("{v:.2} MB"))),

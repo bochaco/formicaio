@@ -159,13 +159,13 @@ pub async fn node_action_batch_on_match(
     #[cfg(not(feature = "native"))]
     let nodes_list = context.docker_client.get_containers_list(true).await?;
     #[cfg(feature = "native")]
-    let nodes_list = context.db_client.get_nodes_list().await;
+    let nodes_list = context.db_client.get_nodes_list().await.into_values();
 
     let matching_nodes = move |filter: NodeFilter| {
         nodes_list
             .into_iter()
-            .filter(|(_, info)| filter.matches(&info.short_node_id(), &info.status))
-            .map(|(_, info)| info.node_id)
+            .filter(|info| filter.matches(&info.short_node_id(), &info.status))
+            .map(|info| info.node_id)
             .collect::<Vec<_>>()
     };
 

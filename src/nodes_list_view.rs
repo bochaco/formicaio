@@ -32,7 +32,10 @@ pub fn NodesListView() -> impl IntoView {
     // we display the instances sorted with the currently selected strategy
     let sorted_nodes = Memo::new(move |_| {
         let mut sorted = context.nodes.get().1.into_iter().collect::<Vec<_>>();
-        context.nodes_sort_strategy.read().sort_items(&mut sorted);
+        context
+            .nodes_sort_strategy
+            .read()
+            .sort_view_items(&mut sorted);
         sorted
     });
 
