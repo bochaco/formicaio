@@ -26,16 +26,10 @@ First create an empty pod with network mode set to host so its container can sha
 $ podman pod create -p 52100:52100 --name formicaio-pod
 ```
 
-## Add Docker container to the pod
-Add a container which runs Docker-in-Docker (DIND) so that the Formicaio app/container can use its local socket file to communicate with its API (this allows Formicaio and the pod to run on any platform without needing to adapt to different platforms):
-```
-$ podman run --name docker -dt --privileged -v pod_volume_formicaio:/var/run -v pod_volume_formicaio:/data -v pod_volume_formicaio:/var/lib/docker --pod formicaio-pod docker:27.4.1-dind@sha256:3c8fb358b82767a38189e54a89a2ba8d71109f0a17efa87fd009ef8283c46df6 --data-root /data/docker --exec-root /data/docker/exec --host unix:///var/run/docker.sock --pidfile /data/docker/docker.pid
-```
-
-## Add Formicaio container to the pod
+## Add (and run) Formicaio container to the pod
 Add the Formicaio container to the pod:
 ```
-$ podman run --name formicaio -dt -v pod_volume_formicaio:/var/run -v pod_volume_formicaio:/data -e DB_PATH=/data -e DOCKER_SOCKET_PATH=/var/run/docker.sock -e NODE_CONTAINER_IMAGE_TAG=latest -e HOME_NETWORK_ONLY=true --pod formicaio-pod docker.io/bochaco/formicaio:latest
+$ podman run --name formicaio -dt -v pod_volume_formicaio:/data -e DB_PATH=/data -e NODE_MGR_ROOT_DIR=/data --pod formicaio-pod docker.io/bochaco/formicaio:latest-native
 ```
 
 ## Generate Kubernetes YAML file

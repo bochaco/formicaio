@@ -129,11 +129,11 @@ To see the logs you can simply use the following command:
 $ podman logs -f formicaio-pod-formicaio 
 ```
 
-Upgrading the application (without stopping the running node instances) can be simply achieved by pulling the new Formicaio image and restarting the service:
+Upgrading the application can be simply achieved by pulling the new Formicaio image and restarting the service:
 ```
-$ podman pull docker.io/bochaco/formicaio:latest
+$ podman pull docker.io/bochaco/formicaio:latest-native
 $ podman rm formicaio-pod-formicaio -f
-$ podman run --name formicaio-pod-formicaio -dt -v pod_volume_formicaio:/var/run -v pod_volume_formicaio:/data -e DB_PATH=/data -e DOCKER_SOCKET_PATH=/var/run/docker.sock -e NODE_CONTAINER_IMAGE_TAG=latest -e HOME_NETWORK_ONLY=true --pod formicaio-pod docker.io/bochaco/formicaio:latest
+$ podman run --name formicaio -dt -v pod_volume_formicaio:/data -e DB_PATH=/data -e NODE_MGR_ROOT_DIR=/data --pod formicaio-pod docker.io/bochaco/formicaio:latest-native
 ```
 
 For stopping the Formicaio app and services simply run:

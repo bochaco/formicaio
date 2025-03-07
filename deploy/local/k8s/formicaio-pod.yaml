@@ -1,72 +1,32 @@
 # Save the output of this file and use kubectl create -f to import
 # it into Kubernetes.
 #
-# Created with podman-4.3.1
+# Created with podman-5.0.3
 apiVersion: v1
 kind: Pod
 metadata:
-  creationTimestamp: "2025-01-12T15:54:36Z"
+  creationTimestamp: "2025-03-07T19:49:14Z"
   labels:
     app: formicaio-pod
   name: formicaio-pod
 spec:
-  automountServiceAccountToken: false
   containers:
-  - args:
-    - --data-root
-    - /data/docker
-    - --exec-root
-    - /data/docker/exec
-    - --host
-    - unix:///var/run/docker.sock
-    - --pidfile
-    - /data/docker/docker.pid
-    image: docker.io/library/docker@sha256:3c8fb358b82767a38189e54a89a2ba8d71109f0a17efa87fd009ef8283c46df6
-    name: docker
+  - env:
+    - name: DB_PATH
+      value: /data
+    - name: NODE_MGR_ROOT_DIR
+      value: /data
+    image: docker.io/bochaco/formicaio:latest-native
+    name: formicaio
     ports:
     - containerPort: 52100
       hostPort: 52100
-    resources: {}
-    securityContext:
-      privileged: true
     tty: true
     volumeMounts:
-    - mountPath: /var/lib/docker
-      name: pod_volume_formicaio-pvc
-    - mountPath: /var/run
-      name: pod_volume_formicaio-pvc
     - mountPath: /data
       name: pod_volume_formicaio-pvc
-  - env:
-    - name: NODE_CONTAINER_IMAGE_TAG
-      value: latest
-    - name: DB_PATH
-      value: /data
-    - name: DOCKER_SOCKET_PATH
-      value: /var/run/docker.sock
-    - name: HOME_NETWORK_ONLY
-      value: "true"
-    image: docker.io/bochaco/formicaio:latest
-    name: formicaio
-    resources: {}
-    securityContext:
-      capabilities:
-        drop:
-        - CAP_MKNOD
-        - CAP_NET_RAW
-        - CAP_AUDIT_WRITE
-    tty: true
-    volumeMounts:
-    - mountPath: /var/run
-      name: pod_volume_formicaio-pvc
-    - mountPath: /data
-      name: pod_volume_formicaio-pvc
-  enableServiceLinks: false
-  hostname: formicaio-pod
-  restartPolicy: Never
   volumes:
   - name: pod_volume_formicaio-pvc
     persistentVolumeClaim:
       claimName: pod_volume_formicaio
-status: {}
 
