@@ -246,7 +246,7 @@ impl CliCommands {
                     auto_start: node_opts_cmd.auto_start,
                 };
                 if node_opts_cmd.count > 1 {
-                    let batch_id = node_action_batch(
+                    let batch_id = nodes_actions_batch_create(
                         BatchType::Create {
                             node_opts,
                             count: node_opts_cmd.count,
@@ -370,9 +370,9 @@ impl CliCommands {
                 }
                 CliCmdResponse::Success
             }
-            CliCommands::Stats => CliCmdResponse::Stats(nodes_instances(None).await?.stats),
+            CliCommands::Stats => CliCmdResponse::Stats(fetch_stats().await?),
             CliCommands::Batches(BatchesSubcommands::Ls) => {
-                CliCmdResponse::Batches(nodes_instances(None).await?.scheduled_batches)
+                CliCmdResponse::Batches(nodes_actions_batches().await?)
             }
             CliCommands::Batches(BatchesSubcommands::Cancel { batch_id }) => {
                 cancel_batch(*batch_id).await?;
@@ -443,7 +443,7 @@ impl CliCommands {
                     );
 
                     let batch_id =
-                        send_req::<u16>(&format!("{api_url}/batch/new"), Some(body)).await?;
+                        send_req::<u16>(&format!("{api_url}/batch/create"), Some(body)).await?;
                     Ok(CliCmdResponse::BatchCreated(batch_id))
                 } else {
                     // TODO: use some crate which performs this serialisation
@@ -477,7 +477,7 @@ impl CliCommands {
                 // FIXME: bail out if no ids or status given
                 send_node_action_req(
                     &format!("{api_url}/nodes/delete"),
-                    &format!("{api_url}/batch/new_on_match"),
+                    &format!("{api_url}/batch/create_on_match"),
                     &id.clone().unwrap_or_default(),
                     &status.clone().unwrap_or_default(),
                     *interval,
@@ -493,7 +493,7 @@ impl CliCommands {
                 // FIXME: bail out if no ids or status given
                 send_node_action_req(
                     &format!("{api_url}/nodes/start"),
-                    &format!("{api_url}/batch/new_on_match"),
+                    &format!("{api_url}/batch/create_on_match"),
                     &id.clone().unwrap_or_default(),
                     &status.clone().unwrap_or_default(),
                     *interval,
@@ -509,7 +509,7 @@ impl CliCommands {
                 // FIXME: bail out if no ids or status given
                 send_node_action_req(
                     &format!("{api_url}/nodes/stop"),
-                    &format!("{api_url}/batch/new_on_match"),
+                    &format!("{api_url}/batch/create_on_match"),
                     &id.clone().unwrap_or_default(),
                     &status.clone().unwrap_or_default(),
                     *interval,
@@ -525,7 +525,7 @@ impl CliCommands {
                 // FIXME: bail out if no ids or status given
                 send_node_action_req(
                     &format!("{api_url}/nodes/recycle"),
-                    &format!("{api_url}/batch/new_on_match"),
+                    &format!("{api_url}/batch/create_on_match"),
                     &id.clone().unwrap_or_default(),
                     &status.clone().unwrap_or_default(),
                     *interval,
@@ -541,7 +541,7 @@ impl CliCommands {
                 // FIXME: bail out if no ids or status given
                 send_node_action_req(
                     &format!("{api_url}/nodes/upgrade"),
-                    &format!("{api_url}/batch/new_on_match"),
+                    &format!("{api_url}/batch/create_on_match"),
                     &id.clone().unwrap_or_default(),
                     &status.clone().unwrap_or_default(),
                     *interval,
@@ -549,13 +549,13 @@ impl CliCommands {
                 )
                 .await
             }
-            CliCommands::Stats => send_req(&format!("{api_url}/nodes/list"), None)
+            CliCommands::Stats => send_req(&format!("{api_url}/stats"), None)
                 .await
-                .map(|res: NodesInstancesInfo| CliCmdResponse::Stats(res.stats)),
+                .map(|res: Stats| CliCmdResponse::Stats(res)),
             CliCommands::Batches(BatchesSubcommands::Ls) => {
-                send_req(&format!("{api_url}/nodes/list"), None)
+                send_req(&format!("{api_url}/batch/list"), None)
                     .await
-                    .map(|res: NodesInstancesInfo| CliCmdResponse::Batches(res.scheduled_batches))
+                    .map(|res: Vec<NodesActionsBatch>| CliCmdResponse::Batches(res))
             }
             CliCommands::Batches(BatchesSubcommands::Cancel { batch_id }) => {
                 let body = format!("batch_id={batch_id}");
@@ -892,7 +892,7 @@ async fn try_create_batch(
             node_ids: id.clone(),
             status: status.clone(),
         });
-        let batch_id = node_action_batch_on_match(batch_type, interval).await?;
+        let batch_id = nodes_actions_batch_on_match(batch_type, interval).await?;
         Ok(Some(CliCmdResponse::BatchCreated(batch_id)))
     } else {
         Ok(None)

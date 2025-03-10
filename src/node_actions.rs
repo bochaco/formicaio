@@ -4,8 +4,8 @@ use super::{
     icons::*,
     node_instance::{NodeInstanceInfo, NodeStatus},
     server_api::{
-        node_action_batch, parse_and_validate_addr, recycle_node_instance, start_node_instance,
-        stop_node_instance, upgrade_node_instance,
+        nodes_actions_batch_create, parse_and_validate_addr, recycle_node_instance,
+        start_node_instance, stop_node_instance, upgrade_node_instance,
     },
     server_api_types::{BatchType, NodeOpts, NodesActionsBatch},
 };
@@ -713,7 +713,7 @@ fn apply_on_selected(action: NodeAction, context: ClientGlobalState) {
     };
 
     spawn_local(async move {
-        match node_action_batch(batch_type.clone(), NODES_ACTIONS_DELAY_SECS).await {
+        match nodes_actions_batch_create(batch_type.clone(), NODES_ACTIONS_DELAY_SECS).await {
             Ok(batch_id) => {
                 let batch_info =
                     NodesActionsBatch::new(batch_id, batch_type, NODES_ACTIONS_DELAY_SECS);

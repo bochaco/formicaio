@@ -1,6 +1,6 @@
 use super::{
     node_instance::{NodeId, NodeInstanceInfo},
-    server_api_types::{BatchOnMatch, BatchType, NodeOpts},
+    server_api_types::{BatchOnMatch, BatchType, NodeOpts, NodesActionsBatch, Stats},
 };
 
 use alloy_primitives::Address;
@@ -13,7 +13,7 @@ mod ssr_imports_and_defs {
     pub use crate::{
         app::{BgTasksCmds, ServerGlobalState},
         node_instance::NodeStatus,
-        server_api_types::{NodeFilter, NodesActionsBatch},
+        server_api_types::NodeFilter,
     };
     pub use futures_util::StreamExt;
     pub use leptos::logging;
@@ -32,6 +32,16 @@ pub use super::server_api_native::*;
 
 // Expected length of entered hex-encoded rewards address.
 const REWARDS_ADDR_LENGTH: usize = 40;
+
+/// Return a set of stats
+#[server(FetchStats, "/api", "Url", "/stats")]
+pub async fn fetch_stats() -> Result<Stats, ServerFnError> {
+    let context = expect_context::<ServerGlobalState>();
+    *context.server_api_hit.lock().await = true;
+
+    let stats = context.stats.lock().await.clone();
+    Ok(stats)
+}
 
 // Create and add a new node instance returning its info
 #[server(CreateNodeInstance, "/api", "Url", "/nodes/create")]
@@ -139,9 +149,19 @@ pub async fn update_settings(
     Ok(())
 }
 
-/// Prepare a node actions batch
-#[server(NewNodesActionsBatch, "/api", "Url", "/batch/new")]
-pub async fn node_action_batch(
+/// Return list of running and scheduled nodes actions batches
+#[server(ListNodesActionsBatches, "/api", "Url", "/batch/list")]
+pub async fn nodes_actions_batches() -> Result<Vec<NodesActionsBatch>, ServerFnError> {
+    let context = expect_context::<ServerGlobalState>();
+    *context.server_api_hit.lock().await = true;
+
+    let batches = context.node_action_batches.lock().await.1.clone();
+    Ok(batches)
+}
+
+/// Prepare a new nodes actions batch
+#[server(CreateNodesActionsBatch, "/api", "Url", "/batch/create")]
+pub async fn nodes_actions_batch_create(
     batch_type: BatchType,
     interval_secs: u64,
 ) -> Result<u16, ServerFnError> {
@@ -149,9 +169,14 @@ pub async fn node_action_batch(
     helper_node_action_batch(batch_type, interval_secs, &context).await
 }
 
-/// Prepare a node actions batch based on matching rules
-#[server(PrepareNodesActionsBatch, "/api", "Url", "/batch/new_on_match")]
-pub async fn node_action_batch_on_match(
+/// Create a nodes actions batch based on matching rules
+#[server(
+    CreateNodesActionsBatchOnMatch,
+    "/api",
+    "Url",
+    "/batch/create_on_match"
+)]
+pub async fn nodes_actions_batch_on_match(
     batch_on_match: BatchOnMatch,
     interval_secs: u64,
 ) -> Result<u16, ServerFnError> {

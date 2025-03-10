@@ -2,7 +2,8 @@ use super::{
     app::ClientGlobalState,
     node_instance::{NodeId, NodeInstanceInfo},
     server_api::{
-        create_node_instance, delete_node_instance, node_action_batch, start_node_logs_stream,
+        create_node_instance, delete_node_instance, nodes_actions_batch_create,
+        start_node_logs_stream,
     },
     server_api_types::{BatchType, NodeOpts, NodesActionsBatch},
 };
@@ -64,7 +65,7 @@ pub async fn add_node_instances(
 
     if count > 1 {
         let batch_type = BatchType::Create { node_opts, count };
-        let batch_id = node_action_batch(batch_type.clone(), interval_secs).await?;
+        let batch_id = nodes_actions_batch_create(batch_type.clone(), interval_secs).await?;
         context.nodes.update(|items| {
             items.1.remove(&tmp_node_id);
         });
