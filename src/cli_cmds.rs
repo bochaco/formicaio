@@ -75,7 +75,7 @@ pub enum NodesSubcommands {
         /// Multiple status can be provided, e.g. '--status active --status restarting'.
         #[structopt(long, parse(try_from_str = parse_node_status))]
         status: Option<Vec<NodeStatus>>,
-        /// Interval between each action.
+        /// Interval (in seconds) between each action.
         #[structopt(long, default_value = "0")]
         interval: u64,
     },
@@ -89,7 +89,7 @@ pub enum NodesSubcommands {
         /// Multiple status can be provided, e.g. '--status active --status restarting'.
         #[structopt(long, parse(try_from_str = parse_node_status))]
         status: Option<Vec<NodeStatus>>,
-        /// Interval between each action.
+        /// Interval (in seconds) between each action.
         #[structopt(long, default_value = "0")]
         interval: u64,
     },
@@ -103,7 +103,7 @@ pub enum NodesSubcommands {
         /// Multiple status can be provided, e.g. '--status active --status restarting'.
         #[structopt(long, parse(try_from_str = parse_node_status))]
         status: Option<Vec<NodeStatus>>,
-        /// Interval between each action.
+        /// Interval (in seconds) between each action.
         #[structopt(long, default_value = "0")]
         interval: u64,
     },
@@ -117,7 +117,7 @@ pub enum NodesSubcommands {
         /// Multiple status can be provided, e.g. '--status active --status restarting'.
         #[structopt(long, parse(try_from_str = parse_node_status))]
         status: Option<Vec<NodeStatus>>,
-        /// Interval between each action.
+        /// Interval (in seconds) between each action.
         #[structopt(long, default_value = "0")]
         interval: u64,
     },
@@ -131,7 +131,7 @@ pub enum NodesSubcommands {
         /// Multiple status can be provided, e.g. '--status active --status restarting'.
         #[structopt(long, parse(try_from_str = parse_node_status))]
         status: Option<Vec<NodeStatus>>,
-        /// Interval between each action.
+        /// Interval (in seconds) between each action.
         #[structopt(long, default_value = "0")]
         interval: u64,
     },
