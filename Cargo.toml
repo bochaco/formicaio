@@ -84,6 +84,10 @@ ssr = [
     "leptos_router/ssr",
 ]
 
+# Reduce the amount of debug info to avoid OOM whe linking (the default is 2 for dev and test builds)
+[profile.dev]
+debug = 1
+
 # Defines a size-optimized profile for the WASM bundle in release mode
 [profile.wasm-release]
 inherits = "release"

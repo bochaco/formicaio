@@ -1,8 +1,9 @@
 use leptos::prelude::*;
 
 use super::{
-    icons::{IconHamburguer, IconSettings},
+    icons::{IconHamburguer, IconSettings, IconSort},
     settings::SettingsView,
+    sort_nodes::SortStrategyView,
 };
 
 #[derive(Clone, PartialEq)]
@@ -40,6 +41,19 @@ pub fn NavBar() -> impl IntoView {
                         <IconSettings />
                     </button>
                     <SettingsView settings_panel />
+
+                    <button
+                        type="button"
+                        class="flex text-sm rounded-full md:me-0 focus:ring-4 focus:ring-gray-300 dark:focus:ring-gray-600"
+                        id="user-menu-button"
+                        aria-expanded="false"
+                        data-dropdown-toggle="sort-strategy-dropdown"
+                        data-dropdown-placement="bottom"
+                    >
+                        <span class="sr-only">Sort strategy</span>
+                        <IconSort />
+                    </button>
+                    <SortStrategyView attr:id="sort-strategy-dropdown" />
 
                     <button
                         data-collapse-toggle="navbar-sections"

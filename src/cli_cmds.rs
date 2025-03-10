@@ -181,7 +181,7 @@ fn parse_node_status(src: &str) -> eyre::Result<NodeStatus> {
 
 // Parser for the node sort strategy CLI args
 fn parse_sort_strategy(src: &str) -> eyre::Result<NodesSortStrategy> {
-    NodesSortStrategy::from_str(src).ok_or(eyre!("Not a valid sort option: {src}"))
+    NodesSortStrategy::from_arg_str(src).ok_or(eyre!("Not a valid sort option: {src}"))
 }
 
 #[derive(Debug, PartialEq, StructOpt)]

@@ -4,10 +4,11 @@ use super::{
 };
 
 use leptos::prelude::*;
+use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 
-// Sort strategy for node, inner 'true' value means descending order
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// Sort strategy for node, inner 'true' value means descending order
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Serialize)]
 pub enum NodesSortStrategy {
     NodeId(bool),
     Status(bool),
@@ -75,7 +76,7 @@ impl NodesSortStrategy {
         ]
     }
 
-    pub fn from_str(str: &str) -> Option<Self> {
+    pub fn from_arg_str(str: &str) -> Option<Self> {
         match str {
             "node-id" => Some(Self::NodeId(false)),
             "node-id-desc" => Some(Self::NodeId(true)),
@@ -180,35 +181,35 @@ pub fn SortStrategyView() -> impl IntoView {
     let context = expect_context::<ClientGlobalState>();
 
     view! {
-        <div class="flex w-full flex-col">
-            <div class="divider">
-                <select
-                    class="block py-2.5 px-0 text-sm text-gray-500 bg-transparent border-0 appearance-none dark:text-gray-400 focus:outline-none focus:ring-0 focus:border-gray-200"
-                    on:change:target=move |ev| {
-                        if let Some(v) = NodesSortStrategy::from_str(&ev.target().value()) {
-                            context.nodes_sort_strategy.set(v);
-                        }
-                    }
-                >
-                    {NodesSortStrategy::variants()
-                        .into_iter()
-                        .map(|variant| {
-                            view! {
-                                <option
-                                    selected=move || {
-                                        context.nodes_sort_strategy.read() == variant
+        <div class="z-50 hidden my-4 text-base list-none bg-white divide-y divide-gray-100 rounded-lg shadow-sm dark:bg-gray-900 dark:divide-gray-600">
+            <ul
+                class="block py-2.5 px-0 text-sm text-gray-500 bg-transparent border-0 appearance-none dark:text-gray-400 focus:outline-none focus:ring-0 focus:border-gray-200"
+                aria-labelledby="user-menu-button"
+            >
+                {NodesSortStrategy::variants()
+                    .into_iter()
+                    .map(|variant| {
+                        view! {
+                            <li>
+                                <label
+                                    class=move || {
+                                        if context.nodes_sort_strategy.read() == variant {
+                                            "block px-2 py-0 text-sm text-gray-700 bg-gray-100 dark:bg-gray-600 dark:text-gray-200 dark:hover:text-white"
+                                        } else {
+                                            "block px-2 py-0 text-sm text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 dark:text-gray-200 dark:hover:text-white"
+                                        }
                                     }
-                                    value=variant.as_arg_str().to_string()
+                                    on:click=move |_| context.nodes_sort_strategy.set(variant)
                                 >
                                     "Sort by "
                                     {variant.to_string()}
-                                </option>
-                            }
-                                .into_view()
-                        })
-                        .collect::<Vec<_>>()}
-                </select>
-            </div>
+                                </label>
+                            </li>
+                        }
+                            .into_view()
+                    })
+                    .collect::<Vec<_>>()}
+            </ul>
         </div>
     }
 }

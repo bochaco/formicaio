@@ -1,5 +1,5 @@
 use super::{
-    app::ClientGlobalState,
+    app::{ClientGlobalState, PAGE_SIZE},
     chart_view::{node_metrics_update, ChartSeriesData, NodeChartView},
     helpers::{node_logs_stream, show_alert_msg, truncated_balance_str},
     icons::{
@@ -36,7 +36,13 @@ pub fn NodesListView() -> impl IntoView {
             .nodes_sort_strategy
             .read()
             .sort_view_items(&mut sorted);
+
+        let offset = PAGE_SIZE * context.current_page.get();
         sorted
+            .into_iter()
+            .skip(offset)
+            .take(PAGE_SIZE)
+            .collect::<Vec<_>>()
     });
 
     view! {

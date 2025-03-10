@@ -13,8 +13,9 @@ use super::{
     node_actions::NodesActionsView,
     node_instance::{NodeId, NodeInstanceInfo},
     nodes_list_view::NodesListView,
+    pagination::PaginationView,
     server_api_types::{NodesActionsBatch, Stats},
-    sort_nodes::{NodesSortStrategy, SortStrategyView},
+    sort_nodes::NodesSortStrategy,
     stats::AggregatedStatsView,
     terminal::TerminalView,
 };
@@ -54,6 +55,8 @@ extern "C" {
 pub const METRICS_MAX_SIZE_PER_NODE: usize = 5_000;
 // How often we poll the backend to retrieve an up to date list of node instances.
 pub const NODES_LIST_POLLING_FREQ_MILLIS: u64 = 5_500;
+// Size of nodes list pages
+pub const PAGE_SIZE: usize = 100;
 
 // Env var to restrict the nodes to be run only with home-network mode on,
 // i.e. the home-network cannot be disabled for any node instantiated in current deployment.
@@ -154,6 +157,8 @@ pub struct ClientGlobalState {
     pub selecting_nodes: RwSignal<(bool, HashSet<NodeId>)>,
     // How to sort nodes to display them on the list
     pub nodes_sort_strategy: RwSignal<NodesSortStrategy>,
+    // Currently selected page of nodes list (0-based index)
+    pub current_page: RwSignal<usize>,
 }
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
@@ -192,6 +197,7 @@ pub fn App() -> impl IntoView {
         scheduled_batches: RwSignal::new(vec![]),
         selecting_nodes: RwSignal::new((false, HashSet::new())),
         nodes_sort_strategy: RwSignal::new(NodesSortStrategy::CreationDate(true)),
+        current_page: RwSignal::new(0usize),
     });
 
     // spawn poller task only on client side
@@ -238,7 +244,7 @@ fn HomeScreenView() -> impl IntoView {
         <OfflineMsg />
         <NodesActionsView home_net_only />
 
-        <SortStrategyView />
+        <PaginationView />
         <NodesListView />
     }
 }
@@ -316,9 +322,14 @@ fn spawn_nodes_list_polling() {
                                 let _ = nodes.insert(id.clone(), RwSignal::new(new_node));
                             })
                         });
+
+                    // make sure our pagination is not overflowing the number of nodes
+                    let count = context.nodes.with_untracked(|(_, nodes)| nodes.len());
+                    if count > 0 && context.current_page.get_untracked() >= count {
+                        context.current_page.update(|c| *c = count - 1);
+                    }
                 }
             }
-
             sleep(Duration::from_millis(NODES_LIST_POLLING_FREQ_MILLIS)).await;
         }
     });

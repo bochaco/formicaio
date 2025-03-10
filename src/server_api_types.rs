@@ -1,4 +1,7 @@
-pub use super::node_instance::{NodeId, NodeInstanceInfo, NodeStatus};
+pub use super::{
+    node_instance::{NodeId, NodeInstanceInfo, NodeStatus},
+    sort_nodes::NodesSortStrategy,
+};
 
 use alloy_primitives::U256;
 use serde::{Deserialize, Serialize};

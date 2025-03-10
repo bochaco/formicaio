@@ -343,3 +343,108 @@ pub fn IconSelectActives() -> impl IntoView {
         </svg>
     }
 }
+
+#[component]
+pub fn IconPreviousPage() -> impl IntoView {
+    view! {
+        <svg
+            class="w-2.5 h-2.5 rtl:rotate-180"
+            aria-hidden="true"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 6 10"
+        >
+            <path
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M5 1 1 5l4 4"
+            />
+        </svg>
+    }
+}
+
+#[component]
+pub fn IconFirstPage() -> impl IntoView {
+    view! {
+        <svg
+            class="w-2.5 h-2.5 rtl:rotate-180"
+            aria-hidden="true"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 10 10"
+        >
+            <path
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9 1 5 5l4 4 M1 1 1 9"
+            />
+        </svg>
+    }
+}
+
+#[component]
+pub fn IconNextPage() -> impl IntoView {
+    view! {
+        <svg
+            class="w-2.5 h-2.5 rtl:rotate-180"
+            aria-hidden="true"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 6 10"
+        >
+            <path
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="m1 9 4-4-4-4"
+            />
+        </svg>
+    }
+}
+
+#[component]
+pub fn IconLastPage() -> impl IntoView {
+    view! {
+        <svg
+            class="w-2.5 h-2.5 rtl:rotate-180"
+            aria-hidden="true"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 10 10"
+        >
+            <path
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="m1 9 4-4-4-4 M9 1 9 9"
+            />
+        </svg>
+    }
+}
+
+#[component]
+pub fn IconSort() -> impl IntoView {
+    view! {
+        <svg
+            class="w-6 h-6 text-gray-800 dark:text-white"
+            aria-hidden="true"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+        >
+            <path
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M7 4v16M7 4l3 3M7 4 4 7m9-3h6l-6 6h6m-6.5 10 3.5-7 3.5 7M14 18h4"
+            />
+        </svg>
+    }
+}
