@@ -1,10 +1,7 @@
 #[cfg(not(feature = "native"))]
 use super::docker_client::{DockerClient, DockerClientError};
 #[cfg(feature = "native")]
-use super::{
-    node_instance::NodeStatus,
-    node_manager::{NodeManager, NodeManagerError},
-};
+use super::node_manager::{NodeManager, NodeManagerError};
 
 use super::{
     app::ImmutableNodeStatus,
@@ -149,9 +146,10 @@ impl NodeManagerProxy {
         let nodes = nodes_in_db
             .into_iter()
             .filter_map(|(_, mut node_info)| {
-                node_info.status = NodeStatus::Inactive;
                 if node_info.pid.map(|pid| active_nodes.contains(&pid)) == Some(true) {
-                    node_info.status = NodeStatus::Active;
+                    node_info.set_status_active();
+                } else {
+                    node_info.set_status_inactive();
                 }
 
                 if all || node_info.status.is_active() {

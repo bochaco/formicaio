@@ -180,6 +180,24 @@ impl NodeInstanceInfo {
         })
     }
 
+    pub fn set_status_active(&mut self) {
+        match &self.status {
+            NodeStatus::Locked(s) | NodeStatus::Unknown(s) if s.is_inactive() => {
+                self.status = NodeStatus::Active
+            }
+            NodeStatus::Locked(_) | NodeStatus::Unknown(_) => {}
+            _ => self.status = NodeStatus::Active,
+        }
+    }
+
+    pub fn set_status_inactive(&mut self) {
+        match &self.status {
+            NodeStatus::Locked(s) if s.is_active() => self.status = NodeStatus::Inactive,
+            NodeStatus::Locked(_) => {}
+            _ => self.status = NodeStatus::Inactive,
+        }
+    }
+
     pub fn set_status_to_unknown(&mut self) {
         if !self.status.is_unknown() {
             self.status_changed = Some(Utc::now().timestamp() as u64);

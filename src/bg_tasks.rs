@@ -7,7 +7,7 @@ use super::{
     db_client::DbClient,
     helpers::truncated_balance_str,
     metrics_client::{NodeMetricsClient, NodesMetrics},
-    node_instance::NodeInstanceInfo,
+    node_instance::{NodeInstanceInfo, NodeStatus},
     server_api_types::{AppSettings, Stats},
 };
 use alloy::{
@@ -344,6 +344,7 @@ async fn update_nodes_info(
                         let mut node_metrics = nodes_metrics.lock().await;
                         node_metrics.store(&node_info.node_id, &metrics).await;
                         node_metrics.update_node_info(&mut node_info);
+                        node_info.status = NodeStatus::Active;
                     }
                     Ok(Err(err)) => {
                         node_info.set_status_to_unknown();
