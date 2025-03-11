@@ -463,14 +463,16 @@ impl DbClient {
     // Convenient method to lock node status field and status-changed timestamp
     pub async fn set_node_status_to_locked(&self, node_id: &str) {
         let current_status = self.get_node_status(node_id).await;
-        self.update_node_metadata_fields(
-            node_id,
-            &[(
-                "status",
-                &json!(&NodeStatus::Locked(Box::new(current_status))).to_string(),
-            )],
-        )
-        .await
+        if !current_status.is_locked() {
+            self.update_node_metadata_fields(
+                node_id,
+                &[(
+                    "status",
+                    &json!(&NodeStatus::Locked(Box::new(current_status))).to_string(),
+                )],
+            )
+            .await
+        }
     }
 
     // Convenient method to unlock node status and set it to its previous status
