@@ -118,22 +118,26 @@ async fn start_backend(listen_addr: Option<std::net::SocketAddr>) -> eyre::Resul
         *app_state.latest_bin_version.lock().await = Some(version);
 
         // let's create a batch to start nodes which were Active
+        use formicaio::node_instance::NodeStatus;
         let nodes_in_db = app_state.db_client.get_nodes_list().await;
-        let active_nodes = nodes_in_db
-            .into_iter()
-            .filter(|(_, node_info)| node_info.status.is_active())
-            .map(|(id, _)| id)
-            .collect::<Vec<_>>();
-
-        if !active_nodes.is_empty() {
-            // let's set them to inactive otherwise they won't be started
-            for node_id in active_nodes.iter() {
+        let mut active_nodes = vec![];
+        for (node_id, node_info) in nodes_in_db {
+            if node_info.status.is_active() {
+                // let's set it to inactive otherwise it won't be started
                 app_state
                     .db_client
-                    .update_node_status(node_id, formicaio::node_instance::NodeStatus::Inactive)
+                    .update_node_status(&node_id, NodeStatus::Inactive)
+                    .await;
+                active_nodes.push(node_id);
+            } else if let NodeStatus::Locked(status) = node_info.status {
+                app_state
+                    .db_client
+                    .update_node_status(&node_id, *status)
                     .await;
             }
+        }
 
+        if !active_nodes.is_empty() {
             let _ = formicaio::server_api::helper_node_action_batch(
                 formicaio::server_api_types::BatchType::Start(active_nodes),
                 0,
