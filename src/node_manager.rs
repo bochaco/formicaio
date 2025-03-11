@@ -209,7 +209,7 @@ impl NodeManager {
         command.stderr(Stdio::null());
         command.current_dir(&self.root_dir);
 
-        logging::log!("Spawning new node with cmd: {command:?}");
+        logging::log!("Spawning new node {node_id} with cmd: {command:?}");
         // Run the node
         match command.spawn() {
             Ok(child) => {
@@ -229,14 +229,14 @@ impl NodeManager {
                         node_info.ips = ips;
                     }
                     Err(err) => {
-                        logging::error!("Failed to obtain node bin version and peer id: {err:?}")
+                        logging::error!("Failed to obtain node bin version and peer id for node {node_id}: {err:?}")
                     }
                 }
 
                 Ok(pid)
             }
             Err(err) => {
-                logging::error!("Failed to spawn new node: {err:?}");
+                logging::error!("Failed to spawn new node {node_id}: {err:?}");
                 Err(NodeManagerError::CannotCreateNode(err.to_string()))
             }
         }
