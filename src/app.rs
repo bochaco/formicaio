@@ -253,13 +253,13 @@ fn HomeScreenView() -> impl IntoView {
 #[cfg(feature = "hydrate")]
 fn spawn_nodes_list_polling() {
     spawn_local(async {
-        logging::log!("Polling server every {NODES_LIST_POLLING_FREQ_MILLIS}ms. ...");
         let context = expect_context::<ClientGlobalState>();
         loop {
-            match nodes_instances(None).await {
+            let delay_millis = match nodes_instances(None).await {
                 Err(err) => {
                     context.is_online.set(false);
                     logging::log!("Failed to get up to date nodes info from server: {err}");
+                    0u64
                 }
                 Ok(info) => {
                     context.is_online.set(true);
@@ -328,9 +328,15 @@ fn spawn_nodes_list_polling() {
                     if count > 0 && context.current_page.get_untracked() >= count {
                         context.current_page.update(|c| *c = count - 1);
                     }
+
+                    // the larger the number of nodes, the longer the delay
+                    (count / PAGE_SIZE) as u64 * 1_000
                 }
-            }
-            sleep(Duration::from_millis(NODES_LIST_POLLING_FREQ_MILLIS)).await;
+            };
+
+            let delay = Duration::from_millis(NODES_LIST_POLLING_FREQ_MILLIS + delay_millis);
+            logging::log!("Polling server again in {delay:?} ...");
+            sleep(delay).await;
         }
     });
 }
