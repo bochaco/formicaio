@@ -716,9 +716,9 @@ fn ButtonStopStart(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                 }
                 on:click=move |_| spawn_local(async move {
                     if info.read_untracked().status.is_inactive() {
-                        NodeAction::Start.apply(&info).await;
+                        NodeAction::Start.apply(&info, &context.stats).await;
                     } else {
-                        NodeAction::Stop.apply(&info).await;
+                        NodeAction::Stop.apply(&info, &context.stats).await;
                     }
                 })
             >
@@ -759,7 +759,7 @@ fn ButtonUpgrade(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                     }
                 }
                 on:click=move |_| spawn_local(async move {
-                    NodeAction::Upgrade.apply(&info).await;
+                    NodeAction::Upgrade.apply(&info, &context.stats).await;
                 })
             >
                 <IconUpgradeNode color="green".to_string() />
@@ -786,7 +786,7 @@ fn ButtonRecycle(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                     }
                 }
                 on:click=move |_| spawn_local(async move {
-                    NodeAction::Recycle.apply(&info).await;
+                    NodeAction::Recycle.apply(&info, &context.stats).await;
                 })
             >
                 <IconRecycle />
@@ -810,7 +810,7 @@ fn ButtonRemove(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                     }
                 }
                 on:click=move |_| spawn_local(async move {
-                    NodeAction::Remove.apply(&info).await;
+                    NodeAction::Remove.apply(&info, &context.stats).await;
                 })
             >
 

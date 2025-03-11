@@ -7,7 +7,7 @@ use super::{
         nodes_actions_batch_create, parse_and_validate_addr, recycle_node_instance,
         start_node_instance, stop_node_instance, upgrade_node_instance,
     },
-    server_api_types::{BatchType, NodeOpts, NodesActionsBatch},
+    server_api_types::{BatchType, NodeOpts, NodesActionsBatch, Stats},
 };
 
 use leptos::{logging, prelude::*, task::spawn_local};
@@ -31,7 +31,7 @@ pub enum NodeAction {
 
 impl NodeAction {
     // Apply the action to the given node instance
-    pub async fn apply(&self, info: &RwSignal<NodeInstanceInfo>) {
+    pub async fn apply(&self, info: &RwSignal<NodeInstanceInfo>, stats: &RwSignal<Stats>) {
         let node_id = info.read_untracked().node_id.clone();
         let previous_status = info.read_untracked().status.clone();
         let res = match self {
@@ -40,6 +40,10 @@ impl NodeAction {
                     return;
                 }
                 info.update(|node| node.status = NodeStatus::Restarting);
+                stats.update(|stats| {
+                    stats.active_nodes -= 1;
+                    stats.inactive_nodes += 1;
+                });
                 start_node_instance(node_id.clone()).await
             }
             Self::Stop => {
@@ -47,13 +51,17 @@ impl NodeAction {
                     return;
                 }
                 info.update(|node| node.status = NodeStatus::Stopping);
+                stats.update(|stats| {
+                    stats.active_nodes -= 1;
+                    stats.inactive_nodes += 1;
+                });
                 let res = stop_node_instance(node_id.clone()).await;
 
                 if matches!(res, Ok(())) {
                     info.update(|node| {
                         node.connected_peers = Some(0);
                         node.kbuckets_peers = Some(0);
-                    })
+                    });
                 }
 
                 res
@@ -63,6 +71,10 @@ impl NodeAction {
                     return;
                 }
                 info.update(|node| node.status = NodeStatus::Upgrading);
+                stats.update(|stats| {
+                    stats.active_nodes -= 1;
+                    stats.inactive_nodes += 1;
+                });
                 let res = upgrade_node_instance(node_id.clone()).await;
 
                 if matches!(res, Ok(())) {
@@ -78,10 +90,22 @@ impl NodeAction {
                     return;
                 }
                 info.update(|node| node.status = NodeStatus::Recycling);
+                stats.update(|stats| {
+                    stats.active_nodes -= 1;
+                    stats.inactive_nodes += 1;
+                });
                 recycle_node_instance(node_id.clone()).await
             }
             Self::Remove => {
                 info.update(|node| node.status = NodeStatus::Removing);
+                stats.update(|stats| {
+                    stats.total_nodes -= 1;
+                    if previous_status.is_active() {
+                        stats.active_nodes -= 1;
+                    } else {
+                        stats.inactive_nodes -= 1;
+                    }
+                });
                 remove_node_instance(node_id.clone()).await
             }
         };
