@@ -290,7 +290,8 @@ async fn update_node_metadata(
     db_client: &DbClient,
     node_status_locked: &ImmutableNodeStatus,
 ) {
-    let update_status = !node_status_locked.is_still_locked(&node_info.node_id).await;
+    let update_status = !node_status_locked.is_still_locked(&node_info.node_id).await
+        && !node_info.status.is_locked();
     db_client
         .update_node_metadata(node_info, update_status)
         .await;

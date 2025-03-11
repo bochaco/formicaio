@@ -216,17 +216,21 @@ pub(crate) async fn helper_start_node_instance(
         .db_client
         .update_node_status(&node_id, NodeStatus::Restarting)
         .await;
-    let pid = context.node_manager.spawn_new_node(&mut node_info).await?;
-    context.db_client.update_node_pid(&node_id, pid).await;
+    let res = context.node_manager.spawn_new_node(&mut node_info).await;
 
-    node_info.status = NodeStatus::Active;
-    node_info.status_changed = Some(Utc::now().timestamp() as u64);
-    context
-        .db_client
-        .update_node_metadata(&node_info, true)
-        .await;
+    if let Ok(pid) = res {
+        context.db_client.update_node_pid(&node_id, pid).await;
+
+        node_info.status = NodeStatus::Active;
+        node_info.status_changed = Some(Utc::now().timestamp() as u64);
+        context
+            .db_client
+            .update_node_metadata(&node_info, true)
+            .await;
+    }
     context.node_status_locked.remove(&node_id).await;
 
+    res?;
     Ok(())
 }
 
@@ -355,20 +359,22 @@ pub(crate) async fn helper_recycle_node_instance(
         .update_node_status(&node_id, NodeStatus::Recycling)
         .await;
 
-    let pid = context
+    let res = context
         .node_manager
         .regenerate_peer_id(&mut node_info)
-        .await?;
-    context.db_client.update_node_pid(&node_id, pid).await;
-
-    node_info.status = NodeStatus::Active;
-    node_info.status_changed = Some(Utc::now().timestamp() as u64);
-    context
-        .db_client
-        .update_node_metadata(&node_info, true)
         .await;
+    if let Ok(pid) = res {
+        context.db_client.update_node_pid(&node_id, pid).await;
 
+        node_info.status = NodeStatus::Active;
+        node_info.status_changed = Some(Utc::now().timestamp() as u64);
+        context
+            .db_client
+            .update_node_metadata(&node_info, true)
+            .await;
+    }
     context.node_status_locked.remove(&node_id).await;
 
+    res?;
     Ok(())
 }

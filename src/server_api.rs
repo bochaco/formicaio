@@ -229,7 +229,7 @@ pub async fn helper_node_action_batch(
 
             // let's lock all nodes which are part of the batch,
             // so the user cannot action on it till the batch is completed or cancelled.
-            let duration = Duration::from_secs(3_600_000);
+            let duration = Duration::from_secs((interval_secs + 2) * l.len() as u64);
             for node_id in l.iter() {
                 context.db_client.set_node_status_to_locked(node_id).await;
 
