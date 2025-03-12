@@ -1,4 +1,4 @@
-use super::node_instance::{NodeId, NodeInstanceInfo};
+use super::node_instance::{InactiveReason, NodeId, NodeInstanceInfo};
 
 #[cfg(feature = "ssr")]
 use super::{
@@ -53,7 +53,11 @@ impl From<Container> for NodeInstanceInfo {
             node_id: val.Id.clone(),
             created: val.Created,
             status: NodeStatus::from(&val.State),
-            status_info: val.Status.clone(),
+            status_info: if val.State == ContainerState::created {
+                "".to_string()
+            } else {
+                val.Status.clone()
+            },
             port: val.port(),
             metrics_port: val.metrics_port(),
             node_ip: val.node_ip(),
@@ -103,12 +107,12 @@ pub enum ContainerState {
 impl From<&ContainerState> for NodeStatus {
     fn from(item: &ContainerState) -> NodeStatus {
         match item {
-            ContainerState::created => NodeStatus::Inactive,
+            ContainerState::created => NodeStatus::Inactive(InactiveReason::Created),
             ContainerState::restarting => NodeStatus::Restarting,
             ContainerState::running => NodeStatus::Active,
             ContainerState::removing => NodeStatus::Removing,
             ContainerState::paused | ContainerState::exited | ContainerState::dead => {
-                NodeStatus::Inactive
+                NodeStatus::Inactive(InactiveReason::Stopped)
             }
         }
     }

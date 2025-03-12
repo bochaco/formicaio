@@ -1,6 +1,6 @@
 use super::{
     metrics::{Metrics, NodeMetric},
-    node_instance::{NodeId, NodeInstanceInfo, NodePid, NodeStatus},
+    node_instance::{InactiveReason, NodeId, NodeInstanceInfo, NodePid, NodeStatus},
     server_api_types::AppSettings,
 };
 
@@ -91,7 +91,7 @@ impl CachedNodeMetadata {
             info.created = self.created;
         }
         if self.status_changed > 0 {
-            info.status_changed = Some(self.status_changed);
+            info.status_changed = self.status_changed;
         }
         if let Ok(status) = serde_json::from_str(&self.status) {
             info.status = status;
@@ -309,10 +309,7 @@ impl DbClient {
         match sqlx::query(&query_str)
             .bind(info.node_id.clone())
             .bind(info.created.to_string())
-            .bind(
-                info.status_changed
-                    .map_or("0".to_string(), |v| v.to_string()),
-            )
+            .bind(info.status_changed.to_string())
             .bind(json!(info.status).to_string())
             .bind(info.port)
             .bind(info.metrics_port)
@@ -347,9 +344,9 @@ impl DbClient {
             params.push(json!(info.status).to_string());
         }
 
-        if let Some(status_changed) = &info.status_changed {
+        if info.status_changed > 0 {
             updates.push("status_changed=?");
-            params.push(status_changed.to_string());
+            params.push(info.status_changed.to_string());
         }
         if let Some(peer_id) = &info.peer_id {
             updates.push("peer_id=?");
@@ -509,11 +506,12 @@ impl DbClient {
         {
             Ok(row) => {
                 let str = row.get::<String, _>("status");
-                serde_json::from_str(&str).unwrap_or(NodeStatus::Inactive)
+                serde_json::from_str(&str)
+                    .unwrap_or(NodeStatus::Inactive(InactiveReason::default()))
             }
             Err(err) => {
                 logging::log!("Sqlite status query error: {err} == {node_id}");
-                NodeStatus::Inactive
+                NodeStatus::Inactive(InactiveReason::default())
             }
         }
     }

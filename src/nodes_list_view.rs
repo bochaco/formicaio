@@ -7,7 +7,7 @@ use super::{
         IconStopNode, IconUpgradeNode,
     },
     node_actions::NodeAction,
-    node_instance::NodeInstanceInfo,
+    node_instance::{InactiveReason, NodeInstanceInfo, NodeStatus},
     server_api::cancel_batch,
     server_api_types::{BatchType, NodesActionsBatch},
 };
@@ -262,7 +262,17 @@ fn NodeInstanceView(
 
     let is_transitioning = move || info.read().status.is_transitioning();
     let is_locked = move || info.read().status.is_locked();
-    let is_unknown = move || info.read().status.is_unknown();
+    let is_warn_node_status = move || {
+        matches!(
+            info.read().status,
+            NodeStatus::Unknown(_)
+                | NodeStatus::Inactive(
+                    InactiveReason::Unknown
+                        | InactiveReason::Exited(_)
+                        | InactiveReason::StartFailed(_)
+                )
+        )
+    };
 
     let peer_id = move || value_or_dash(info.read().short_peer_id());
 
@@ -350,7 +360,7 @@ fn NodeInstanceView(
                     <span class=move || {
                         if is_locked() {
                             "node-info-item-highlight"
-                        } else if is_unknown() {
+                        } else if is_warn_node_status() {
                             "node-info-item-warn"
                         } else {
                             ""
@@ -359,6 +369,8 @@ fn NodeInstanceView(
                     {move || {
                         if is_transitioning() {
                             " ...".to_string()
+                        } else if info.get().status_info.is_empty() {
+                            "".to_string()
                         } else {
                             format!(", {}", info.read().status_info)
                         }

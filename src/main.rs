@@ -118,7 +118,7 @@ async fn start_backend(listen_addr: Option<std::net::SocketAddr>) -> eyre::Resul
         *app_state.latest_bin_version.lock().await = Some(version);
 
         // let's create a batch to start nodes which were Active
-        use formicaio::node_instance::NodeStatus;
+        use formicaio::node_instance::{InactiveReason, NodeStatus};
         let nodes_in_db = app_state.db_client.get_nodes_list().await;
         let mut active_nodes = vec![];
         for (node_id, node_info) in nodes_in_db {
@@ -126,7 +126,7 @@ async fn start_backend(listen_addr: Option<std::net::SocketAddr>) -> eyre::Resul
                 // let's set it to inactive otherwise it won't be started
                 app_state
                     .db_client
-                    .update_node_status(&node_id, NodeStatus::Inactive)
+                    .update_node_status(&node_id, NodeStatus::Inactive(InactiveReason::Stopped))
                     .await;
                 active_nodes.push(node_id);
             } else if let NodeStatus::Locked(status) = node_info.status {

@@ -10,7 +10,7 @@ mod ssr_imports_and_defs {
     pub use crate::{
         app::{BgTasksCmds, ImmutableNodeStatus, ServerGlobalState},
         db_client::DbClient,
-        node_instance::{NodeInstanceInfo, NodeStatus},
+        node_instance::{InactiveReason, NodeInstanceInfo, NodeStatus},
         node_manager::NodeManager,
         server_api_types::NodeOpts,
     };
@@ -78,30 +78,28 @@ fn helper_gen_status_info(node_info: &mut NodeInstanceInfo) {
     let status_info = if status.is_transitioning() {
         "".to_string()
     } else {
-        match node_info.status_changed {
-            None => "Created".to_string(),
-            Some(v) => {
-                let changed = DateTime::<Utc>::from_timestamp(v as i64, 0).unwrap_or_default();
-                let elapsed = Utc::now() - changed;
-                let elapsed_str = if elapsed.num_weeks() > 1 {
-                    format!("{} weeks", elapsed.num_weeks())
-                } else if elapsed.num_days() > 1 {
-                    format!("{} days", elapsed.num_days())
-                } else if elapsed.num_hours() > 1 {
-                    format!("{} hours", elapsed.num_hours())
-                } else if elapsed.num_minutes() > 1 {
-                    format!("{} minutes", elapsed.num_minutes())
-                } else if elapsed.num_seconds() > 1 {
-                    format!("{} seconds", elapsed.num_seconds())
-                } else {
-                    "about a second".to_string()
-                };
-                if status.is_active() {
-                    format!("Up {elapsed_str}")
-                } else {
-                    format!("Since {elapsed_str} ago")
-                }
-            }
+        let changed =
+            DateTime::<Utc>::from_timestamp(node_info.status_changed as i64, 0).unwrap_or_default();
+        let elapsed = Utc::now() - changed;
+        let elapsed_str = if elapsed.num_weeks() > 1 {
+            format!("{} weeks", elapsed.num_weeks())
+        } else if elapsed.num_days() > 1 {
+            format!("{} days", elapsed.num_days())
+        } else if elapsed.num_hours() > 1 {
+            format!("{} hours", elapsed.num_hours())
+        } else if elapsed.num_minutes() > 1 {
+            format!("{} minutes", elapsed.num_minutes())
+        } else if elapsed.num_seconds() > 1 {
+            format!("{} seconds", elapsed.num_seconds())
+        } else {
+            "about a second".to_string()
+        };
+        if status.is_active() {
+            format!("Up {elapsed_str}")
+        } else if status.is_inactive() {
+            format!("{elapsed_str} ago")
+        } else {
+            format!("Since {elapsed_str} ago")
         }
     };
 
@@ -126,7 +124,8 @@ pub(crate) async fn helper_create_node_instance(
     let node_info = NodeInstanceInfo {
         node_id: node_id.clone(),
         created: Utc::now().timestamp() as u64,
-        status: NodeStatus::Inactive,
+        status: NodeStatus::Inactive(InactiveReason::Created),
+        status_changed: Utc::now().timestamp() as u64,
         port: Some(node_opts.port),
         metrics_port: Some(node_opts.metrics_port),
         rewards_addr: Some(node_opts.rewards_addr),
@@ -218,16 +217,21 @@ pub(crate) async fn helper_start_node_instance(
         .await;
     let res = context.node_manager.spawn_new_node(&mut node_info).await;
 
-    if let Ok(pid) = res {
-        context.db_client.update_node_pid(&node_id, pid).await;
+    let status = match &res {
+        Ok(pid) => {
+            context.db_client.update_node_pid(&node_id, *pid).await;
+            NodeStatus::Active
+        }
+        Err(err) => NodeStatus::Inactive(InactiveReason::StartFailed(err.to_string())),
+    };
 
-        node_info.status = NodeStatus::Active;
-        node_info.status_changed = Some(Utc::now().timestamp() as u64);
-        context
-            .db_client
-            .update_node_metadata(&node_info, true)
-            .await;
-    }
+    node_info.status = status;
+    node_info.set_status_changed_now();
+    context
+        .db_client
+        .update_node_metadata(&node_info, true)
+        .await;
+
     context.node_status_locked.remove(&node_id).await;
 
     res?;
@@ -256,13 +260,12 @@ pub(crate) async fn helper_stop_node_instance(
         .await;
 
     context.node_manager.kill_node(&node_id).await;
-    context.db_client.update_node_pid(&node_id, 0).await;
 
     // set connected/kbucket peers back to 0 and update cache
     let node_info = NodeInstanceInfo {
         node_id: node_id.clone(),
-        status: NodeStatus::Inactive,
-        status_changed: Some(Utc::now().timestamp() as u64),
+        status: NodeStatus::Inactive(InactiveReason::Stopped),
+        status_changed: Utc::now().timestamp() as u64,
         connected_peers: Some(0),
         kbuckets_peers: Some(0),
         records: Some(0),
@@ -319,19 +322,21 @@ pub(crate) async fn helper_upgrade_node_instance(
 
     let res = node_manager.upgrade_node(&mut node_info).await;
 
-    if let Ok(pid) = res {
-        logging::log!(
-            "Node binary upgraded to v{} in node {node_id}, new PID: {pid}.",
-            node_info.bin_version.as_deref().unwrap_or("[unknown]")
-        );
+    let status = match &res {
+        Ok(pid) => {
+            logging::log!(
+                "Node binary upgraded to v{} in node {node_id}, new PID: {pid}.",
+                node_info.bin_version.as_deref().unwrap_or("[unknown]")
+            );
+            db_client.update_node_pid(node_id, *pid).await;
+            NodeStatus::Transitioned("Upgraded".to_string())
+        }
+        Err(err) => NodeStatus::Inactive(InactiveReason::StartFailed(err.to_string())),
+    };
 
-        db_client.update_node_pid(node_id, pid).await;
-
-        node_info.status = NodeStatus::Transitioned("Upgraded".to_string());
-        node_info.status_changed = Some(Utc::now().timestamp() as u64);
-
-        db_client.update_node_metadata(&node_info, true).await;
-    }
+    node_info.status = status;
+    node_info.set_status_changed_now();
+    db_client.update_node_metadata(&node_info, true).await;
 
     node_status_locked.remove(node_id).await;
 
@@ -363,16 +368,22 @@ pub(crate) async fn helper_recycle_node_instance(
         .node_manager
         .regenerate_peer_id(&mut node_info)
         .await;
-    if let Ok(pid) = res {
-        context.db_client.update_node_pid(&node_id, pid).await;
 
-        node_info.status = NodeStatus::Active;
-        node_info.status_changed = Some(Utc::now().timestamp() as u64);
-        context
-            .db_client
-            .update_node_metadata(&node_info, true)
-            .await;
-    }
+    let status = match &res {
+        Ok(pid) => {
+            context.db_client.update_node_pid(&node_id, *pid).await;
+            NodeStatus::Active
+        }
+        Err(err) => NodeStatus::Inactive(InactiveReason::StartFailed(err.to_string())),
+    };
+
+    node_info.status = status;
+    node_info.set_status_changed_now();
+    context
+        .db_client
+        .update_node_metadata(&node_info, true)
+        .await;
+
     context.node_status_locked.remove(&node_id).await;
 
     res?;

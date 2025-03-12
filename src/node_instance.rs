@@ -27,7 +27,7 @@ pub enum NodeStatus {
     Restarting,
     Stopping,
     // A node not connected to any peer on the network is considered Inactive.
-    Inactive,
+    Inactive(InactiveReason),
     // Its status is not known, it has been unreachable when trying fetch metrics.
     // This status holds its previous known status.
     Unknown(Box<NodeStatus>),
@@ -44,6 +44,21 @@ pub enum NodeStatus {
     Locked(Box<NodeStatus>),
 }
 
+#[derive(Clone, Default, Debug, Deserialize, PartialEq, Serialize)]
+pub enum InactiveReason {
+    // The node was just created and was never active yet.
+    #[default]
+    Created,
+    // The node was stopped by the user, or the app was stopped altogether.
+    Stopped,
+    // A node which failed when attempting to start running.
+    StartFailed(String),
+    // A node which was active and exited for some reason.
+    Exited(String),
+    // The node was found inactive but it's unknown why.
+    Unknown,
+}
+
 impl NodeStatus {
     pub fn is_creating(&self) -> bool {
         matches!(self, Self::Creating)
@@ -57,7 +72,7 @@ impl NodeStatus {
     }
     pub fn is_inactive(&self) -> bool {
         match self {
-            Self::Inactive => true,
+            Self::Inactive(_) => true,
             Self::Locked(s) | Self::Unknown(s) => s.is_inactive(),
             _ => false,
         }
@@ -95,6 +110,13 @@ impl fmt::Display for NodeStatus {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Transitioned(s) => write!(f, "{s}"),
+            Self::Inactive(InactiveReason::Exited(reason)) => write!(f, "Exited ({reason})"),
+            Self::Inactive(InactiveReason::StartFailed(reason)) => {
+                write!(f, "Start failed ({reason})")
+            }
+            Self::Inactive(InactiveReason::Unknown) => write!(f, "Inactive (died)"),
+            Self::Inactive(InactiveReason::Stopped) => write!(f, "Stopped"),
+            Self::Inactive(InactiveReason::Created) => write!(f, "Created"),
             Self::Locked(s) => write!(f, "{s} (batched)"),
             Self::Unknown(s) => write!(f, "Unknown (it was {s})"),
             other => write!(f, "{other:?}"),
@@ -107,7 +129,7 @@ pub struct NodeInstanceInfo {
     pub node_id: NodeId,
     pub pid: Option<NodePid>,
     pub created: u64,
-    pub status_changed: Option<u64>,
+    pub status_changed: u64,
     pub peer_id: Option<String>, // base58-encoded Peer Id bytes
     pub status: NodeStatus,
     pub status_info: String,
@@ -183,29 +205,28 @@ impl NodeInstanceInfo {
     pub fn set_status_active(&mut self) {
         match &self.status {
             NodeStatus::Locked(s) if s.is_inactive() => {
-                self.status = NodeStatus::Locked(Box::new(NodeStatus::Active))
+                self.set_status_and_ts(NodeStatus::Locked(Box::new(NodeStatus::Active)));
             }
             NodeStatus::Locked(_) => {}
-            NodeStatus::Unknown(s) if s.is_inactive() => self.status = NodeStatus::Active,
+            NodeStatus::Unknown(s) if s.is_inactive() => self.set_status_and_ts(NodeStatus::Active),
             NodeStatus::Unknown(_) => {}
-            _ => self.status = NodeStatus::Active,
+            _ => self.set_status_and_ts(NodeStatus::Active),
         }
     }
 
-    pub fn set_status_inactive(&mut self) {
+    pub fn set_status_inactive(&mut self, reason: InactiveReason) {
         match &self.status {
             NodeStatus::Locked(s) if s.is_active() => {
-                self.status = NodeStatus::Locked(Box::new(NodeStatus::Inactive))
+                self.set_status_and_ts(NodeStatus::Locked(Box::new(NodeStatus::Inactive(reason))));
             }
             NodeStatus::Locked(_) => {}
-            _ => self.status = NodeStatus::Inactive,
+            _ => self.set_status_and_ts(NodeStatus::Inactive(reason)),
         }
     }
 
     pub fn set_status_to_unknown(&mut self) {
         if !self.status.is_unknown() {
-            self.status_changed = Some(Utc::now().timestamp() as u64);
-            self.status = NodeStatus::Unknown(Box::new(self.status.clone()));
+            self.set_status_and_ts(NodeStatus::Unknown(Box::new(self.status.clone())));
         }
         self.mem_used = None;
         self.cpu_usage = None;
@@ -216,5 +237,16 @@ impl NodeInstanceInfo {
         self.kbuckets_peers = Some(0);
         self.shunned_count = None;
         self.net_size = None;
+    }
+
+    pub fn set_status_changed_now(&mut self) {
+        self.status_changed = Utc::now().timestamp() as u64;
+    }
+
+    fn set_status_and_ts(&mut self, status: NodeStatus) {
+        if self.status != status {
+            self.set_status_changed_now();
+            self.status = status;
+        }
     }
 }

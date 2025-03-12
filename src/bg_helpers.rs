@@ -140,16 +140,23 @@ impl NodeManagerProxy {
         &self,
         all: bool,
     ) -> Result<Vec<NodeInstanceInfo>, NodeManagerError> {
-        let active_nodes = self.node_manager.get_active_nodes_list().await?;
+        use super::node_instance::InactiveReason;
+
+        let mut active_nodes = self.node_manager.get_active_nodes_list().await?;
         let nodes_in_db = self.db_client.get_nodes_list().await;
 
         let nodes = nodes_in_db
             .into_iter()
             .filter_map(|(_, mut node_info)| {
-                if node_info.pid.map(|pid| active_nodes.contains(&pid)) == Some(true) {
-                    node_info.set_status_active();
-                } else {
-                    node_info.set_status_inactive();
+                match node_info.pid.map(|pid| active_nodes.remove(&pid)) {
+                    None => {} // it has no pid
+                    Some(None) => {
+                        if !node_info.status.is_inactive() {
+                            node_info.set_status_inactive(InactiveReason::Unknown);
+                        }
+                    }
+                    Some(Some(None)) => node_info.set_status_active(), // it was found active
+                    Some(Some(Some(reason))) => node_info.set_status_inactive(reason), // it was found dead
                 }
 
                 if all || node_info.status.is_active() {

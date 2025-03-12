@@ -1,4 +1,4 @@
-use super::node_instance::{NodeId, NodeInstanceInfo, NodePid};
+use super::node_instance::{InactiveReason, NodeId, NodeInstanceInfo, NodePid};
 
 use ant_releases::{
     get_running_platform, AntReleaseRepoActions, AntReleaseRepository, ArchiveType, ReleaseType,
@@ -10,10 +10,10 @@ use libp2p_identity::{Keypair, PeerId};
 use local_ip_address::list_afinet_netifas;
 use semver::Version;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     env,
     path::{Path, PathBuf},
-    process::{Child, Command, Output, Stdio},
+    process::{Child, Command, ExitStatus, Output, Stdio},
     sync::Arc,
     time::Duration,
 };
@@ -45,8 +45,8 @@ const GITHUB_API_URL: &str = "https://api.github.com";
 
 #[derive(Debug, Error)]
 pub enum NodeManagerError {
-    #[error("Failed to create a new node: {0}")]
-    CannotCreateNode(String),
+    #[error("Failed to spawn a new node: {0}")]
+    CannotSpawnNode(String),
     #[error("Node bin version not found at {0:?}")]
     NodeBinVersionNotFound(PathBuf),
     #[error("Missing '{0}' information to spawn node")]
@@ -237,13 +237,16 @@ impl NodeManager {
             }
             Err(err) => {
                 logging::error!("Failed to spawn new node {node_id}: {err:?}");
-                Err(NodeManagerError::CannotCreateNode(err.to_string()))
+                Err(NodeManagerError::CannotSpawnNode(err.to_string()))
             }
         }
     }
 
-    // Retrieve list of node running processes
-    pub async fn get_active_nodes_list(&self) -> Result<HashSet<NodePid>, NodeManagerError> {
+    // Retrieve list of node running processes, as well as
+    // those found dead with the exit reason.
+    pub async fn get_active_nodes_list(
+        &self,
+    ) -> Result<HashMap<NodePid, Option<InactiveReason>>, NodeManagerError> {
         // first update processes information of our `System` struct
         let mut sys = self.system.lock().await;
         sys.refresh_processes_specifics(
@@ -252,7 +255,7 @@ impl NodeManager {
             ProcessRefreshKind::nothing(),
         );
 
-        let mut pids = HashSet::new();
+        let mut pids = HashMap::new();
 
         for process in sys
             .processes_by_exact_name(NODE_BIN_NAME.as_ref())
@@ -261,7 +264,7 @@ impl NodeManager {
         {
             let pid = process.pid().as_u32();
             if process.status() != ProcessStatus::Zombie {
-                pids.insert(pid);
+                pids.insert(pid, None);
                 continue;
             }
 
@@ -274,12 +277,18 @@ impl NodeManager {
                 .find(|(_, c)| c.id() == pid)
                 .map(|(id, _)| id.clone());
             if let Some(node_id) = id {
-                let code = self.kill_node(&node_id).await;
+                let status = if let Some(exit_status) = self.kill_node(&node_id).await {
+                    exit_status.to_string()
+                } else {
+                    "none".to_string()
+                };
                 logging::log!(
-                    "Process with PID {pid} exited (node id: {node_id}) with code: {code:?}"
+                    "Process with PID {pid} exited (node id: {node_id}) with status: {status}"
                 );
+                pids.insert(pid, Some(InactiveReason::Exited(status.to_string())));
             } else {
                 logging::warn!("Zombie process detected with pid {pid}: {process:?}");
+                pids.insert(pid, Some(InactiveReason::Exited("zombie".to_string())));
             }
         }
 
@@ -287,7 +296,7 @@ impl NodeManager {
     }
 
     // Kill node's process
-    pub async fn kill_node(&self, node_id: &NodeId) -> Option<i32> {
+    pub async fn kill_node(&self, node_id: &NodeId) -> Option<ExitStatus> {
         let mut child = match self.nodes.lock().await.remove(node_id) {
             Some(child) => child,
             None => {
@@ -304,12 +313,12 @@ impl NodeManager {
 
         match child.wait_with_output() {
             Ok(output) if output.status.success() || output.status.code().is_none() => {
-                output.status.code()
+                Some(output.status)
             }
             Ok(output) => {
                 let status = output.status;
-                logging::warn!("Killed process for node {node_id}: {status:?}");
-                output.status.code()
+                logging::warn!("Killed process for node {node_id}: {status}");
+                Some(status)
             }
             Err(err) => {
                 logging::warn!("Error when checking killed process for node {node_id}: {err:?}");
@@ -543,7 +552,7 @@ impl NodeManager {
         let mut file = File::open(log_file_path).await?;
         let file_length = file.metadata().await?.len();
         if file_length > 1024 {
-            file.seek(SeekFrom::Start(file_length - 1024u64)).await?;
+            file.seek(SeekFrom::Start(file_length - 2048u64)).await?;
         }
         let mut reader = BufReader::new(file);
         let mut max_iter = 180;

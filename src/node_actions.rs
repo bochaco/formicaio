@@ -41,7 +41,7 @@ impl NodeAction {
                 }
                 info.update(|node| node.status = NodeStatus::Restarting);
                 stats.update(|stats| {
-                    stats.active_nodes -= 1;
+                    no_zero_overflow_subs(&mut stats.active_nodes);
                     stats.inactive_nodes += 1;
                 });
                 start_node_instance(node_id.clone()).await
@@ -52,7 +52,7 @@ impl NodeAction {
                 }
                 info.update(|node| node.status = NodeStatus::Stopping);
                 stats.update(|stats| {
-                    stats.active_nodes -= 1;
+                    no_zero_overflow_subs(&mut stats.active_nodes);
                     stats.inactive_nodes += 1;
                 });
                 let res = stop_node_instance(node_id.clone()).await;
@@ -72,7 +72,7 @@ impl NodeAction {
                 }
                 info.update(|node| node.status = NodeStatus::Upgrading);
                 stats.update(|stats| {
-                    stats.active_nodes -= 1;
+                    no_zero_overflow_subs(&mut stats.active_nodes);
                     stats.inactive_nodes += 1;
                 });
                 let res = upgrade_node_instance(node_id.clone()).await;
@@ -91,7 +91,7 @@ impl NodeAction {
                 }
                 info.update(|node| node.status = NodeStatus::Recycling);
                 stats.update(|stats| {
-                    stats.active_nodes -= 1;
+                    no_zero_overflow_subs(&mut stats.active_nodes);
                     stats.inactive_nodes += 1;
                 });
                 recycle_node_instance(node_id.clone()).await
@@ -99,11 +99,11 @@ impl NodeAction {
             Self::Remove => {
                 info.update(|node| node.status = NodeStatus::Removing);
                 stats.update(|stats| {
-                    stats.total_nodes -= 1;
+                    no_zero_overflow_subs(&mut stats.total_nodes);
                     if previous_status.is_active() {
-                        stats.active_nodes -= 1;
+                        no_zero_overflow_subs(&mut stats.active_nodes);
                     } else {
-                        stats.inactive_nodes -= 1;
+                        no_zero_overflow_subs(&mut stats.inactive_nodes);
                     }
                 });
                 remove_node_instance(node_id.clone()).await
@@ -119,6 +119,13 @@ impl NodeAction {
             show_alert_msg(msg);
             info.update(|node| node.status = previous_status);
         }
+    }
+}
+
+// Helper to safely decrement a counter without underflowing
+fn no_zero_overflow_subs(v: &mut usize) {
+    if *v > 0 {
+        *v -= 1;
     }
 }
 

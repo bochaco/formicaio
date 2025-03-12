@@ -13,7 +13,7 @@ mod ssr_imports_and_defs {
         app::{BgTasksCmds, ImmutableNodeStatus, ServerGlobalState},
         db_client::DbClient,
         docker_client::{DockerClient, UPGRADE_NODE_BIN_TIMEOUT_SECS},
-        node_instance::{NodeInstanceInfo, NodeStatus},
+        node_instance::{InactiveReason, NodeInstanceInfo, NodeStatus},
         server_api_types::NodeOpts,
     };
     pub use chrono::Utc;
@@ -151,7 +151,7 @@ pub(crate) async fn helper_start_node_instance(
 
     let node_info = NodeInstanceInfo {
         node_id,
-        status_changed: Some(Utc::now().timestamp() as u64),
+        status_changed: Utc::now().timestamp() as u64,
         bin_version: Some(bin_version.clone().unwrap_or_default()),
         peer_id: Some(peer_id.unwrap_or_default()),
         ips: Some(ips.unwrap_or_default()),
@@ -193,8 +193,8 @@ pub(crate) async fn helper_stop_node_instance(
         // set connected/kbucket peers back to 0 and update cache
         let node_info = NodeInstanceInfo {
             node_id: node_id.clone(),
-            status: NodeStatus::Inactive,
-            status_changed: Some(Utc::now().timestamp() as u64),
+            status: NodeStatus::Inactive(InactiveReason::Stopped),
+            status_changed: Utc::now().timestamp() as u64,
             connected_peers: Some(0),
             kbuckets_peers: Some(0),
             records: Some(0),
@@ -263,7 +263,7 @@ pub(crate) async fn helper_upgrade_node_instance(
         let node_info = NodeInstanceInfo {
             node_id: node_id.clone(),
             status: NodeStatus::Transitioned("Upgraded".to_string()),
-            status_changed: Some(Utc::now().timestamp() as u64),
+            status_changed: Utc::now().timestamp() as u64,
             bin_version: Some(new_version.clone().unwrap_or_default()),
             ips: Some(ips.clone().unwrap_or_default()),
             ..Default::default()
@@ -306,7 +306,7 @@ pub(crate) async fn helper_recycle_node_instance(
 
     let node_info = NodeInstanceInfo {
         node_id: node_id.clone(),
-        status_changed: Some(Utc::now().timestamp() as u64),
+        status_changed: Utc::now().timestamp() as u64,
         bin_version: Some(bin_version.clone().unwrap_or_default()),
         peer_id: Some(peer_id.unwrap_or_default()),
         ips: Some(ips.unwrap_or_default()),
