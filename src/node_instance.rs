@@ -114,7 +114,7 @@ impl fmt::Display for NodeStatus {
             Self::Inactive(InactiveReason::StartFailed(reason)) => {
                 write!(f, "Start failed ({reason})")
             }
-            Self::Inactive(InactiveReason::Unknown) => write!(f, "Inactive (died)"),
+            Self::Inactive(InactiveReason::Unknown) => write!(f, "Exited (unknown reason)"),
             Self::Inactive(InactiveReason::Stopped) => write!(f, "Stopped"),
             Self::Inactive(InactiveReason::Created) => write!(f, "Created"),
             Self::Locked(s) => write!(f, "{s} (batched)"),

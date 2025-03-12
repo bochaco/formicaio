@@ -217,20 +217,20 @@ pub(crate) async fn helper_start_node_instance(
         .await;
     let res = context.node_manager.spawn_new_node(&mut node_info).await;
 
-    let status = match &res {
+    match &res {
         Ok(pid) => {
             context.db_client.update_node_pid(&node_id, *pid).await;
-            NodeStatus::Active
         }
-        Err(err) => NodeStatus::Inactive(InactiveReason::StartFailed(err.to_string())),
-    };
-
-    node_info.status = status;
-    node_info.set_status_changed_now();
-    context
-        .db_client
-        .update_node_metadata(&node_info, true)
-        .await;
+        Err(err) => {
+            let status = NodeStatus::Inactive(InactiveReason::StartFailed(err.to_string()));
+            node_info.status = status;
+            node_info.set_status_changed_now();
+            context
+                .db_client
+                .update_node_metadata(&node_info, true)
+                .await;
+        }
+    }
 
     context.node_status_locked.remove(&node_id).await;
 
@@ -322,21 +322,21 @@ pub(crate) async fn helper_upgrade_node_instance(
 
     let res = node_manager.upgrade_node(&mut node_info).await;
 
-    let status = match &res {
+    match &res {
         Ok(pid) => {
             logging::log!(
                 "Node binary upgraded to v{} in node {node_id}, new PID: {pid}.",
                 node_info.bin_version.as_deref().unwrap_or("[unknown]")
             );
             db_client.update_node_pid(node_id, *pid).await;
-            NodeStatus::Transitioned("Upgraded".to_string())
         }
-        Err(err) => NodeStatus::Inactive(InactiveReason::StartFailed(err.to_string())),
-    };
-
-    node_info.status = status;
-    node_info.set_status_changed_now();
-    db_client.update_node_metadata(&node_info, true).await;
+        Err(err) => {
+            let status = NodeStatus::Inactive(InactiveReason::StartFailed(err.to_string()));
+            node_info.status = status;
+            node_info.set_status_changed_now();
+            db_client.update_node_metadata(&node_info, true).await;
+        }
+    }
 
     node_status_locked.remove(node_id).await;
 
@@ -369,20 +369,20 @@ pub(crate) async fn helper_recycle_node_instance(
         .regenerate_peer_id(&mut node_info)
         .await;
 
-    let status = match &res {
+    match &res {
         Ok(pid) => {
             context.db_client.update_node_pid(&node_id, *pid).await;
-            NodeStatus::Active
         }
-        Err(err) => NodeStatus::Inactive(InactiveReason::StartFailed(err.to_string())),
-    };
-
-    node_info.status = status;
-    node_info.set_status_changed_now();
-    context
-        .db_client
-        .update_node_metadata(&node_info, true)
-        .await;
+        Err(err) => {
+            let status = NodeStatus::Inactive(InactiveReason::StartFailed(err.to_string()));
+            node_info.status = status;
+            node_info.set_status_changed_now();
+            context
+                .db_client
+                .update_node_metadata(&node_info, true)
+                .await;
+        }
+    }
 
     context.node_status_locked.remove(&node_id).await;
 

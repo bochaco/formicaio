@@ -149,12 +149,9 @@ impl NodeManagerProxy {
             .into_iter()
             .filter_map(|(_, mut node_info)| {
                 match node_info.pid.map(|pid| active_nodes.remove(&pid)) {
-                    None => {} // it has no pid
-                    Some(None) => {
-                        if !node_info.status.is_inactive() {
-                            node_info.set_status_inactive(InactiveReason::Unknown);
-                        }
-                    }
+                    None => { /*it has no pid*/ },
+                    Some(None) if node_info.status.is_inactive() => { /*we already know it's inactive*/ },
+                    Some(None) => node_info.set_status_inactive(InactiveReason::Unknown), // it died/exited
                     Some(Some(None)) => node_info.set_status_active(), // it was found active
                     Some(Some(Some(reason))) => node_info.set_status_inactive(reason), // it was found dead
                 }
