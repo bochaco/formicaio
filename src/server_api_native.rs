@@ -208,12 +208,13 @@ pub(crate) async fn helper_start_node_instance(
     logging::log!("Starting node with Id: {node_id} ...");
     context
         .node_status_locked
-        .insert(node_id.clone(), Duration::from_secs(20))
+        .lock_unless_exited(node_id.clone(), Duration::from_secs(20))
         .await;
 
+    node_info.status = NodeStatus::Restarting;
     context
         .db_client
-        .update_node_status(&node_id, NodeStatus::Restarting)
+        .update_node_status(&node_id, &node_info.status)
         .await;
     let res = context.node_manager.spawn_new_node(&mut node_info).await;
 
@@ -222,16 +223,15 @@ pub(crate) async fn helper_start_node_instance(
             context.db_client.update_node_pid(&node_id, *pid).await;
         }
         Err(err) => {
-            let status = NodeStatus::Inactive(InactiveReason::StartFailed(err.to_string()));
-            node_info.status = status;
-            node_info.set_status_changed_now();
-            context
-                .db_client
-                .update_node_metadata(&node_info, true)
-                .await;
+            node_info.status = NodeStatus::Inactive(InactiveReason::StartFailed(err.to_string()));
         }
     }
 
+    node_info.set_status_changed_now();
+    context
+        .db_client
+        .update_node_metadata(&node_info, true)
+        .await;
     context.node_status_locked.remove(&node_id).await;
 
     res?;
@@ -252,11 +252,11 @@ pub(crate) async fn helper_stop_node_instance(
 
     context
         .node_status_locked
-        .insert(node_id.clone(), Duration::from_secs(20))
+        .lock(node_id.clone(), Duration::from_secs(20))
         .await;
     context
         .db_client
-        .update_node_status(&node_id, transient_status)
+        .update_node_status(&node_id, &transient_status)
         .await;
 
     context.node_manager.kill_node(&node_id).await;
@@ -311,13 +311,15 @@ pub(crate) async fn helper_upgrade_node_instance(
     let mut node_info = db_client.check_node_is_not_batched(node_id).await?;
 
     node_status_locked
-        .insert(
+        .lock_unless_exited(
             node_id.clone(),
             Duration::from_secs(UPGRADE_NODE_BIN_TIMEOUT_SECS),
         )
         .await;
+
+    node_info.status = NodeStatus::Upgrading;
     db_client
-        .update_node_status(node_id, NodeStatus::Upgrading)
+        .update_node_status(node_id, &node_info.status)
         .await;
 
     let res = node_manager.upgrade_node(&mut node_info).await;
@@ -331,13 +333,12 @@ pub(crate) async fn helper_upgrade_node_instance(
             db_client.update_node_pid(node_id, *pid).await;
         }
         Err(err) => {
-            let status = NodeStatus::Inactive(InactiveReason::StartFailed(err.to_string()));
-            node_info.status = status;
-            node_info.set_status_changed_now();
-            db_client.update_node_metadata(&node_info, true).await;
+            node_info.status = NodeStatus::Inactive(InactiveReason::StartFailed(err.to_string()));
         }
     }
 
+    node_info.set_status_changed_now();
+    db_client.update_node_metadata(&node_info, true).await;
     node_status_locked.remove(node_id).await;
 
     res?;
@@ -357,11 +358,13 @@ pub(crate) async fn helper_recycle_node_instance(
 
     context
         .node_status_locked
-        .insert(node_id.clone(), Duration::from_secs(20))
+        .lock_unless_exited(node_id.clone(), Duration::from_secs(20))
         .await;
+
+    node_info.status = NodeStatus::Recycling;
     context
         .db_client
-        .update_node_status(&node_id, NodeStatus::Recycling)
+        .update_node_status(&node_id, &node_info.status)
         .await;
 
     let res = context
@@ -374,16 +377,15 @@ pub(crate) async fn helper_recycle_node_instance(
             context.db_client.update_node_pid(&node_id, *pid).await;
         }
         Err(err) => {
-            let status = NodeStatus::Inactive(InactiveReason::StartFailed(err.to_string()));
-            node_info.status = status;
-            node_info.set_status_changed_now();
-            context
-                .db_client
-                .update_node_metadata(&node_info, true)
-                .await;
+            node_info.status = NodeStatus::Inactive(InactiveReason::StartFailed(err.to_string()));
         }
     }
 
+    node_info.set_status_changed_now();
+    context
+        .db_client
+        .update_node_metadata(&node_info, true)
+        .await;
     context.node_status_locked.remove(&node_id).await;
 
     res?;

@@ -236,7 +236,7 @@ pub async fn helper_node_action_batch(
                 // let's also prevent the backend from updating its status
                 context
                     .node_status_locked
-                    .insert(node_id.clone(), duration)
+                    .lock(node_id.clone(), duration)
                     .await;
             }
         }

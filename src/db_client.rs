@@ -452,8 +452,8 @@ impl DbClient {
     }
 
     // Convenient method to update node status field
-    pub async fn update_node_status(&self, node_id: &str, status: NodeStatus) {
-        self.update_node_metadata_fields(node_id, &[("status", &json!(&status).to_string())])
+    pub async fn update_node_status(&self, node_id: &str, status: &NodeStatus) {
+        self.update_node_metadata_fields(node_id, &[("status", &json!(status).to_string())])
             .await
     }
 

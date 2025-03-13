@@ -77,6 +77,9 @@ impl NodeStatus {
             _ => false,
         }
     }
+    pub fn is_exited(&self) -> bool {
+        matches!(self, Self::Inactive(InactiveReason::Exited(_)))
+    }
     pub fn is_unknown(&self) -> bool {
         matches!(self, Self::Unknown(_))
     }

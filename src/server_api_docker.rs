@@ -141,7 +141,7 @@ pub(crate) async fn helper_start_node_instance(
 
     context
         .db_client
-        .update_node_status(&node_id, NodeStatus::Restarting)
+        .update_node_status(&node_id, &NodeStatus::Restarting)
         .await;
 
     let (bin_version, peer_id, ips) = context
@@ -180,11 +180,11 @@ pub(crate) async fn helper_stop_node_instance(
 
     context
         .node_status_locked
-        .insert(node_id.clone(), Duration::from_secs(20))
+        .lock(node_id.clone(), Duration::from_secs(20))
         .await;
     context
         .db_client
-        .update_node_status(&node_id, transient_status)
+        .update_node_status(&node_id, &transient_status)
         .await;
 
     let res = context.docker_client.stop_container(&node_id).await;
@@ -242,13 +242,13 @@ pub(crate) async fn helper_upgrade_node_instance(
 
     // TODO: use docker 'extract' api to simply copy the new node binary into the container.
     node_status_locked
-        .insert(
+        .lock(
             node_id.clone(),
             Duration::from_secs(UPGRADE_NODE_BIN_TIMEOUT_SECS),
         )
         .await;
     db_client
-        .update_node_status(node_id, NodeStatus::Upgrading)
+        .update_node_status(node_id, &NodeStatus::Upgrading)
         .await;
 
     let res = docker_client.upgrade_node_in_container(node_id, true).await;
@@ -292,11 +292,11 @@ pub(crate) async fn helper_recycle_node_instance(
 
     context
         .node_status_locked
-        .insert(node_id.clone(), Duration::from_secs(20))
+        .lock(node_id.clone(), Duration::from_secs(20))
         .await;
     context
         .db_client
-        .update_node_status(&node_id, NodeStatus::Recycling)
+        .update_node_status(&node_id, &NodeStatus::Recycling)
         .await;
 
     let (bin_version, peer_id, ips) = context

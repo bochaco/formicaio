@@ -95,21 +95,46 @@ pub struct ServerGlobalState {
     pub stats: Arc<Mutex<Stats>>,
 }
 
-// List of nodes which status is temporarily immutable/locked,
-// along with expiration information for when it should be unlocked.
+// List of nodes which status is temporarily immutable/locked.
 #[cfg(feature = "ssr")]
 #[derive(Clone, Debug, Default)]
-pub struct ImmutableNodeStatus(
-    Arc<Mutex<HashMap<super::node_instance::NodeId, (Instant, Duration)>>>,
-);
+pub struct ImmutableNodeStatus(Arc<Mutex<HashMap<super::node_instance::NodeId, LockedStatus>>>);
+
+#[cfg(feature = "ssr")]
+#[derive(Clone, Debug)]
+struct LockedStatus {
+    // Timestamp when the status has been locked.
+    timestamp: Instant,
+    // Expiration information for when it should be unlocked.
+    expiration_time: Duration,
+    // If this flag is set to 'true' , and the current node status
+    // is `Exited` then it has priority over the lock and the
+    // status in such case is considered unlocked.
+    exited_takes_priority: bool,
+}
 
 #[cfg(feature = "ssr")]
 impl ImmutableNodeStatus {
-    pub async fn insert(&self, node_id: NodeId, expiration: Duration) {
-        self.0
-            .lock()
-            .await
-            .insert(node_id, (Instant::now(), expiration));
+    pub async fn lock(&self, node_id: NodeId, expiration_time: Duration) {
+        self.0.lock().await.insert(
+            node_id,
+            LockedStatus {
+                timestamp: Instant::now(),
+                expiration_time,
+                exited_takes_priority: false,
+            },
+        );
+    }
+
+    pub async fn lock_unless_exited(&self, node_id: NodeId, expiration_time: Duration) {
+        self.0.lock().await.insert(
+            node_id,
+            LockedStatus {
+                timestamp: Instant::now(),
+                expiration_time,
+                exited_takes_priority: true,
+            },
+        );
     }
 
     pub async fn remove(&self, node_id: &NodeId) {
@@ -118,16 +143,20 @@ impl ImmutableNodeStatus {
 
     // Check if the node id is still in the list, but also check if
     // its expiration has already passed and therefore has to be removed from the list.
-    pub async fn is_still_locked(&self, node_id: &NodeId) -> bool {
-        let info = self.0.lock().await.get(node_id).cloned();
+    pub async fn is_still_locked(&self, node_info: &NodeInstanceInfo) -> bool {
+        let info = self.0.lock().await.get(&node_info.node_id).cloned();
         match info {
             None => false,
-            Some((instant, expiration)) => {
-                if instant.elapsed() >= expiration {
-                    self.remove(node_id).await;
+            Some(LockedStatus {
+                timestamp,
+                expiration_time,
+                exited_takes_priority,
+            }) => {
+                if timestamp.elapsed() >= expiration_time {
+                    self.remove(&node_info.node_id).await;
                     false
                 } else {
-                    true
+                    !(exited_takes_priority && node_info.status.is_exited())
                 }
             }
         }

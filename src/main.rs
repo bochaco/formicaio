@@ -126,13 +126,13 @@ async fn start_backend(listen_addr: Option<std::net::SocketAddr>) -> eyre::Resul
                 // let's set it to inactive otherwise it won't be started
                 app_state
                     .db_client
-                    .update_node_status(&node_id, NodeStatus::Inactive(InactiveReason::Stopped))
+                    .update_node_status(&node_id, &NodeStatus::Inactive(InactiveReason::Stopped))
                     .await;
                 active_nodes.push(node_id);
             } else if let NodeStatus::Locked(status) = node_info.status {
                 app_state
                     .db_client
-                    .update_node_status(&node_id, *status)
+                    .update_node_status(&node_id, &status)
                     .await;
             }
         }
