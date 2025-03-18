@@ -216,7 +216,7 @@ async fn check_node_bin_version(
 
         loop {
             let auto_upgrade = db_client.get_settings().await.nodes_auto_upgrade;
-            logging::log!("Nodes auto-upgrading setting enabled?: {auto_upgrade}",);
+            logging::log!("Nodes auto-upgrading setting enabled?: {auto_upgrade}");
             if !auto_upgrade {
                 break;
             }

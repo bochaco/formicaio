@@ -344,7 +344,7 @@ async fn run_batches(context: ServerGlobalState) {
                                     ).await,
                                 BatchType::Recycle(_) => helper_recycle_node_instance(node_id,&context).await,
                                 BatchType::Remove(_) => helper_delete_node_instance(node_id,&context).await,
-                                _ => Ok(())
+                                BatchType::Create {..} => Ok(())
                             };
 
                             match res {

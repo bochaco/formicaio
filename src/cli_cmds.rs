@@ -54,8 +54,8 @@ pub enum NodesSubcommands {
         id: Option<Vec<NodeId>>,
         /// List nodes wich match any of the provided status.
         /// Multiple status can be provided, e.g. '--status active --status restarting'.
-        #[structopt(long, parse(try_from_str = parse_node_status))]
-        status: Option<Vec<NodeStatus>>,
+        #[structopt(long, parse(try_from_str = parse_node_status_filter))]
+        status: Option<Vec<NodeStatusFilter>>,
         /// Display all details of each listed node
         #[structopt(short, long, global = true)]
         extended: bool,
@@ -73,8 +73,8 @@ pub enum NodesSubcommands {
         id: Option<Vec<NodeId>>,
         /// Remove nodes wich match any of the provided status.
         /// Multiple status can be provided, e.g. '--status active --status restarting'.
-        #[structopt(long, parse(try_from_str = parse_node_status))]
-        status: Option<Vec<NodeStatus>>,
+        #[structopt(long, parse(try_from_str = parse_node_status_filter))]
+        status: Option<Vec<NodeStatusFilter>>,
         /// Interval (in seconds) between each action.
         #[structopt(long, default_value = "0")]
         interval: u64,
@@ -87,8 +87,8 @@ pub enum NodesSubcommands {
         id: Option<Vec<NodeId>>,
         /// Start nodes wich match any of the provided status.
         /// Multiple status can be provided, e.g. '--status active --status restarting'.
-        #[structopt(long, parse(try_from_str = parse_node_status))]
-        status: Option<Vec<NodeStatus>>,
+        #[structopt(long, parse(try_from_str = parse_node_status_filter))]
+        status: Option<Vec<NodeStatusFilter>>,
         /// Interval (in seconds) between each action.
         #[structopt(long, default_value = "0")]
         interval: u64,
@@ -101,8 +101,8 @@ pub enum NodesSubcommands {
         id: Option<Vec<NodeId>>,
         /// Stop nodes wich match any of the provided status.
         /// Multiple status can be provided, e.g. '--status active --status restarting'.
-        #[structopt(long, parse(try_from_str = parse_node_status))]
-        status: Option<Vec<NodeStatus>>,
+        #[structopt(long, parse(try_from_str = parse_node_status_filter))]
+        status: Option<Vec<NodeStatusFilter>>,
         /// Interval (in seconds) between each action.
         #[structopt(long, default_value = "0")]
         interval: u64,
@@ -115,8 +115,8 @@ pub enum NodesSubcommands {
         id: Option<Vec<NodeId>>,
         /// Recycle nodes wich match any of the provided status.
         /// Multiple status can be provided, e.g. '--status active --status restarting'.
-        #[structopt(long, parse(try_from_str = parse_node_status))]
-        status: Option<Vec<NodeStatus>>,
+        #[structopt(long, parse(try_from_str = parse_node_status_filter))]
+        status: Option<Vec<NodeStatusFilter>>,
         /// Interval (in seconds) between each action.
         #[structopt(long, default_value = "0")]
         interval: u64,
@@ -129,8 +129,8 @@ pub enum NodesSubcommands {
         id: Option<Vec<NodeId>>,
         /// Upgrade nodes wich match any of the provided status.
         /// Multiple status can be provided, e.g. '--status active --status restarting'.
-        #[structopt(long, parse(try_from_str = parse_node_status))]
-        status: Option<Vec<NodeStatus>>,
+        #[structopt(long, parse(try_from_str = parse_node_status_filter))]
+        status: Option<Vec<NodeStatusFilter>>,
         /// Interval (in seconds) between each action.
         #[structopt(long, default_value = "0")]
         interval: u64,
@@ -169,14 +169,14 @@ pub struct NodeOptsCmd {
 }
 
 // Parser for the node status CLI args
-fn parse_node_status(src: &str) -> eyre::Result<NodeStatus> {
-    let status = if let Some(first_char) = src.chars().next() {
+fn parse_node_status_filter(src: &str) -> eyre::Result<NodeStatusFilter> {
+    let status_filter = if let Some(first_char) = src.chars().next() {
         let s = format!("\"{}{}\"", first_char.to_uppercase(), &src[1..]);
         serde_json::from_str(&s)?
     } else {
         serde_json::from_str(src)?
     };
-    Ok(status)
+    Ok(status_filter)
 }
 
 // Parser for the node sort strategy CLI args
@@ -412,7 +412,7 @@ impl CliCommands {
                         if i > 0 || !body.is_empty() {
                             body = format!("{body}&");
                         }
-                        body = format!("{body}filter[status][{i}]={s}");
+                        body = format!("{body}filter[status][{i}]={s:?}");
                     }
                 }
 
@@ -850,7 +850,7 @@ async fn send_node_action_req(
     url: &str,
     batch_url: &str,
     node_ids: &[NodeId],
-    status: &[NodeStatus],
+    status: &[NodeStatusFilter],
     interval: u64,
     action_type: &str,
 ) -> Result<CliCmdResponse> {
@@ -862,7 +862,7 @@ async fn send_node_action_req(
             body = format!("{body}batch_on_match[{action_type}][node_ids][{i}]={node_id}&");
         }
         for (i, s) in status.iter().enumerate() {
-            body = format!("{body}batch_on_match[{action_type}][status][{i}]={s}&");
+            body = format!("{body}batch_on_match[{action_type}][status][{i}]={s:?}&");
         }
         let body = format!("{body}interval_secs={interval}");
         let batch_id = send_req::<u16>(batch_url, Some(body)).await?;
@@ -882,7 +882,7 @@ async fn send_node_action_req(
 async fn try_create_batch(
     mut batch_type: BatchOnMatch,
     id: &Option<Vec<NodeId>>,
-    status: &Option<Vec<NodeStatus>>,
+    status: &Option<Vec<NodeStatusFilter>>,
     interval: u64,
 ) -> Result<Option<CliCmdResponse>, ServerFnError> {
     if id.as_ref().map(|ids| ids.len()).unwrap_or(0) > 1

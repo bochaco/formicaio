@@ -1,5 +1,5 @@
 pub use super::{
-    node_instance::{NodeId, NodeInstanceInfo, NodeStatus},
+    node_instance::{InactiveReason, NodeId, NodeInstanceInfo, NodeStatus},
     sort_nodes::NodesSortStrategy,
 };
 
@@ -10,27 +10,69 @@ use std::{collections::HashMap, fmt, time::Duration};
 /// List of nodes
 pub type NodeList = HashMap<String, NodeInstanceInfo>;
 
-/// API filters
+/// API node status filters
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum NodeStatusFilter {
+    Active,
+    Restarting,
+    Stopping,
+    Removing,
+    Upgrading,
+    Recycling,
+    Batched,
+    Inactive,
+    Created,
+    Stopped,
+    StartFailed,
+    Exited,
+    Unknown,
+}
+
+impl NodeStatusFilter {
+    pub fn matches(&self, status: &NodeStatus) -> bool {
+        match self {
+            Self::Active => status.is_active(),
+            Self::Restarting => matches!(status, NodeStatus::Restarting),
+            Self::Stopping => matches!(status, NodeStatus::Stopping),
+            Self::Removing => matches!(status, NodeStatus::Removing),
+            Self::Upgrading => matches!(status, NodeStatus::Upgrading),
+            Self::Recycling => matches!(status, NodeStatus::Recycling),
+            Self::Batched => matches!(status, NodeStatus::Locked(_)),
+            Self::Inactive => status.is_inactive(),
+            Self::Created => matches!(status, NodeStatus::Inactive(InactiveReason::Created)),
+            Self::Stopped => matches!(status, NodeStatus::Inactive(InactiveReason::Stopped)),
+            Self::StartFailed => {
+                matches!(status, NodeStatus::Inactive(InactiveReason::StartFailed(_)))
+            }
+            Self::Exited => matches!(
+                status,
+                NodeStatus::Inactive(InactiveReason::Exited(_) | InactiveReason::Unknown)
+            ),
+            Self::Unknown => matches!(status, NodeStatus::Inactive(InactiveReason::Unknown)),
+        }
+    }
+}
+
+/// API node filters
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct NodeFilter {
     pub node_ids: Option<Vec<NodeId>>,
-    pub status: Option<Vec<NodeStatus>>,
+    pub status: Option<Vec<NodeStatusFilter>>,
 }
 
 impl NodeFilter {
+    fn status_filter_apply(&self, status: &NodeStatus, fallback_val: bool) -> bool {
+        self.status
+            .as_ref()
+            .map(|s| s.iter().any(|sf| sf.matches(status)))
+            .unwrap_or(fallback_val)
+    }
+
     pub fn passes(&self, node_id: &NodeId, status: &NodeStatus) -> bool {
         if let Some(ids) = self.node_ids.as_ref() {
-            ids.contains(node_id)
-                || self
-                    .status
-                    .as_ref()
-                    .map(|s| s.contains(status))
-                    .unwrap_or(false)
+            ids.contains(node_id) || self.status_filter_apply(status, false)
         } else {
-            self.status
-                .as_ref()
-                .map(|s| s.contains(status))
-                .unwrap_or(true)
+            self.status_filter_apply(status, true)
         }
     }
 
@@ -39,11 +81,7 @@ impl NodeFilter {
             .as_ref()
             .map(|ids| ids.contains(node_id))
             .unwrap_or(false)
-            || self
-                .status
-                .as_ref()
-                .map(|s| s.contains(status))
-                .unwrap_or(false)
+            || self.status_filter_apply(status, false)
     }
 }
 
