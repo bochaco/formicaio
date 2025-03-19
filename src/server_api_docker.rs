@@ -39,7 +39,10 @@ pub async fn nodes_instances(
     for mut node_info in nodes_list.into_iter() {
         // we first read node metadata cached in the database
         // TODO: fetch metadata of all nodes from DB with a single DB call
-        context.db_client.get_node_metadata(&mut node_info).await;
+        context
+            .db_client
+            .get_node_metadata(&mut node_info, false)
+            .await;
 
         // TODO: pass the filter/s to docker-client
         if let Some(ref filter) = filter {

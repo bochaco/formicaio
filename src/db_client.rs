@@ -80,7 +80,7 @@ struct CachedNodeMetadata {
 impl CachedNodeMetadata {
     // Update the node info with data obtained from DB, but only those
     // fields with non zero/empty values; zero/empty value means it was unknown when stored.
-    pub fn merge_onto(&self, info: &mut NodeInstanceInfo) {
+    fn merge_onto(&self, info: &mut NodeInstanceInfo, get_status: bool) {
         if !self.node_id.is_empty() {
             info.node_id = self.node_id.clone();
         }
@@ -93,8 +93,10 @@ impl CachedNodeMetadata {
         if self.status_changed > 0 {
             info.status_changed = self.status_changed;
         }
-        if let Ok(status) = serde_json::from_str(&self.status) {
-            info.status = status;
+        if get_status {
+            if let Ok(status) = serde_json::from_str(&self.status) {
+                info.status = status;
+            }
         }
         if !self.peer_id.is_empty() {
             info.peer_id = Some(self.peer_id.clone());
@@ -192,7 +194,7 @@ impl DbClient {
             Ok(nodes) => {
                 for node in nodes {
                     let mut node_info = NodeInstanceInfo::default();
-                    node.merge_onto(&mut node_info);
+                    node.merge_onto(&mut node_info, true);
                     retrieved_nodes.insert(node.node_id, node_info);
                 }
             }
@@ -203,7 +205,7 @@ impl DbClient {
     }
 
     // Retrieve node metadata from local cache DB
-    pub async fn get_node_metadata(&self, info: &mut NodeInstanceInfo) {
+    pub async fn get_node_metadata(&self, info: &mut NodeInstanceInfo, get_status: bool) {
         let db_lock = self.db.lock().await;
         match sqlx::query_as::<_, CachedNodeMetadata>(
             "SELECT * FROM nodes WHERE node_id LIKE ? || '%'",
@@ -214,7 +216,7 @@ impl DbClient {
         {
             Ok(records) => {
                 if let Some(node) = records.first() {
-                    node.merge_onto(info);
+                    node.merge_onto(info, get_status);
                 }
             }
             Err(err) => logging::log!("Sqlite query error: {err}"),
@@ -227,7 +229,7 @@ impl DbClient {
         node_id: &NodeId,
     ) -> Result<NodeInstanceInfo, ServerFnError> {
         let mut node_info = NodeInstanceInfo::new(node_id.clone());
-        self.get_node_metadata(&mut node_info).await;
+        self.get_node_metadata(&mut node_info, true).await;
         if node_info.status.is_locked() {
             return Err(ServerFnError::new(
                 "Node is part of a running/scheduled batch".to_string(),

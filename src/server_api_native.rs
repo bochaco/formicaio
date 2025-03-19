@@ -160,7 +160,10 @@ pub(crate) async fn helper_delete_node_instance(
     context: &ServerGlobalState,
 ) -> Result<(), ServerFnError> {
     let mut node_info = NodeInstanceInfo::new(node_id);
-    context.db_client.get_node_metadata(&mut node_info).await;
+    context
+        .db_client
+        .get_node_metadata(&mut node_info, true)
+        .await;
     if node_info.status.is_active() {
         // kill node's process
         context.node_manager.kill_node(&node_info.node_id).await;
