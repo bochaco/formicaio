@@ -67,19 +67,21 @@ async fn start_backend(listen_addr: Option<std::net::SocketAddr>) -> eyre::Resul
     let db_client = DbClient::connect()
         .await
         .wrap_err("Failed to initialise database")?;
+
+    // List of nodes which status is temporarily immutable
+    let node_status_locked = ImmutableNodeStatus::default();
+
     #[cfg(not(feature = "native"))]
     let docker_client = formicaio::docker_client::DockerClient::new()
         .await
         .wrap_err("Failed to initialise Docker client")?;
     #[cfg(feature = "native")]
-    let node_manager = formicaio::node_manager::NodeManager::new()
+    let node_manager = formicaio::node_manager::NodeManager::new(node_status_locked.clone())
         .await
         .wrap_err("Failed to instantiate node manager")?;
 
     let latest_bin_version = Arc::new(Mutex::new(None));
     let nodes_metrics = Arc::new(Mutex::new(NodesMetrics::new(db_client.clone())));
-    // List of nodes which status is temporarily immutable
-    let node_status_locked = ImmutableNodeStatus::default();
 
     // Channel to send commands to the bg jobs.
     let (bg_tasks_cmds_tx, _rx) = broadcast::channel::<BgTasksCmds>(1_000);
@@ -87,8 +89,6 @@ async fn start_backend(listen_addr: Option<std::net::SocketAddr>) -> eyre::Resul
     let settings = db_client.get_settings().await;
     // List of node instaces batches currently in progress
     let node_action_batches = Arc::new(Mutex::new((broadcast::channel(3).0, Vec::new())));
-    // Flag which indicates if there is an active client querying the public API.
-    let server_api_hit = Arc::new(Mutex::new(false));
     let stats = Arc::new(Mutex::new(Stats::default()));
 
     let app_state = ServerGlobalState {
@@ -99,7 +99,6 @@ async fn start_backend(listen_addr: Option<std::net::SocketAddr>) -> eyre::Resul
         #[cfg(feature = "native")]
         node_manager,
         latest_bin_version,
-        server_api_hit,
         nodes_metrics,
         node_status_locked,
         bg_tasks_cmds_tx,

@@ -82,7 +82,6 @@ pub struct ServerGlobalState {
     #[cfg(feature = "native")]
     pub node_manager: super::node_manager::NodeManager,
     pub latest_bin_version: Arc<Mutex<Option<semver::Version>>>,
-    pub server_api_hit: Arc<Mutex<bool>>,
     pub nodes_metrics: Arc<Mutex<super::metrics_client::NodesMetrics>>,
     pub node_status_locked: ImmutableNodeStatus,
     pub bg_tasks_cmds_tx: broadcast::Sender<BgTasksCmds>,
@@ -107,10 +106,6 @@ struct LockedStatus {
     timestamp: Instant,
     // Expiration information for when it should be unlocked.
     expiration_time: Duration,
-    // If this flag is set to 'true' , and the current node status
-    // is `Exited` then it has priority over the lock and the
-    // status in such case is considered unlocked.
-    exited_takes_priority: bool,
 }
 
 #[cfg(feature = "ssr")]
@@ -121,18 +116,6 @@ impl ImmutableNodeStatus {
             LockedStatus {
                 timestamp: Instant::now(),
                 expiration_time,
-                exited_takes_priority: false,
-            },
-        );
-    }
-
-    pub async fn lock_unless_exited(&self, node_id: NodeId, expiration_time: Duration) {
-        self.0.lock().await.insert(
-            node_id,
-            LockedStatus {
-                timestamp: Instant::now(),
-                expiration_time,
-                exited_takes_priority: true,
             },
         );
     }
@@ -143,20 +126,19 @@ impl ImmutableNodeStatus {
 
     // Check if the node id is still in the list, but also check if
     // its expiration has already passed and therefore has to be removed from the list.
-    pub async fn is_still_locked(&self, node_info: &NodeInstanceInfo) -> bool {
-        let info = self.0.lock().await.get(&node_info.node_id).cloned();
+    pub async fn is_still_locked(&self, node_id: &NodeId) -> bool {
+        let info = self.0.lock().await.get(node_id).cloned();
         match info {
             None => false,
             Some(LockedStatus {
                 timestamp,
                 expiration_time,
-                exited_takes_priority,
             }) => {
                 if timestamp.elapsed() >= expiration_time {
-                    self.remove(&node_info.node_id).await;
+                    self.remove(node_id).await;
                     false
                 } else {
-                    !(exited_takes_priority && node_info.status.is_exited())
+                    true
                 }
             }
         }

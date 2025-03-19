@@ -37,7 +37,6 @@ const REWARDS_ADDR_LENGTH: usize = 40;
 #[server(FetchStats, "/api", "Url", "/stats")]
 pub async fn fetch_stats() -> Result<Stats, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
-    *context.server_api_hit.lock().await = true;
 
     let stats = context.stats.lock().await.clone();
     Ok(stats)
@@ -153,7 +152,6 @@ pub async fn update_settings(
 #[server(ListNodesActionsBatches, "/api", "Url", "/batch/list")]
 pub async fn nodes_actions_batches() -> Result<Vec<NodesActionsBatch>, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
-    *context.server_api_hit.lock().await = true;
 
     let batches = context.node_action_batches.lock().await.1.clone();
     Ok(batches)
@@ -182,7 +180,7 @@ pub async fn nodes_actions_batch_on_match(
 ) -> Result<u16, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
     #[cfg(not(feature = "native"))]
-    let nodes_list = context.docker_client.get_containers_list(true).await?;
+    let nodes_list = context.docker_client.get_containers_list().await?;
     #[cfg(feature = "native")]
     let nodes_list = context.db_client.get_nodes_list().await.into_values();
 

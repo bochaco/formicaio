@@ -24,9 +24,6 @@ const METRICS_PRUNING_FREQ: Duration = Duration::from_secs(60 * 60); // every ho
 // Frequency to pull a new version of the formica image.
 const FORMICA_IMAGE_PULLING_FREQ: Duration = Duration::from_secs(60 * 60 * 6); // every 6 hours.
 
-// Frequency to poll node status from Docker engine
-const NODE_STATUS_POLLING_FREQ: Duration = Duration::from_secs(5);
-
 // App settings and set of intervals used to schedule each of the tasks.
 pub struct TasksContext {
     pub formica_image_pulling: Interval,
@@ -34,7 +31,6 @@ pub struct TasksContext {
     pub balances_retrieval: Interval,
     pub metrics_pruning: Interval,
     pub nodes_metrics_polling: Interval,
-    pub nodes_status_polling: Interval,
     pub app_settings: AppSettings,
 }
 
@@ -49,7 +45,6 @@ impl TasksContext {
             balances_retrieval,
             metrics_pruning: interval(METRICS_PRUNING_FREQ),
             nodes_metrics_polling: interval(settings.nodes_metrics_polling_freq),
-            nodes_status_polling: interval(NODE_STATUS_POLLING_FREQ),
             app_settings: settings,
         }
     }
@@ -94,11 +89,8 @@ pub struct NodeManagerProxy {
 
 #[cfg(not(feature = "native"))]
 impl NodeManagerProxy {
-    pub async fn get_nodes_list(
-        &self,
-        all: bool,
-    ) -> Result<Vec<NodeInstanceInfo>, DockerClientError> {
-        self.docker_client.get_containers_list(all).await
+    pub async fn get_nodes_list(&self) -> Result<Vec<NodeInstanceInfo>, DockerClientError> {
+        self.docker_client.get_containers_list().await
     }
 
     pub async fn upgrade_node_instance(
@@ -136,38 +128,9 @@ impl NodeManagerProxy {
 
 #[cfg(feature = "native")]
 impl NodeManagerProxy {
-    pub async fn get_nodes_list(
-        &self,
-        all: bool,
-    ) -> Result<Vec<NodeInstanceInfo>, NodeManagerError> {
-        use super::node_instance::InactiveReason;
-
-        let mut active_nodes = self.node_manager.get_active_nodes_list().await?;
+    pub async fn get_nodes_list(&self) -> Result<Vec<NodeInstanceInfo>, NodeManagerError> {
         let nodes_in_db = self.db_client.get_nodes_list().await;
-
-        let nodes = nodes_in_db
-            .into_iter()
-            .filter_map(|(_, mut node_info)| {
-                match node_info.pid.map(|pid| active_nodes.remove(&pid)) {
-                    None => { /*it has no pid*/ },
-                    Some(None) if node_info.status.is_inactive() => { /*we already know it's inactive*/ },
-                    Some(None) => node_info.set_status_inactive(InactiveReason::Unknown), // it died/exited
-                    Some(Some(None)) => node_info.set_status_active(), // it was found active
-                    Some(Some(Some(reason))) => node_info.set_status_inactive(reason), // it was found dead
-                }
-
-                if all || node_info.status.is_active() {
-                    Some(node_info)
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>();
-
-        // TODO: what if there are active PIDs not found in DB...
-        // ...populate them in DB so the user can see/delete them...?
-
-        Ok(nodes)
+        self.node_manager.get_nodes_list(nodes_in_db).await
     }
 
     pub async fn upgrade_node_instance(

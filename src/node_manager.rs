@@ -1,4 +1,7 @@
-use super::node_instance::{InactiveReason, NodeId, NodeInstanceInfo, NodePid};
+use super::{
+    app::ImmutableNodeStatus,
+    node_instance::{InactiveReason, NodeId, NodeInstanceInfo, NodePid},
+};
 
 use ant_releases::{
     get_running_platform, AntReleaseRepoActions, AntReleaseRepository, ArchiveType, ReleaseType,
@@ -67,10 +70,11 @@ pub struct NodeManager {
     root_dir: PathBuf,
     system: Arc<Mutex<System>>,
     nodes: Arc<Mutex<HashMap<NodeId, Child>>>,
+    node_status_locked: ImmutableNodeStatus,
 }
 
 impl NodeManager {
-    pub async fn new() -> Result<Self, NodeManagerError> {
+    pub async fn new(node_status_locked: ImmutableNodeStatus) -> Result<Self, NodeManagerError> {
         if !sysinfo::IS_SUPPORTED_SYSTEM {
             panic!("This OS isn't supported by our 'sysinfo' dependency which manages the nodes as native processes.");
         }
@@ -91,6 +95,7 @@ impl NodeManager {
             root_dir,
             system,
             nodes,
+            node_status_locked,
         })
     }
 
@@ -242,11 +247,11 @@ impl NodeManager {
         }
     }
 
-    // Retrieve list of node running processes, as well as
-    // those found dead with the exit reason.
-    pub async fn get_active_nodes_list(
+    // Retrieve list of nodes with up to date status.
+    pub async fn get_nodes_list(
         &self,
-    ) -> Result<HashMap<NodePid, Option<InactiveReason>>, NodeManagerError> {
+        mut nodes_info: HashMap<NodeId, NodeInstanceInfo>,
+    ) -> Result<Vec<NodeInstanceInfo>, NodeManagerError> {
         // first update processes information of our `System` struct
         let mut sys = self.system.lock().await;
         sys.refresh_processes_specifics(
@@ -255,7 +260,7 @@ impl NodeManager {
             ProcessRefreshKind::nothing(),
         );
 
-        let mut pids = HashMap::new();
+        let mut nodes_list = vec![];
 
         for process in sys
             .processes_by_exact_name(NODE_BIN_NAME.as_ref())
@@ -263,36 +268,75 @@ impl NodeManager {
             .filter(|p| p.thread_kind().is_none())
         {
             let pid = process.pid().as_u32();
-            if process.status() != ProcessStatus::Zombie {
-                pids.insert(pid, None);
-                continue;
-            }
-
-            // we need to kill/wait for child zombie
-            let id = self
-                .nodes
-                .lock()
-                .await
-                .iter()
-                .find(|(_, c)| c.id() == pid)
-                .map(|(id, _)| id.clone());
-            if let Some(node_id) = id {
-                let status = if let Some(exit_status) = self.kill_node(&node_id).await {
-                    exit_status.to_string()
+            let info = nodes_info.iter().find_map(|(_, n)| {
+                if n.pid == Some(pid) {
+                    Some(n.clone())
                 } else {
-                    "none".to_string()
+                    None
+                }
+            });
+
+            // TODO: what if there are active PIDs not found in DB...
+            // ...populate them in DB so the user can see/delete them...?
+            // ...killing them is not an option as we could have just lost track of it...?
+
+            if let Some(mut node_info) = info {
+                nodes_info.remove(&node_info.node_id);
+
+                if process.status() != ProcessStatus::Zombie {
+                    node_info.set_status_active();
+                    nodes_list.push(node_info);
+                    continue;
+                }
+
+                // we won't try to kill a zombie if its status is locked
+                if self
+                    .node_status_locked
+                    .is_still_locked(&node_info.node_id)
+                    .await
+                {
+                    nodes_list.push(node_info);
+                    continue;
+                }
+
+                // we need to kill/wait for child zombie
+                let id = self
+                    .nodes
+                    .lock()
+                    .await
+                    .iter()
+                    .find(|(_, c)| c.id() == pid)
+                    .map(|(id, _)| id.clone());
+                let reason = if let Some(node_id) = id {
+                    let status = if let Some(exit_status) = self.kill_node(&node_id).await {
+                        exit_status.to_string()
+                    } else {
+                        "none".to_string()
+                    };
+                    logging::log!(
+                        "Process with PID {pid} exited (node id: {node_id}) with status: {status}"
+                    );
+                    InactiveReason::Exited(status.to_string())
+                } else {
+                    logging::warn!("Zombie process detected with pid {pid}: {process:?}");
+                    InactiveReason::Exited("zombie".to_string())
                 };
-                logging::log!(
-                    "Process with PID {pid} exited (node id: {node_id}) with status: {status}"
-                );
-                pids.insert(pid, Some(InactiveReason::Exited(status.to_string())));
-            } else {
-                logging::warn!("Zombie process detected with pid {pid}: {process:?}");
-                pids.insert(pid, Some(InactiveReason::Exited("zombie".to_string())));
+
+                node_info.set_status_inactive(reason);
+                nodes_list.push(node_info);
             }
         }
 
-        Ok(pids)
+        // let's now go through the remaining nodes which are effectively inactive
+        for (_, mut node_info) in nodes_info {
+            if !node_info.status.is_inactive() {
+                node_info.set_status_inactive(InactiveReason::Unknown)
+            }
+
+            nodes_list.push(node_info);
+        }
+
+        Ok(nodes_list)
     }
 
     // Kill node's process

@@ -230,13 +230,10 @@ impl DockerClient {
 
     // Query the Docker server to return the list of ALL existing containers,
     // unless 'all' argument is set to false in which case only running containers are returned.
-    pub async fn get_containers_list(
-        &self,
-        all: bool,
-    ) -> Result<Vec<NodeInstanceInfo>, DockerClientError> {
+    pub async fn get_containers_list(&self) -> Result<Vec<NodeInstanceInfo>, DockerClientError> {
         let mut filters = HashMap::default();
         filters.insert("label".to_string(), vec![LABEL_KEY_VERSION.to_string()]);
-        self.list_containers(&filters, all).await
+        self.list_containers(&filters, true).await
     }
 
     // Query the Docker server to return a LIST of existing containers using the given filter.

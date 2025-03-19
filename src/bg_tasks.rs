@@ -16,6 +16,7 @@ use alloy::{
     sol,
     transports::Transport,
 };
+use chrono::Utc;
 use leptos::logging;
 use semver::Version;
 use std::{
@@ -161,38 +162,6 @@ pub fn spawn_bg_tasks(context: ServerGlobalState, settings: AppSettings) {
                     // reset interval to start next period from this instant,
                     // regardless how long the above polling task lasted.
                     ctx.nodes_metrics_polling.reset_after(ctx.nodes_metrics_polling.period());
-                },
-                _ = ctx.nodes_status_polling.tick() => {
-                    // we poll node status only if a client is currently querying the API,
-                    // and only if the metrics polling is not frequent enough
-                    let api_hit = *context.server_api_hit.lock().await;
-                    if !api_hit || 2 * ctx.nodes_status_polling.period() > ctx.nodes_metrics_polling.period() {
-                        continue;
-                    }
-
-                    *context.server_api_hit.lock().await = false;
-                    match node_mgr_proxy.get_nodes_list(true).await {
-                        Ok(nodes) => {
-                            let total_nodes = nodes.len();
-                            let mut num_active_nodes = 0;
-                            let mut num_inactive_nodes = 0;
-
-                            for node_info in nodes.into_iter() {
-                                update_node_metadata(&node_info, &context.db_client, &context.node_status_locked).await;
-                                if node_info.status.is_active() {
-                                    num_active_nodes += 1;
-                                } else if node_info.status.is_inactive() {
-                                    num_inactive_nodes += 1;
-                                }
-                            }
-
-                            let mut guard = context.stats.lock().await;
-                            guard.total_nodes = total_nodes;
-                            guard.active_nodes = num_active_nodes;
-                            guard.inactive_nodes = num_inactive_nodes;
-                        },
-                        Err(err) => logging::log!("Failed to get nodes list: {err}")
-                    }
                 }
             }
         }
@@ -290,8 +259,8 @@ async fn update_node_metadata(
     db_client: &DbClient,
     node_status_locked: &ImmutableNodeStatus,
 ) {
-    let update_status =
-        !node_status_locked.is_still_locked(node_info).await && !node_info.status.is_locked();
+    let update_status = !node_status_locked.is_still_locked(&node_info.node_id).await
+        && !node_info.status.is_locked();
     db_client
         .update_node_metadata(node_info, update_status)
         .await;
@@ -308,17 +277,15 @@ async fn update_nodes_info(
     lcd_stats: &Arc<Mutex<HashMap<String, String>>>,
     global_stats: Arc<Mutex<Stats>>,
 ) {
-    let nodes = node_mgr_proxy
-        .get_nodes_list(true)
-        .await
-        .unwrap_or_else(|err| {
-            logging::log!("Failed to get nodes list: {err}");
-            vec![]
-        });
+    let ts = Utc::now();
+    let nodes = node_mgr_proxy.get_nodes_list().await.unwrap_or_else(|err| {
+        logging::log!("[{ts}] Failed to get nodes list: {err}");
+        vec![]
+    });
 
     let num_nodes = nodes.len();
     if num_nodes > 0 {
-        logging::log!("Fetching status and metrics from {num_nodes} node/s ...");
+        logging::log!("[{ts}] Fetching status and metrics from {num_nodes} node/s ...");
     }
 
     // let's collect stats to update LCD (if enabled) and global stats records
@@ -393,7 +360,7 @@ async fn update_nodes_info(
         ]);
         avg_net_size
     } else {
-        logging::log!("No active nodes to retrieve metrics from...");
+        logging::log!("[{ts}] No active nodes to retrieve metrics from...");
         remove_lcd_stats(
             lcd_stats,
             &[
@@ -421,7 +388,7 @@ async fn update_nodes_info(
 
 // Prune metrics records from the cache DB to always keep the number of records within a limit.
 async fn prune_metrics(node_mgr_proxy: NodeManagerProxy, db_client: DbClient) {
-    let nodes = match node_mgr_proxy.get_nodes_list(false).await {
+    let nodes = match node_mgr_proxy.get_nodes_list().await {
         Ok(nodes) if !nodes.is_empty() => nodes,
         Err(err) => {
             logging::log!("Failed to get nodes list: {err}");
@@ -542,7 +509,7 @@ async fn balance_checker_task(
                 updated_balances.clear();
                 let mut total_balance = U256::from(0u64);
                 if let Some(ref token_contract) = token_contract {
-                    match node_mgr_proxy.get_nodes_list(true).await {
+                    match node_mgr_proxy.get_nodes_list().await {
                         Ok(nodes) if !nodes.is_empty() => {
                             retrieve_current_balances(
                                 nodes,
