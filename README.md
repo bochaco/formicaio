@@ -21,12 +21,12 @@ known for their organization and cooperation.
 
 Simplify your decentralized experience with this intuitive application to run nodes on peer-to-peer (P2P) networks, like [Autonomi](https://autonomi.com) network currently supported.
 
-<img src="img/screenshot_01.png" width="400" height="219" />
+<img src="img/screenshot_01.png" width="400" height="212" />
 <img src="img/screenshot_02.png" width="300" height="367" />
-<img src="img/screenshot_03.png" width="400" height="219" />
+<img src="img/screenshot_03.png" width="400" height="212" />
 <img src="img/screenshot_04.png" width="300" height="367" />
-<img src="img/screenshot_05.png" width="400" height="219" />
-<img src="img/screenshot_06.png" width="400" height="219" />
+<img src="img/screenshot_05.png" width="400" height="212" />
+<img src="img/screenshot_06.png" width="400" height="212" />
 
 ## How to use:
 
