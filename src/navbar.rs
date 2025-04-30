@@ -31,7 +31,7 @@ pub fn NavBar() -> impl IntoView {
                 <span class="self-center text-2xl font-semibold whitespace-nowrap dark:text-white">
                     Formicaio
                 </span>
-                <div class="flex items-center md:order-2 space-x-3 md:space-x-0 rtl:space-x-reverse">
+                <div class="flex items-center md:order-2 space-x-3 md:space-x-4 rtl:space-x-reverse">
                     <button
                         type="button"
                         class="flex text-sm rounded-full md:me-0 focus:ring-4 focus:ring-gray-300 dark:focus:ring-gray-600"
