@@ -331,15 +331,91 @@ pub fn IconSelectActives() -> impl IntoView {
             fill="none"
             viewBox="0 0 24 24"
         >
-            <polygon points="4,4 12,8 4,12" fill="currentColor" stroke-width="2" />
+            <path
+                d="M 1 4 q 6 -6 12 0"
+                stroke="currentColor"
+                stroke-width="1"
+                fill="none"
+                stroke-linecap="round"
+            />
+            <path
+                d="M 3 6 q 4 -4 8 0"
+                stroke="currentColor"
+                stroke-width="1"
+                fill="none"
+                stroke-linecap="round"
+            />
+            <path
+                d="M 5 8 q 2 -2 4 0"
+                stroke="currentColor"
+                stroke-width="1"
+                fill="none"
+                stroke-linecap="round"
+            />
+            <circle r="1" cx="7" cy="10" fill="currentColor" />
+
             <path
                 stroke="currentColor"
                 stroke-linecap="round"
                 stroke-linejoin="round"
                 stroke-width="2"
-                d="M10 15 13 20 20 9"
+                d="M14 17 16 19 20 13"
             />
-            <rect stroke="currentColor" width="22" height="22" x="1" y="1" stroke-width="2" />
+            <rect stroke="currentColor" width="12" height="12" x="11" y="10" stroke-width="2" />
+        </svg>
+    }
+}
+
+#[component]
+pub fn IconSelectInactives() -> impl IntoView {
+    view! {
+        <svg
+            class="w-6 h-6"
+            aria-hidden="true"
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            fill="none"
+            viewBox="0 0 24 24"
+        >
+            <path
+                d="M 1 4 q 6 -6 12 0"
+                stroke="currentColor"
+                stroke-width="1"
+                fill="none"
+                stroke-linecap="round"
+            />
+            <path
+                d="M 3 6 q 4 -4 8 0"
+                stroke="currentColor"
+                stroke-width="1"
+                fill="none"
+                stroke-linecap="round"
+            />
+            <path
+                d="M 5 8 q 2 -2 4 0"
+                stroke="currentColor"
+                stroke-width="1"
+                fill="none"
+                stroke-linecap="round"
+            />
+            <circle r="1" cx="7" cy="10" fill="currentColor" />
+            <path
+                d="M 4 10 12 1"
+                stroke="currentColor"
+                stroke-width="1"
+                fill="none"
+                stroke-linecap="round"
+            />
+
+            <path
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M14 17 16 19 20 13"
+            />
+            <rect stroke="currentColor" width="12" height="12" x="11" y="10" stroke-width="2" />
         </svg>
     }
 }

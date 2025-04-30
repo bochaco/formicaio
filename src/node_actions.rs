@@ -232,6 +232,43 @@ pub fn NodesActionsView(home_net_only: bool) -> impl IntoView {
                 <button
                     type="button"
                     on:click=move |_| {
+                        context
+                            .selecting_nodes
+                            .update(|(enabled, selected)| {
+                                *enabled = true;
+                                context
+                                    .nodes
+                                    .read()
+                                    .1
+                                    .iter()
+                                    .filter(|(_, n)| {
+                                        n.read().status.is_inactive()
+                                            && !n.read().status.is_locked()
+                                    })
+                                    .for_each(|(id, _)| {
+                                        selected.insert(id.clone());
+                                    });
+                            });
+                    }
+                    data-tooltip-target="tooltip-select-inactives"
+                    data-tooltip-placement="left"
+                    class=btn_nodes_action_class
+                >
+                    <IconSelectInactives />
+                    <span class="sr-only">Select inactives</span>
+                </button>
+                <div
+                    id="tooltip-select-inactives"
+                    role="tooltip"
+                    class="absolute z-10 invisible inline-block w-auto px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700"
+                >
+                    Select inactives
+                    <div class="tooltip-arrow" data-popper-arrow></div>
+                </div>
+
+                <button
+                    type="button"
+                    on:click=move |_| {
                         context.selecting_nodes.update(|(enabled, _)| *enabled = true);
                     }
                     data-tooltip-target="tooltip-manage"
