@@ -11,10 +11,10 @@ use super::{
     server_api_types::{AppSettings, Stats},
 };
 use alloy::{
+    network::Network,
     primitives::{Address, U256},
-    providers::{Network, Provider, ProviderBuilder},
+    providers::{Provider, ProviderBuilder},
     sol,
-    transports::Transport,
 };
 use chrono::Utc;
 use leptos::logging;
@@ -445,7 +445,7 @@ async fn balance_checker_task(
 
         match (addr, url) {
             (Some(token_address), Some(rpc_url)) => {
-                let provider = ProviderBuilder::new().on_http(rpc_url);
+                let provider = ProviderBuilder::new().connect_http(rpc_url);
                 let token_contract = TokenContract::new(token_address, provider);
                 Some(token_contract)
             }
@@ -539,9 +539,9 @@ async fn balance_checker_task(
     }
 }
 
-async fn retrieve_current_balances<T: Transport + Clone, P: Provider<T, N>, N: Network>(
+async fn retrieve_current_balances<P: Provider<N>, N: Network>(
     nodes: impl IntoIterator<Item = NodeInstanceInfo>,
-    token_contract: &TokenContract::TokenContractInstance<T, P, N>,
+    token_contract: &TokenContract::TokenContractInstance<P, N>,
     db_client: &DbClient,
     updated_balances: &mut HashMap<Address, (U256, u64)>,
 ) {
@@ -566,7 +566,6 @@ async fn retrieve_current_balances<T: Transport + Clone, P: Provider<T, N>, N: N
                 .await
                 {
                     Ok(Ok(balance)) => {
-                        let balance = balance._0;
                         updated_balances.insert(address, (balance, 1));
                         balance.to_string()
                     }

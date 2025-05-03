@@ -7,8 +7,8 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-alloy = { version = "0.8", default-features = false, features = ["reqwest-rustls-tls","provider-http","contract","sol-types","json"], optional = true }
-alloy-primitives = { version = "0.8", features = ["serde"] }
+alloy = { version = "0.15", default-features = false, features = ["reqwest-rustls-tls","provider-http","contract","sol-types","json"], optional = true }
+alloy-primitives = { version = "1", features = ["serde"] }
 ant-releases = { version = "0.4.0", optional = true }
 apexcharts-rs = { version = "0.1", default-features = false, features = ["leptos"] }
 async-stream = { version = "0.3", optional = true }
@@ -43,7 +43,7 @@ serde = "1.0"
 serde_json = "1.0"
 structopt = "0.3"
 sqlx = { version = "0.8", default-features = false, features = ["derive","migrate","runtime-tokio","tls-rustls","sqlite"], optional = true }
-sysinfo = { version = "0.33", default-features = false, features = ["system"], optional = true }
+sysinfo = { version = "0.35", default-features = false, features = ["system"], optional = true }
 thiserror = "2"
 tokio = { version = "1", default-features = false, features = ["rt-multi-thread"], optional = true }
 tower = { version = "0.5", features = ["util"], optional = true }
