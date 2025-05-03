@@ -32,7 +32,7 @@ mod ssr_imports_and_defs {
 use ssr_imports_and_defs::*;
 
 /// Obtain the list of existing nodes instances with their info.
-#[server(ListNodeInstances, "/api", "Url", "/nodes/list")]
+#[server(name = ListNodeInstances, prefix = "/api", endpoint = "/nodes/list")]
 pub async fn nodes_instances(
     filter: Option<NodeFilter>,
 ) -> Result<NodesInstancesInfo, ServerFnError> {
@@ -285,7 +285,7 @@ pub(crate) async fn helper_stop_node_instance(
 }
 
 /// Upgrade a node instance with given id
-#[server(UpgradeNodeInstance, "/api", "Url", "/nodes/upgrade")]
+#[server(name = UpgradeNodeInstance, prefix = "/api", endpoint = "/nodes/upgrade")]
 pub async fn upgrade_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
     logging::log!("Upgrading node with Id: {node_id} ...");
     let context = expect_context::<ServerGlobalState>();

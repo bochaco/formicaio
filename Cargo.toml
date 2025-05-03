@@ -12,7 +12,7 @@ alloy-primitives = { version = "0.8", features = ["serde"] }
 ant-releases = { version = "0.4.0", optional = true }
 apexcharts-rs = { version = "0.1", default-features = false, features = ["leptos"] }
 async-stream = { version = "0.3", optional = true }
-axum = { version = "0.7", optional = true, features = ["macros","http2"] }
+axum = { version = "0.8", optional = true, features = ["macros","http2"] }
 bs58 = { version = "0.5", optional = true }
 bytes = "1"
 chrono = "0.4"
@@ -29,10 +29,10 @@ hyper = { version = "1.5", features = ["client","http1"], optional = true }
 hyper-util = { version = "0.1", optional = true }
 i2cdev = { version = "0.6", optional = true }
 lcd = { version = "0.4", optional = true }
-leptos = { version = "0.7" }
-leptos_axum = { version = "0.7", optional = true }
-leptos_meta = { version = "0.7" }
-leptos_router = { version = "0.7" }
+leptos = { version = "0.8" }
+leptos_axum = { version = "0.8", optional = true }
+leptos_meta = { version = "0.8" }
+leptos_router = { version = "0.8" }
 libp2p-identity = { version = "0.2", features = ["peerid","ed25519"], optional = true }
 local-ip-address = { version = "0.6", optional = true }
 prettytable = "0.10.0"

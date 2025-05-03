@@ -15,7 +15,7 @@ use hyper::{
     Method, Request, Response, StatusCode,
 };
 use hyper_util::rt::TokioIo;
-use leptos::{logging, prelude::*};
+use leptos::logging;
 use serde::Serialize;
 use std::{
     collections::HashMap,

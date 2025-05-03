@@ -6,7 +6,6 @@ use super::{
 
 use alloy_primitives::U256;
 use chrono::Utc;
-use leptos::prelude::*;
 use std::{collections::HashMap, str::FromStr};
 use thiserror::Error;
 

@@ -34,7 +34,7 @@ pub use super::server_api_native::*;
 const REWARDS_ADDR_LENGTH: usize = 40;
 
 /// Return a set of stats
-#[server(FetchStats, "/api", "Url", "/stats")]
+#[server(name = FetchStats, prefix = "/api", endpoint = "/stats")]
 pub async fn fetch_stats() -> Result<Stats, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
 
@@ -43,7 +43,7 @@ pub async fn fetch_stats() -> Result<Stats, ServerFnError> {
 }
 
 // Create and add a new node instance returning its info
-#[server(CreateNodeInstance, "/api", "Url", "/nodes/create")]
+#[server(name = CreateNodeInstance, prefix= "/api", endpoint = "/nodes/create")]
 pub async fn create_node_instance(node_opts: NodeOpts) -> Result<NodeInstanceInfo, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
 
@@ -54,7 +54,7 @@ pub async fn create_node_instance(node_opts: NodeOpts) -> Result<NodeInstanceInf
 }
 
 // Start a node instance with given id
-#[server(StartNodeInstance, "/api", "Url", "/nodes/start")]
+#[server(name = StartNodeInstance, prefix= "/api", endpoint = "/nodes/start")]
 pub async fn start_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
     helper_start_node_instance(node_id, &context).await?;
@@ -62,7 +62,7 @@ pub async fn start_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
 }
 
 // Stop a node instance with given id
-#[server(StopNodeInstance, "/api", "Url", "/nodes/stop")]
+#[server(name = StopNodeInstance, prefix= "/api", endpoint = "/nodes/stop")]
 pub async fn stop_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
     logging::log!("Stopping node with Id: {node_id} ...");
     let context = expect_context::<ServerGlobalState>();
@@ -71,7 +71,7 @@ pub async fn stop_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
 }
 
 /// Delete a node instance with given id
-#[server(DeleteNodeInstance, "/api", "Url", "/nodes/delete")]
+#[server(name = DeleteNodeInstance, prefix= "/api", endpoint = "/nodes/delete")]
 pub async fn delete_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
     logging::log!("Deleting node with Id: {node_id} ...");
     let context = expect_context::<ServerGlobalState>();
@@ -80,7 +80,7 @@ pub async fn delete_node_instance(node_id: NodeId) -> Result<(), ServerFnError> 
 }
 
 // Recycle a node instance by restarting it with a new node peer-id
-#[server(RecycleNodeInstance, "/api", "Url", "/nodes/recycle")]
+#[server(name = RecycleNodeInstance, prefix= "/api", endpoint = "/nodes/recycle")]
 pub async fn recycle_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
     logging::log!("Recycling node instance with Id: {node_id} ...");
@@ -110,7 +110,7 @@ pub async fn start_node_logs_stream(node_id: NodeId) -> Result<ByteStream, Serve
 }
 
 // Retrieve the metrics for a node instance with given id and filters
-#[server(NodeMetrics, "/api", "Url", "/nodes/metrics")]
+#[server(name = NodeMetrics, prefix = "/api", endpoint = "/nodes/metrics")]
 pub async fn node_metrics(
     node_id: NodeId,
     since: Option<i64>,
@@ -127,7 +127,7 @@ pub async fn node_metrics(
 }
 
 // Retrieve the settings
-#[server(GetSettings, "/api", "Url", "/settings/get")]
+#[server(name = GetSettings, prefix = "/api", endpoint = "/settings/get")]
 pub async fn get_settings() -> Result<super::server_api_types::AppSettings, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
     let settings = context.db_client.get_settings().await;
@@ -136,7 +136,7 @@ pub async fn get_settings() -> Result<super::server_api_types::AppSettings, Serv
 }
 
 // Update the settings
-#[server(UpdateSettings, "/api", "Url", "/settings/set")]
+#[server(name = UpdateSettings, prefix = "/api", endpoint = "/settings/set")]
 pub async fn update_settings(
     settings: super::server_api_types::AppSettings,
 ) -> Result<(), ServerFnError> {
@@ -149,7 +149,7 @@ pub async fn update_settings(
 }
 
 /// Return list of running and scheduled nodes actions batches
-#[server(ListNodesActionsBatches, "/api", "Url", "/batch/list")]
+#[server(name = ListNodesActionsBatches, prefix = "/api", endpoint = "/batch/list")]
 pub async fn nodes_actions_batches() -> Result<Vec<NodesActionsBatch>, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
 
@@ -158,7 +158,7 @@ pub async fn nodes_actions_batches() -> Result<Vec<NodesActionsBatch>, ServerFnE
 }
 
 /// Prepare a new nodes actions batch
-#[server(CreateNodesActionsBatch, "/api", "Url", "/batch/create")]
+#[server(name = CreateNodesActionsBatch, prefix = "/api", endpoint = "/batch/create")]
 pub async fn nodes_actions_batch_create(
     batch_type: BatchType,
     interval_secs: u64,
@@ -168,12 +168,7 @@ pub async fn nodes_actions_batch_create(
 }
 
 /// Create a nodes actions batch based on matching rules
-#[server(
-    CreateNodesActionsBatchOnMatch,
-    "/api",
-    "Url",
-    "/batch/create_on_match"
-)]
+#[server(name = CreateNodesActionsBatchOnMatch, prefix = "/api", endpoint = "/batch/create_on_match")]
 pub async fn nodes_actions_batch_on_match(
     batch_on_match: BatchOnMatch,
     interval_secs: u64,
@@ -378,7 +373,7 @@ async fn run_batches(context: ServerGlobalState) {
 }
 
 // Cancel all node instances creation batches
-#[server(CancelNodesActionsBatch, "/api", "Url", "/batch/cancel")]
+#[server(name = CancelNodesActionsBatch, prefix = "/api", endpoint = "/batch/cancel")]
 pub async fn cancel_batch(batch_id: u16) -> Result<(), ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
     logging::log!("Cancelling node action batch {batch_id} ...");
