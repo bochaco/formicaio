@@ -33,8 +33,8 @@ pub fn truncated_balance_str(v: U256) -> String {
 pub fn show_alert_msg(msg: String) {
     let context = expect_context::<ClientGlobalState>();
     spawn_local(async move {
-        let mut rng = rand::thread_rng();
-        let random_id = rng.gen::<u64>();
+        let mut rng = rand::rng();
+        let random_id = rng.random::<u64>();
         logging::log!("Alert msg. displayed: {msg}");
         context.alerts.update(|msgs| msgs.push((random_id, msg)));
         TimeoutFuture::new(ALERT_MSG_DURATION_MILLIS).await;

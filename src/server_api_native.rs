@@ -18,7 +18,7 @@ mod ssr_imports_and_defs {
     pub use chrono::{DateTime, Utc};
     pub use futures_util::StreamExt;
     pub use leptos::logging;
-    pub use rand::distributions::{Alphanumeric, DistString};
+    pub use rand::distr::{Alphanumeric, SampleString};
     pub use std::time::Duration;
 
     // Length of generated node ids
@@ -112,7 +112,7 @@ pub(crate) async fn helper_create_node_instance(
     context: &ServerGlobalState,
 ) -> Result<NodeInstanceInfo, ServerFnError> {
     // Generate a random string as node id
-    let random_str = Alphanumeric.sample_string(&mut rand::thread_rng(), NODE_ID_LENGTH / 2);
+    let random_str = Alphanumeric.sample_string(&mut rand::rng(), NODE_ID_LENGTH / 2);
     let node_id = hex::encode(random_str);
     logging::log!(
         "Creating new node with port {} and Id {node_id} ...",

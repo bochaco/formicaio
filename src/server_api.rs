@@ -235,7 +235,7 @@ pub async fn helper_node_action_batch(
         }
     }
 
-    let batch_id = rand::thread_rng().gen_range(0..=u16::MAX);
+    let batch_id = rand::rng().random_range(0..=u16::MAX);
     let batch_info = NodesActionsBatch::new(batch_id, batch_type, interval_secs);
     logging::log!("Creating new batch with id {batch_id}: {batch_info:?}");
 
