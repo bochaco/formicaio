@@ -2,6 +2,6 @@
   "devDependencies": {
     "daisyui": "^4.12.10",
     "flowbite": "^2.5.2",
-    "tailwindcss": "^4.0.0"
+    "tailwindcss": "^4.1.5"
   }
 }
