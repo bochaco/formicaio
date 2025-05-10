@@ -437,19 +437,8 @@ fn AddNodesForm(modal_visibility: RwSignal<bool>, home_net_only: bool) -> impl I
                     for="home-network"
                     class="ms-2 text-sm font-medium text-gray-900 dark:text-gray-300"
                 >
-                    "Home network: the node is operating from a home network and situated behind a NAT without port forwarding capabilities."
-                    <br />
-                    <Show
-                        when=move || home_net_only
-                        fallback=move || {
-                            view! {
-                                <span class="font-bold dark:font-bold">
-                                    "If this is not enabled and you're behind a NAT, the node is terminated."
-                                </span>
-                            }
-                                .into_view()
-                        }
-                    >
+                    "Home network: enable the mode to run as a relay client if it is behind a NAT and it is not externally reachable."
+                    <Show when=move || home_net_only>
                         <span class="font-bold dark:font-bold">
                             "Home-network mode cannot be disabled in this deployment."
                         </span>

@@ -172,13 +172,13 @@ impl NodeManager {
         }
 
         let mut args = if home_network {
-            vec!["--home-network".to_string()]
+            vec!["--relay".to_string()]
         } else {
             vec![]
         };
 
-        if upnp {
-            args.push("--upnp".to_string());
+        if !upnp {
+            args.push("--no-upnp".to_string());
         }
 
         args.push("--port".to_string());

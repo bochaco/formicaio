@@ -35,9 +35,9 @@ ENV REWARDS_ADDR_ARG=''
 # Setting this flag, activates hole-punching in antnode to facilitate direct
 # connections from other nodes.
 # If this not enabled and the node is behind a NAT, the node is terminated.
-ENV HOME_NETWORK_ARG='--home-network'
+ENV HOME_NETWORK_ARG='--relay'
 
-ENV UPNP_ARG='--upnp'
+ENV UPNP_ARG=''
 
 # Define whether to enable node logs.
 ENV NODE_LOGS_ARG='--log-output-dest /app/node_data/logs'

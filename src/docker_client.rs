@@ -38,8 +38,8 @@ pub const LABEL_KEY_METRICS_PORT: &str = "metrics_port";
 pub const LABEL_KEY_REWARDS_ADDR: &str = "rewards_addr";
 // Label's key to cache the flag value set --home-network for the node
 pub const LABEL_KEY_HOME_NETWORK_DISABLED: &str = "home_network_disabled";
-// Label's key to cache the flag value set --upnp for the node
-pub const LABEL_KEY_UPNP_ENABLED: &str = "upnp_enabled";
+// Label's key to cache the flag value set --no-upnp for the node
+pub const LABEL_KEY_UPNP_DISABLED: &str = "upnp_disabled";
 // Label's key to cache the value set to node logs for the node
 pub const LABEL_KEY_NODE_LOGS_DISABLED: &str = "node_logs_disabled";
 
@@ -338,10 +338,9 @@ impl DockerClient {
                 "true".to_string(),
             ));
         }
-        if node_opts.upnp {
-            labels.push((LABEL_KEY_UPNP_ENABLED.to_string(), "true".to_string()));
-        } else {
-            env_vars.push("UPNP_ARG=".to_string());
+        if !node_opts.upnp {
+            labels.push((LABEL_KEY_UPNP_DISABLED.to_string(), "true".to_string()));
+            env_vars.push("UPNP_ARG=--no-upnp".to_string());
         }
         if !node_opts.node_logs {
             env_vars.push("NODE_LOGS_ARG=".to_string());
