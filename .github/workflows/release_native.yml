@@ -62,7 +62,7 @@ jobs:
         run: npm install
 
       - name: Install stable Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.86.0
 
       - name: Install build tools
         uses: cargo-bins/cargo-binstall@main

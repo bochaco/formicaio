@@ -7,7 +7,7 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-alloy = { version = "0.15", default-features = false, features = ["reqwest-rustls-tls","provider-http","contract","sol-types","json"], optional = true }
+alloy = { version = "1", default-features = false, features = ["reqwest-rustls-tls","provider-http","contract","sol-types","json"], optional = true }
 alloy-primitives = { version = "1", features = ["serde"] }
 ant-releases = { version = "0.4.0", optional = true }
 apexcharts-rs = { version = "0.1", default-features = false, features = ["leptos"] }
