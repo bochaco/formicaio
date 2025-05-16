@@ -1,6 +1,8 @@
 use super::{
     node_instance::{NodeId, NodeInstanceInfo},
-    server_api_types::{BatchOnMatch, BatchType, NodeOpts, NodesActionsBatch, Stats},
+    server_api_types::{
+        BatchOnMatch, BatchType, NodeOpts, NodesActionsBatch, Stats, WidgetFourStats,
+    },
 };
 
 use alloy_primitives::Address;
@@ -12,8 +14,9 @@ use std::{collections::HashMap, str::FromStr};
 mod ssr_imports_and_defs {
     pub use crate::{
         app::{BgTasksCmds, ServerGlobalState},
+        helpers::truncated_balance_str,
         node_instance::NodeStatus,
-        server_api_types::NodeFilter,
+        server_api_types::{NodeFilter, WidgetStat},
     };
     pub use futures_util::StreamExt;
     pub use leptos::logging;
@@ -37,9 +40,44 @@ const REWARDS_ADDR_LENGTH: usize = 40;
 #[server(name = FetchStats, prefix = "/api", endpoint = "/stats")]
 pub async fn fetch_stats() -> Result<Stats, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
-
     let stats = context.stats.lock().await.clone();
     Ok(stats)
+}
+
+/// Return a set of stats formatted for UmbrelOS widget
+#[server(name = FetchStatsWidget, prefix = "/api", endpoint = "/stats_widget")]
+pub async fn fetch_stats_widget() -> Result<WidgetFourStats, ServerFnError> {
+    let context = expect_context::<ServerGlobalState>();
+    let stats = context.stats.lock().await.clone();
+    let widget_stats = WidgetFourStats {
+        r#type: "four-stats".to_string(),
+        refresh: "5s".to_string(),
+        link: "".to_string(),
+        items: vec![
+            WidgetStat {
+                title: "Total balance".to_string(),
+                text: truncated_balance_str(stats.total_balance),
+                subtext: "".to_string(),
+            },
+            WidgetStat {
+                title: "Active nodes".to_string(),
+                text: format!("{}/{}", stats.active_nodes, stats.total_nodes),
+                subtext: "".to_string(),
+            },
+            WidgetStat {
+                title: "Stored records".to_string(),
+                text: stats.stored_records.to_string(),
+                subtext: "".to_string(),
+            },
+            WidgetStat {
+                title: "Network size".to_string(),
+                text: stats.estimated_net_size.to_string(),
+                subtext: "".to_string(),
+            },
+        ],
+    };
+
+    Ok(widget_stats)
 }
 
 // Create and add a new node instance returning its info

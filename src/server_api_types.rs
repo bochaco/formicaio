@@ -150,6 +150,23 @@ pub struct Stats {
     pub relevant_records: usize,
 }
 
+/// Node stats formatted for UmbrelOS widgets.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct WidgetFourStats {
+    pub r#type: String,
+    pub refresh: String,
+    pub link: String,
+    pub items: Vec<WidgetStat>,
+}
+
+/// Node stats collected by the backend to be retrieved for UmbrelOS widgets.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct WidgetStat {
+    pub title: String,
+    pub text: String,
+    pub subtext: String,
+}
+
 /// Information of a node action batch
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct NodesActionsBatch {
