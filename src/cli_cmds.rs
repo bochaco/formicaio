@@ -204,7 +204,7 @@ pub enum SettingsSubcommands {
 #[derive(Debug)]
 pub enum CliCmdResponse {
     Nodes(Vec<NodeInstanceInfo>, bool),
-    NodeCreated(NodeInstanceInfo),
+    NodeCreated(Box<NodeInstanceInfo>),
     Stats(Stats),
     Batches(Vec<NodesActionsBatch>),
     Settings(AppSettings),
@@ -257,7 +257,7 @@ impl CliCommands {
                     CliCmdResponse::BatchCreated(batch_id)
                 } else {
                     let new_node = create_node_instance(node_opts).await?;
-                    CliCmdResponse::NodeCreated(new_node)
+                    CliCmdResponse::NodeCreated(Box::new(new_node))
                 }
             }
             CliCommands::Nodes(NodesSubcommands::Remove {
@@ -464,7 +464,7 @@ impl CliCommands {
                     )
                     .await
                     {
-                        Ok(new_node) => Ok(CliCmdResponse::NodeCreated(new_node)),
+                        Ok(new_node) => Ok(CliCmdResponse::NodeCreated(Box::new(new_node))),
                         Err(err) => Err(err),
                     }
                 }
