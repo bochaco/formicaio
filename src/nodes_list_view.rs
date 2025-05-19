@@ -71,7 +71,12 @@ pub fn NodesListView() -> impl IntoView {
             </div>
         </Show>
 
-        <input type="checkbox" id="logs_stream_modal" class="modal-toggle" />
+        <input
+            type="checkbox"
+            id="logs_stream_modal"
+            class="modal-toggle"
+            prop:checked=move || context.logs_stream_on_for.read().is_some()
+        />
         <div class="modal" role="dialog">
             <div class="modal-box border border-solid border-slate-50 max-w-full h-full overflow-hidden">
                 <h3 class="text-sm font-bold">Node logs</h3>
@@ -88,18 +93,22 @@ pub fn NodesListView() -> impl IntoView {
                 </div>
 
                 <div class="modal-action">
-                    <label
-                        for="logs_stream_modal"
+                    <button
                         class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
                         on:click=move |_| context.logs_stream_on_for.set(None)
                     >
                         <IconCancel />
-                    </label>
+                    </button>
                 </div>
             </div>
         </div>
 
-        <input type="checkbox" id="node_chart_modal" class="modal-toggle" />
+        <input
+            type="checkbox"
+            id="node_chart_modal"
+            class="modal-toggle"
+            prop:checked=move || context.metrics_update_on_for.read().is_some()
+        />
         <div class="modal" role="dialog">
             <div class="modal-box border border-solid border-slate-50 w-4/5 max-w-full h-3/5 max-h-full overflow-y-auto">
                 <h3 class="text-sm font-bold">"Node Mem & CPU"</h3>
@@ -108,8 +117,7 @@ pub fn NodesListView() -> impl IntoView {
                 </div>
 
                 <div class="modal-action">
-                    <label
-                        for="node_chart_modal"
+                    <button
                         class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
                         on:click=move |_| {
                             set_render_chart.set(false);
@@ -117,7 +125,7 @@ pub fn NodesListView() -> impl IntoView {
                         }
                     >
                         <IconCancel />
-                    </label>
+                    </button>
                 </div>
             </div>
         </div>
@@ -616,6 +624,12 @@ fn NodeLogs(info: RwSignal<NodeInstanceInfo>, set_logs: WriteSignal<Vec<String>>
     // we use the context to switch on/off the streaming of logs
     let context = expect_context::<ClientGlobalState>();
     let is_selecting_nodes = move || context.selecting_nodes.read().0;
+    let is_btn_disabled = move || {
+        !info.read_untracked().node_logs
+            || is_selecting_nodes()
+            || info.read().status.is_transitioning()
+            || (info.read().status.is_inactive() && !cfg!(feature = "native"))
+    };
 
     // action to trigger the streaming of logs from the node to the 'set_logs' signal
     let start_logs_stream = Action::new(move |id: &String| {
@@ -632,17 +646,10 @@ fn NodeLogs(info: RwSignal<NodeInstanceInfo>, set_logs: WriteSignal<Vec<String>>
 
     view! {
         <div class="tooltip tooltip-bottom tooltip-info" data-tip="view logs">
-            <label
-                for="logs_stream_modal"
+            <button
+                prop:disabled=is_btn_disabled
                 class=move || {
-                    if !info.read_untracked().node_logs || is_selecting_nodes()
-                        || info.read().status.is_transitioning()
-                        || (info.read().status.is_inactive() && !cfg!(feature = "native"))
-                    {
-                        "btn-disabled-node-action"
-                    } else {
-                        "btn-node-action"
-                    }
+                    if is_btn_disabled() { "btn-disabled-node-action" } else { "btn-node-action" }
                 }
                 on:click=move |_| {
                     set_logs.set(vec![]);
@@ -650,7 +657,7 @@ fn NodeLogs(info: RwSignal<NodeInstanceInfo>, set_logs: WriteSignal<Vec<String>>
                 }
             >
                 <IconShowLogs />
-            </label>
+            </button>
         </div>
     }
 }
@@ -664,6 +671,11 @@ fn NodeChartShow(
     // we use the context to switch on/off the update of metrics charts
     let context = expect_context::<ClientGlobalState>();
     let is_selecting_nodes = move || context.selecting_nodes.read().0;
+    let is_btn_disabled = move || {
+        is_selecting_nodes()
+            || info.read().status.is_transitioning()
+            || info.read().status.is_inactive()
+    };
 
     // action to trigger the update of nodes metrics charts
     let start_metrics_update = move |id: String| {
@@ -680,23 +692,17 @@ fn NodeChartShow(
 
     view! {
         <div class="tooltip tooltip-bottom tooltip-info" data-tip="mem & cpu">
-            <label
-                for="node_chart_modal"
+            <button
+                prop:disabled=is_btn_disabled
                 class=move || {
-                    if is_selecting_nodes() || info.read().status.is_transitioning()
-                        || info.read().status.is_inactive()
-                    {
-                        "btn-disabled-node-action"
-                    } else {
-                        "btn-node-action"
-                    }
+                    if is_btn_disabled() { "btn-disabled-node-action" } else { "btn-node-action" }
                 }
                 on:click=move |_| {
                     start_metrics_update(info.read_untracked().node_id.clone());
                 }
             >
                 <IconShowChart />
-            </label>
+            </button>
         </div>
     }
 }
@@ -705,6 +711,11 @@ fn NodeChartShow(
 fn ButtonStopStart(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
     let context = expect_context::<ClientGlobalState>();
     let is_selecting_nodes = move || context.selecting_nodes.read().0;
+    let is_btn_disabled = move || {
+        is_selecting_nodes()
+            || info.read().status.is_locked()
+            || info.read().status.is_transitioning()
+    };
     let tip = move || {
         if info.read().status.is_inactive() {
             "start"
@@ -716,11 +727,8 @@ fn ButtonStopStart(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
     view! {
         <div class="tooltip tooltip-bottom tooltip-info" data-tip=tip>
             <button
-                class=move || match (
-                    is_selecting_nodes() || info.read().status.is_locked()
-                        || info.read().status.is_transitioning(),
-                    info.read().status.is_active(),
-                ) {
+                prop:disabled=is_btn_disabled
+                class=move || match (is_btn_disabled(), info.read().status.is_active()) {
                     (true, true) => "btn-disabled-node-action btn-node-action-active",
                     (true, false) => "btn-disabled-node-action btn-node-action-inactive",
                     (false, true) => "btn-node-action btn-node-action-active",
@@ -750,6 +758,11 @@ fn ButtonStopStart(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
 fn ButtonUpgrade(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
     let context = expect_context::<ClientGlobalState>();
     let is_selecting_nodes = move || context.selecting_nodes.read().0;
+    let is_btn_disabled = move || {
+        is_selecting_nodes()
+            || info.read().status.is_locked()
+            || info.read().status.is_transitioning()
+    };
     let tip = move || {
         if let Some(v) = context.latest_bin_version.get() {
             format!("upgrade to v{v} and restart")
@@ -757,18 +770,14 @@ fn ButtonUpgrade(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
             "upgrade and restart".to_string()
         }
     };
+
     view! {
         <div class="tooltip tooltip-bottom tooltip-info" data-tip=tip>
             <button
                 type="button"
+                prop:disabled=is_btn_disabled
                 class=move || {
-                    if is_selecting_nodes() || info.read().status.is_locked()
-                        || info.read().status.is_transitioning()
-                    {
-                        "btn-disabled-node-action"
-                    } else {
-                        "btn-node-action"
-                    }
+                    if is_btn_disabled() { "btn-disabled-node-action" } else { "btn-node-action" }
                 }
                 on:click=move |_| spawn_local(async move {
                     NodeAction::Upgrade.apply(&info, &context.stats).await;
@@ -784,18 +793,19 @@ fn ButtonUpgrade(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
 fn ButtonRecycle(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
     let context = expect_context::<ClientGlobalState>();
     let is_selecting_nodes = move || context.selecting_nodes.read().0;
+    let is_btn_enabled = move || {
+        !is_selecting_nodes()
+            && !info.read().status.is_transitioning()
+            && !info.read().status.is_locked()
+            && info.read().peer_id.is_some()
+    };
 
     view! {
         <div class="tooltip tooltip-bottom tooltip-info" data-tip="recycle">
             <button
+                prop:disabled=move || !is_btn_enabled()
                 class=move || {
-                    if !is_selecting_nodes() && !info.read().status.is_transitioning()
-                        && !info.read().status.is_locked() && info.read().peer_id.is_some()
-                    {
-                        "btn-node-action"
-                    } else {
-                        "btn-disabled-node-action"
-                    }
+                    if is_btn_enabled() { "btn-node-action" } else { "btn-disabled-node-action" }
                 }
                 on:click=move |_| spawn_local(async move {
                     NodeAction::Recycle.apply(&info, &context.stats).await;
@@ -814,6 +824,7 @@ fn ButtonRemove(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
     view! {
         <div class="tooltip tooltip-bottom tooltip-info" data-tip="remove">
             <button
+                prop:disabled=move || context.selecting_nodes.read().0
                 class=move || {
                     if context.selecting_nodes.read().0 {
                         "btn-disabled-node-action"

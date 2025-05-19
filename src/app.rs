@@ -219,7 +219,7 @@ pub fn App() -> impl IntoView {
         <Router>
             <main>
                 <Stylesheet id="leptos" href="/pkg/formicaio.css" />
-                <Script src="https://cdn.jsdelivr.net/npm/flowbite@2.5.1/dist/flowbite.min.js" />
+                <Script src="https://cdn.jsdelivr.net/npm/flowbite@3.1.2/dist/flowbite.min.js" />
 
                 <Title text="Formicaio" />
 

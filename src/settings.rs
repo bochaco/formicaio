@@ -63,7 +63,7 @@ pub fn SettingsView(settings_panel: RwSignal<bool>) -> impl IntoView {
                                     on:click=move |_| active_tab.set(0)
                                     class=move || {
                                         if active_tab.read() == 0 {
-                                            "settings-active-tab"
+                                            "active settings-active-tab"
                                         } else {
                                             "settings-tab"
                                         }
@@ -78,7 +78,7 @@ pub fn SettingsView(settings_panel: RwSignal<bool>) -> impl IntoView {
                                     on:click=move |_| active_tab.set(1)
                                     class=move || {
                                         if active_tab.read() == 1 {
-                                            "settings-active-tab"
+                                            "active settings-active-tab"
                                         } else {
                                             "settings-tab"
                                         }

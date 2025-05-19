@@ -1,68 +1,70 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@plugin "daisyui";
 
-.btn-modal {
+@import "flowbite/src/themes/default";
+@plugin "flowbite/plugin";
+
+@utility btn-modal {
     @apply text-gray-600 bg-gray-100 hover:bg-gray-300 hover:text-gray-900 focus:outline-none focus:ring-4 focus:ring-gray-300 font-medium rounded-lg text-sm px-5 py-2.5 me-2 mb-2 dark:text-white dark:hover:text-white dark:bg-gray-800 dark:hover:bg-gray-600 dark:focus:ring-gray-600 dark:border-gray-600;
 }
 
-.btn-node-action {
+@utility btn-node-action {
     @apply inline-flex items-center ml-1 px-1 py-1 text-xs font-medium text-gray-900 border border-gray-200 rounded hover:text-blue-700 focus:z-10 focus:ring-2 focus:ring-blue-700 focus:text-blue-700 dark:border-gray-700 dark:text-gray-400 dark:hover:text-white dark:focus:ring-blue-500 dark:focus:text-white;
 }
 
-.btn-disabled-node-action {
-    @apply btn-disabled inline-flex items-center ml-1 px-1 py-1 text-xs font-medium text-gray-200 border border-gray-200 rounded hover:text-blue-700 focus:z-10 focus:ring-2 focus:ring-blue-700 focus:text-blue-700 dark:border-gray-700 dark:text-gray-700 dark:hover:text-white dark:focus:ring-blue-500 dark:focus:text-white;
+@utility btn-disabled-node-action {
+    @apply inline-flex items-center ml-1 px-1 py-1 text-xs font-medium text-gray-200 border border-gray-200 rounded hover:text-blue-700 focus:z-10 focus:ring-2 focus:ring-blue-700 focus:text-blue-700 dark:border-gray-700 dark:text-gray-700 dark:hover:text-white dark:focus:ring-blue-500 dark:focus:text-white;
 }
 
-.btn-node-action-active {
+@utility btn-node-action-active {
     @apply bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700;
 }
 
-.btn-node-action-inactive {
+@utility btn-node-action-inactive {
     @apply bg-gray-50 hover:bg-gray-200 dark:bg-gray-900 dark:hover:bg-gray-800;
 }
 
-.node-card {
+@utility node-card {
     @apply relative max-w-sm m-2 p-4 border border-gray-200 rounded-lg shadow dark:border-gray-700;
 }
 
-.node-card-selected {
+@utility node-card-selected {
     @apply relative max-w-sm m-2 p-4 border border-blue-700 rounded-lg shadow dark:border-blue-400;
 }
 
-.node-card-active {
+@utility node-card-active {
     @apply bg-gray-100 dark:bg-gray-800;
 }
 
-.node-card-inactive {
+@utility node-card-inactive {
     @apply bg-gray-50 dark:bg-gray-900;
 }
 
-.node-info-item {
+@utility node-info-item {
     @apply text-blue-700 dark:text-blue-400;
 }
 
-.node-info-item-highlight {
+@utility node-info-item-highlight {
     @apply text-green-700 dark:text-green-400;
 }
 
-.node-info-item-warn {
+@utility node-info-item-warn {
     @apply text-red-700 dark:text-red-400;
 }
 
-.settings-tab {
+@utility settings-tab {
     @apply inline-block p-4 border-b-2 border-transparent rounded-t-lg hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300;
 }
 
-.settings-active-tab {
-    @apply inline-block p-4 text-blue-600 border-b-2 border-blue-600 rounded-t-lg active dark:text-blue-500 dark:border-blue-500;
+@utility settings-active-tab {
+    @apply inline-block p-4 text-blue-600 border-b-2 border-blue-600 rounded-t-lg dark:text-blue-500 dark:border-blue-500;
 }
 
-.btn-manage-nodes-action {
+@utility btn-manage-nodes-action {
     @apply flex justify-center items-center w-[52px] h-[52px] text-gray-500 hover:text-gray-900 bg-white rounded-full border border-gray-200 dark:border-gray-600 shadow-sm dark:hover:text-white dark:text-gray-400 hover:bg-gray-50 dark:bg-gray-700 dark:hover:bg-gray-600 focus:ring-4 focus:ring-gray-300 focus:outline-none dark:focus:ring-gray-400;
 }
 
-.pagination-item {
+@utility pagination-item {
     @apply flex items-center justify-center px-1.5 h-6 leading-tight text-gray-500 bg-white border border-gray-300 hover:bg-gray-100 hover:text-gray-700 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white;
 }
 
@@ -75,6 +77,6 @@
     }
 }
 
-.animate-slide {
+@utility animate-slide {
     animation: slide 25s linear infinite; /* Apply the sliding animation */
 }
