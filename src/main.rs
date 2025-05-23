@@ -9,7 +9,21 @@ async fn main() -> eyre::Result<()> {
 
     let cmds = CliCmds::from_args();
     match cmds.sub_cmds {
-        CliSubCmds::Start => start_backend(cmds.addr).await?,
+        CliSubCmds::Start(sub_cmds) => {
+            let auto_start_interval = if sub_cmds.no_auto_start {
+                if sub_cmds.node_start_interval.is_some() {
+                    eyre::bail!(
+                        "Cannot set 'node-start-interval' when the flag 'no-auto-start' is set."
+                    );
+                } else {
+                    None
+                }
+            } else {
+                sub_cmds.node_start_interval.or(Some(5))
+            };
+
+            start_backend(cmds.addr, auto_start_interval).await?
+        }
         CliSubCmds::CliCommands(cmd) => {
             let res = cmd
                 .send_request(cmds.addr.unwrap_or(SocketAddr::new(
@@ -24,7 +38,10 @@ async fn main() -> eyre::Result<()> {
 }
 
 #[cfg(feature = "ssr")]
-async fn start_backend(listen_addr: Option<std::net::SocketAddr>) -> eyre::Result<()> {
+async fn start_backend(
+    listen_addr: Option<std::net::SocketAddr>,
+    auto_start_interval: Option<u64>,
+) -> eyre::Result<()> {
     use axum::Router;
     use eyre::WrapErr;
     use formicaio::{
@@ -136,13 +153,16 @@ async fn start_backend(listen_addr: Option<std::net::SocketAddr>) -> eyre::Resul
             }
         }
 
-        if !active_nodes.is_empty() {
-            let _ = formicaio::server_api::helper_node_action_batch(
-                formicaio::server_api_types::BatchType::Start(active_nodes),
-                0,
-                &app_state,
-            )
-            .await;
+        if let Some(node_start_interval) = auto_start_interval {
+            if !active_nodes.is_empty() {
+                logging::log!("Nodes which were active ({}) will now be started with an interval of {node_start_interval:?}", active_nodes.len());
+                let _ = formicaio::server_api::helper_node_action_batch(
+                    formicaio::server_api_types::BatchType::Start(active_nodes),
+                    node_start_interval,
+                    &app_state,
+                )
+                .await;
+            }
         }
     }
 

@@ -27,9 +27,23 @@ pub struct CliCmds {
 #[derive(Debug, PartialEq, StructOpt)]
 pub enum CliSubCmds {
     /// Start Formicaio backend application
-    Start,
+    Start(StartSubcommands),
     #[structopt(flatten)]
     CliCommands(CliCommands),
+}
+
+#[derive(Debug, PartialEq, StructOpt)]
+pub struct StartSubcommands {
+    /// Do not start nodes which were previously active.
+    /// Nodes which were active before the backend shutdown are automatically
+    /// started when the backend starts, unless this flag is set.
+    #[structopt(long)]
+    pub no_auto_start: bool,
+    /// Interval (in seconds) between each node automatically started (default = 5 secs.).
+    /// Nodes which were active before the backend shutdown are automatically
+    /// started when the backend starts, unless 'no-auto-start' flag is set.
+    #[structopt(long)]
+    pub node_start_interval: Option<u64>,
 }
 
 #[derive(Debug, PartialEq, StructOpt)]
