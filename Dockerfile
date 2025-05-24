@@ -1,7 +1,7 @@
 # Dockerfile for running Formicaio app
 
 # We first just install tailwindcss from a nodejs slim image
-FROM node:23.6.1-alpine AS tailwindcss-builder
+FROM node:24-alpine AS tailwindcss-builder
 
 WORKDIR /app
 COPY package.json package-lock.json ./
@@ -20,7 +20,7 @@ RUN apk update && \
 RUN curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
 
 # Install cargo-leptos
-RUN cargo binstall cargo-leptos@0.2.26 -y
+RUN cargo binstall cargo-leptos@0.2.35 -y
 
 # Add the WASM target
 RUN rustup target add wasm32-unknown-unknown
