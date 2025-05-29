@@ -2,7 +2,7 @@
 use super::lcd::display_stats_on_lcd;
 
 use super::{
-    app::{BgTasksCmds, ImmutableNodeStatus, ServerGlobalState, METRICS_MAX_SIZE_PER_NODE},
+    app::{BgTasksCmds, ImmutableNodeStatus, METRICS_MAX_SIZE_PER_NODE, ServerGlobalState},
     bg_helpers::{NodeManagerProxy, TasksContext},
     db_client::DbClient,
     helpers::truncated_balance_str,
@@ -25,8 +25,8 @@ use std::{
 };
 use tokio::{
     select,
-    sync::{broadcast, Mutex},
-    time::{sleep, timeout, Duration},
+    sync::{Mutex, broadcast},
+    time::{Duration, sleep, timeout},
 };
 use url::Url;
 
@@ -199,7 +199,9 @@ async fn check_node_bin_version(
                 .map(|list| list.first().cloned())
             {
                 Ok(Some((node_id, v))) => {
-                    logging::log!("Auto-upgrading node binary from v{v} to v{latest_version} for node instance {node_id} ...");
+                    logging::log!(
+                        "Auto-upgrading node binary from v{v} to v{latest_version} for node instance {node_id} ..."
+                    );
                     node_mgr_proxy
                         .upgrade_node_instance(&node_id, &node_status_locked)
                         .await;
@@ -320,7 +322,9 @@ async fn update_nodes_info(
                     }
                     Err(_) => {
                         node_info.set_status_to_unknown();
-                        logging::log!("Timeout ({NODE_METRICS_QUERY_TIMEOUT:?}) while fetching metrics from node {node_short_id}.");
+                        logging::log!(
+                            "Timeout ({NODE_METRICS_QUERY_TIMEOUT:?}) while fetching metrics from node {node_short_id}."
+                        );
                     }
                 }
 
@@ -430,7 +434,9 @@ async fn balance_checker_task(
     let update_token_contract = |contract_addr: &str, rpc_url: &str| {
         let addr = match contract_addr.parse::<Address>() {
             Err(err) => {
-                logging::log!("Rewards balance check disabled. Invalid configured token contract address: {err}");
+                logging::log!(
+                    "Rewards balance check disabled. Invalid configured token contract address: {err}"
+                );
                 None
             }
             Ok(token_address) => Some(token_address),
@@ -576,7 +582,9 @@ async fn retrieve_current_balances<P: Provider<N>, N: Network>(
                         "".to_string()
                     }
                     Err(_) => {
-                        logging::log!("Timeout ({BALANCE_QUERY_TIMEOUT:?}) while querying rewards balance for node {node_short_id}.");
+                        logging::log!(
+                            "Timeout ({BALANCE_QUERY_TIMEOUT:?}) while querying rewards balance for node {node_short_id}."
+                        );
                         "".to_string()
                     }
                 }

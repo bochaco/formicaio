@@ -10,7 +10,7 @@ use leptos::logging;
 use std::{collections::HashMap, sync::Arc, thread, time::Duration};
 use tokio::{
     select,
-    sync::{broadcast, Mutex},
+    sync::{Mutex, broadcast},
     time::{interval, sleep},
 };
 

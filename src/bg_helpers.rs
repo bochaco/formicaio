@@ -15,7 +15,7 @@ use semver::Version;
 use std::sync::Arc;
 use tokio::{
     sync::Mutex,
-    time::{interval, Duration, Interval},
+    time::{Duration, Interval, interval},
 };
 
 // How often to perform a metrics pruning in the DB.

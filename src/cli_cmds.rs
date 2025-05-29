@@ -6,11 +6,11 @@ use crate::{
 #[cfg(feature = "ssr")]
 use eyre::{Result, WrapErr};
 
-use alloy_primitives::{utils::format_units, Address};
+use alloy_primitives::{Address, utils::format_units};
 use chrono::{DateTime, Local, Utc};
 use eyre::eyre;
 use leptos::prelude::ServerFnError;
-use prettytable::{format, row, Table};
+use prettytable::{Table, format, row};
 use std::{io::Write, net::SocketAddr};
 use structopt::StructOpt;
 

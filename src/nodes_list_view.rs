@@ -1,6 +1,6 @@
 use super::{
     app::{ClientGlobalState, PAGE_SIZE},
-    chart_view::{node_metrics_update, ChartSeriesData, NodeChartView},
+    chart_view::{ChartSeriesData, NodeChartView, node_metrics_update},
     helpers::{node_logs_stream, show_alert_msg, truncated_balance_str},
     icons::{
         IconCancel, IconRecycle, IconRemove, IconShowChart, IconShowLogs, IconStartNode,

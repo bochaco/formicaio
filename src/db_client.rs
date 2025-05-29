@@ -10,9 +10,9 @@ use semver::Version;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::{
+    FromRow, QueryBuilder, Row, Sqlite,
     migrate::{MigrateDatabase, Migrator},
     sqlite::SqlitePool,
-    FromRow, QueryBuilder, Row, Sqlite,
 };
 use std::{
     collections::HashMap,
@@ -248,11 +248,7 @@ impl DbClient {
         {
             Ok(records) => records.first().and_then(|r| {
                 let v: String = r.get("bin_version");
-                if v.is_empty() {
-                    None
-                } else {
-                    Some(v)
-                }
+                if v.is_empty() { None } else { Some(v) }
             }),
             Err(err) => {
                 logging::log!("Sqlite bin version query error: {err}");

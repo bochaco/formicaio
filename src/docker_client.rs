@@ -6,13 +6,13 @@ use super::{
 
 use axum::body::Body;
 use bytes::Bytes;
-use futures_util::{pin_mut, Stream, StreamExt};
+use futures_util::{Stream, StreamExt, pin_mut};
 use http_body_util::BodyExt;
 use hyper::{
+    Method, Request, Response, StatusCode,
     body::Incoming,
     client::conn,
     header::{CONTENT_LENGTH, CONTENT_TYPE},
-    Method, Request, Response, StatusCode,
 };
 use hyper_util::rt::TokioIo;
 use leptos::logging;
@@ -401,7 +401,8 @@ impl DockerClient {
     pub async fn get_container_logs_stream(
         &self,
         id: &NodeId,
-    ) -> Result<impl Stream<Item = Result<Bytes, DockerClientError>>, DockerClientError> {
+    ) -> Result<impl Stream<Item = Result<Bytes, DockerClientError>> + use<>, DockerClientError>
+    {
         let url = format!("{DOCKER_CONTAINERS_API}/{id}/exec");
         logging::log!("[LOGS] Sending Docker query to get container LOGS stream: {url} ...");
         let exec_cmd = ContainerExec {
@@ -445,7 +446,9 @@ impl DockerClient {
         let exec_cmd = self.exec_in_container(id, cmd, "upgrade node binary");
         let timeout_duration = Duration::from_secs(UPGRADE_NODE_BIN_TIMEOUT_SECS);
         match timeout(timeout_duration, exec_cmd).await {
-            Err(_) => logging::log!("Timeout ({timeout_duration:?}) while upgrading node binary. Let's restart it anyways..."),
+            Err(_) => logging::log!(
+                "Timeout ({timeout_duration:?}) while upgrading node binary. Let's restart it anyways..."
+            ),
             Ok(resp) => {
                 let (exec_id, _) = resp?;
                 logging::log!("Node upgrade process finished in container: {id}");
@@ -458,7 +461,10 @@ impl DockerClient {
                 if exec.ExitCode != 0 {
                     let error_msg = format!("Failed to upgrade node, exit code: {}", exec.ExitCode);
                     logging::log!("{error_msg}");
-                    return Err(DockerClientError::DockerServerError(exec.ExitCode.into(), error_msg));
+                    return Err(DockerClientError::DockerServerError(
+                        exec.ExitCode.into(),
+                        error_msg,
+                    ));
                 }
             }
         }
@@ -627,7 +633,8 @@ impl DockerClient {
         method: ReqMethod,
         url: &str,
         query: &[(&str, &str)],
-    ) -> Result<impl Stream<Item = Result<Bytes, DockerClientError>>, DockerClientError> {
+    ) -> Result<impl Stream<Item = Result<Bytes, DockerClientError>> + use<>, DockerClientError>
+    {
         let resp = match method.try_send_request(url, query, &self.socket_path).await {
             Err(DockerClientError::ImageNotFound) => {
                 logging::log!(

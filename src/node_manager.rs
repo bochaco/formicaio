@@ -4,7 +4,7 @@ use super::{
 };
 
 use ant_releases::{
-    get_running_platform, AntReleaseRepoActions, AntReleaseRepository, ArchiveType, ReleaseType,
+    AntReleaseRepoActions, AntReleaseRepository, ArchiveType, ReleaseType, get_running_platform,
 };
 use bytes::Bytes;
 use futures_util::Stream;
@@ -23,7 +23,7 @@ use std::{
 use sysinfo::{ProcessRefreshKind, ProcessStatus, ProcessesToUpdate, System};
 use thiserror::Error;
 use tokio::{
-    fs::{create_dir_all, metadata, remove_dir_all, remove_file, File},
+    fs::{File, create_dir_all, metadata, remove_dir_all, remove_file},
     io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt, BufReader, SeekFrom},
     sync::Mutex,
     time::sleep,
@@ -76,7 +76,9 @@ pub struct NodeManager {
 impl NodeManager {
     pub async fn new(node_status_locked: ImmutableNodeStatus) -> Result<Self, NodeManagerError> {
         if !sysinfo::IS_SUPPORTED_SYSTEM {
-            panic!("This OS isn't supported by our 'sysinfo' dependency which manages the nodes as native processes.");
+            panic!(
+                "This OS isn't supported by our 'sysinfo' dependency which manages the nodes as native processes."
+            );
         }
 
         let root_dir = match env::var(ROOT_DIR) {
@@ -234,7 +236,9 @@ impl NodeManager {
                         node_info.ips = ips;
                     }
                     Err(err) => {
-                        logging::error!("Failed to obtain node bin version and peer id for node {node_id}: {err:?}")
+                        logging::error!(
+                            "Failed to obtain node bin version and peer id for node {node_id}: {err:?}"
+                        )
                     }
                 }
 
@@ -545,7 +549,9 @@ impl NodeManager {
 
         remove_file(archive_path).await?;
 
-        logging::log!("Node binary v{version_to_download} downloaded successfully and unpacked at: {bin_path:?}");
+        logging::log!(
+            "Node binary v{version_to_download} downloaded successfully and unpacked at: {bin_path:?}"
+        );
 
         Ok(version_to_download)
     }
@@ -584,7 +590,7 @@ impl NodeManager {
     pub async fn get_node_logs_stream(
         &self,
         id: &NodeId,
-    ) -> Result<impl Stream<Item = Result<Bytes, NodeManagerError>>, NodeManagerError> {
+    ) -> Result<impl Stream<Item = Result<Bytes, NodeManagerError>> + use<>, NodeManagerError> {
         logging::log!("[LOGS] Get LOGS stream from node {id} ...");
         let log_file_path = self
             .root_dir

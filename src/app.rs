@@ -28,23 +28,20 @@ use leptos::{logging, task::spawn_local};
 use std::sync::Arc;
 #[cfg(feature = "ssr")]
 use tokio::{
-    sync::{broadcast, Mutex},
-    time::Instant,
+    sync::{Mutex, broadcast},
+    time::{Duration, Instant},
 };
 
 #[cfg(feature = "hydrate")]
 use gloo_timers::future::sleep;
 use leptos::prelude::*;
-use leptos_meta::{provide_meta_context, MetaTags, Script, Stylesheet, Title};
+use leptos_meta::{MetaTags, Script, Stylesheet, Title, provide_meta_context};
 use leptos_router::{
-    components::{Route, Router, Routes},
     StaticSegment,
+    components::{Route, Router, Routes},
 };
-use std::{
-    collections::{HashMap, HashSet},
-    time::Duration,
-};
-use wasm_bindgen::{prelude::*, JsValue};
+use std::collections::{HashMap, HashSet};
+use wasm_bindgen::{JsValue, prelude::*};
 
 #[wasm_bindgen(module = "/public/metamask.js")]
 extern "C" {
@@ -245,7 +242,9 @@ fn HomeScreenView() -> impl IntoView {
         .unwrap_or_default();
 
     if home_net_only {
-        leptos::logging::log!("'{HOME_NETWORK_ONLY}' env var set to 'true', thus home-network mode cannot be disabled in this deployment.");
+        leptos::logging::log!(
+            "'{HOME_NETWORK_ONLY}' env var set to 'true', thus home-network mode cannot be disabled in this deployment."
+        );
     }
 
     view! {
@@ -345,7 +344,8 @@ fn spawn_nodes_list_polling() {
                 }
             };
 
-            let delay = Duration::from_millis(NODES_LIST_POLLING_FREQ_MILLIS + delay_millis);
+            let delay =
+                std::time::Duration::from_millis(NODES_LIST_POLLING_FREQ_MILLIS + delay_millis);
             logging::log!("Polling server again in {delay:?} ...");
             sleep(delay).await;
         }

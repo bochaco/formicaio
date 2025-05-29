@@ -49,9 +49,9 @@ async fn start_backend(
         server_api_types::Stats,
     };
     use leptos::{logging, prelude::*};
-    use leptos_axum::{generate_route_list, LeptosRoutes};
+    use leptos_axum::{LeptosRoutes, generate_route_list};
     use std::sync::Arc;
-    use tokio::sync::{broadcast, Mutex};
+    use tokio::sync::{Mutex, broadcast};
 
     logging::log!("Starting Formicaio v{} ...", env!("CARGO_PKG_VERSION"));
 
@@ -155,7 +155,10 @@ async fn start_backend(
 
         if let Some(node_start_interval) = auto_start_interval {
             if !active_nodes.is_empty() {
-                logging::log!("Nodes which were active ({}) will now be started with an interval of {node_start_interval:?}", active_nodes.len());
+                logging::log!(
+                    "Nodes which were active ({}) will now be started with an interval of {node_start_interval:?}",
+                    active_nodes.len()
+                );
                 let _ = formicaio::server_api::helper_node_action_batch(
                     formicaio::server_api_types::BatchType::Start(active_nodes),
                     node_start_interval,

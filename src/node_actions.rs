@@ -1,5 +1,5 @@
 use super::{
-    app::{get_addr_from_metamask, ClientGlobalState},
+    app::{ClientGlobalState, get_addr_from_metamask},
     helpers::{add_node_instances, remove_node_instance, show_alert_msg},
     icons::*,
     node_instance::{NodeInstanceInfo, NodeStatus},
