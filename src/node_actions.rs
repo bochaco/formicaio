@@ -16,9 +16,6 @@ use std::num::ParseIntError;
 const DEFAULT_NODE_PORT: u16 = 12000;
 const DEFAULT_METRICS_PORT: u16 = 14000;
 
-// Delay between each action in a running batch
-const NODES_ACTIONS_DELAY_SECS: u64 = 0;
-
 // Action to apply on a node instance
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum NodeAction {
@@ -146,6 +143,8 @@ pub fn NodesActionsView(home_net_only: bool) -> impl IntoView {
     let show_actions_menu = RwSignal::new(false);
     // signal to toggle the panel to add nodes
     let modal_visibility = RwSignal::new(false);
+    // signal to toggle the panel to confirm actions to nodes
+    let modal_apply_action = RwSignal::new(None);
 
     view! {
         <div class="fixed end-6 bottom-6 group z-10">
@@ -157,7 +156,7 @@ pub fn NodesActionsView(home_net_only: bool) -> impl IntoView {
                 }
             }>
 
-                <ActionsOnSelected show_actions_menu />
+                <ActionsOnSelected show_actions_menu modal_apply_action />
 
                 <button
                     type="button"
@@ -359,6 +358,84 @@ pub fn NodesActionsView(home_net_only: bool) -> impl IntoView {
                 </div>
             </div>
         </div>
+
+        <div
+            id="apply_node_action_modal"
+            tabindex="-1"
+            aria-hidden="true"
+            class=move || {
+                if modal_apply_action.read().is_some() && *context.is_online.read() {
+                    "overflow-y-auto overflow-x-hidden fixed inset-0 flex z-50 justify-center items-center w-full md:inset-0 h-[calc(100%-1rem)] max-h-full"
+                } else {
+                    "hidden"
+                }
+            }
+        >
+            <div class="relative p-4 w-full max-w-lg max-h-full">
+                <div class="relative bg-white rounded-lg shadow dark:bg-gray-700">
+                    <div class="flex items-center justify-between p-4 md:p-5 border-b rounded-t dark:border-gray-600">
+                        <h3 class="text-xl font-semibold text-gray-900 dark:text-white">
+                            Apply action to selected nodes
+                        </h3>
+                        <button
+                            type="button"
+                            class="end-2.5 text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 ms-auto inline-flex justify-center items-center dark:hover:bg-gray-600 dark:hover:text-white"
+                            on:click=move |_| {
+                                show_actions_menu.set(true);
+                                modal_apply_action.set(None);
+                            }
+                        >
+                            <IconCancel />
+                            <span class="sr-only">Cancel</span>
+                        </button>
+                    </div>
+
+                    <div class="p-4 md:p-5">
+                        <MultipleNodesActionConfirm modal_apply_action />
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+#[component]
+fn MultipleNodesActionConfirm(modal_apply_action: RwSignal<Option<NodeAction>>) -> impl IntoView {
+    let context = expect_context::<ClientGlobalState>();
+    let interval = RwSignal::new(Ok(60));
+
+    view! {
+        <form class="space-y-4">
+            <NumberInput
+                signal=interval
+                min=0
+                label="Delay (in seconds) between each node action in the batch:"
+            />
+
+            <button
+                type="button"
+                disabled=move || (interval.read().is_err() || modal_apply_action.read().is_none())
+                on:click=move |_| {
+                    if let (Ok(i), Some(action)) = (interval.get(), modal_apply_action.get()) {
+                        modal_apply_action.set(None);
+                        apply_on_selected(action, i.into(), context);
+                    }
+                }
+                class="btn-modal"
+            >
+                {move || {
+                    let count = context.selecting_nodes.read_untracked().1.len();
+                    if let Some(action) = modal_apply_action.get() {
+                        format!(
+                            "{action:?} selected {}",
+                            if count > 1 { format!("{count} nodes") } else { "node".to_string() },
+                        )
+                    } else {
+                        "Apply action on selected node/s".to_string()
+                    }
+                }}
+            </button>
+        </form>
     }
 }
 
@@ -677,7 +754,10 @@ pub fn RewardsAddrInput(
 }
 
 #[component]
-fn ActionsOnSelected(show_actions_menu: RwSignal<bool>) -> impl IntoView {
+fn ActionsOnSelected(
+    show_actions_menu: RwSignal<bool>,
+    modal_apply_action: RwSignal<Option<NodeAction>>,
+) -> impl IntoView {
     let context = expect_context::<ClientGlobalState>();
     let is_selecting_nodes = move || context.selecting_nodes.read().0;
 
@@ -718,6 +798,7 @@ fn ActionsOnSelected(show_actions_menu: RwSignal<bool>) -> impl IntoView {
         <NodeActionButton
             label="Start selected"
             show_actions_menu
+            modal_apply_action
             action=NodeAction::Start
             icon=IconStartNode.into_any()
         />
@@ -725,6 +806,7 @@ fn ActionsOnSelected(show_actions_menu: RwSignal<bool>) -> impl IntoView {
         <NodeActionButton
             label="Stop selected"
             show_actions_menu
+            modal_apply_action
             action=NodeAction::Stop
             icon=IconStopNode.into_any()
         />
@@ -732,6 +814,7 @@ fn ActionsOnSelected(show_actions_menu: RwSignal<bool>) -> impl IntoView {
         <NodeActionButton
             label="Upgrade selected"
             show_actions_menu
+            modal_apply_action
             action=NodeAction::Upgrade
             icon=view! { <IconUpgradeNode /> }.into_any()
         />
@@ -739,6 +822,7 @@ fn ActionsOnSelected(show_actions_menu: RwSignal<bool>) -> impl IntoView {
         <NodeActionButton
             label="Recycle selected"
             show_actions_menu
+            modal_apply_action
             action=NodeAction::Recycle
             icon=IconRecycle.into_any()
         />
@@ -746,14 +830,16 @@ fn ActionsOnSelected(show_actions_menu: RwSignal<bool>) -> impl IntoView {
         <NodeActionButton
             label="Remove selected"
             show_actions_menu
+            modal_apply_action
             action=NodeAction::Remove
             icon=IconRemove.into_any()
         />
     }
 }
 
-// Helper to apply an action on the set of nodes selected by the user
-fn apply_on_selected(action: NodeAction, context: ClientGlobalState) {
+// Helper to apply an action on the set of nodes selected by the user,
+// with the user selected delay between each action in a running batch.
+fn apply_on_selected(action: NodeAction, interval: u64, context: ClientGlobalState) {
     let selected: Vec<_> = context
         .selecting_nodes
         .get_untracked()
@@ -770,10 +856,9 @@ fn apply_on_selected(action: NodeAction, context: ClientGlobalState) {
     };
 
     spawn_local(async move {
-        match nodes_actions_batch_create(batch_type.clone(), NODES_ACTIONS_DELAY_SECS).await {
+        match nodes_actions_batch_create(batch_type.clone(), interval).await {
             Ok(batch_id) => {
-                let batch_info =
-                    NodesActionsBatch::new(batch_id, batch_type, NODES_ACTIONS_DELAY_SECS);
+                let batch_info = NodesActionsBatch::new(batch_id, batch_type, interval);
                 // update context for a better UX, this will get updated in next poll anyways
                 context
                     .scheduled_batches
@@ -806,6 +891,7 @@ fn apply_on_selected(action: NodeAction, context: ClientGlobalState) {
 fn NodeActionButton(
     label: &'static str,
     show_actions_menu: RwSignal<bool>,
+    modal_apply_action: RwSignal<Option<NodeAction>>,
     action: NodeAction,
     icon: AnyView,
 ) -> impl IntoView {
@@ -827,7 +913,7 @@ fn NodeActionButton(
             type="button"
             on:click=move |_| {
                 show_actions_menu.set(false);
-                apply_on_selected(action, context);
+                modal_apply_action.set(Some(action));
             }
             data-tooltip-target=id.clone()
             data-tooltip-placement="left"
