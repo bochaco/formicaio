@@ -36,7 +36,7 @@ const NODE_BIN_NAME: &str = "antnode.exe";
 const NODE_BIN_NAME: &str = "antnode";
 
 const DEFAULT_EVM_NETWORK: &str = "evm-arbitrum-one";
-const ROOT_DIR: &str = "NODE_MGR_ROOT_DIR";
+const NODE_MGR_ROOT_DIR: &str = "NODE_MGR_ROOT_DIR";
 const DEFAULT_ROOT_FOLDER: &str = "formicaio_data";
 const DEFAULT_NODE_DATA_FOLDER: &str = "node_data";
 const DEFAULT_LOGS_FOLDER: &str = "logs";
@@ -74,18 +74,25 @@ pub struct NodeManager {
 }
 
 impl NodeManager {
-    pub async fn new(node_status_locked: ImmutableNodeStatus) -> Result<Self, NodeManagerError> {
+    pub async fn new(
+        node_status_locked: ImmutableNodeStatus,
+        data_dir_path: Option<PathBuf>,
+    ) -> Result<Self, NodeManagerError> {
         if !sysinfo::IS_SUPPORTED_SYSTEM {
             panic!(
                 "This OS isn't supported by our 'sysinfo' dependency which manages the nodes as native processes."
             );
         }
 
-        let root_dir = match env::var(ROOT_DIR) {
-            Ok(v) => Path::new(&v).to_path_buf(),
-            Err(_) => env::current_dir()?.join(DEFAULT_ROOT_FOLDER),
-        }
-        .to_path_buf();
+        let root_dir = if let Some(path) = data_dir_path {
+            path
+        } else {
+            match std::env::var(NODE_MGR_ROOT_DIR) {
+                Ok(v) => Path::new(&v).to_path_buf(),
+                Err(_) => env::current_dir()?.join(DEFAULT_ROOT_FOLDER),
+            }
+            .to_path_buf()
+        };
 
         logging::log!("Node manager instantiated with root dir:: {root_dir:?}");
         create_dir_all(&root_dir).await?;

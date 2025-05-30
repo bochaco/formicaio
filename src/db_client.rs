@@ -17,7 +17,7 @@ use sqlx::{
 use std::{
     collections::HashMap,
     env::{self, current_dir},
-    path::Path,
+    path::{Path, PathBuf},
     str::FromStr,
     sync::Arc,
     time::Duration,
@@ -149,11 +149,16 @@ pub struct DbClient {
 
 impl DbClient {
     // Create a connection to local Sqlite DB where nodes metadata is cached.
-    pub async fn connect() -> Result<Self, sqlx::Error> {
-        let db_path = match env::var(DB_PATH) {
-            Ok(v) => Path::new(&v).to_path_buf(),
-            Err(_) => Path::new(DEFAULT_DB_PATH).to_path_buf(),
+    pub async fn connect(data_dir_path: Option<PathBuf>) -> Result<Self, sqlx::Error> {
+        let db_path = if let Some(path) = data_dir_path {
+            path
+        } else {
+            match env::var(DB_PATH) {
+                Ok(v) => Path::new(&v).to_path_buf(),
+                Err(_) => Path::new(DEFAULT_DB_PATH).to_path_buf(),
+            }
         };
+
         // Sqlite DB URL to connect to with sqlx.
         let sqlite_db_url = format!("sqlite:{}", db_path.join(SQLITE_DB_FILENAME).display());
 

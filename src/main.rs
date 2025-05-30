@@ -9,21 +9,10 @@ async fn main() -> eyre::Result<()> {
 
     let cmds = CliCmds::from_args();
     match cmds.sub_cmds {
-        CliSubCmds::Start(sub_cmds) => {
-            let auto_start_interval = if sub_cmds.no_auto_start {
-                if sub_cmds.node_start_interval.is_some() {
-                    eyre::bail!(
-                        "Cannot set 'node-start-interval' when the flag 'no-auto-start' is set."
-                    );
-                } else {
-                    None
-                }
-            } else {
-                sub_cmds.node_start_interval.or(Some(5))
-            };
-
-            start_backend(cmds.addr, auto_start_interval).await?
-        }
+        #[cfg(not(feature = "native"))]
+        CliSubCmds::Start => start_backend(cmds.addr).await?,
+        #[cfg(feature = "native")]
+        CliSubCmds::Start(sub_cmds) => start_backend(cmds.addr, sub_cmds).await?,
         CliSubCmds::CliCommands(cmd) => {
             let res = cmd
                 .send_request(cmds.addr.unwrap_or(SocketAddr::new(
@@ -40,7 +29,7 @@ async fn main() -> eyre::Result<()> {
 #[cfg(feature = "ssr")]
 async fn start_backend(
     listen_addr: Option<std::net::SocketAddr>,
-    auto_start_interval: Option<u64>,
+    #[cfg(feature = "native")] sub_cmds: formicaio::cli_cmds::StartSubcommands,
 ) -> eyre::Result<()> {
     use axum::Router;
     use eyre::WrapErr;
@@ -81,7 +70,12 @@ async fn start_backend(
     let routes = generate_route_list(App);
 
     // We'll keep the database and Docker clients instances in server global state.
-    let db_client = DbClient::connect()
+    #[cfg(not(feature = "native"))]
+    let db_path = None;
+    #[cfg(feature = "native")]
+    let db_path = sub_cmds.data_dir_path.clone();
+
+    let db_client = DbClient::connect(db_path)
         .await
         .wrap_err("Failed to initialise database")?;
 
@@ -93,9 +87,12 @@ async fn start_backend(
         .await
         .wrap_err("Failed to initialise Docker client")?;
     #[cfg(feature = "native")]
-    let node_manager = formicaio::node_manager::NodeManager::new(node_status_locked.clone())
-        .await
-        .wrap_err("Failed to instantiate node manager")?;
+    let node_manager = formicaio::node_manager::NodeManager::new(
+        node_status_locked.clone(),
+        sub_cmds.data_dir_path,
+    )
+    .await
+    .wrap_err("Failed to instantiate node manager")?;
 
     let latest_bin_version = Arc::new(Mutex::new(None));
     let nodes_metrics = Arc::new(Mutex::new(NodesMetrics::new(db_client.clone())));
@@ -152,6 +149,18 @@ async fn start_backend(
                     .await;
             }
         }
+
+        let auto_start_interval = if sub_cmds.no_auto_start {
+            if sub_cmds.node_start_interval.is_some() {
+                eyre::bail!(
+                    "Cannot set 'node-start-interval' when the flag 'no-auto-start' is set."
+                );
+            } else {
+                None
+            }
+        } else {
+            sub_cmds.node_start_interval.or(Some(5))
+        };
 
         if let Some(node_start_interval) = auto_start_interval {
             if !active_nodes.is_empty() {

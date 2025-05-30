@@ -11,7 +11,7 @@ use chrono::{DateTime, Local, Utc};
 use eyre::eyre;
 use leptos::prelude::ServerFnError;
 use prettytable::{Table, format, row};
-use std::{io::Write, net::SocketAddr};
+use std::{io::Write, net::SocketAddr, path::PathBuf};
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
@@ -27,6 +27,9 @@ pub struct CliCmds {
 #[derive(Debug, PartialEq, StructOpt)]
 pub enum CliSubCmds {
     /// Start Formicaio backend application
+    #[cfg(not(feature = "native"))]
+    Start,
+    #[cfg(feature = "native")]
     Start(StartSubcommands),
     #[structopt(flatten)]
     CliCommands(CliCommands),
@@ -44,6 +47,10 @@ pub struct StartSubcommands {
     /// started when the backend starts, unless 'no-auto-start' flag is set.
     #[structopt(long)]
     pub node_start_interval: Option<u64>,
+    /// Specifies the path for storing all nodes data and tracking information for nodes.
+    /// Setting this value will override the 'DB_PATH' and 'NODE_MGR_ROOT_DIR' environment variables.
+    #[structopt(long)]
+    pub data_dir_path: Option<PathBuf>,
 }
 
 #[derive(Debug, PartialEq, StructOpt)]
