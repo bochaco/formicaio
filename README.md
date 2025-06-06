@@ -6,6 +6,7 @@
 - [How to use](#how-to-use)
 - [Running a native executable on Linux, Windows, and macOS](#running-a-native-executable-on-linux-windows-and-macos)
 - [UmbrelOS](#umbrelos)
+- [CasaOS](#casaos)
 - [Linux (amd64/arm64) with Docker](#linux-amd64arm64-with-docker)
 - [Linux/Windows/MacOS (amd64/arm64) with Podman](#linuxwindowsmacos-amd64arm64-with-podman)
 - [Displaying nodes stats on external LCD device](#displaying-nodes-stats-on-external-lcd-device)
@@ -24,7 +25,7 @@ known for their organization and cooperation.
 Formicaio is an intuitive application designed to help you run nodes on
 the [Autonomi](https://autonomi.com) network. This P2P network allows users
 to share storage and bandwidth in exchange for ANT tokens, an ERC-20 token
-on the Arbitrum One network.
+on the Arbitrum One network (https://forum.autonomi.community/t/formicaio).
 
 The name "Formicaio" is derived from the Italian word for "anthill"
 symbolizing the collaborative and structured nature of both ants and the
@@ -88,6 +89,7 @@ When setting up nodes, you can define their connection type:
 Formicaio can be deployed/executed in several ways:
 - running a native executable on Linux, Windows, and macOS
 - installed as an application on [UmbrelOS](https://umbrel.com) (https://github.com/getumbrel/umbrel).
+- installed as an application on [CasaOS](https://casaos.zimaspace.com) (https://casaos.zimaspace.com).
 - on Linux (amd64/arm64) with [Docker](https://www.docker.com) or [Podman](https://podman.io)
 - on Windows/MacOS with Podman
 
@@ -127,6 +129,14 @@ On both macOS and Windows, you may need to authorize the application to run it a
 This application has not yet been published on the official UmbrelOS app store. However, you can still install and run it on any UmbrelOS device using the [Formicaio community app store](https://github.com/bochaco/formicaio-app-store). To do this, simply add the GitHub URL (https://github.com/bochaco/formicaio-app-store) through the UmbrelOS user interface, as demonstrated in the following demo:
 
 https://user-images.githubusercontent.com/10330103/197889452-e5cd7e96-3233-4a09-b475-94b754adc7a3.mp4
+
+## CasaOS
+
+You need to copy the below source link and add it to your [CasaOS](https://casaos.zimaspace.com) settings to access the this app store:
+
+    https://github.com/bochaco/formicaio-casaos-app-store/archive/refs/heads/main.zip
+
+Please refer to the following instructions for moe details: https://github.com/bochaco/formicaio-casaos-app-store
 
 ## Linux (amd64/arm64) with Docker
 
