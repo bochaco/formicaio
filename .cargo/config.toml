@@ -10,6 +10,7 @@ rustdocflags = ["-Clink-arg=-fuse-ld=lld"]
 [target.x86_64-apple-darwin]
 linker = "rust-lld"
 rustdocflags = ["-Clink-arg=-fuse-ld=lld"]
+rustflags = ["-Clink-arg=-fuse-ld=lld"]
 
 [target.wasm32-unknown-unknown]
 rustflags = ['--cfg', 'getrandom_backend="wasm_js"']
