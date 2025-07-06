@@ -5,7 +5,6 @@ use super::{
 };
 
 use alloy_primitives::U256;
-use futures_util::TryStreamExt;
 use leptos::{logging, prelude::*};
 use semver::Version;
 use serde::{Deserialize, Serialize};
@@ -13,7 +12,7 @@ use serde_json::json;
 use sqlx::{
     FromRow, QueryBuilder, Row, Sqlite,
     migrate::{MigrateDatabase, Migrator},
-    sqlite::SqlitePool,
+    sqlite::{SqlitePool, SqliteRow},
 };
 use std::{
     collections::HashMap,
@@ -54,95 +53,93 @@ struct CachedSettings {
     lcd_addr: String,
 }
 
-// Struct stored on the DB caching nodes metadata.
-#[derive(Clone, Debug, Deserialize, FromRow, Serialize)]
-struct CachedNodeMetadata {
-    node_id: String,
-    pid: u32,
-    created: u64,
-    status_changed: u64,
-    status: String,
-    peer_id: String,
-    bin_version: String,
-    ip_addr: String,
-    port: u16,
-    metrics_port: u16,
-    rewards: String,
-    balance: String,
-    rewards_addr: String,
-    home_network: bool,
-    upnp: bool,
-    node_logs: bool,
-    records: String,
-    connected_peers: String,
-    kbuckets_peers: String,
-    ips: String,
-}
+impl FromRow<'_, SqliteRow> for NodeInstanceInfo {
+    fn from_row(row: &'_ SqliteRow) -> Result<Self, sqlx::Error> {
+        let mut node_info = NodeInstanceInfo::default();
 
-impl CachedNodeMetadata {
-    // Update the node info with data obtained from DB, but only those
-    // fields with non zero/empty values; zero/empty value means it was unknown when stored.
-    fn merge_onto(&self, info: &mut NodeInstanceInfo, get_status: bool) {
-        if !self.node_id.is_empty() {
-            info.node_id = self.node_id.clone();
+        // Update the node_info with data obtained from DB, but only those
+        // fields with non zero/empty values; zero/empty value means it was unknown when stored.
+        let node_id: String = row.try_get("node_id")?;
+        let pid: u32 = row.try_get("pid")?;
+        let created: u64 = row.try_get("created")?;
+        let status_changed: u64 = row.try_get("status_changed")?;
+        let status: String = row.try_get("status")?;
+        let peer_id: String = row.try_get("peer_id")?;
+        let bin_version: String = row.try_get("bin_version")?;
+        let ip_addr: String = row.try_get("ip_addr")?;
+        let port: u16 = row.try_get("port")?;
+        let metrics_port: u16 = row.try_get("metrics_port")?;
+        let rewards: String = row.try_get("rewards")?;
+        let balance: String = row.try_get("balance")?;
+        let rewards_addr: String = row.try_get("rewards_addr")?;
+        let home_network: bool = row.try_get("home_network")?;
+        let upnp: bool = row.try_get("upnp")?;
+        let node_logs: bool = row.try_get("node_logs")?;
+        let records: String = row.try_get("records")?;
+        let connected_peers: String = row.try_get("connected_peers")?;
+        let kbuckets_peers: String = row.try_get("kbuckets_peers")?;
+        let ips: String = row.try_get("ips")?;
+
+        if !node_id.is_empty() {
+            node_info.node_id = node_id;
         }
-        if self.pid > 0 {
-            info.pid = Some(self.pid);
+        if pid > 0 {
+            node_info.pid = Some(pid);
         }
-        if self.created > 0 {
-            info.created = self.created;
+        if created > 0 {
+            node_info.created = created;
         }
-        if self.status_changed > 0 {
-            info.status_changed = self.status_changed;
+        if status_changed > 0 {
+            node_info.status_changed = status_changed;
         }
-        if get_status {
-            if let Ok(status) = serde_json::from_str(&self.status) {
-                info.status = status;
+        if let Ok(status) = serde_json::from_str(&status) {
+            node_info.status = status;
+        }
+        if !peer_id.is_empty() {
+            node_info.peer_id = Some(peer_id.clone());
+        }
+        if !bin_version.is_empty() {
+            node_info.bin_version = Some(bin_version.clone());
+        }
+        if let Ok(v) = ip_addr.parse() {
+            node_info.node_ip = Some(v);
+        }
+        if port > 0 {
+            node_info.port = Some(port);
+        }
+        if metrics_port > 0 {
+            node_info.metrics_port = Some(metrics_port);
+        }
+        if !rewards.is_empty() {
+            if let Ok(v) = U256::from_str(&rewards) {
+                node_info.rewards = Some(v);
             }
         }
-        if !self.peer_id.is_empty() {
-            info.peer_id = Some(self.peer_id.clone());
-        }
-        if !self.bin_version.is_empty() {
-            info.bin_version = Some(self.bin_version.clone());
-        }
-        if let Ok(v) = self.ip_addr.parse() {
-            info.node_ip = Some(v);
-        }
-        if self.port > 0 {
-            info.port = Some(self.port);
-        }
-        if self.metrics_port > 0 {
-            info.metrics_port = Some(self.metrics_port);
-        }
-        if !self.rewards.is_empty() {
-            if let Ok(v) = U256::from_str(&self.rewards) {
-                info.rewards = Some(v);
+        node_info.home_network = home_network;
+        node_info.upnp = upnp;
+        node_info.node_logs = node_logs;
+        if !balance.is_empty() {
+            if let Ok(v) = U256::from_str(&balance) {
+                node_info.balance = Some(v);
             }
         }
-        info.home_network = self.home_network;
-        info.upnp = self.upnp;
-        info.node_logs = self.node_logs;
-        if !self.balance.is_empty() {
-            if let Ok(v) = U256::from_str(&self.balance) {
-                info.balance = Some(v);
-            }
+        if !rewards_addr.is_empty() {
+            node_info.rewards_addr = Some(rewards_addr.clone());
         }
-        if !self.rewards_addr.is_empty() {
-            info.rewards_addr = Some(self.rewards_addr.clone());
+        if let Ok(v) = records.parse::<usize>() {
+            node_info.records = Some(v);
         }
-        if let Ok(v) = self.records.parse::<usize>() {
-            info.records = Some(v);
+        if let Ok(v) = connected_peers.parse::<usize>() {
+            node_info.connected_peers = Some(v);
         }
-        if let Ok(v) = self.connected_peers.parse::<usize>() {
-            info.connected_peers = Some(v);
+        if let Ok(v) = kbuckets_peers.parse::<usize>() {
+            node_info.kbuckets_peers = Some(v);
         }
-        if let Ok(v) = self.kbuckets_peers.parse::<usize>() {
-            info.kbuckets_peers = Some(v);
+        if !ips.is_empty() {
+            node_info.ips = Some(ips.clone());
         }
-        if !self.ips.is_empty() {
-            info.ips = Some(self.ips.clone());
-        }
+
+        Ok(node_info)
     }
 }
 
@@ -196,39 +193,30 @@ impl DbClient {
     // Retrieve list of nodes from local cache DB
     pub async fn get_nodes_list(&self) -> HashMap<NodeId, NodeInstanceInfo> {
         let db_lock = self.db.lock().await;
-        let mut retrieved_nodes = HashMap::default();
-        let mut rows =
-            sqlx::query_as::<_, CachedNodeMetadata>("SELECT * FROM nodes").fetch(&*db_lock);
+        let rows = sqlx::query_as::<_, NodeInstanceInfo>("SELECT * FROM nodes")
+            .fetch_all(&*db_lock)
+            .await;
 
-        loop {
-            match rows.try_next().await {
-                Ok(Some(node)) => {
-                    let mut node_info = NodeInstanceInfo::default();
-                    node.merge_onto(&mut node_info, true);
-                    retrieved_nodes.insert(node.node_id, node_info);
-                }
-                Ok(None) => break,
-                Err(err) => {
-                    logging::log!("Sqlite query error: {err}");
-                    break;
-                }
+        match rows {
+            Err(err) => {
+                logging::log!("Sqlite query error: {err}");
+                HashMap::default()
             }
+            Ok(nodes) => nodes.into_iter().map(|n| (n.node_id.clone(), n)).collect(),
         }
-
-        retrieved_nodes
     }
 
     // Retrieve node metadata from local cache DB
-    pub async fn get_node_metadata(&self, info: &mut NodeInstanceInfo, get_status: bool) {
+    pub async fn get_node_metadata(&self, info: &mut NodeInstanceInfo) {
         let db_lock = self.db.lock().await;
-        match sqlx::query_as::<_, CachedNodeMetadata>(
+        match sqlx::query_as::<_, NodeInstanceInfo>(
             "SELECT * FROM nodes WHERE node_id LIKE ? || '%'",
         )
         .bind(info.node_id.clone())
         .fetch_one(&*db_lock)
         .await
         {
-            Ok(node) => node.merge_onto(info, get_status),
+            Ok(node) => *info = node,
             Err(err) => logging::log!("Sqlite query error: {err}"),
         }
     }
@@ -239,7 +227,7 @@ impl DbClient {
         node_id: &NodeId,
     ) -> Result<NodeInstanceInfo, ServerFnError> {
         let mut node_info = NodeInstanceInfo::new(node_id.clone());
-        self.get_node_metadata(&mut node_info, true).await;
+        self.get_node_metadata(&mut node_info).await;
         if node_info.status.is_locked() {
             return Err(ServerFnError::new(
                 "Node is part of a running/scheduled batch".to_string(),
