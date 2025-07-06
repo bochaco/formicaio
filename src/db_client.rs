@@ -5,6 +5,7 @@ use super::{
 };
 
 use alloy_primitives::U256;
+use futures_util::TryStreamExt;
 use leptos::{logging, prelude::*};
 use semver::Version;
 use serde::{Deserialize, Serialize};
@@ -196,18 +197,22 @@ impl DbClient {
     pub async fn get_nodes_list(&self) -> HashMap<NodeId, NodeInstanceInfo> {
         let db_lock = self.db.lock().await;
         let mut retrieved_nodes = HashMap::default();
-        match sqlx::query_as::<_, CachedNodeMetadata>("SELECT * FROM nodes")
-            .fetch_all(&*db_lock)
-            .await
-        {
-            Ok(nodes) => {
-                for node in nodes {
+        let mut rows =
+            sqlx::query_as::<_, CachedNodeMetadata>("SELECT * FROM nodes").fetch(&*db_lock);
+
+        loop {
+            match rows.try_next().await {
+                Ok(Some(node)) => {
                     let mut node_info = NodeInstanceInfo::default();
                     node.merge_onto(&mut node_info, true);
                     retrieved_nodes.insert(node.node_id, node_info);
                 }
+                Ok(None) => break,
+                Err(err) => {
+                    logging::log!("Sqlite query error: {err}");
+                    break;
+                }
             }
-            Err(err) => logging::log!("Sqlite query error: {err}"),
         }
 
         retrieved_nodes
