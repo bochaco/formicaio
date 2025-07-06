@@ -115,7 +115,8 @@ pub(crate) async fn helper_create_node_instance(
     let random_str = Alphanumeric.sample_string(&mut rand::rng(), NODE_ID_LENGTH / 2);
     let node_id = hex::encode(random_str);
     logging::log!(
-        "Creating new node with port {} and Id {node_id} ...",
+        "Creating new node with IP '{}', port {}, and Id {node_id} ...",
+        node_opts.node_ip,
         node_opts.port
     );
     let _ = node_opts.rewards_addr.parse::<Address>()?;
@@ -125,6 +126,7 @@ pub(crate) async fn helper_create_node_instance(
         created: Utc::now().timestamp() as u64,
         status: NodeStatus::Inactive(InactiveReason::Created),
         status_changed: Utc::now().timestamp() as u64,
+        node_ip: Some(node_opts.node_ip),
         port: Some(node_opts.port),
         metrics_port: Some(node_opts.metrics_port),
         rewards_addr: Some(node_opts.rewards_addr),

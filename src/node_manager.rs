@@ -158,9 +158,6 @@ impl NodeManager {
                 .ok_or(NodeManagerError::SpawnNodeMissingParam(
                     "rewards address".to_string(),
                 ))?;
-        let home_network = node_info.home_network;
-        let upnp = node_info.upnp;
-        let node_logs = node_info.node_logs;
 
         let node_data_dir = self.root_dir.join(DEFAULT_NODE_DATA_FOLDER).join(node_id);
         let node_bin_path = node_data_dir.join(NODE_BIN_NAME);
@@ -180,18 +177,23 @@ impl NodeManager {
             }
         }
 
-        let mut args = if home_network {
+        let mut args = if node_info.home_network {
             vec!["--relay".to_string()]
         } else {
             vec![]
         };
 
-        if !upnp {
+        if !node_info.upnp {
             args.push("--no-upnp".to_string());
         }
 
         args.push("--port".to_string());
         args.push(port.to_string());
+
+        if let Some(ip) = node_info.node_ip {
+            args.push("--ip".to_string());
+            args.push(ip.to_string());
+        }
 
         args.push("--metrics-server-port".to_string());
         args.push(metrics_port.to_string());
@@ -200,7 +202,7 @@ impl NodeManager {
         args.push(node_data_dir.display().to_string());
 
         args.push("--log-output-dest".to_string());
-        if node_logs {
+        if node_info.node_logs {
             args.push(log_output_dir.display().to_string());
         } else {
             // untill the node binary supports this feature,
@@ -234,7 +236,11 @@ impl NodeManager {
                 // let's delay it for a moment so it generates the peer id
                 sleep(Duration::from_secs(2)).await;
                 match self
-                    .get_node_version_and_peer_id(&node_info.node_id, !home_network)
+                    .get_node_version_and_peer_id(
+                        &node_info.node_id,
+                        !node_info.home_network,
+                        node_info.node_ip.is_none_or(|ip| ip.is_ipv4()),
+                    )
                     .await
                 {
                     Ok((bin_version, peer_id, ips)) => {
@@ -395,6 +401,7 @@ impl NodeManager {
         &self,
         id: &NodeId,
         get_ips: bool,
+        only_ipv4: bool,
     ) -> Result<(Option<String>, Option<String>, Option<String>), NodeManagerError> {
         let version = match self.helper_read_node_version(Some(id)).await {
             Ok(version) => Some(version.to_string()),
@@ -419,11 +426,14 @@ impl NodeManager {
                 Ok(network_interfaces) => {
                     let ips = network_interfaces
                         .into_iter()
-                        .filter(|(_, ip)| ip.is_ipv4())
+                        .filter(|(_, ip)| if only_ipv4 { ip.is_ipv4() } else { true })
                         .map(|(_, ip)| ip.to_string())
                         .collect::<Vec<_>>()
                         .join(", ");
-                    logging::log!("IPv4 addresses in host: {ips}");
+                    logging::log!(
+                        "IP{} addresses in host: {ips}",
+                        if only_ipv4 { "v4" } else { " v4/v6" }
+                    );
                     Some(ips)
                 }
                 Err(err) => {

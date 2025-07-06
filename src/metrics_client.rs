@@ -6,11 +6,15 @@ use super::{
 
 use alloy_primitives::U256;
 use chrono::Utc;
-use std::{collections::HashMap, str::FromStr};
+use std::{
+    collections::HashMap,
+    net::{IpAddr, Ipv4Addr},
+    str::FromStr,
+};
 use thiserror::Error;
 
 // Default value for the nodes metrics host
-const DEFAULT_NODES_METRICS_HOST: &str = "127.0.0.1";
+const DEFAULT_NODES_METRICS_HOST: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
 
 // Predefined set of metrics to monitor and collect.
 const NODE_METRICS_TO_COLLECT: [&str; 10] = [
@@ -43,13 +47,10 @@ pub struct NodeMetricsClient {
 }
 
 impl NodeMetricsClient {
-    pub fn new(ip: &Option<String>, port: u16) -> Self {
+    pub fn new(port: u16) -> Self {
         let endpoint = match std::env::var(METRICS_PROXY_ADDR) {
             Ok(addr) => format!("http://{addr}/{port}"),
-            Err(_) => {
-                let host = ip.clone().unwrap_or(DEFAULT_NODES_METRICS_HOST.to_string());
-                format!("http://{host}:{port}/metrics")
-            }
+            Err(_) => format!("http://{DEFAULT_NODES_METRICS_HOST}:{port}/metrics"),
         };
 
         Self { endpoint }

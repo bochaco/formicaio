@@ -10,7 +10,12 @@ use super::{
 };
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    net::{IpAddr, Ipv4Addr},
+};
+
+const DEFAULT_NODE_IP: IpAddr = IpAddr::V4(Ipv4Addr::UNSPECIFIED);
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[allow(non_snake_case)]
@@ -60,7 +65,10 @@ impl From<Container> for NodeInstanceInfo {
             },
             port: val.port(),
             metrics_port: val.metrics_port(),
-            node_ip: val.node_ip(),
+            node_ip: Some(
+                val.node_ip()
+                    .map_or(DEFAULT_NODE_IP, |v| v.parse().unwrap_or(DEFAULT_NODE_IP)),
+            ),
             rewards_addr: val.Labels.get(LABEL_KEY_REWARDS_ADDR).cloned(),
             home_network: !val.Labels.contains_key(LABEL_KEY_HOME_NETWORK_DISABLED),
             upnp: !val.Labels.contains_key(LABEL_KEY_UPNP_DISABLED),

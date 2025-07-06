@@ -63,6 +63,7 @@ struct CachedNodeMetadata {
     status: String,
     peer_id: String,
     bin_version: String,
+    ip_addr: String,
     port: u16,
     metrics_port: u16,
     rewards: String,
@@ -103,6 +104,9 @@ impl CachedNodeMetadata {
         }
         if !self.bin_version.is_empty() {
             info.bin_version = Some(self.bin_version.clone());
+        }
+        if let Ok(v) = self.ip_addr.parse() {
+            info.node_ip = Some(v);
         }
         if self.port > 0 {
             info.port = Some(self.port);
@@ -216,14 +220,10 @@ impl DbClient {
             "SELECT * FROM nodes WHERE node_id LIKE ? || '%'",
         )
         .bind(info.node_id.clone())
-        .fetch_all(&*db_lock)
+        .fetch_one(&*db_lock)
         .await
         {
-            Ok(records) => {
-                if let Some(node) = records.first() {
-                    node.merge_onto(info, get_status);
-                }
-            }
+            Ok(node) => node.merge_onto(info, get_status),
             Err(err) => logging::log!("Sqlite query error: {err}"),
         }
     }
@@ -248,13 +248,13 @@ impl DbClient {
         let db_lock = self.db.lock().await;
         match sqlx::query("SELECT bin_version FROM nodes WHERE node_id LIKE ? || '%'")
             .bind(node_id)
-            .fetch_all(&*db_lock)
+            .fetch_one(&*db_lock)
             .await
         {
-            Ok(records) => records.first().and_then(|r| {
+            Ok(r) => {
                 let v: String = r.get("bin_version");
                 if v.is_empty() { None } else { Some(v) }
-            }),
+            }
             Err(err) => {
                 logging::log!("Sqlite bin version query error: {err}");
                 None
@@ -302,10 +302,10 @@ impl DbClient {
     pub async fn insert_node_metadata(&self, info: &NodeInstanceInfo) {
         let query_str = "INSERT OR REPLACE INTO nodes (\
                 node_id, created, status_changed, status, \
-                port, metrics_port, rewards_addr, \
+                ip_addr, port, metrics_port, rewards_addr, \
                 home_network, upnp, node_logs, \
                 records, connected_peers, kbuckets_peers \
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             .to_string();
 
         let db_lock = self.db.lock().await;
@@ -314,6 +314,7 @@ impl DbClient {
             .bind(info.created.to_string())
             .bind(info.status_changed.to_string())
             .bind(json!(info.status).to_string())
+            .bind(info.node_ip.map_or("".to_string(), |v| v.to_string()))
             .bind(info.port)
             .bind(info.metrics_port)
             .bind(info.rewards_addr.clone())

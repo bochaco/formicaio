@@ -11,8 +11,12 @@ use super::{
 };
 
 use leptos::{logging, prelude::*, task::spawn_local};
-use std::num::ParseIntError;
+use std::{
+    net::{IpAddr, Ipv4Addr},
+    num::ParseIntError,
+};
 
+const DEFAULT_NODE_IP: IpAddr = IpAddr::V4(Ipv4Addr::UNSPECIFIED);
 const DEFAULT_NODE_PORT: u16 = 12000;
 const DEFAULT_METRICS_PORT: u16 = 14000;
 
@@ -127,7 +131,7 @@ fn no_zero_overflow_subs(v: &mut usize) {
 }
 
 #[component]
-pub fn NodesActionsView(home_net_only: bool) -> impl IntoView {
+pub fn NodesActionsView() -> impl IntoView {
     let context = expect_context::<ClientGlobalState>();
     let is_selecting_nodes = move || context.selecting_nodes.read().0;
     let btn_nodes_action_class = move || {
@@ -353,7 +357,7 @@ pub fn NodesActionsView(home_net_only: bool) -> impl IntoView {
                     </div>
 
                     <div class="p-4 md:p-5">
-                        <AddNodesForm modal_visibility home_net_only />
+                        <AddNodesForm modal_visibility />
                     </div>
                 </div>
             </div>
@@ -440,7 +444,8 @@ fn MultipleNodesActionConfirm(modal_apply_action: RwSignal<Option<NodeAction>>) 
 }
 
 #[component]
-fn AddNodesForm(modal_visibility: RwSignal<bool>, home_net_only: bool) -> impl IntoView {
+fn AddNodesForm(modal_visibility: RwSignal<bool>) -> impl IntoView {
+    let node_ip = RwSignal::new(Ok(DEFAULT_NODE_IP));
     let port = RwSignal::new(Ok(DEFAULT_NODE_PORT));
     let metrics_port = RwSignal::new(Ok(DEFAULT_METRICS_PORT));
     let count = RwSignal::new(Ok(1));
@@ -450,7 +455,6 @@ fn AddNodesForm(modal_visibility: RwSignal<bool>, home_net_only: bool) -> impl I
     )));
     let home_network = RwSignal::new(true);
     let upnp = RwSignal::new(true);
-    let node_logs = RwSignal::new(true);
     let auto_start = RwSignal::new(false);
     let interval = RwSignal::new(Ok(60));
 
@@ -459,21 +463,32 @@ fn AddNodesForm(modal_visibility: RwSignal<bool>, home_net_only: bool) -> impl I
         let count = *count;
         let interval = *interval;
         async move {
-            let _ = add_node_instances(node_opts, count, interval).await;
+            if let Err(err) = add_node_instances(node_opts, count, interval).await {
+                logging::error!("Failed to create node/s: {err}");
+            }
         }
     });
 
     view! {
         <form class="space-y-4">
+            <IpAddrInput
+                signal=node_ip
+                label="Node IP listening address:"
+                help_msg="Specify the IP to listen on. The special value `0.0.0.0` binds to all IPv4 network interfaces available, while `::` binds to all IP v4 and v6 network interfaces available."
+            />
             <PortNumberInput
+                id="port"
                 signal=port
                 default=DEFAULT_NODE_PORT
                 label="Port number (range start):"
+                help_msg="Node port number (range start when creating multiple nodes)."
             />
             <PortNumberInput
+                id="metrics_port"
                 signal=metrics_port
                 default=DEFAULT_METRICS_PORT
                 label="Node metrics port number (range start):"
+                help_msg="Node metrics port number (range start when creating multiple nodes)."
             />
             <RewardsAddrInput signal=rewards_addr label="Rewards address:" />
             <NumberInput
@@ -486,72 +501,31 @@ fn AddNodesForm(modal_visibility: RwSignal<bool>, home_net_only: bool) -> impl I
                 min=0
                 label="Delay (in seconds) between the creation of each node in the batch:"
             />
-            <div class="flex items-center">
-                <input
-                    checked=false
-                    id="auto-start"
-                    type="checkbox"
-                    on:change=move |ev| { auto_start.set(event_target_checked(&ev)) }
-                    class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-                />
-                <label
-                    for="auto-start"
-                    class="ms-2 text-sm font-medium text-gray-900 dark:text-gray-300"
-                >
-                    "Automatically starts nodes upon creation"
-                </label>
-            </div>
-            <div class="flex items-center">
-                <input
-                    checked=true
-                    id="home-network"
-                    type="checkbox"
-                    disabled=home_net_only
-                    on:change=move |ev| home_network.set(event_target_checked(&ev))
-                    class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-                />
-                <label
-                    for="home-network"
-                    class="ms-2 text-sm font-medium text-gray-900 dark:text-gray-300"
-                >
-                    "Home network: enable the mode to run as a relay client if it is behind a NAT and it is not externally reachable."
-                    <Show when=move || home_net_only>
-                        <span class="font-bold dark:font-bold">
-                            "Home-network mode cannot be disabled in this deployment."
-                        </span>
-                    </Show>
-                </label>
-            </div>
-            <div class="flex items-center">
-                <input
-                    prop:checked=move || upnp.get()
-                    id="upnp"
-                    type="checkbox"
-                    on:change=move |ev| { upnp.set(event_target_checked(&ev)) }
-                    class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-                />
-                <label for="upnp" class="ms-2 text-sm font-medium text-gray-900 dark:text-gray-300">
-                    "Try to use UPnP to open a port in the home router and allow incoming connections."
-                    <span class="font-bold dark:font-bold">
-                        "If your router does not support UPnP, your node/s may struggle to connect to any peers. In this situation, create new node/s with UPnP disabled."
-                    </span>
-                </label>
-            </div>
-            <div class="hidden flex items-center">
-                <input
-                    checked=true
-                    disabled
-                    id="logs-enabled"
-                    type="checkbox"
-                    on:change=move |ev| { node_logs.set(event_target_checked(&ev)) }
-                    class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-                />
-                <label
-                    for="logs-enabled"
-                    class="ms-2 text-sm font-medium text-gray-900 dark:text-gray-300"
-                >
-                    "Node logs enabled"
-                </label>
+            <div class="flex flex-row">
+                <div class="basis-4/12">
+                    <CheckboxInput
+                        signal=auto_start
+                        id="auto_start"
+                        label="Auto start"
+                        help_msg="Automatically starts nodes upon creation."
+                    />
+                </div>
+                <div class="basis-5/12">
+                    <CheckboxInput
+                        signal=home_network
+                        id="home-network"
+                        label="Home network"
+                        help_msg="Enables the mode to run as a relay client if it is behind a NAT and it is not externally reachable."
+                    />
+                </div>
+                <div class="basis-4/12">
+                    <CheckboxInput
+                        signal=upnp
+                        id="upnp"
+                        label="Try UPnP"
+                        help_msg="Try to use UPnP to open a port in the home router and allow incoming connections. If your router does not support UPnP, your node/s may struggle to connect to any peers. In this situation, create new node/s with UPnP disabled."
+                    />
+                </div>
             </div>
 
             <button
@@ -561,7 +535,8 @@ fn AddNodesForm(modal_visibility: RwSignal<bool>, home_net_only: bool) -> impl I
                         || rewards_addr.read().is_err() || interval.read().is_err()
                 }
                 on:click=move |_| {
-                    if let (Ok(p), Ok(m), Ok(c), Ok(addr), Ok(i)) = (
+                    if let (Ok(ip), Ok(p), Ok(m), Ok(c), Ok(addr), Ok(i)) = (
+                        node_ip.get(),
                         port.get(),
                         metrics_port.get(),
                         count.get(),
@@ -570,12 +545,13 @@ fn AddNodesForm(modal_visibility: RwSignal<bool>, home_net_only: bool) -> impl I
                     ) {
                         modal_visibility.set(false);
                         let node_opts = NodeOpts {
+                            node_ip: ip,
                             port: p,
                             metrics_port: m,
                             rewards_addr: addr.strip_prefix("0x").unwrap_or(&addr).to_string(),
                             home_network: home_network.get(),
                             upnp: upnp.get(),
-                            node_logs: node_logs.get(),
+                            node_logs: true,
                             auto_start: auto_start.get(),
                         };
                         add_node.dispatch((node_opts, c, i as u64));
@@ -598,30 +574,131 @@ fn AddNodesForm(modal_visibility: RwSignal<bool>, home_net_only: bool) -> impl I
 
 #[component]
 fn PortNumberInput(
+    id: &'static str,
     signal: RwSignal<Result<u16, ParseIntError>>,
     default: u16,
     label: &'static str,
+    help_msg: &'static str,
 ) -> impl IntoView {
     let on_port_input = move |ev| signal.set(event_target_value(&ev).parse::<u16>());
 
     view! {
-        <div>
-            <span class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
-                {label}
-            </span>
-            <input
-                type="number"
-                name="port"
-                id="port"
-                on:input=on_port_input
-                class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white"
-                value=default
-                required
-            />
+        <div class="relative w-full">
+            <div class="flex flex-row">
+                <div class="basis-7/12">
+                    <span class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                        {label}
+                    </span>
+                </div>
+                <div class="basis-4/12">
+                    <input
+                        type="number"
+                        name=id
+                        id=id
+                        on:input=on_port_input
+                        class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white"
+                        value=default
+                        required
+                    />
+                </div>
+                <div class="basis-1/12">
+                    <button
+                        data-popover-target=format!("popover-{id}")
+                        data-popover-placement="bottom-end"
+                        type="button"
+                        class="btn-node-action"
+                    >
+                        <IconHelpMsg />
+                        <span class="sr-only">Show information</span>
+                    </button>
+
+                    <div
+                        data-popover
+                        id=format!("popover-{id}")
+                        role="tooltip"
+                        class="absolute z-10 invisible inline-block text-sm text-white transition-opacity duration-300 bg-gray-800 border border-gray-200 rounded-lg shadow-xs opacity-0 w-72 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-400"
+                    >
+                        <div class="p-3 space-y-2">{help_msg}</div>
+                        <div data-popper-arrow></div>
+                    </div>
+                </div>
+            </div>
+            <div>
+                <Show when=move || signal.read().is_err() fallback=move || view! { "" }.into_view()>
+                    <p class="mt-2 text-sm text-red-600 dark:text-red-500">
+                        Not a valid port number
+                    </p>
+                </Show>
+            </div>
         </div>
+    }
+}
+
+#[component]
+pub fn IpAddrInput(
+    signal: RwSignal<Result<IpAddr, (String, String)>>,
+    label: &'static str,
+    help_msg: &'static str,
+) -> impl IntoView {
+    let validate_and_set = move |input_str: String| {
+        let res = match input_str.parse() {
+            Ok(addr) => Ok(addr),
+            Err::<IpAddr, std::net::AddrParseError>(err) => Err((err.to_string(), input_str)),
+        };
+
+        signal.set(res);
+    };
+
+    view! {
         <div>
+            <label
+                for="node_ip"
+                class="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+            >
+                {label}
+            </label>
+
+            <div class="flex items-center">
+                <div class="relative w-full">
+                    <input
+                        type="text"
+                        name="node_ip"
+                        id="node_ip"
+                        on:input=move |ev| validate_and_set(event_target_value(&ev))
+                        required
+                        class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white"
+                        prop:value=move || match signal.get() {
+                            Ok(s) => s.to_string(),
+                            Err((_, s)) => s,
+                        }
+                    />
+                </div>
+
+                <button
+                    data-popover-target="popover-node_ip"
+                    data-popover-placement="bottom-end"
+                    type="button"
+                    class="btn-node-action"
+                >
+                    <IconHelpMsg />
+                    <span class="sr-only">Show information</span>
+                </button>
+
+                <div
+                    data-popover
+                    id="popover-node_ip"
+                    role="tooltip"
+                    class="absolute z-10 invisible inline-block text-sm text-white transition-opacity duration-300 bg-gray-800 border border-gray-200 rounded-lg shadow-xs opacity-0 w-72 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-400"
+                >
+                    <div class="p-3 space-y-2">{help_msg}</div>
+                    <div data-popper-arrow></div>
+                </div>
+            </div>
+
             <Show when=move || signal.read().is_err() fallback=move || view! { "" }.into_view()>
-                <p class="mt-2 text-sm text-red-600 dark:text-red-500">Not a valid port number</p>
+                <p class="mt-2 text-sm text-red-600 dark:text-red-500">
+                    {signal.get().err().map(|(e, _)| e)}
+                </p>
             </Show>
         </div>
     }
@@ -665,6 +742,51 @@ pub fn NumberInput(
                     "Invalid value: " {signal.get().err()}
                 </p>
             </Show>
+        </div>
+    }
+}
+
+#[component]
+pub fn CheckboxInput(
+    signal: RwSignal<bool>,
+    id: &'static str,
+    label: &'static str,
+    help_msg: &'static str,
+) -> impl IntoView {
+    let checked = signal.get();
+    view! {
+        <div class="flex items-center">
+            <input
+                checked=checked
+                prop:checked=move || signal.get()
+                id=id
+                type="checkbox"
+                on:change=move |ev| { signal.set(event_target_checked(&ev)) }
+                class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-400"
+            />
+            <label for=id class="ms-2 text-sm font-medium text-gray-900 dark:text-gray-300">
+                {label}
+            </label>
+
+            <button
+                data-popover-target=format!("popover-{id}")
+                data-popover-placement="top-end"
+                type="button"
+                class="btn-node-action"
+            >
+                <IconHelpMsg />
+                <span class="sr-only">Show information</span>
+            </button>
+
+            <div
+                data-popover
+                id=format!("popover-{id}")
+                role="tooltip"
+                class="absolute z-10 invisible inline-block text-sm text-white transition-opacity duration-300 bg-gray-800 border border-gray-200 rounded-lg shadow-xs opacity-0 w-72 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-400"
+            >
+                <div class="p-3 space-y-2">{help_msg}</div>
+                <div data-popper-arrow></div>
+            </div>
         </div>
     }
 }
@@ -737,7 +859,7 @@ pub fn RewardsAddrInput(
                 <div
                     id="tooltip-rewards_addr"
                     role="tooltip"
-                    class="absolute z-10 invisible inline-block px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700"
+                    class="absolute z-10 invisible inline-block px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-800 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700"
                 >
                     <span>Retrieve address from Metamask</span>
                     <div class="tooltip-arrow" data-popper-arrow></div>

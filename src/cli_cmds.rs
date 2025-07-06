@@ -11,7 +11,11 @@ use chrono::{DateTime, Local, Utc};
 use eyre::eyre;
 use leptos::prelude::ServerFnError;
 use prettytable::{Table, format, row};
-use std::{io::Write, net::SocketAddr, path::PathBuf};
+use std::{
+    io::Write,
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    path::PathBuf,
+};
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
@@ -160,6 +164,9 @@ pub enum NodesSubcommands {
 
 #[derive(Debug, PartialEq, StructOpt)]
 pub struct NodeOptsCmd {
+    /// Specify the IP for the node to listen on. The special value `0.0.0.0` binds to all IPv4 network interfaces available, while `::` binds to all IP v4 and v6 network interfaces available.
+    #[structopt(long)]
+    ip_addr: Option<IpAddr>,
     /// Node port number (range start when creating multiple nodes)
     #[structopt(long)]
     port: u16,
@@ -258,6 +265,9 @@ impl CliCommands {
             }
             CliCommands::Nodes(NodesSubcommands::Create(node_opts_cmd)) => {
                 let node_opts = NodeOpts {
+                    node_ip: node_opts_cmd
+                        .ip_addr
+                        .unwrap_or(IpAddr::V4(Ipv4Addr::UNSPECIFIED)),
                     port: node_opts_cmd.port,
                     metrics_port: node_opts_cmd.metrics_port,
                     rewards_addr: node_opts_cmd.rewards_addr.to_string(),
