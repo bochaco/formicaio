@@ -413,8 +413,28 @@ fn NodeInstanceView(
                         }}
                     </p>
                     <p>
-                        <span class="node-info-item">"Version: "</span>
-                        {move || value_or_dash(info.get().bin_version)}
+                        <div class="flex flex-row">
+                            <div class="basis-2/5">
+                                <span class="node-info-item">"Version: "</span>
+                                {move || value_or_dash(info.get().bin_version)}
+                            </div>
+                            <div class="basis-3/12">
+                                <span class="node-info-item mr-2">"Listen IP:"</span>
+                            </div>
+                            <div class="basis-2/5 overflow-hidden relative">
+                                <div class=move || {
+                                    if info
+                                        .read()
+                                        .node_ip
+                                        .is_none_or(|ip| ip.to_string().len() < 15)
+                                    {
+                                        ""
+                                    } else {
+                                        "absolute whitespace-nowrap animate-slide"
+                                    }
+                                }>{move || value_or_dash(info.get().node_ip)}</div>
+                            </div>
+                        </div>
                     </p>
                     <p>
                         <div class="flex flex-row">
@@ -561,8 +581,8 @@ fn NodeInstanceView(
                                     <span class="node-info-item">"Relay clients: "</span>
                                     {move || value_or_dash(info.get().connected_relay_clients)}
                                 </div>
-                                <div class="basis-1/12">
-                                    <span class="node-info-item">"IPs: "</span>
+                                <div class="basis-3/12">
+                                    <span class="node-info-item">"Host IPs:"</span>
                                 </div>
                                 <div class="basis-2/5 overflow-hidden relative">
                                     <div class="absolute whitespace-nowrap animate-slide">

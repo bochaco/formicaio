@@ -77,9 +77,11 @@ pub async fn add_node_instances(
         let node_info = create_node_instance(node_opts).await?;
         context.nodes.update(|items| {
             items.1.remove(&tmp_node_id);
-            items
-                .1
-                .insert(node_info.node_id.clone(), RwSignal::new(node_info));
+            if !items.1.contains_key(&node_info.node_id) {
+                items
+                    .1
+                    .insert(node_info.node_id.clone(), RwSignal::new(node_info));
+            }
         });
     };
 

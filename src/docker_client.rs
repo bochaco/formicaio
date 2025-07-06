@@ -338,6 +338,7 @@ impl DockerClient {
                 "true".to_string(),
             ));
         }
+        env_vars.push(format!("IP_ARG=--ip {}", node_opts.node_ip));
         if !node_opts.upnp {
             labels.push((LABEL_KEY_UPNP_DISABLED.to_string(), "true".to_string()));
             env_vars.push("UPNP_ARG=--no-upnp".to_string());

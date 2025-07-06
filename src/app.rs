@@ -55,10 +55,6 @@ pub const NODES_LIST_POLLING_FREQ_MILLIS: u64 = 5_500;
 // Size of nodes list pages
 pub const PAGE_SIZE: usize = 100;
 
-// Env var to restrict the nodes to be run only with home-network mode on,
-// i.e. the home-network cannot be disabled for any node instantiated in current deployment.
-const HOME_NETWORK_ONLY: &str = "HOME_NETWORK_ONLY";
-
 // Type of actions that can be requested to the bg jobs.
 #[cfg(feature = "ssr")]
 #[derive(Clone, Debug)]
@@ -237,22 +233,12 @@ pub fn App() -> impl IntoView {
 
 #[component]
 fn HomeScreenView() -> impl IntoView {
-    let home_net_only = std::env::var(HOME_NETWORK_ONLY)
-        .map(|v| v.parse().unwrap_or_default())
-        .unwrap_or_default();
-
-    if home_net_only {
-        leptos::logging::log!(
-            "'{HOME_NETWORK_ONLY}' env var set to 'true', thus home-network mode cannot be disabled in this deployment."
-        );
-    }
-
     view! {
         <AlertMsg />
 
         <AggregatedStatsView />
         <OfflineMsg />
-        <NodesActionsView home_net_only />
+        <NodesActionsView />
 
         <PaginationView />
         <NodesListView />

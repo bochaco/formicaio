@@ -38,6 +38,7 @@ ENV REWARDS_ADDR_ARG=''
 ENV HOME_NETWORK_ARG='--relay'
 
 ENV UPNP_ARG=''
+ENV IP_ARG=''
 
 # Define whether to enable node logs.
 ENV NODE_LOGS_ARG='--log-output-dest /app/node_data/logs'
@@ -51,6 +52,7 @@ CMD ["sh", "-c", \
       && /app/antnode \
       ${HOME_NETWORK_ARG} \
       ${UPNP_ARG} \
+      ${IP_ARG} \
       --port ${NODE_PORT} \
       --metrics-server-port ${METRICS_PORT} \
       --root-dir /app/node_data \

@@ -5,7 +5,12 @@ pub use super::{
 
 use alloy_primitives::U256;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fmt, time::Duration};
+use std::{
+    collections::HashMap,
+    fmt,
+    net::{IpAddr, Ipv4Addr},
+    time::Duration,
+};
 
 /// List of nodes
 pub type NodeList = HashMap<String, NodeInstanceInfo>;
@@ -254,8 +259,9 @@ impl BatchOnMatch {
 }
 
 /// Options when creating a new node instance.
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct NodeOpts {
+    pub node_ip: IpAddr,
     pub port: u16,
     pub metrics_port: u16,
     pub rewards_addr: String,
@@ -263,4 +269,19 @@ pub struct NodeOpts {
     pub upnp: bool,
     pub node_logs: bool,
     pub auto_start: bool,
+}
+
+impl Default for NodeOpts {
+    fn default() -> Self {
+        NodeOpts {
+            node_ip: IpAddr::V4(Ipv4Addr::UNSPECIFIED),
+            port: u16::default(),
+            metrics_port: u16::default(),
+            rewards_addr: String::default(),
+            home_network: bool::default(),
+            upnp: bool::default(),
+            node_logs: bool::default(),
+            auto_start: bool::default(),
+        }
+    }
 }

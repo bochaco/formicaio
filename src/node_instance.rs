@@ -4,7 +4,7 @@ use alloy_primitives::U256;
 use chrono::Utc;
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::fmt;
+use std::{fmt, net::IpAddr};
 
 // Length of nodes PeerIds' prefix and suffix to be displayed
 const PEER_ID_PREFIX_SUFFIX_LEN: usize = 12;
@@ -139,7 +139,7 @@ pub struct NodeInstanceInfo {
     pub bin_version: Option<String>,
     pub port: Option<u16>,
     pub metrics_port: Option<u16>,
-    pub node_ip: Option<String>,
+    pub node_ip: Option<IpAddr>,
     pub balance: Option<U256>,
     pub rewards_addr: Option<String>, // hex-encoded rewards address
     pub home_network: bool,

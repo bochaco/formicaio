@@ -306,7 +306,7 @@ async fn update_nodes_info(
 
             if let Some(metrics_port) = node_info.metrics_port {
                 // let's now collect metrics from the node
-                let metrics_client = NodeMetricsClient::new(&node_info.node_ip, metrics_port);
+                let metrics_client = NodeMetricsClient::new(metrics_port);
                 let node_short_id = node_info.short_node_id();
 
                 match timeout(NODE_METRICS_QUERY_TIMEOUT, metrics_client.fetch_metrics()).await {
