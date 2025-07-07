@@ -458,10 +458,13 @@ impl CliCommands {
                     })
             }
             CliCommands::Nodes(NodesSubcommands::Create(opts)) => {
+                let node_ip = opts.ip_addr.unwrap_or(IpAddr::V4(Ipv4Addr::UNSPECIFIED));
+
                 if opts.count > 1 {
                     // TODO: use some crate which performs this serialisation
                     let body = format!(
-                        "batch_type[Create][node_opts][port]={}&batch_type[Create][node_opts][metrics_port]={}&batch_type[Create][node_opts][rewards_addr]={}&batch_type[Create][node_opts][home_network]={}&batch_type[Create][node_opts][upnp]={}&batch_type[Create][node_opts][node_logs]={}&batch_type[Create][node_opts][auto_start]={}&batch_type[Create][count]={}&interval_secs={}",
+                        "batch_type[Create][node_opts][node_ip]={}&batch_type[Create][node_opts][port]={}&batch_type[Create][node_opts][metrics_port]={}&batch_type[Create][node_opts][rewards_addr]={}&batch_type[Create][node_opts][home_network]={}&batch_type[Create][node_opts][upnp]={}&batch_type[Create][node_opts][node_logs]={}&batch_type[Create][node_opts][auto_start]={}&batch_type[Create][count]={}&interval_secs={}",
+                        node_ip,
                         opts.port,
                         opts.metrics_port,
                         opts.rewards_addr,
@@ -479,7 +482,8 @@ impl CliCommands {
                 } else {
                     // TODO: use some crate which performs this serialisation
                     let body = format!(
-                        "node_opts[port]={}&node_opts[metrics_port]={}&node_opts[rewards_addr]={}&node_opts[home_network]={}&node_opts[upnp]={}&node_opts[node_logs]={}&node_opts[auto_start]={}",
+                        "node_opts[node_ip]={}&node_opts[port]={}&node_opts[metrics_port]={}&node_opts[rewards_addr]={}&node_opts[home_network]={}&node_opts[upnp]={}&node_opts[node_logs]={}&node_opts[auto_start]={}",
+                        node_ip,
                         opts.port,
                         opts.metrics_port,
                         opts.rewards_addr,
@@ -644,6 +648,7 @@ impl CliCmdResponse {
                         ]);
                         table.add_row(row!["PID", value_or_dash(info.pid)]);
                         table.add_row(row!["Version", value_or_dash(info.bin_version.clone())]);
+                        table.add_row(row!["Listen IP", value_or_dash(info.node_ip)]);
                         table.add_row(row![
                             "Memory Used",
                             value_or_dash(info.mem_used.map(|v| format!("{v:.2} MB")))
@@ -688,7 +693,7 @@ impl CliCmdResponse {
                                 "Relay clients",
                                 value_or_dash(info.connected_relay_clients)
                             ]);
-                            table.add_row(row!["IPs", value_or_dash(info.ips.clone())]);
+                            table.add_row(row!["Host IPs", value_or_dash(info.ips.clone())]);
                         }
                         table.add_row(row![
                             "Rewards address",
