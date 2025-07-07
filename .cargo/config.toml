@@ -13,3 +13,7 @@ rustdocflags = ["-Clink-arg=-fuse-ld=lld"]
 
 [target.wasm32-unknown-unknown]
 rustflags = ['--cfg', 'getrandom_backend="wasm_js"']
+
+[target.x86_64-pc-windows-msvc]
+# https://github.com/rust-lang/rust/issues/141626#issuecomment-2919988483
+linker = "rust-lld"

@@ -69,7 +69,7 @@ jobs:
 
       - name: Install cargo leptos build tools
         shell: bash
-        run: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/leptos-rs/cargo-leptos/releases/download/v0.2.35/cargo-leptos-installer.sh | sh
+        run: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/leptos-rs/cargo-leptos/releases/download/v0.2.37/cargo-leptos-installer.sh | sh
 
       - name: Install musl-tools
         if: startsWith(matrix.target, 'x86_64-unknown-linux-musl')
