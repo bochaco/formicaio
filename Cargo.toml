@@ -84,6 +84,10 @@ ssr = [
     "leptos_router/ssr",
 ]
 
+# https://github.com/rust-lang/rust/issues/140686#issuecomment-2974897618
+[profile.release.package.hyper]
+opt-level = 0
+
 # Reduce the amount of debug info to avoid OOM whe linking (the default is 2 for dev and test builds)
 [profile.dev]
 debug = 1
