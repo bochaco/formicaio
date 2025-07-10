@@ -37,35 +37,18 @@ impl NodeStatusFilter {
     pub fn matches(&self, node_info: &NodeInstanceInfo) -> bool {
         match self {
             Self::Active => node_info.status.is_active(),
-            Self::Restarting => matches!(node_info.status, NodeStatus::Restarting),
-            Self::Stopping => matches!(node_info.status, NodeStatus::Stopping),
-            Self::Removing => matches!(node_info.status, NodeStatus::Removing),
-            Self::Upgrading => matches!(node_info.status, NodeStatus::Upgrading),
-            Self::Recycling => matches!(node_info.status, NodeStatus::Recycling),
+            Self::Restarting => node_info.status.is_restarting(),
+            Self::Stopping => node_info.status.is_stopping(),
+            Self::Removing => node_info.status.is_removing(),
+            Self::Upgrading => node_info.status.is_upgrading(),
+            Self::Recycling => node_info.status.is_recycling(),
             Self::Batched => node_info.is_status_locked,
             Self::Inactive => node_info.status.is_inactive(),
-            Self::Created => matches!(
-                node_info.status,
-                NodeStatus::Inactive(InactiveReason::Created)
-            ),
-            Self::Stopped => matches!(
-                node_info.status,
-                NodeStatus::Inactive(InactiveReason::Stopped)
-            ),
-            Self::StartFailed => {
-                matches!(
-                    node_info.status,
-                    NodeStatus::Inactive(InactiveReason::StartFailed(_))
-                )
-            }
-            Self::Exited => matches!(
-                node_info.status,
-                NodeStatus::Inactive(InactiveReason::Exited(_) | InactiveReason::Unknown)
-            ),
-            Self::Unknown => matches!(
-                node_info.status,
-                NodeStatus::Inactive(InactiveReason::Unknown)
-            ),
+            Self::Created => node_info.status.is_created(),
+            Self::Stopped => node_info.status.is_stopped(),
+            Self::StartFailed => node_info.status.is_start_failed(),
+            Self::Exited => node_info.status.is_exited() || node_info.status.is_inactive_unknown(),
+            Self::Unknown => node_info.status.is_inactive_unknown(),
         }
     }
 }

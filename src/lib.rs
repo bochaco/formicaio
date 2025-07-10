@@ -26,6 +26,7 @@ mod node_actions;
 pub mod node_instance;
 #[cfg(all(feature = "ssr", feature = "native"))]
 pub mod node_manager;
+mod node_status;
 mod nodes_list_view;
 mod pagination;
 pub mod server_api;
