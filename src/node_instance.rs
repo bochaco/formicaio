@@ -231,3 +231,158 @@ impl NodeInstanceInfo {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn now_ts() -> u64 {
+        Utc::now().timestamp() as u64
+    }
+
+    #[test]
+    fn test_node_status_variants_and_methods() {
+        let creating = NodeStatus::Creating;
+        let active = NodeStatus::Active;
+        let restarting = NodeStatus::Restarting;
+        let stopping = NodeStatus::Stopping;
+        let removing = NodeStatus::Removing;
+        let upgrading = NodeStatus::Upgrading;
+        let recycling = NodeStatus::Recycling;
+        let inactive_created = NodeStatus::Inactive(InactiveReason::Created);
+        let inactive_stopped = NodeStatus::Inactive(InactiveReason::Stopped);
+        let inactive_start_failed =
+            NodeStatus::Inactive(InactiveReason::StartFailed("fail".to_string()));
+        let inactive_exited = NodeStatus::Inactive(InactiveReason::Exited("bye".to_string()));
+        let inactive_unknown = NodeStatus::Inactive(InactiveReason::Unknown);
+
+        assert!(creating.is_creating());
+        assert!(active.is_active());
+        assert!(inactive_created.is_inactive());
+        assert!(inactive_exited.is_exited());
+        assert!(recycling.is_recycling());
+        assert!(upgrading.is_upgrading());
+        assert!(restarting.is_transitioning());
+        assert!(removing.is_transitioning());
+        assert!(stopping.is_transitioning());
+        assert!(upgrading.is_transitioning());
+        assert!(recycling.is_transitioning());
+        assert!(!active.is_transitioning());
+        assert_eq!(inactive_created.to_string(), "Created");
+        assert_eq!(inactive_stopped.to_string(), "Stopped");
+        assert_eq!(inactive_start_failed.to_string(), "Start failed (fail)");
+        assert_eq!(inactive_exited.to_string(), "Exited (bye)");
+        assert_eq!(inactive_unknown.to_string(), "Exited (unknown reason)");
+    }
+
+    #[test]
+    fn test_node_instance_info_default_and_new() {
+        let default_info = NodeInstanceInfo::default();
+        assert_eq!(default_info.node_id, "");
+        assert_eq!(default_info.status, NodeStatus::Creating);
+        assert!(!default_info.is_status_locked);
+        assert!(!default_info.is_status_unknown);
+
+        let info = NodeInstanceInfo::new("node123".to_string());
+        assert_eq!(info.node_id, "node123");
+        assert_eq!(info.status, NodeStatus::Creating);
+    }
+
+    #[test]
+    fn test_status_summary_and_lock_status() {
+        let mut info = NodeInstanceInfo::new("node1".to_string());
+        info.status = NodeStatus::Active;
+        assert_eq!(info.status_summary(), "Active");
+        info.is_status_locked = true;
+        assert_eq!(info.status_summary(), "Active (batched)");
+        info.is_status_locked = false;
+        info.is_status_unknown = true;
+        assert_eq!(info.status_summary(), "Unknown (it was Active)");
+    }
+
+    #[test]
+    fn test_set_status_active_and_inactive() {
+        let mut info = NodeInstanceInfo::new("node2".to_string());
+        info.status = NodeStatus::Inactive(InactiveReason::Stopped);
+        info.is_status_unknown = true;
+        info.set_status_active();
+        assert_eq!(info.status, NodeStatus::Active);
+        assert!(!info.is_status_unknown);
+
+        info.set_status_inactive(InactiveReason::Exited("bye".to_string()));
+        assert_eq!(
+            info.status,
+            NodeStatus::Inactive(InactiveReason::Exited("bye".to_string()))
+        );
+        assert!(!info.is_status_unknown);
+    }
+
+    #[test]
+    fn test_set_status_to_unknown() {
+        let mut info = NodeInstanceInfo::new("node3".to_string());
+        info.status = NodeStatus::Active;
+        info.set_status_to_unknown();
+        assert!(info.is_status_unknown);
+        assert_eq!(info.mem_used, None);
+        assert_eq!(info.cpu_usage, None);
+        assert_eq!(info.records, Some(0));
+        assert_eq!(info.connected_peers, Some(0));
+        assert_eq!(info.kbuckets_peers, Some(0));
+    }
+
+    #[test]
+    fn test_lock_status() {
+        let mut info = NodeInstanceInfo::new("node4".to_string());
+        assert!(!info.is_status_locked);
+        info.lock_status();
+        assert!(info.is_status_locked);
+    }
+
+    #[test]
+    fn test_set_status_changed_now_updates_timestamp() {
+        let mut info = NodeInstanceInfo::new("node5".to_string());
+        let before = now_ts();
+        info.set_status_changed_now();
+        let after = now_ts();
+        assert!(info.status_changed >= before && info.status_changed <= after);
+    }
+
+    #[test]
+    fn test_set_status_active_updates_status_changed() {
+        let mut info = NodeInstanceInfo::new("node6".to_string());
+        info.status = NodeStatus::Inactive(InactiveReason::Stopped);
+        info.is_status_unknown = true;
+        let before = now_ts();
+        info.set_status_active();
+        let after = now_ts();
+        assert_eq!(info.status, NodeStatus::Active);
+        assert!(!info.is_status_unknown);
+        assert!(info.status_changed >= before && info.status_changed <= after);
+    }
+
+    #[test]
+    fn test_set_status_inactive_updates_status_changed() {
+        let mut info = NodeInstanceInfo::new("node7".to_string());
+        info.status = NodeStatus::Active;
+        let before = now_ts();
+        info.set_status_inactive(InactiveReason::Exited("bye".to_string()));
+        let after = now_ts();
+        assert_eq!(
+            info.status,
+            NodeStatus::Inactive(InactiveReason::Exited("bye".to_string()))
+        );
+        assert!(!info.is_status_unknown);
+        assert!(info.status_changed >= before && info.status_changed <= after);
+    }
+
+    #[test]
+    fn test_set_status_to_unknown_updates_status_changed() {
+        let mut info = NodeInstanceInfo::new("node8".to_string());
+        info.status = NodeStatus::Active;
+        let before = now_ts();
+        info.set_status_to_unknown();
+        let after = now_ts();
+        assert!(info.is_status_unknown);
+        assert!(info.status_changed >= before && info.status_changed <= after);
+    }
+}
