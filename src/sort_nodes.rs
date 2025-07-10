@@ -146,8 +146,8 @@ impl NodesSortStrategy {
         match self {
             Self::NodeId(false) => a.node_id.cmp(&b.node_id),
             Self::NodeId(true) => b.node_id.cmp(&a.node_id),
-            Self::Status(false) => a.status.to_string().cmp(&b.status.to_string()),
-            Self::Status(true) => b.status.to_string().cmp(&a.status.to_string()),
+            Self::Status(false) => a.status_summary().cmp(&b.status_summary()),
+            Self::Status(true) => b.status_summary().cmp(&a.status_summary()),
             Self::CreationDate(false) => a.created.cmp(&b.created),
             Self::CreationDate(true) => b.created.cmp(&a.created),
             Self::PortNumber(false) => a.port.cmp(&b.port),

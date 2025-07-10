@@ -256,7 +256,7 @@ fn NodeInstanceView(
 ) -> impl IntoView {
     let context = expect_context::<ClientGlobalState>();
     let is_selected = move || {
-        info.read().status.is_locked()
+        info.read().is_status_locked
             || context
                 .selecting_nodes
                 .read()
@@ -265,21 +265,21 @@ fn NodeInstanceView(
     };
     let is_show_node_select = move || {
         let (is_selecting_nodes, _) = *context.selecting_nodes.read();
-        is_selecting_nodes || info.read().status.is_locked()
+        is_selecting_nodes || info.read().is_status_locked
     };
 
     let is_transitioning = move || info.read().status.is_transitioning();
-    let is_locked = move || info.read().status.is_locked();
+    let is_locked = move || info.read().is_status_locked;
     let is_warn_node_status = move || {
-        matches!(
-            info.read().status,
-            NodeStatus::Unknown(_)
-                | NodeStatus::Inactive(
+        info.read().is_status_unknown
+            || matches!(
+                info.read().status,
+                NodeStatus::Inactive(
                     InactiveReason::Unknown
                         | InactiveReason::Exited(_)
                         | InactiveReason::StartFailed(_)
                 )
-        )
+            )
     };
 
     let peer_id = move || value_or_dash(info.read().short_peer_id());
@@ -296,7 +296,7 @@ fn NodeInstanceView(
 
     let node_card_clicked = move || {
         let (is_selecting, _) = *context.selecting_nodes.read_untracked();
-        if is_selecting && !info.read_untracked().status.is_locked() {
+        if is_selecting && !info.read_untracked().is_status_locked {
             if is_selected() {
                 context.selecting_nodes.update(|(_, selected)| {
                     selected.remove(&info.read_untracked().node_id);
@@ -373,7 +373,7 @@ fn NodeInstanceView(
                         } else {
                             ""
                         }
-                    }>{move || info.get().status.to_string()}</span>
+                    }>{move || info.get().status_summary()}</span>
                     {move || {
                         if is_transitioning() {
                             " ...".to_string()
@@ -611,7 +611,7 @@ fn NodeInstanceView(
 fn NodeSelection(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
     let context = expect_context::<ClientGlobalState>();
     let is_selected = move || {
-        info.read().status.is_locked()
+        info.read().is_status_locked
             || context
                 .selecting_nodes
                 .read()
@@ -625,7 +625,7 @@ fn NodeSelection(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                 <input
                     type="checkbox"
                     prop:checked=is_selected
-                    prop:disabled=move || info.read().status.is_locked()
+                    prop:disabled=move || info.read().is_status_locked
                     class=move || {
                         if info.read().status.is_transitioning() {
                             "hidden"
@@ -733,7 +733,7 @@ fn ButtonStopStart(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
     let is_selecting_nodes = move || context.selecting_nodes.read().0;
     let is_btn_disabled = move || {
         is_selecting_nodes()
-            || info.read().status.is_locked()
+            || info.read().is_status_locked
             || info.read().status.is_transitioning()
     };
     let tip = move || {
@@ -780,7 +780,7 @@ fn ButtonUpgrade(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
     let is_selecting_nodes = move || context.selecting_nodes.read().0;
     let is_btn_disabled = move || {
         is_selecting_nodes()
-            || info.read().status.is_locked()
+            || info.read().is_status_locked
             || info.read().status.is_transitioning()
     };
     let tip = move || {
@@ -816,7 +816,7 @@ fn ButtonRecycle(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
     let is_btn_enabled = move || {
         !is_selecting_nodes()
             && !info.read().status.is_transitioning()
-            && !info.read().status.is_locked()
+            && !info.read().is_status_locked
             && info.read().peer_id.is_some()
     };
 

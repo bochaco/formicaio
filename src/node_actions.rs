@@ -174,7 +174,7 @@ pub fn NodesActionsView() -> impl IntoView {
                                     .read()
                                     .1
                                     .iter()
-                                    .filter(|(_, n)| !n.read().status.is_locked())
+                                    .filter(|(_, n)| !n.read().is_status_locked)
                                     .for_each(|(id, _)| {
                                         selected.insert(id.clone());
                                     });
@@ -209,7 +209,7 @@ pub fn NodesActionsView() -> impl IntoView {
                                     .1
                                     .iter()
                                     .filter(|(_, n)| {
-                                        n.read().status.is_active() && !n.read().status.is_locked()
+                                        n.read().status.is_active() && !n.read().is_status_locked
                                     })
                                     .for_each(|(id, _)| {
                                         selected.insert(id.clone());
@@ -245,8 +245,7 @@ pub fn NodesActionsView() -> impl IntoView {
                                     .1
                                     .iter()
                                     .filter(|(_, n)| {
-                                        n.read().status.is_inactive()
-                                            && !n.read().status.is_locked()
+                                        n.read().status.is_inactive() && !n.read().is_status_locked
                                     })
                                     .for_each(|(id, _)| {
                                         selected.insert(id.clone());
@@ -990,11 +989,7 @@ fn apply_on_selected(action: NodeAction, interval: u64, context: ClientGlobalSta
                     context.nodes.update(|(_, nodes)| {
                         selected.drain().for_each(|node_id| {
                             if let Some(node_info) = nodes.get(&node_id) {
-                                node_info.update(|n| {
-                                    let mut updated = n.clone();
-                                    updated.status = NodeStatus::Locked(Box::new(n.status.clone()));
-                                    *n = updated;
-                                })
+                                node_info.update(|n| n.lock_status())
                             }
                         });
                     });

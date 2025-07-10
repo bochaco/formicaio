@@ -220,7 +220,7 @@ pub async fn nodes_actions_batch_on_match(
     let matching_nodes = move |filter: NodeFilter| {
         nodes_list
             .into_iter()
-            .filter(|info| filter.matches(&info.short_node_id(), &info.status))
+            .filter(|info| filter.matches(info))
             .map(|info| info.node_id)
             .collect::<Vec<_>>()
     };

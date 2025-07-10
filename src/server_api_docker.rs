@@ -46,7 +46,7 @@ pub async fn nodes_instances(
 
         // TODO: pass the filter/s to docker-client
         if let Some(ref filter) = filter {
-            if !filter.passes(&node_info.short_node_id(), &node_info.status) {
+            if !filter.passes(&node_info) {
                 continue;
             }
         }
@@ -264,7 +264,7 @@ pub(crate) async fn helper_upgrade_node_instance(
         // set bin_version to new version obtained
         let node_info = NodeInstanceInfo {
             node_id: node_id.clone(),
-            status: NodeStatus::Transitioned("Upgraded".to_string()),
+            status: NodeStatus::Upgrading,
             status_changed: Utc::now().timestamp() as u64,
             bin_version: Some(new_version.clone().unwrap_or_default()),
             ips: Some(ips.clone().unwrap_or_default()),

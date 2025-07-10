@@ -845,12 +845,13 @@ impl CliCmdResponse {
 }
 
 fn format_node_status(info: &NodeInstanceInfo) -> String {
+    let status_summary = info.status_summary();
     if info.status.is_transitioning() {
-        format!("{} ...", info.status)
+        format!("{status_summary} ...")
     } else if info.status_info.is_empty() {
-        format!("{}", info.status)
+        status_summary
     } else {
-        format!("{}, {}", info.status, info.status_info)
+        format!("{status_summary}, {}", info.status_info)
     }
 }
 

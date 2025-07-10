@@ -28,20 +28,10 @@ pub enum NodeStatus {
     Stopping,
     // A node not connected to any peer on the network is considered Inactive.
     Inactive(InactiveReason),
-    // Its status is not known, it has been unreachable when trying fetch metrics.
-    // This status holds its previous known status.
-    Unknown(Box<NodeStatus>),
     Removing,
     Upgrading,
     // The node's peer-id is cleared and restarted with a fresh new one
     Recycling,
-    // This is a special state just to provide a good UX, after going thru some status
-    // change, e.g. Restarting, Upgrading, we set to this state till we get actual state
-    // from the server during our polling cycle. The string describes the type of transition.
-    Transitioned(String),
-    // Locked, users cannot change its status by executing any type of action on it.
-    // It also holds the current status.
-    Locked(Box<NodeStatus>),
 }
 
 #[derive(Clone, Default, Debug, Deserialize, PartialEq, Serialize)]
@@ -59,29 +49,33 @@ pub enum InactiveReason {
     Unknown,
 }
 
+impl fmt::Display for NodeStatus {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Inactive(InactiveReason::Created) => write!(f, "Created"),
+            Self::Inactive(InactiveReason::Stopped) => write!(f, "Stopped"),
+            Self::Inactive(InactiveReason::StartFailed(reason)) => {
+                write!(f, "Start failed ({reason})")
+            }
+            Self::Inactive(InactiveReason::Exited(reason)) => write!(f, "Exited ({reason})"),
+            Self::Inactive(InactiveReason::Unknown) => write!(f, "Exited (unknown reason)"),
+            other => write!(f, "{other:?}"),
+        }
+    }
+}
+
 impl NodeStatus {
     pub fn is_creating(&self) -> bool {
         matches!(self, Self::Creating)
     }
     pub fn is_active(&self) -> bool {
-        match self {
-            Self::Active => true,
-            Self::Locked(s) | Self::Unknown(s) => s.is_active(),
-            _ => false,
-        }
+        matches!(self, Self::Active)
     }
     pub fn is_inactive(&self) -> bool {
-        match self {
-            Self::Inactive(_) => true,
-            Self::Locked(s) | Self::Unknown(s) => s.is_inactive(),
-            _ => false,
-        }
+        matches!(self, Self::Inactive(_))
     }
     pub fn is_exited(&self) -> bool {
         matches!(self, Self::Inactive(InactiveReason::Exited(_)))
-    }
-    pub fn is_unknown(&self) -> bool {
-        matches!(self, Self::Unknown(_))
     }
     pub fn is_recycling(&self) -> bool {
         matches!(self, Self::Recycling)
@@ -98,32 +92,7 @@ impl NodeStatus {
                 | Self::Removing
                 | Self::Upgrading
                 | Self::Recycling
-                | Self::Transitioned(_)
         )
-    }
-    pub fn is_transitioned(&self) -> bool {
-        matches!(self, Self::Transitioned(_))
-    }
-    pub fn is_locked(&self) -> bool {
-        matches!(self, Self::Locked(_))
-    }
-}
-
-impl fmt::Display for NodeStatus {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Self::Transitioned(s) => write!(f, "{s}"),
-            Self::Inactive(InactiveReason::Exited(reason)) => write!(f, "Exited ({reason})"),
-            Self::Inactive(InactiveReason::StartFailed(reason)) => {
-                write!(f, "Start failed ({reason})")
-            }
-            Self::Inactive(InactiveReason::Unknown) => write!(f, "Exited (unknown reason)"),
-            Self::Inactive(InactiveReason::Stopped) => write!(f, "Stopped"),
-            Self::Inactive(InactiveReason::Created) => write!(f, "Created"),
-            Self::Locked(s) => write!(f, "{s} (batched)"),
-            Self::Unknown(s) => write!(f, "Unknown (it was {s})"),
-            other => write!(f, "{other:?}"),
-        }
     }
 }
 
@@ -133,8 +102,13 @@ pub struct NodeInstanceInfo {
     pub pid: Option<NodePid>,
     pub created: u64,
     pub status_changed: u64,
-    pub peer_id: Option<String>, // base58-encoded Peer Id bytes
     pub status: NodeStatus,
+    // When locked, users cannot change its status by executing any type of action on it.
+    pub is_status_locked: bool,
+    // Its status is not known, it has been unreachable when trying fetch metrics.
+    // The value kept in 'status' field is the last one being known.
+    pub is_status_unknown: bool,
+    pub peer_id: Option<String>, // base58-encoded Peer Id bytes
     pub status_info: String,
     pub bin_version: Option<String>,
     pub port: Option<u16>,
@@ -164,6 +138,21 @@ impl NodeInstanceInfo {
             node_id,
             ..Default::default()
         }
+    }
+
+    pub fn status_summary(&self) -> String {
+        let status_str = self.status.to_string();
+        if self.is_status_locked {
+            format!("{status_str} (batched)")
+        } else if self.is_status_unknown {
+            format!("Unknown (it was {status_str})")
+        } else {
+            status_str
+        }
+    }
+
+    pub fn lock_status(&mut self) {
+        self.is_status_locked = true;
     }
 
     pub fn upgrade_available(&self) -> bool {
@@ -206,31 +195,20 @@ impl NodeInstanceInfo {
     }
 
     pub fn set_status_active(&mut self) {
-        match &self.status {
-            NodeStatus::Locked(s) if s.is_inactive() => {
-                self.set_status_and_ts(NodeStatus::Locked(Box::new(NodeStatus::Active)));
-            }
-            NodeStatus::Locked(_) => {}
-            NodeStatus::Unknown(s) if s.is_inactive() => self.set_status_and_ts(NodeStatus::Active),
-            NodeStatus::Unknown(_) => {}
-            _ => self.set_status_and_ts(NodeStatus::Active),
+        if !self.is_status_unknown || self.status.is_inactive() {
+            self.is_status_unknown = false;
+            self.set_status_and_ts(NodeStatus::Active);
         }
     }
 
     pub fn set_status_inactive(&mut self, reason: InactiveReason) {
-        match &self.status {
-            NodeStatus::Locked(s) if s.is_active() => {
-                self.set_status_and_ts(NodeStatus::Locked(Box::new(NodeStatus::Inactive(reason))));
-            }
-            NodeStatus::Locked(_) => {}
-            _ => self.set_status_and_ts(NodeStatus::Inactive(reason)),
-        }
+        self.is_status_unknown = false;
+        self.set_status_and_ts(NodeStatus::Inactive(reason));
     }
 
     pub fn set_status_to_unknown(&mut self) {
-        if !self.status.is_unknown() {
-            self.set_status_and_ts(NodeStatus::Unknown(Box::new(self.status.clone())));
-        }
+        self.set_status_changed_now();
+        self.is_status_unknown = true;
         self.mem_used = None;
         self.cpu_usage = None;
         self.records = Some(0);

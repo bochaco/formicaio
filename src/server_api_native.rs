@@ -44,7 +44,7 @@ pub async fn nodes_instances(
     let mut nodes = context.db_client.get_nodes_list().await;
     // TODO: pass the filter/s to the db-client
     if let Some(filter) = filter {
-        nodes.retain(|_, info| filter.passes(&info.short_node_id(), &info.status));
+        nodes.retain(|_, info| filter.passes(info));
     }
 
     for (_, node_info) in nodes.iter_mut() {

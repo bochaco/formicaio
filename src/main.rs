@@ -142,11 +142,8 @@ async fn start_backend(
                     .update_node_status(&node_id, &NodeStatus::Inactive(InactiveReason::Stopped))
                     .await;
                 active_nodes.push(node_id);
-            } else if let NodeStatus::Locked(status) = node_info.status {
-                app_state
-                    .db_client
-                    .update_node_status(&node_id, &status)
-                    .await;
+            } else if node_info.is_status_locked {
+                app_state.db_client.unlock_node_status(&node_id).await;
             }
         }
 

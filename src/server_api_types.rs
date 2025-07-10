@@ -34,26 +34,38 @@ pub enum NodeStatusFilter {
 }
 
 impl NodeStatusFilter {
-    pub fn matches(&self, status: &NodeStatus) -> bool {
+    pub fn matches(&self, node_info: &NodeInstanceInfo) -> bool {
         match self {
-            Self::Active => status.is_active(),
-            Self::Restarting => matches!(status, NodeStatus::Restarting),
-            Self::Stopping => matches!(status, NodeStatus::Stopping),
-            Self::Removing => matches!(status, NodeStatus::Removing),
-            Self::Upgrading => matches!(status, NodeStatus::Upgrading),
-            Self::Recycling => matches!(status, NodeStatus::Recycling),
-            Self::Batched => matches!(status, NodeStatus::Locked(_)),
-            Self::Inactive => status.is_inactive(),
-            Self::Created => matches!(status, NodeStatus::Inactive(InactiveReason::Created)),
-            Self::Stopped => matches!(status, NodeStatus::Inactive(InactiveReason::Stopped)),
+            Self::Active => node_info.status.is_active(),
+            Self::Restarting => matches!(node_info.status, NodeStatus::Restarting),
+            Self::Stopping => matches!(node_info.status, NodeStatus::Stopping),
+            Self::Removing => matches!(node_info.status, NodeStatus::Removing),
+            Self::Upgrading => matches!(node_info.status, NodeStatus::Upgrading),
+            Self::Recycling => matches!(node_info.status, NodeStatus::Recycling),
+            Self::Batched => node_info.is_status_locked,
+            Self::Inactive => node_info.status.is_inactive(),
+            Self::Created => matches!(
+                node_info.status,
+                NodeStatus::Inactive(InactiveReason::Created)
+            ),
+            Self::Stopped => matches!(
+                node_info.status,
+                NodeStatus::Inactive(InactiveReason::Stopped)
+            ),
             Self::StartFailed => {
-                matches!(status, NodeStatus::Inactive(InactiveReason::StartFailed(_)))
+                matches!(
+                    node_info.status,
+                    NodeStatus::Inactive(InactiveReason::StartFailed(_))
+                )
             }
             Self::Exited => matches!(
-                status,
+                node_info.status,
                 NodeStatus::Inactive(InactiveReason::Exited(_) | InactiveReason::Unknown)
             ),
-            Self::Unknown => matches!(status, NodeStatus::Inactive(InactiveReason::Unknown)),
+            Self::Unknown => matches!(
+                node_info.status,
+                NodeStatus::Inactive(InactiveReason::Unknown)
+            ),
         }
     }
 }
@@ -66,27 +78,27 @@ pub struct NodeFilter {
 }
 
 impl NodeFilter {
-    fn status_filter_apply(&self, status: &NodeStatus, fallback_val: bool) -> bool {
+    fn status_filter_apply(&self, node_info: &NodeInstanceInfo, fallback_val: bool) -> bool {
         self.status
             .as_ref()
-            .map(|s| s.iter().any(|sf| sf.matches(status)))
+            .map(|s| s.iter().any(|sf| sf.matches(node_info)))
             .unwrap_or(fallback_val)
     }
 
-    pub fn passes(&self, node_id: &NodeId, status: &NodeStatus) -> bool {
+    pub fn passes(&self, node_info: &NodeInstanceInfo) -> bool {
         if let Some(ids) = self.node_ids.as_ref() {
-            ids.contains(node_id) || self.status_filter_apply(status, false)
+            ids.contains(&node_info.node_id) || self.status_filter_apply(node_info, false)
         } else {
-            self.status_filter_apply(status, true)
+            self.status_filter_apply(node_info, true)
         }
     }
 
-    pub fn matches(&self, node_id: &NodeId, status: &NodeStatus) -> bool {
+    pub fn matches(&self, node_info: &NodeInstanceInfo) -> bool {
         self.node_ids
             .as_ref()
-            .map(|ids| ids.contains(node_id))
+            .map(|ids| ids.contains(&node_info.node_id))
             .unwrap_or(false)
-            || self.status_filter_apply(status, false)
+            || self.status_filter_apply(node_info, false)
     }
 }
 

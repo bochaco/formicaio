@@ -1,6 +1,6 @@
 use super::{
     metrics::{Metrics, NodeMetric},
-    node_instance::{InactiveReason, NodeId, NodeInstanceInfo, NodePid, NodeStatus},
+    node_instance::{NodeId, NodeInstanceInfo, NodePid, NodeStatus},
     server_api_types::AppSettings,
 };
 
@@ -235,7 +235,7 @@ impl DbClient {
     ) -> Result<NodeInstanceInfo, ServerFnError> {
         let mut node_info = NodeInstanceInfo::new(node_id.clone());
         self.get_node_metadata(&mut node_info, true).await;
-        if node_info.status.is_locked() {
+        if node_info.is_status_locked {
             return Err(ServerFnError::new(
                 "Node is part of a running/scheduled batch".to_string(),
             ));
@@ -463,28 +463,14 @@ impl DbClient {
 
     // Convenient method to lock node status field and status-changed timestamp
     pub async fn set_node_status_to_locked(&self, node_id: &str) {
-        let current_status = self.get_node_status(node_id).await;
-        if !current_status.is_locked() {
-            self.update_node_metadata_fields(
-                node_id,
-                &[(
-                    "status",
-                    &json!(&NodeStatus::Locked(Box::new(current_status))).to_string(),
-                )],
-            )
+        self.update_node_metadata_fields(node_id, &[("is_status_locked", "1")])
             .await
-        }
     }
 
     // Convenient method to unlock node status and set it to its previous status
     pub async fn unlock_node_status(&self, node_id: &str) {
-        if let NodeStatus::Locked(prev_status) = self.get_node_status(node_id).await {
-            self.update_node_metadata_fields(
-                node_id,
-                &[("status", &json!(prev_status).to_string())],
-            )
+        self.update_node_metadata_fields(node_id, &[("is_status_locked", "0")])
             .await
-        }
     }
 
     // Convenient method to update node balance field
@@ -498,26 +484,6 @@ impl DbClient {
     pub async fn update_node_pid(&self, node_id: &str, pid: NodePid) {
         self.update_node_metadata_fields(node_id, &[("pid", &pid.to_string())])
             .await
-    }
-
-    // Helper to retrieve node status
-    async fn get_node_status(&self, node_id: &str) -> NodeStatus {
-        let db_lock = self.db.lock().await;
-        match sqlx::query("SELECT status FROM nodes WHERE node_id LIKE ? || '%'")
-            .bind(node_id)
-            .fetch_one(&*db_lock)
-            .await
-        {
-            Ok(row) => {
-                let str = row.get::<String, _>("status");
-                serde_json::from_str(&str)
-                    .unwrap_or(NodeStatus::Inactive(InactiveReason::default()))
-            }
-            Err(err) => {
-                logging::log!("Sqlite status query error: {err} == {node_id}");
-                NodeStatus::Inactive(InactiveReason::default())
-            }
-        }
     }
 
     // Retrieve node metrics from local cache DB
