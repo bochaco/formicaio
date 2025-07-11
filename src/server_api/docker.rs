@@ -27,9 +27,9 @@ pub async fn nodes_instances(
     filter: Option<NodeFilter>,
 ) -> Result<NodesInstancesInfo, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
-    let latest_bin_version = context.latest_bin_version.lock().await.clone();
+    let latest_bin_version = context.latest_bin_version.read().await.clone();
     let nodes_list = context.docker_client.get_containers_list().await?;
-    let stats = context.stats.lock().await.clone();
+    let stats = context.stats.read().await.clone();
 
     let mut nodes = HashMap::new();
     for mut node_info in nodes_list.into_iter() {
@@ -52,7 +52,7 @@ pub async fn nodes_instances(
         if node_info.status.is_active() {
             context
                 .nodes_metrics
-                .lock()
+                .write()
                 .await
                 .update_node_info(&mut node_info);
         }
@@ -60,7 +60,7 @@ pub async fn nodes_instances(
         nodes.insert(node_info.node_id.clone(), node_info);
     }
 
-    let scheduled_batches = context.node_action_batches.lock().await.1.clone();
+    let scheduled_batches = context.node_action_batches.read().await.1.clone();
 
     Ok(NodesInstancesInfo {
         latest_bin_version: latest_bin_version.map(|v| v.to_string()),
@@ -112,7 +112,7 @@ pub(crate) async fn helper_delete_node_instance(
     context.db_client.delete_node_metadata(&node_id).await;
     context
         .nodes_metrics
-        .lock()
+        .write()
         .await
         .remove_node_metrics(&node_id)
         .await;

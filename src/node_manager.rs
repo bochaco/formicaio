@@ -25,7 +25,7 @@ use thiserror::Error;
 use tokio::{
     fs::{File, create_dir_all, metadata, remove_dir_all, remove_file},
     io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt, BufReader, SeekFrom},
-    sync::Mutex,
+    sync::RwLock,
     time::sleep,
 };
 
@@ -68,8 +68,8 @@ pub enum NodeManagerError {
 #[derive(Clone, Debug)]
 pub struct NodeManager {
     root_dir: PathBuf,
-    system: Arc<Mutex<System>>,
-    nodes: Arc<Mutex<HashMap<NodeId, Child>>>,
+    system: Arc<RwLock<System>>,
+    nodes: Arc<RwLock<HashMap<NodeId, Child>>>,
     node_status_locked: ImmutableNodeStatus,
 }
 
@@ -97,8 +97,8 @@ impl NodeManager {
         logging::log!("Node manager instantiated with root dir:: {root_dir:?}");
         create_dir_all(&root_dir).await?;
 
-        let system = Arc::new(Mutex::new(System::new()));
-        let nodes = Arc::new(Mutex::new(HashMap::default()));
+        let system = Arc::new(RwLock::new(System::new()));
+        let nodes = Arc::new(RwLock::new(HashMap::default()));
 
         Ok(Self {
             root_dir,
@@ -231,7 +231,7 @@ impl NodeManager {
             Ok(child) => {
                 let pid = child.id();
                 logging::log!("Node process for {node_id} spawned with PID: {pid}");
-                self.nodes.lock().await.insert(node_id.to_string(), child);
+                self.nodes.write().await.insert(node_id.to_string(), child);
                 node_info.pid = Some(pid);
                 // let's delay it for a moment so it generates the peer id
                 sleep(Duration::from_secs(2)).await;
@@ -270,7 +270,7 @@ impl NodeManager {
         mut nodes_info: HashMap<NodeId, NodeInstanceInfo>,
     ) -> Result<Vec<NodeInstanceInfo>, NodeManagerError> {
         // first update processes information of our `System` struct
-        let mut sys = self.system.lock().await;
+        let mut sys = self.system.write().await;
         sys.refresh_processes_specifics(
             ProcessesToUpdate::All,
             true,
@@ -319,7 +319,7 @@ impl NodeManager {
                 // we need to kill/wait for child zombie
                 let id = self
                     .nodes
-                    .lock()
+                    .read()
                     .await
                     .iter()
                     .find(|(_, c)| c.id() == pid)
@@ -358,7 +358,7 @@ impl NodeManager {
 
     // Kill node's process
     pub async fn kill_node(&self, node_id: &NodeId) -> Option<ExitStatus> {
-        let mut child = match self.nodes.lock().await.remove(node_id) {
+        let mut child = match self.nodes.write().await.remove(node_id) {
             Some(child) => child,
             None => {
                 logging::error!("Failed to kill node, node not found with id: {node_id}");

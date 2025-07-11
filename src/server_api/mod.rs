@@ -42,7 +42,7 @@ const REWARDS_ADDR_LENGTH: usize = 40;
 #[server(name = FetchStats, prefix = "/api", endpoint = "/stats")]
 pub async fn fetch_stats() -> Result<Stats, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
-    let stats = context.stats.lock().await.clone();
+    let stats = context.stats.read().await.clone();
     Ok(stats)
 }
 
@@ -50,7 +50,7 @@ pub async fn fetch_stats() -> Result<Stats, ServerFnError> {
 #[server(name = FetchStatsWidget, prefix = "/api", endpoint = "/stats_widget")]
 pub async fn fetch_stats_widget() -> Result<WidgetFourStats, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
-    let stats = context.stats.lock().await.clone();
+    let stats = context.stats.read().await.clone();
     let widget_stats = WidgetFourStats {
         r#type: "four-stats".to_string(),
         refresh: "5s".to_string(),
@@ -158,7 +158,7 @@ pub async fn node_metrics(
     let context = expect_context::<ServerGlobalState>();
     let metrics = context
         .nodes_metrics
-        .lock()
+        .read()
         .await
         .get_node_metrics(node_id, since)
         .await;
@@ -191,7 +191,7 @@ pub async fn update_settings(settings: super::types::AppSettings) -> Result<(), 
 pub async fn nodes_actions_batches() -> Result<Vec<NodesActionsBatch>, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
 
-    let batches = context.node_action_batches.lock().await.1.clone();
+    let batches = context.node_action_batches.read().await.1.clone();
     Ok(batches)
 }
 
@@ -278,7 +278,7 @@ pub async fn helper_node_action_batch(
     logging::log!("Creating new batch with id {batch_id}: {batch_info:?}");
 
     let len = {
-        let batches = &mut context.node_action_batches.lock().await.1;
+        let batches = &mut context.node_action_batches.write().await.1;
         batches.push(batch_info);
         batches.len()
     };
@@ -291,11 +291,11 @@ pub async fn helper_node_action_batch(
 
 #[cfg(feature = "ssr")]
 async fn run_batches(context: ServerGlobalState) {
-    let mut cancel_rx = context.node_action_batches.lock().await.0.subscribe();
+    let mut cancel_rx = context.node_action_batches.read().await.0.subscribe();
 
     loop {
         let batch_info =
-            if let Some(next_batch) = context.node_action_batches.lock().await.1.first_mut() {
+            if let Some(next_batch) = context.node_action_batches.write().await.1.first_mut() {
                 let mut batch = next_batch.clone();
                 batch.status = "In progress".to_string();
                 *next_batch = batch.clone();
@@ -328,7 +328,7 @@ async fn run_batches(context: ServerGlobalState) {
                                     "Failed to create node instance {i}/{count} as part of a batch: {err}"
                                 ),
                                 Ok(_) => if let Some(ref mut b) = context
-                                    .node_action_batches.lock().await.1
+                                    .node_action_batches.write().await.1
                                     .iter_mut()
                                     .find(|batch| batch.id == batch_info.id)
                                 {
@@ -383,7 +383,7 @@ async fn run_batches(context: ServerGlobalState) {
                                     "Node action failed on node instance {}/{count} as part of a batch: {err}", i+1
                                 ),
                                 Ok(()) => if let Some(ref mut b) = context
-                                    .node_action_batches.lock().await.1
+                                    .node_action_batches.write().await.1
                                     .iter_mut()
                                     .find(|batch| batch.id == batch_info.id)
                                 {
@@ -403,7 +403,7 @@ async fn run_batches(context: ServerGlobalState) {
 
         context
             .node_action_batches
-            .lock()
+            .write()
             .await
             .1
             .retain(|batch| batch.id != batch_info.id);
@@ -416,7 +416,7 @@ pub async fn cancel_batch(batch_id: u16) -> Result<(), ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
     logging::log!("Cancelling node action batch {batch_id} ...");
 
-    let mut guard = context.node_action_batches.lock().await;
+    let mut guard = context.node_action_batches.write().await;
     guard.0.send(batch_id)?;
 
     if let Some(index) = guard.1.iter().position(|b| b.id == batch_id) {

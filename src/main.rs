@@ -40,7 +40,7 @@ async fn start_backend(
     use leptos::{logging, prelude::*};
     use leptos_axum::{LeptosRoutes, generate_route_list};
     use std::sync::Arc;
-    use tokio::sync::{Mutex, broadcast};
+    use tokio::sync::{RwLock, broadcast};
 
     logging::log!("Starting Formicaio v{} ...", env!("CARGO_PKG_VERSION"));
 
@@ -94,16 +94,16 @@ async fn start_backend(
     .await
     .wrap_err("Failed to instantiate node manager")?;
 
-    let latest_bin_version = Arc::new(Mutex::new(None));
-    let nodes_metrics = Arc::new(Mutex::new(NodesMetrics::new(db_client.clone())));
+    let latest_bin_version = Arc::new(RwLock::new(None));
+    let nodes_metrics = Arc::new(RwLock::new(NodesMetrics::new(db_client.clone())));
 
     // Channel to send commands to the bg jobs.
     let (bg_tasks_cmds_tx, _rx) = broadcast::channel::<BgTasksCmds>(1_000);
     // Let's read currently cached settings to use and push it to channel
     let settings = db_client.get_settings().await;
     // List of node instaces batches currently in progress
-    let node_action_batches = Arc::new(Mutex::new((broadcast::channel(3).0, Vec::new())));
-    let stats = Arc::new(Mutex::new(Stats::default()));
+    let node_action_batches = Arc::new(RwLock::new((broadcast::channel(3).0, Vec::new())));
+    let stats = Arc::new(RwLock::new(Stats::default()));
 
     let app_state = ServerGlobalState {
         leptos_options: leptos_options.clone(),
@@ -128,7 +128,7 @@ async fn start_backend(
             .upgrade_master_node_binary(None)
             .await
             .wrap_err("Failed to download node binary")?;
-        *app_state.latest_bin_version.lock().await = Some(version);
+        *app_state.latest_bin_version.write().await = Some(version);
 
         // let's create a batch to start nodes which were Active
         use formicaio::types::{InactiveReason, NodeStatus};

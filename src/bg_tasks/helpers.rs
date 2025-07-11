@@ -13,7 +13,7 @@ use leptos::logging;
 use semver::Version;
 use std::sync::Arc;
 use tokio::{
-    sync::Mutex,
+    sync::RwLock,
     time::{Duration, Interval, interval},
 };
 
@@ -119,9 +119,9 @@ impl NodeManagerProxy {
     pub async fn upgrade_master_node_binary(
         &self,
         version: &Version,
-        latest_bin_version: Arc<Mutex<Option<Version>>>,
+        latest_bin_version: Arc<RwLock<Option<Version>>>,
     ) {
-        *latest_bin_version.lock().await = Some(version.clone());
+        *latest_bin_version.write().await = Some(version.clone());
     }
 }
 
@@ -158,14 +158,14 @@ impl NodeManagerProxy {
     pub async fn upgrade_master_node_binary(
         &self,
         version: &Version,
-        latest_bin_version: Arc<Mutex<Option<Version>>>,
+        latest_bin_version: Arc<RwLock<Option<Version>>>,
     ) {
         match self
             .node_manager
             .upgrade_master_node_binary(Some(version))
             .await
         {
-            Ok(v) => *latest_bin_version.lock().await = Some(v),
+            Ok(v) => *latest_bin_version.write().await = Some(v),
             Err(err) => {
                 logging::error!("Failed to download v{version} of node binary: {err:?}")
             }
