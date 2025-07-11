@@ -34,8 +34,8 @@ pub async fn nodes_instances(
 ) -> Result<NodesInstancesInfo, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
 
-    let latest_bin_version = context.latest_bin_version.lock().await.clone();
-    let stats = context.stats.lock().await.clone();
+    let latest_bin_version = context.latest_bin_version.read().await.clone();
+    let stats = context.stats.read().await.clone();
 
     let mut nodes = context.db_client.get_nodes_list().await;
     // TODO: pass the filter/s to the db-client
@@ -50,13 +50,13 @@ pub async fn nodes_instances(
             // which was retrieved through the metrics server
             context
                 .nodes_metrics
-                .lock()
+                .write()
                 .await
                 .update_node_info(node_info);
         }
     }
 
-    let scheduled_batches = context.node_action_batches.lock().await.1.clone();
+    let scheduled_batches = context.node_action_batches.read().await.1.clone();
 
     Ok(NodesInstancesInfo {
         latest_bin_version: latest_bin_version.map(|v| v.to_string()),
@@ -179,7 +179,7 @@ pub(crate) async fn helper_delete_node_instance(
 
     context
         .nodes_metrics
-        .lock()
+        .write()
         .await
         .remove_node_metrics(&node_info.node_id)
         .await;

@@ -10,7 +10,7 @@ use leptos::logging;
 use std::{collections::HashMap, sync::Arc, thread, time::Duration};
 use tokio::{
     select,
-    sync::{Mutex, broadcast},
+    sync::{RwLock, broadcast},
     time::{interval, sleep},
 };
 
@@ -52,7 +52,7 @@ fn setup_i2c(settings: &AppSettings) -> Result<Display<Pcf8574>, eyre::Error> {
 pub async fn display_stats_on_lcd(
     settings: AppSettings,
     mut bg_tasks_cmds_rx: broadcast::Receiver<BgTasksCmds>,
-    stats: Arc<Mutex<HashMap<String, String>>>,
+    stats: Arc<RwLock<HashMap<String, String>>>,
 ) {
     let cur_lcd_device = settings.lcd_device.clone();
     let cur_lcd_addr = settings.lcd_addr.clone();
@@ -88,7 +88,7 @@ pub async fn display_stats_on_lcd(
                 }
             },
             _ = update_lcd.tick() => {
-                let stats_clone = { stats.lock().await.clone() };
+                let stats_clone = { stats.read().await.clone() };
                 logging::log!("Updating stats on LCD device...");
                 for (k, v) in stats_clone.iter() {
                     display.clear();

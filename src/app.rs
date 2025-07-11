@@ -26,7 +26,7 @@ use leptos::{logging, task::spawn_local};
 use std::sync::Arc;
 #[cfg(feature = "ssr")]
 use tokio::{
-    sync::{Mutex, broadcast},
+    sync::{RwLock, broadcast},
     time::{Duration, Instant},
 };
 
@@ -72,19 +72,19 @@ pub struct ServerGlobalState {
     pub docker_client: super::docker_client::DockerClient,
     #[cfg(feature = "native")]
     pub node_manager: super::node_manager::NodeManager,
-    pub latest_bin_version: Arc<Mutex<Option<semver::Version>>>,
-    pub nodes_metrics: Arc<Mutex<super::metrics_client::NodesMetrics>>,
+    pub latest_bin_version: Arc<RwLock<Option<semver::Version>>>,
+    pub nodes_metrics: Arc<RwLock<super::metrics_client::NodesMetrics>>,
     pub node_status_locked: ImmutableNodeStatus,
     pub bg_tasks_cmds_tx: broadcast::Sender<BgTasksCmds>,
     pub node_action_batches:
-        Arc<Mutex<(broadcast::Sender<u16>, Vec<super::types::NodesActionsBatch>)>>,
-    pub stats: Arc<Mutex<Stats>>,
+        Arc<RwLock<(broadcast::Sender<u16>, Vec<super::types::NodesActionsBatch>)>>,
+    pub stats: Arc<RwLock<Stats>>,
 }
 
 // List of nodes which status is temporarily immutable/locked.
 #[cfg(feature = "ssr")]
 #[derive(Clone, Debug, Default)]
-pub struct ImmutableNodeStatus(Arc<Mutex<HashMap<super::types::NodeId, LockedStatus>>>);
+pub struct ImmutableNodeStatus(Arc<RwLock<HashMap<super::types::NodeId, LockedStatus>>>);
 
 #[cfg(feature = "ssr")]
 #[derive(Clone, Debug)]
@@ -98,7 +98,7 @@ struct LockedStatus {
 #[cfg(feature = "ssr")]
 impl ImmutableNodeStatus {
     pub async fn lock(&self, node_id: NodeId, expiration_time: Duration) {
-        self.0.lock().await.insert(
+        self.0.write().await.insert(
             node_id,
             LockedStatus {
                 timestamp: Instant::now(),
@@ -108,13 +108,13 @@ impl ImmutableNodeStatus {
     }
 
     pub async fn remove(&self, node_id: &NodeId) {
-        self.0.lock().await.remove(node_id);
+        self.0.write().await.remove(node_id);
     }
 
     // Check if the node id is still in the list, but also check if
     // its expiration has already passed and therefore has to be removed from the list.
     pub async fn is_still_locked(&self, node_id: &NodeId) -> bool {
-        let info = self.0.lock().await.get(node_id).cloned();
+        let info = self.0.read().await.get(node_id).cloned();
         match info {
             None => false,
             Some(LockedStatus {

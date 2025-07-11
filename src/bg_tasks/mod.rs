@@ -29,7 +29,7 @@ use std::{
 };
 use tokio::{
     select,
-    sync::{Mutex, broadcast},
+    sync::{RwLock, broadcast},
     time::{Duration, sleep, timeout},
 };
 use url::Url;
@@ -58,7 +58,7 @@ pub fn spawn_bg_tasks(context: ServerGlobalState, settings: AppSettings) {
     logging::log!("App settings to use: {settings:#?}");
     let mut ctx = TasksContext::from(settings);
 
-    let lcd_stats = Arc::new(Mutex::new(
+    let lcd_stats = Arc::new(RwLock::new(
         [(
             "Formicaio".to_string(),
             format!("v{}", env!("CARGO_PKG_VERSION")),
@@ -176,7 +176,7 @@ pub fn spawn_bg_tasks(context: ServerGlobalState, settings: AppSettings) {
 // automatically if auto-upgrade was enabled by the user.
 async fn check_node_bin_version(
     node_mgr_proxy: NodeManagerProxy,
-    latest_bin_version: Arc<Mutex<Option<Version>>>,
+    latest_bin_version: Arc<RwLock<Option<Version>>>,
     db_client: DbClient,
     node_status_locked: ImmutableNodeStatus,
 ) {
@@ -276,12 +276,12 @@ async fn update_node_metadata(
 // from nodes' exposed metrics server caching them in global context.
 async fn update_nodes_info(
     node_mgr_proxy: &NodeManagerProxy,
-    nodes_metrics: &Arc<Mutex<NodesMetrics>>,
+    nodes_metrics: &Arc<RwLock<NodesMetrics>>,
     db_client: &DbClient,
     node_status_locked: &ImmutableNodeStatus,
     query_bin_version: bool,
-    lcd_stats: &Arc<Mutex<HashMap<String, String>>>,
-    global_stats: Arc<Mutex<Stats>>,
+    lcd_stats: &Arc<RwLock<HashMap<String, String>>>,
+    global_stats: Arc<RwLock<Stats>>,
 ) {
     let ts = Utc::now();
     let nodes = node_mgr_proxy.get_nodes_list().await.unwrap_or_else(|err| {
@@ -315,7 +315,7 @@ async fn update_nodes_info(
 
                 match timeout(NODE_METRICS_QUERY_TIMEOUT, metrics_client.fetch_metrics()).await {
                     Ok(Ok(metrics)) => {
-                        let mut node_metrics = nodes_metrics.lock().await;
+                        let mut node_metrics = nodes_metrics.write().await;
                         node_metrics.store(&node_info.node_id, &metrics).await;
                         node_metrics.update_node_info(&mut node_info);
                         node_info.status = NodeStatus::Active;
@@ -383,7 +383,7 @@ async fn update_nodes_info(
 
     update_lcd_stats(lcd_stats, &updated_vals).await;
 
-    let mut guard = global_stats.lock().await;
+    let mut guard = global_stats.write().await;
     guard.total_nodes = num_nodes;
     guard.active_nodes = num_active_nodes;
     guard.inactive_nodes = num_inactive_nodes;
@@ -420,9 +420,9 @@ async fn balance_checker_task(
     settings: AppSettings,
     node_mgr_proxy: NodeManagerProxy,
     db_client: DbClient,
-    lcd_stats: Arc<Mutex<HashMap<String, String>>>,
+    lcd_stats: Arc<RwLock<HashMap<String, String>>>,
     bg_tasks_cmds_tx: broadcast::Sender<BgTasksCmds>,
-    global_stats: Arc<Mutex<Stats>>,
+    global_stats: Arc<RwLock<Stats>>,
 ) {
     // cache retrieved rewards balances to not query more than once per address,
     // as well as how many nodes have each address set for rewards.
@@ -495,7 +495,7 @@ async fn balance_checker_task(
 
                     let total_balance: U256 = updated_balances.values().map(|(b, _)| b).sum();
                     update_balance_lcd_stats(&lcd_stats, total_balance).await;
-                    global_stats.lock().await.total_balance = total_balance;
+                    global_stats.write().await.total_balance = total_balance;
                 }
             }
             Ok(BgTasksCmds::DeleteBalanceFor(node_info)) => {
@@ -512,7 +512,7 @@ async fn balance_checker_task(
                     }
                     let total_balance: U256 = updated_balances.values().map(|(b, _)| b).sum();
                     update_balance_lcd_stats(&lcd_stats, total_balance).await;
-                    global_stats.lock().await.total_balance = total_balance;
+                    global_stats.write().await.total_balance = total_balance;
                 }
             }
             Ok(BgTasksCmds::CheckAllBalances) => {
@@ -542,7 +542,7 @@ async fn balance_checker_task(
                         }
                     }
                 }
-                global_stats.lock().await.total_balance = total_balance;
+                global_stats.write().await.total_balance = total_balance;
             }
             Err(_) => {}
         }
@@ -605,7 +605,7 @@ async fn retrieve_current_balances<P: Provider<N>, N: Network>(
 
 // Helper to update total balance stat to be disaplyed on external LCD device
 async fn update_balance_lcd_stats(
-    lcd_stats: &Arc<Mutex<HashMap<String, String>>>,
+    lcd_stats: &Arc<RwLock<HashMap<String, String>>>,
     new_balance: U256,
 ) {
     let balance = truncated_balance_str(new_balance);
@@ -614,10 +614,10 @@ async fn update_balance_lcd_stats(
 
 // Helper to add/update stats to be disaplyed on external LCD device
 async fn update_lcd_stats(
-    lcd_stats: &Arc<Mutex<HashMap<String, String>>>,
+    lcd_stats: &Arc<RwLock<HashMap<String, String>>>,
     labels_vals: &[(&str, String)],
 ) {
-    let mut s = lcd_stats.lock().await;
+    let mut s = lcd_stats.write().await;
     labels_vals
         .iter()
         .filter(|(l, v)| !l.is_empty() && !v.is_empty())
@@ -627,8 +627,8 @@ async fn update_lcd_stats(
 }
 
 // Helper to remove stats being displayed on external LCD device
-async fn remove_lcd_stats(lcd_stats: &Arc<Mutex<HashMap<String, String>>>, labels: &[&str]) {
-    let mut s = lcd_stats.lock().await;
+async fn remove_lcd_stats(lcd_stats: &Arc<RwLock<HashMap<String, String>>>, labels: &[&str]) {
+    let mut s = lcd_stats.write().await;
     labels.iter().for_each(|label| {
         let _ = s.remove(*label);
     });
