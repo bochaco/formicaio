@@ -1,4 +1,4 @@
-use super::{app::ClientGlobalState, types::NodesSortStrategy};
+use crate::{app::ClientGlobalState, types::NodesSortStrategy};
 
 use leptos::prelude::*;
 

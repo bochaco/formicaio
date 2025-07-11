@@ -1,7 +1,7 @@
-use super::{
+use super::icons::*;
+use crate::{
     app::{ClientGlobalState, get_addr_from_metamask},
     helpers::{add_node_instances, remove_node_instance, show_alert_msg},
-    icons::*,
     server_api::{
         nodes_actions_batch_create, parse_and_validate_addr, recycle_node_instance,
         start_node_instance, stop_node_instance, upgrade_node_instance,

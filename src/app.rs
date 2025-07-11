@@ -4,16 +4,18 @@ use super::server_api::nodes_instances;
 use super::types::AppSettings;
 
 use super::{
-    about::AboutView,
-    alerts::{AlertMsg, OfflineMsg},
     error_template::{AppError, ErrorTemplate},
-    navbar::NavBar,
-    node_actions::NodesActionsView,
-    nodes_list_view::NodesListView,
-    pagination::PaginationView,
-    stats::AggregatedStatsView,
-    terminal::TerminalView,
     types::{NodeId, NodeInstanceInfo, NodesActionsBatch, NodesSortStrategy, Stats},
+    views::{
+        about::AboutView,
+        alerts::{AlertMsg, OfflineMsg},
+        navbar::NavBar,
+        node_actions::NodesActionsView,
+        nodes_list::NodesListView,
+        pagination::PaginationView,
+        stats::AggregatedStatsView,
+        terminal::TerminalView,
+    },
 };
 
 #[cfg(feature = "ssr")]

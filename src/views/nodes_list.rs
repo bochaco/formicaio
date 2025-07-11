@@ -1,12 +1,14 @@
 use super::{
-    app::{ClientGlobalState, PAGE_SIZE},
-    chart_view::{ChartSeriesData, NodeChartView, node_metrics_update},
-    helpers::{node_logs_stream, show_alert_msg, truncated_balance_str},
+    chart::{ChartSeriesData, NodeChartView, node_metrics_update},
     icons::{
         IconCancel, IconRecycle, IconRemove, IconShowChart, IconShowLogs, IconStartNode,
         IconStopNode, IconUpgradeNode,
     },
     node_actions::NodeAction,
+};
+use crate::{
+    app::{ClientGlobalState, PAGE_SIZE},
+    helpers::{node_logs_stream, show_alert_msg, truncated_balance_str},
     server_api::cancel_batch,
     types::{BatchType, InactiveReason, NodeInstanceInfo, NodeStatus, NodesActionsBatch},
 };

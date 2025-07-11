@@ -1,7 +1,5 @@
-use super::{
-    app::{ClientGlobalState, PAGE_SIZE},
-    icons::{IconFirstPage, IconLastPage, IconNextPage, IconPreviousPage},
-};
+use super::icons::{IconFirstPage, IconLastPage, IconNextPage, IconPreviousPage};
+use crate::app::{ClientGlobalState, PAGE_SIZE};
 
 use leptos::prelude::*;
 

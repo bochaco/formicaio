@@ -1,4 +1,5 @@
-use super::{app::ClientGlobalState, icons::IconAlertMsgError};
+use super::icons::IconAlertMsgError;
+use crate::app::ClientGlobalState;
 
 use leptos::prelude::*;
 

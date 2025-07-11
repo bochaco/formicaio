@@ -1,4 +1,4 @@
-use super::cli_cmds::CliCommands;
+use crate::cli_cmds::CliCommands;
 
 use leptos::prelude::*;
 use std::{cmp::Ordering, io::Cursor};
