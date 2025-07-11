@@ -1,4 +1,4 @@
-use super::{app::BgTasksCmds, server_api::types::AppSettings};
+use crate::{app::BgTasksCmds, server_api::types::AppSettings};
 
 use eyre::eyre;
 use i2cdev::{

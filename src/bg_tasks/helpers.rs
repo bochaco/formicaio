@@ -1,14 +1,13 @@
 #[cfg(not(feature = "native"))]
-use super::docker_client::{DockerClient, DockerClientError};
+use crate::docker_client::{DockerClient, DockerClientError};
 #[cfg(feature = "native")]
-use super::node_manager::{NodeManager, NodeManagerError};
+use crate::node_manager::{NodeManager, NodeManagerError};
 
-use super::{
+use crate::{
     app::ImmutableNodeStatus,
     db_client::DbClient,
     node_instance::{NodeId, NodeInstanceInfo},
-    server_api::helper_upgrade_node_instance,
-    server_api::types::AppSettings,
+    server_api::{helper_upgrade_node_instance, types::AppSettings},
 };
 use leptos::logging;
 use semver::Version;

@@ -1,9 +1,13 @@
+#[cfg(feature = "ssr")]
+mod helpers;
+#[cfg(all(feature = "ssr", not(feature = "lcd-disabled")))]
+mod lcd;
+
 #[cfg(not(feature = "lcd-disabled"))]
-use super::lcd::display_stats_on_lcd;
+use lcd::display_stats_on_lcd;
 
 use super::{
     app::{BgTasksCmds, ImmutableNodeStatus, METRICS_MAX_SIZE_PER_NODE, ServerGlobalState},
-    bg_helpers::{NodeManagerProxy, TasksContext},
     db_client::DbClient,
     helpers::truncated_balance_str,
     metrics_client::{NodeMetricsClient, NodesMetrics},
@@ -17,6 +21,7 @@ use alloy::{
     sol,
 };
 use chrono::Utc;
+use helpers::{NodeManagerProxy, TasksContext};
 use leptos::logging;
 use semver::Version;
 use std::{
