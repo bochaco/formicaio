@@ -1,4 +1,6 @@
-use crate::{app::BgTasksCmds, types::AppSettings};
+use crate::types::AppSettings;
+
+use super::BgTasksCmds;
 
 use eyre::eyre;
 use i2cdev::{

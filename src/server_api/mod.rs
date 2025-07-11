@@ -16,7 +16,8 @@ use std::{collections::HashMap, str::FromStr};
 #[cfg(feature = "ssr")]
 mod ssr_imports_and_defs {
     pub use crate::{
-        app::{BgTasksCmds, ServerGlobalState},
+        app::ServerGlobalState,
+        bg_tasks::BgTasksCmds,
         helpers::truncated_balance_str,
         types::{NodeFilter, NodeStatus, WidgetStat},
     };

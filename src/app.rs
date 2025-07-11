@@ -1,21 +1,11 @@
+#[cfg(feature = "ssr")]
+use super::bg_tasks::{BgTasksCmds, ImmutableNodeStatus};
 #[cfg(feature = "hydrate")]
 use super::server_api::nodes_instances;
-#[cfg(feature = "ssr")]
-use super::types::AppSettings;
-
 use super::{
     error_template::{AppError, ErrorTemplate},
     types::{NodeId, NodeInstanceInfo, NodesActionsBatch, NodesSortStrategy, Stats},
-    views::{
-        about::AboutView,
-        alerts::{AlertMsg, OfflineMsg},
-        navbar::NavBar,
-        node_actions::NodesActionsView,
-        nodes_list::NodesListView,
-        pagination::PaginationView,
-        stats::AggregatedStatsView,
-        terminal::TerminalView,
-    },
+    views::{HomeScreenView, about::AboutView, navbar::NavBar, terminal::TerminalView},
 };
 
 #[cfg(feature = "ssr")]
@@ -25,10 +15,7 @@ use leptos::{logging, task::spawn_local};
 #[cfg(feature = "ssr")]
 use std::sync::Arc;
 #[cfg(feature = "ssr")]
-use tokio::{
-    sync::{RwLock, broadcast},
-    time::{Duration, Instant},
-};
+use tokio::sync::{RwLock, broadcast};
 
 #[cfg(feature = "hydrate")]
 use gloo_timers::future::sleep;
@@ -53,16 +40,6 @@ pub const NODES_LIST_POLLING_FREQ_MILLIS: u64 = 5_500;
 // Size of nodes list pages
 pub const PAGE_SIZE: usize = 100;
 
-// Type of actions that can be requested to the bg jobs.
-#[cfg(feature = "ssr")]
-#[derive(Clone, Debug)]
-pub enum BgTasksCmds {
-    ApplySettings(AppSettings),
-    CheckBalanceFor(NodeInstanceInfo),
-    DeleteBalanceFor(NodeInstanceInfo),
-    CheckAllBalances,
-}
-
 #[cfg(feature = "ssr")]
 #[derive(Clone, FromRef, Debug)]
 pub struct ServerGlobalState {
@@ -79,57 +56,6 @@ pub struct ServerGlobalState {
     pub node_action_batches:
         Arc<RwLock<(broadcast::Sender<u16>, Vec<super::types::NodesActionsBatch>)>>,
     pub stats: Arc<RwLock<Stats>>,
-}
-
-// List of nodes which status is temporarily immutable/locked.
-#[cfg(feature = "ssr")]
-#[derive(Clone, Debug, Default)]
-pub struct ImmutableNodeStatus(Arc<RwLock<HashMap<super::types::NodeId, LockedStatus>>>);
-
-#[cfg(feature = "ssr")]
-#[derive(Clone, Debug)]
-struct LockedStatus {
-    // Timestamp when the status has been locked.
-    timestamp: Instant,
-    // Expiration information for when it should be unlocked.
-    expiration_time: Duration,
-}
-
-#[cfg(feature = "ssr")]
-impl ImmutableNodeStatus {
-    pub async fn lock(&self, node_id: NodeId, expiration_time: Duration) {
-        self.0.write().await.insert(
-            node_id,
-            LockedStatus {
-                timestamp: Instant::now(),
-                expiration_time,
-            },
-        );
-    }
-
-    pub async fn remove(&self, node_id: &NodeId) {
-        self.0.write().await.remove(node_id);
-    }
-
-    // Check if the node id is still in the list, but also check if
-    // its expiration has already passed and therefore has to be removed from the list.
-    pub async fn is_still_locked(&self, node_id: &NodeId) -> bool {
-        let info = self.0.read().await.get(node_id).cloned();
-        match info {
-            None => false,
-            Some(LockedStatus {
-                timestamp,
-                expiration_time,
-            }) => {
-                if timestamp.elapsed() >= expiration_time {
-                    self.remove(node_id).await;
-                    false
-                } else {
-                    true
-                }
-            }
-        }
-    }
 }
 
 // Struct to use client side as a global context/state
@@ -222,20 +148,6 @@ pub fn App() -> impl IntoView {
                 </Routes>
             </main>
         </Router>
-    }
-}
-
-#[component]
-fn HomeScreenView() -> impl IntoView {
-    view! {
-        <AlertMsg />
-
-        <AggregatedStatsView />
-        <OfflineMsg />
-        <NodesActionsView />
-
-        <PaginationView />
-        <NodesListView />
     }
 }
 

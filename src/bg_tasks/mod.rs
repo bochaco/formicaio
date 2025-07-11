@@ -7,11 +7,11 @@ mod lcd;
 use lcd::display_stats_on_lcd;
 
 use super::{
-    app::{BgTasksCmds, ImmutableNodeStatus, METRICS_MAX_SIZE_PER_NODE, ServerGlobalState},
+    app::{METRICS_MAX_SIZE_PER_NODE, ServerGlobalState},
     db_client::DbClient,
     helpers::truncated_balance_str,
     metrics_client::{NodeMetricsClient, NodesMetrics},
-    types::{AppSettings, NodeInstanceInfo, NodeStatus, Stats},
+    types::{AppSettings, NodeId, NodeInstanceInfo, NodeStatus, Stats},
 };
 use alloy::{
     network::Network,
@@ -30,7 +30,7 @@ use std::{
 use tokio::{
     select,
     sync::{RwLock, broadcast},
-    time::{Duration, sleep, timeout},
+    time::{Duration, Instant, sleep, timeout},
 };
 use url::Url;
 
@@ -52,6 +52,67 @@ sol!(
     TokenContract,
     "artifacts/token_contract_abi.json"
 );
+
+// Type of actions that can be requested to the bg jobs.
+#[cfg(feature = "ssr")]
+#[derive(Clone, Debug)]
+pub enum BgTasksCmds {
+    ApplySettings(AppSettings),
+    CheckBalanceFor(NodeInstanceInfo),
+    DeleteBalanceFor(NodeInstanceInfo),
+    CheckAllBalances,
+}
+
+// List of nodes which status is temporarily immutable/locked.
+#[cfg(feature = "ssr")]
+#[derive(Clone, Debug, Default)]
+pub struct ImmutableNodeStatus(Arc<RwLock<HashMap<super::types::NodeId, LockedStatus>>>);
+
+#[cfg(feature = "ssr")]
+#[derive(Clone, Debug)]
+struct LockedStatus {
+    // Timestamp when the status has been locked.
+    timestamp: Instant,
+    // Expiration information for when it should be unlocked.
+    expiration_time: Duration,
+}
+
+#[cfg(feature = "ssr")]
+impl ImmutableNodeStatus {
+    pub async fn lock(&self, node_id: NodeId, expiration_time: Duration) {
+        self.0.write().await.insert(
+            node_id,
+            LockedStatus {
+                timestamp: Instant::now(),
+                expiration_time,
+            },
+        );
+    }
+
+    pub async fn remove(&self, node_id: &NodeId) {
+        self.0.write().await.remove(node_id);
+    }
+
+    // Check if the node id is still in the list, but also check if
+    // its expiration has already passed and therefore has to be removed from the list.
+    pub async fn is_still_locked(&self, node_id: &NodeId) -> bool {
+        let info = self.0.read().await.get(node_id).cloned();
+        match info {
+            None => false,
+            Some(LockedStatus {
+                timestamp,
+                expiration_time,
+            }) => {
+                if timestamp.elapsed() >= expiration_time {
+                    self.remove(node_id).await;
+                    false
+                } else {
+                    true
+                }
+            }
+        }
+    }
+}
 
 // Spawn any required background tasks
 pub fn spawn_bg_tasks(context: ServerGlobalState, settings: AppSettings) {

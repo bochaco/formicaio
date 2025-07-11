@@ -5,7 +5,8 @@ use leptos::prelude::*;
 #[cfg(feature = "ssr")]
 mod ssr_imports_and_defs {
     pub use crate::{
-        app::{BgTasksCmds, ImmutableNodeStatus, ServerGlobalState},
+        app::ServerGlobalState,
+        bg_tasks::{BgTasksCmds, ImmutableNodeStatus},
         db_client::DbClient,
         node_manager::NodeManager,
         types::{InactiveReason, NodeInstanceInfo, NodeOpts, NodeStatus},

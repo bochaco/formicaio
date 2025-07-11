@@ -3,8 +3,8 @@ use crate::docker_client::{DockerClient, DockerClientError};
 #[cfg(feature = "native")]
 use crate::node_manager::{NodeManager, NodeManagerError};
 
+use super::ImmutableNodeStatus;
 use crate::{
-    app::ImmutableNodeStatus,
     db_client::DbClient,
     server_api::helper_upgrade_node_instance,
     types::{AppSettings, NodeId, NodeInstanceInfo},

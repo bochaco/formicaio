@@ -7,7 +7,8 @@ use std::collections::HashMap;
 #[cfg(feature = "ssr")]
 mod ssr_imports_and_defs {
     pub use crate::{
-        app::{BgTasksCmds, ImmutableNodeStatus, ServerGlobalState},
+        app::ServerGlobalState,
+        bg_tasks::{BgTasksCmds, ImmutableNodeStatus},
         db_client::DbClient,
         docker_client::{DockerClient, UPGRADE_NODE_BIN_TIMEOUT_SECS},
         types::{InactiveReason, NodeInstanceInfo, NodeOpts, NodeStatus},

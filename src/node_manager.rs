@@ -1,5 +1,5 @@
 use super::{
-    app::ImmutableNodeStatus,
+    bg_tasks::ImmutableNodeStatus,
     types::{InactiveReason, NodeId, NodeInstanceInfo, NodePid},
 };
 
