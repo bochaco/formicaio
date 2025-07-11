@@ -1,9 +1,11 @@
 pub mod about;
+mod actions_batch;
 pub mod alerts;
 pub mod chart;
 pub mod icons;
 pub mod navbar;
 pub mod node_actions;
+mod node_instance;
 pub mod nodes_list;
 pub mod pagination;
 pub mod settings;
