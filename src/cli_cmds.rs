@@ -1,10 +1,9 @@
 use crate::{
     helpers::truncated_balance_str,
     server_api::*,
-    sort_nodes::NodesSortStrategy,
     types::{
         AppSettings, BatchOnMatch, BatchType, NodeFilter, NodeId, NodeInstanceInfo, NodeOpts,
-        NodeStatusFilter, NodesActionsBatch, Stats,
+        NodeStatusFilter, NodesActionsBatch, NodesSortStrategy, Stats,
     },
 };
 

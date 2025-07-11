@@ -1,9 +1,12 @@
+pub mod metrics;
 mod node_instance;
 mod node_status;
+mod sort_nodes;
 
-pub use crate::sort_nodes::NodesSortStrategy;
+pub use metrics::*;
 pub use node_instance::{NodeId, NodeInstanceInfo, NodePid};
 pub use node_status::{InactiveReason, NodeStatus};
+pub use sort_nodes::NodesSortStrategy;
 
 use alloy_primitives::U256;
 use serde::{Deserialize, Serialize};

@@ -1,6 +1,5 @@
-use super::{
-    metrics::{Metrics, NodeMetric},
-    types::{AppSettings, NodeId, NodeInstanceInfo, NodePid, NodeStatus},
+use super::types::{
+    AppSettings, Metrics, NodeId, NodeInstanceInfo, NodeMetric, NodePid, NodeStatus,
 };
 
 use alloy_primitives::U256;

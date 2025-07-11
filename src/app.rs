@@ -1,5 +1,3 @@
-pub use super::metrics::*;
-
 #[cfg(feature = "hydrate")]
 use super::server_api::nodes_instances;
 #[cfg(feature = "ssr")]
@@ -13,10 +11,9 @@ use super::{
     node_actions::NodesActionsView,
     nodes_list_view::NodesListView,
     pagination::PaginationView,
-    sort_nodes::NodesSortStrategy,
     stats::AggregatedStatsView,
     terminal::TerminalView,
-    types::{NodeId, NodeInstanceInfo, NodesActionsBatch, Stats},
+    types::{NodeId, NodeInstanceInfo, NodesActionsBatch, NodesSortStrategy, Stats},
 };
 
 #[cfg(feature = "ssr")]

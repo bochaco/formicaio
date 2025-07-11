@@ -1,7 +1,6 @@
 use super::{
     db_client::DbClient,
-    metrics::*,
-    types::{NodeId, NodeInstanceInfo},
+    types::{NodeId, NodeInstanceInfo, metrics::*},
 };
 
 use alloy_primitives::U256;

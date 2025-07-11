@@ -14,7 +14,6 @@ mod docker_msgs;
 pub mod error_template;
 mod helpers;
 mod icons;
-mod metrics;
 #[cfg(feature = "ssr")]
 pub mod metrics_client;
 mod navbar;

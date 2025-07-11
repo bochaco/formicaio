@@ -154,7 +154,7 @@ pub async fn start_node_logs_stream(node_id: NodeId) -> Result<ByteStream, Serve
 pub async fn node_metrics(
     node_id: NodeId,
     since: Option<i64>,
-) -> Result<HashMap<String, Vec<super::app::NodeMetric>>, ServerFnError> {
+) -> Result<HashMap<String, Vec<super::types::NodeMetric>>, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
     let metrics = context
         .nodes_metrics
