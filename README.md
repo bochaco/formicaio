@@ -229,7 +229,12 @@ You can follow the instructions in this [Raspberry Pi4 LCD setup guide](https://
 
 As part of the setup, take note of both the configured I2C device path, e.g. '/dev/i2c-1', and the I2C address backpack detected with the `i2cdetect` tool/cmd (usually 0x27 or 0x3F), you'll need them to set up Formicaio through its settings panel.
 
-Note that the above may not work if you are using UmbrelOS, as it has the boot path mounted as read-only. This means the tool cannot overwrite it to enable the I2C interface. The following is a workaround to this limitation, but please be aware that attempting this may pose significant risks and leave your UmbrelOS in a non-functional state. If you choose to proceed with the following workaround, be advised that it involves advanced technical commands and should only be attempted by those with a strong understanding of system configurations and potential consequences. Proceed with caution and at your own risk specially if you have important data and/or application on the device:
+Note that the above may not work if you are using UmbrelOS, as it has the boot path mounted as read-only. In such case you would see the following error thrown when exiting from `raspi-config` tool:
+```
+/usr/bin/raspi-config: 338: cannot create /boot/config.txt.bak: Read-only file system
+```
+
+This means the tool cannot overwrite the file to enable the I2C interface. The following is a workaround to this limitation, but please be aware that attempting this may pose significant risks and leave your UmbrelOS in a non-functional state. If you choose to proceed with the following workaround, be advised that it involves advanced technical commands and should only be attempted by those with a strong understanding of system configurations and potential consequences. Proceed with caution and at your own risk specially if you have important data and/or application on the device:
 ```
 $ sudo apt install raspi-config
 
