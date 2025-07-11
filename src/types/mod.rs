@@ -1,7 +1,9 @@
-pub use crate::{
-    node_instance::{InactiveReason, NodeId, NodeInstanceInfo, NodeStatus},
-    sort_nodes::NodesSortStrategy,
-};
+mod node_instance;
+mod node_status;
+
+pub use crate::sort_nodes::NodesSortStrategy;
+pub use node_instance::{NodeId, NodeInstanceInfo, NodePid};
+pub use node_status::{InactiveReason, NodeStatus};
 
 use alloy_primitives::U256;
 use serde::{Deserialize, Serialize};

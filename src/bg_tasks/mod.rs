@@ -11,8 +11,7 @@ use super::{
     db_client::DbClient,
     helpers::truncated_balance_str,
     metrics_client::{NodeMetricsClient, NodesMetrics},
-    node_instance::{NodeInstanceInfo, NodeStatus},
-    server_api::types::{AppSettings, Stats},
+    types::{AppSettings, NodeInstanceInfo, NodeStatus, Stats},
 };
 use alloy::{
     network::Network,

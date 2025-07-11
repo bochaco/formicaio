@@ -1,6 +1,6 @@
 use super::{
     app::ImmutableNodeStatus,
-    node_instance::{InactiveReason, NodeId, NodeInstanceInfo, NodePid},
+    types::{InactiveReason, NodeId, NodeInstanceInfo, NodePid},
 };
 
 use ant_releases::{

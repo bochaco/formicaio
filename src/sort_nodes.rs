@@ -1,6 +1,6 @@
 use super::{
     app::ClientGlobalState,
-    node_instance::{NodeId, NodeInstanceInfo},
+    types::{NodeId, NodeInstanceInfo},
 };
 
 use leptos::prelude::*;

@@ -1,13 +1,12 @@
-pub mod types;
-
 #[cfg(not(feature = "native"))]
 mod docker;
 #[cfg(feature = "native")]
 mod native;
 
-use super::node_instance::{NodeId, NodeInstanceInfo};
-
-use types::{BatchOnMatch, BatchType, NodeOpts, NodesActionsBatch, Stats, WidgetFourStats};
+use crate::types::{
+    BatchOnMatch, BatchType, NodeId, NodeInstanceInfo, NodeOpts, NodesActionsBatch, Stats,
+    WidgetFourStats,
+};
 
 use alloy_primitives::Address;
 use leptos::prelude::*;
@@ -19,8 +18,7 @@ mod ssr_imports_and_defs {
     pub use crate::{
         app::{BgTasksCmds, ServerGlobalState},
         helpers::truncated_balance_str,
-        node_instance::NodeStatus,
-        server_api::types::{NodeFilter, WidgetStat},
+        types::{NodeFilter, NodeStatus, WidgetStat},
     };
     pub use futures_util::StreamExt;
     pub use leptos::logging;
@@ -170,7 +168,7 @@ pub async fn node_metrics(
 
 // Retrieve the settings
 #[server(name = GetSettings, prefix = "/api", endpoint = "/settings/get")]
-pub async fn get_settings() -> Result<super::server_api::types::AppSettings, ServerFnError> {
+pub async fn get_settings() -> Result<super::types::AppSettings, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
     let settings = context.db_client.get_settings().await;
 
@@ -179,9 +177,7 @@ pub async fn get_settings() -> Result<super::server_api::types::AppSettings, Ser
 
 // Update the settings
 #[server(name = UpdateSettings, prefix = "/api", endpoint = "/settings/set")]
-pub async fn update_settings(
-    settings: super::server_api::types::AppSettings,
-) -> Result<(), ServerFnError> {
+pub async fn update_settings(settings: super::types::AppSettings) -> Result<(), ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
     context.db_client.update_settings(&settings).await?;
     context

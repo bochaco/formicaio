@@ -6,8 +6,8 @@ use crate::node_manager::{NodeManager, NodeManagerError};
 use crate::{
     app::ImmutableNodeStatus,
     db_client::DbClient,
-    node_instance::{NodeId, NodeInstanceInfo},
-    server_api::{helper_upgrade_node_instance, types::AppSettings},
+    server_api::helper_upgrade_node_instance,
+    types::{AppSettings, NodeId, NodeInstanceInfo},
 };
 use leptos::logging;
 use semver::Version;

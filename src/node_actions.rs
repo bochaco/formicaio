@@ -2,12 +2,11 @@ use super::{
     app::{ClientGlobalState, get_addr_from_metamask},
     helpers::{add_node_instances, remove_node_instance, show_alert_msg},
     icons::*,
-    node_instance::{NodeInstanceInfo, NodeStatus},
-    server_api::types::{BatchType, NodeOpts, NodesActionsBatch, Stats},
     server_api::{
         nodes_actions_batch_create, parse_and_validate_addr, recycle_node_instance,
         start_node_instance, stop_node_instance, upgrade_node_instance,
     },
+    types::{BatchType, NodeInstanceInfo, NodeOpts, NodeStatus, NodesActionsBatch, Stats},
 };
 
 use leptos::{logging, prelude::*, task::spawn_local};

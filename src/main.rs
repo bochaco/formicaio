@@ -35,7 +35,7 @@ async fn start_backend(
     use eyre::WrapErr;
     use formicaio::{
         app::*, bg_tasks::spawn_bg_tasks, db_client::DbClient, metrics_client::NodesMetrics,
-        server_api::types::Stats,
+        types::Stats,
     };
     use leptos::{logging, prelude::*};
     use leptos_axum::{LeptosRoutes, generate_route_list};
@@ -131,7 +131,7 @@ async fn start_backend(
         *app_state.latest_bin_version.lock().await = Some(version);
 
         // let's create a batch to start nodes which were Active
-        use formicaio::node_instance::{InactiveReason, NodeStatus};
+        use formicaio::types::{InactiveReason, NodeStatus};
         let nodes_in_db = app_state.db_client.get_nodes_list().await;
         let mut active_nodes = vec![];
         for (node_id, node_info) in nodes_in_db {
@@ -166,7 +166,7 @@ async fn start_backend(
                     active_nodes.len()
                 );
                 let _ = formicaio::server_api::helper_node_action_batch(
-                    formicaio::server_api::types::BatchType::Start(active_nodes),
+                    formicaio::types::BatchType::Start(active_nodes),
                     node_start_interval,
                     &app_state,
                 )

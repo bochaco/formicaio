@@ -1,7 +1,15 @@
 use crate::{
-    helpers::truncated_balance_str, server_api::types::*, server_api::*,
+    helpers::truncated_balance_str,
+    server_api::*,
     sort_nodes::NodesSortStrategy,
+    types::{
+        AppSettings, BatchOnMatch, BatchType, NodeFilter, NodeId, NodeInstanceInfo, NodeOpts,
+        NodeStatusFilter, NodesActionsBatch, Stats,
+    },
 };
+
+#[cfg(feature = "ssr")]
+use crate::types::NodesInstancesInfo;
 
 #[cfg(feature = "ssr")]
 use eyre::{Result, WrapErr};

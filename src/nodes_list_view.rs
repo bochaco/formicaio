@@ -7,9 +7,8 @@ use super::{
         IconStopNode, IconUpgradeNode,
     },
     node_actions::NodeAction,
-    node_instance::{InactiveReason, NodeInstanceInfo, NodeStatus},
     server_api::cancel_batch,
-    server_api::types::{BatchType, NodesActionsBatch},
+    types::{BatchType, InactiveReason, NodeInstanceInfo, NodeStatus, NodesActionsBatch},
 };
 
 use alloy_primitives::utils::format_units;

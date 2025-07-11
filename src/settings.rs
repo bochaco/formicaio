@@ -2,8 +2,8 @@ use super::{
     app::ClientGlobalState,
     helpers::show_alert_msg,
     icons::IconCancel,
-    server_api::types::AppSettings,
     server_api::{get_settings, update_settings},
+    types::AppSettings,
 };
 
 use alloy_primitives::Address;

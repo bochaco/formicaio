@@ -19,10 +19,8 @@ mod metrics;
 pub mod metrics_client;
 mod navbar;
 mod node_actions;
-pub mod node_instance;
-#[cfg(all(feature = "ssr", feature = "native"))]
+#[cfg(feature = "ssr")]
 pub mod node_manager;
-mod node_status;
 mod nodes_list_view;
 mod pagination;
 pub mod server_api;
@@ -30,6 +28,7 @@ mod settings;
 mod sort_nodes;
 mod stats;
 mod terminal;
+pub mod types;
 
 #[cfg(feature = "hydrate")]
 #[wasm_bindgen::prelude::wasm_bindgen]

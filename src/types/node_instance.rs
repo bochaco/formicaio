@@ -1,6 +1,6 @@
-pub use super::node_status::{InactiveReason, NodeStatus};
+use crate::app::ClientGlobalState;
 
-use super::app::ClientGlobalState;
+use super::{InactiveReason, NodeStatus};
 
 use alloy_primitives::U256;
 use chrono::Utc;

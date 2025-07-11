@@ -1,5 +1,4 @@
-use super::types::{NodeFilter, NodesInstancesInfo};
-use crate::node_instance::NodeId;
+use crate::types::{NodeFilter, NodeId, NodesInstancesInfo};
 
 use leptos::prelude::*;
 #[cfg(feature = "ssr")]
@@ -11,8 +10,7 @@ mod ssr_imports_and_defs {
         app::{BgTasksCmds, ImmutableNodeStatus, ServerGlobalState},
         db_client::DbClient,
         docker_client::{DockerClient, UPGRADE_NODE_BIN_TIMEOUT_SECS},
-        node_instance::{InactiveReason, NodeInstanceInfo, NodeStatus},
-        server_api::types::NodeOpts,
+        types::{InactiveReason, NodeInstanceInfo, NodeOpts, NodeStatus},
     };
     pub use chrono::Utc;
     pub use futures_util::StreamExt;

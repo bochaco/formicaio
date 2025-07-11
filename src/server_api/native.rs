@@ -1,5 +1,4 @@
-use super::types::{NodeFilter, NodesInstancesInfo};
-use crate::node_instance::NodeId;
+use crate::types::{NodeFilter, NodeId, NodesInstancesInfo};
 
 use leptos::prelude::*;
 
@@ -8,9 +7,8 @@ mod ssr_imports_and_defs {
     pub use crate::{
         app::{BgTasksCmds, ImmutableNodeStatus, ServerGlobalState},
         db_client::DbClient,
-        node_instance::{InactiveReason, NodeInstanceInfo, NodeStatus},
         node_manager::NodeManager,
-        server_api::types::NodeOpts,
+        types::{InactiveReason, NodeInstanceInfo, NodeOpts, NodeStatus},
     };
     pub use alloy_primitives::Address;
     pub use chrono::{DateTime, Utc};

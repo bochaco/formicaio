@@ -1,4 +1,4 @@
-use crate::node_instance::{InactiveReason, NodeId, NodeInstanceInfo};
+use crate::types::{InactiveReason, NodeId, NodeInstanceInfo};
 
 #[cfg(feature = "ssr")]
 use crate::{
@@ -6,7 +6,7 @@ use crate::{
         LABEL_KEY_HOME_NETWORK_DISABLED, LABEL_KEY_METRICS_PORT, LABEL_KEY_NODE_LOGS_DISABLED,
         LABEL_KEY_NODE_PORT, LABEL_KEY_REWARDS_ADDR, LABEL_KEY_UPNP_DISABLED,
     },
-    node_instance::NodeStatus,
+    types::NodeStatus,
 };
 
 use serde::{Deserialize, Serialize};

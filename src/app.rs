@@ -3,7 +3,7 @@ pub use super::metrics::*;
 #[cfg(feature = "hydrate")]
 use super::server_api::nodes_instances;
 #[cfg(feature = "ssr")]
-use super::server_api::types::AppSettings;
+use super::types::AppSettings;
 
 use super::{
     about::AboutView,
@@ -11,13 +11,12 @@ use super::{
     error_template::{AppError, ErrorTemplate},
     navbar::NavBar,
     node_actions::NodesActionsView,
-    node_instance::{NodeId, NodeInstanceInfo},
     nodes_list_view::NodesListView,
     pagination::PaginationView,
-    server_api::types::{NodesActionsBatch, Stats},
     sort_nodes::NodesSortStrategy,
     stats::AggregatedStatsView,
     terminal::TerminalView,
+    types::{NodeId, NodeInstanceInfo, NodesActionsBatch, Stats},
 };
 
 #[cfg(feature = "ssr")]
@@ -78,19 +77,15 @@ pub struct ServerGlobalState {
     pub nodes_metrics: Arc<Mutex<super::metrics_client::NodesMetrics>>,
     pub node_status_locked: ImmutableNodeStatus,
     pub bg_tasks_cmds_tx: broadcast::Sender<BgTasksCmds>,
-    pub node_action_batches: Arc<
-        Mutex<(
-            broadcast::Sender<u16>,
-            Vec<super::server_api::types::NodesActionsBatch>,
-        )>,
-    >,
+    pub node_action_batches:
+        Arc<Mutex<(broadcast::Sender<u16>, Vec<super::types::NodesActionsBatch>)>>,
     pub stats: Arc<Mutex<Stats>>,
 }
 
 // List of nodes which status is temporarily immutable/locked.
 #[cfg(feature = "ssr")]
 #[derive(Clone, Debug, Default)]
-pub struct ImmutableNodeStatus(Arc<Mutex<HashMap<super::node_instance::NodeId, LockedStatus>>>);
+pub struct ImmutableNodeStatus(Arc<Mutex<HashMap<super::types::NodeId, LockedStatus>>>);
 
 #[cfg(feature = "ssr")]
 #[derive(Clone, Debug)]

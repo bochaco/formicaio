@@ -2,8 +2,8 @@ use super::{
     app::{
         ClientGlobalState, METRIC_KEY_CPU_USEAGE, METRIC_KEY_MEM_USED_MB, METRICS_MAX_SIZE_PER_NODE,
     },
-    node_instance::NodeId,
     server_api::{get_settings, node_metrics},
+    types::NodeId,
 };
 
 use apexcharts_rs::prelude::ApexChart;

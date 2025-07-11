@@ -1,7 +1,6 @@
 use crate::{
     docker_msgs::*,
-    node_instance::{NodeId, NodeInstanceInfo},
-    server_api::types::NodeOpts,
+    types::{NodeId, NodeInstanceInfo, NodeOpts},
 };
 
 use axum::body::Body;
