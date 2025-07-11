@@ -1,7 +1,5 @@
-use super::{
-    node_instance::NodeId,
-    server_api_types::{NodeFilter, NodesInstancesInfo},
-};
+use super::types::{NodeFilter, NodesInstancesInfo};
+use crate::node_instance::NodeId;
 
 use leptos::prelude::*;
 
@@ -12,7 +10,7 @@ mod ssr_imports_and_defs {
         db_client::DbClient,
         node_instance::{InactiveReason, NodeInstanceInfo, NodeStatus},
         node_manager::NodeManager,
-        server_api_types::NodeOpts,
+        server_api::types::NodeOpts,
     };
     pub use alloy_primitives::Address;
     pub use chrono::{DateTime, Utc};

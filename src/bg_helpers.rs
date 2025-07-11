@@ -8,7 +8,7 @@ use super::{
     db_client::DbClient,
     node_instance::{NodeId, NodeInstanceInfo},
     server_api::helper_upgrade_node_instance,
-    server_api_types::AppSettings,
+    server_api::types::AppSettings,
 };
 use leptos::logging;
 use semver::Version;

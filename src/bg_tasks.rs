@@ -8,7 +8,7 @@ use super::{
     helpers::truncated_balance_str,
     metrics_client::{NodeMetricsClient, NodesMetrics},
     node_instance::{NodeInstanceInfo, NodeStatus},
-    server_api_types::{AppSettings, Stats},
+    server_api::types::{AppSettings, Stats},
 };
 use alloy::{
     network::Network,

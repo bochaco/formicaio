@@ -1,9 +1,13 @@
-use super::{
-    node_instance::{NodeId, NodeInstanceInfo},
-    server_api_types::{
-        BatchOnMatch, BatchType, NodeOpts, NodesActionsBatch, Stats, WidgetFourStats,
-    },
-};
+pub mod types;
+
+#[cfg(not(feature = "native"))]
+mod docker;
+#[cfg(feature = "native")]
+mod native;
+
+use super::node_instance::{NodeId, NodeInstanceInfo};
+
+use types::{BatchOnMatch, BatchType, NodeOpts, NodesActionsBatch, Stats, WidgetFourStats};
 
 use alloy_primitives::Address;
 use leptos::prelude::*;
@@ -16,7 +20,7 @@ mod ssr_imports_and_defs {
         app::{BgTasksCmds, ServerGlobalState},
         helpers::truncated_balance_str,
         node_instance::NodeStatus,
-        server_api_types::{NodeFilter, WidgetStat},
+        server_api::types::{NodeFilter, WidgetStat},
     };
     pub use futures_util::StreamExt;
     pub use leptos::logging;
@@ -29,9 +33,9 @@ mod ssr_imports_and_defs {
 use ssr_imports_and_defs::*;
 
 #[cfg(not(feature = "native"))]
-pub use super::server_api_docker::*;
+pub use docker::*;
 #[cfg(feature = "native")]
-pub use super::server_api_native::*;
+pub use native::*;
 
 // Expected length of entered hex-encoded rewards address.
 const REWARDS_ADDR_LENGTH: usize = 40;
@@ -166,7 +170,7 @@ pub async fn node_metrics(
 
 // Retrieve the settings
 #[server(name = GetSettings, prefix = "/api", endpoint = "/settings/get")]
-pub async fn get_settings() -> Result<super::server_api_types::AppSettings, ServerFnError> {
+pub async fn get_settings() -> Result<super::server_api::types::AppSettings, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
     let settings = context.db_client.get_settings().await;
 
@@ -176,7 +180,7 @@ pub async fn get_settings() -> Result<super::server_api_types::AppSettings, Serv
 // Update the settings
 #[server(name = UpdateSettings, prefix = "/api", endpoint = "/settings/set")]
 pub async fn update_settings(
-    settings: super::server_api_types::AppSettings,
+    settings: super::server_api::types::AppSettings,
 ) -> Result<(), ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
     context.db_client.update_settings(&settings).await?;

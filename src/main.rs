@@ -35,7 +35,7 @@ async fn start_backend(
     use eyre::WrapErr;
     use formicaio::{
         app::*, bg_tasks::spawn_bg_tasks, db_client::DbClient, metrics_client::NodesMetrics,
-        server_api_types::Stats,
+        server_api::types::Stats,
     };
     use leptos::{logging, prelude::*};
     use leptos_axum::{LeptosRoutes, generate_route_list};
@@ -166,7 +166,7 @@ async fn start_backend(
                     active_nodes.len()
                 );
                 let _ = formicaio::server_api::helper_node_action_batch(
-                    formicaio::server_api_types::BatchType::Start(active_nodes),
+                    formicaio::server_api::types::BatchType::Start(active_nodes),
                     node_start_interval,
                     &app_state,
                 )

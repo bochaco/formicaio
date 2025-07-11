@@ -30,11 +30,6 @@ mod node_status;
 mod nodes_list_view;
 mod pagination;
 pub mod server_api;
-#[cfg(not(feature = "native"))]
-mod server_api_docker;
-#[cfg(feature = "native")]
-mod server_api_native;
-pub mod server_api_types;
 mod settings;
 mod sort_nodes;
 mod stats;

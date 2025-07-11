@@ -9,7 +9,7 @@ use super::{
     node_actions::NodeAction,
     node_instance::{InactiveReason, NodeInstanceInfo, NodeStatus},
     server_api::cancel_batch,
-    server_api_types::{BatchType, NodesActionsBatch},
+    server_api::types::{BatchType, NodesActionsBatch},
 };
 
 use alloy_primitives::utils::format_units;

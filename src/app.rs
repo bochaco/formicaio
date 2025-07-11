@@ -3,7 +3,7 @@ pub use super::metrics::*;
 #[cfg(feature = "hydrate")]
 use super::server_api::nodes_instances;
 #[cfg(feature = "ssr")]
-use super::server_api_types::AppSettings;
+use super::server_api::types::AppSettings;
 
 use super::{
     about::AboutView,
@@ -14,7 +14,7 @@ use super::{
     node_instance::{NodeId, NodeInstanceInfo},
     nodes_list_view::NodesListView,
     pagination::PaginationView,
-    server_api_types::{NodesActionsBatch, Stats},
+    server_api::types::{NodesActionsBatch, Stats},
     sort_nodes::NodesSortStrategy,
     stats::AggregatedStatsView,
     terminal::TerminalView,
@@ -81,7 +81,7 @@ pub struct ServerGlobalState {
     pub node_action_batches: Arc<
         Mutex<(
             broadcast::Sender<u16>,
-            Vec<super::server_api_types::NodesActionsBatch>,
+            Vec<super::server_api::types::NodesActionsBatch>,
         )>,
     >,
     pub stats: Arc<Mutex<Stats>>,

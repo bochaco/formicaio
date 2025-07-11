@@ -1,5 +1,5 @@
 use crate::{
-    helpers::truncated_balance_str, server_api::*, server_api_types::*,
+    helpers::truncated_balance_str, server_api::types::*, server_api::*,
     sort_nodes::NodesSortStrategy,
 };
 

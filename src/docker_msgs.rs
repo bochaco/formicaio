@@ -1,7 +1,7 @@
-use super::node_instance::{InactiveReason, NodeId, NodeInstanceInfo};
+use crate::node_instance::{InactiveReason, NodeId, NodeInstanceInfo};
 
 #[cfg(feature = "ssr")]
-use super::{
+use crate::{
     docker_client::{
         LABEL_KEY_HOME_NETWORK_DISABLED, LABEL_KEY_METRICS_PORT, LABEL_KEY_NODE_LOGS_DISABLED,
         LABEL_KEY_NODE_PORT, LABEL_KEY_REWARDS_ADDR, LABEL_KEY_UPNP_DISABLED,

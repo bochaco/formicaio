@@ -1,4 +1,4 @@
-pub use super::{
+pub use crate::{
     node_instance::{InactiveReason, NodeId, NodeInstanceInfo, NodeStatus},
     sort_nodes::NodesSortStrategy,
 };

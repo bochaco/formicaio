@@ -1,7 +1,5 @@
-use super::{
-    node_instance::NodeId,
-    server_api_types::{NodeFilter, NodesInstancesInfo},
-};
+use super::types::{NodeFilter, NodesInstancesInfo};
+use crate::node_instance::NodeId;
 
 use leptos::prelude::*;
 #[cfg(feature = "ssr")]
@@ -14,7 +12,7 @@ mod ssr_imports_and_defs {
         db_client::DbClient,
         docker_client::{DockerClient, UPGRADE_NODE_BIN_TIMEOUT_SECS},
         node_instance::{InactiveReason, NodeInstanceInfo, NodeStatus},
-        server_api_types::NodeOpts,
+        server_api::types::NodeOpts,
     };
     pub use chrono::Utc;
     pub use futures_util::StreamExt;

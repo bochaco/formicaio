@@ -1,7 +1,7 @@
-use super::{
+use crate::{
     docker_msgs::*,
     node_instance::{NodeId, NodeInstanceInfo},
-    server_api_types::NodeOpts,
+    server_api::types::NodeOpts,
 };
 
 use axum::body::Body;
