@@ -59,6 +59,8 @@ struct CachedNodeMetadata {
     created: u64,
     status_changed: u64,
     status: String,
+    is_status_locked: bool,
+    is_status_unknown: bool,
     peer_id: String,
     bin_version: String,
     ip_addr: String,
@@ -97,6 +99,8 @@ impl CachedNodeMetadata {
                 info.status = status;
             }
         }
+        info.is_status_locked = self.is_status_locked;
+        info.is_status_unknown = self.is_status_unknown;
         if !self.peer_id.is_empty() {
             info.peer_id = Some(self.peer_id.clone());
         }
@@ -300,10 +304,11 @@ impl DbClient {
     pub async fn insert_node_metadata(&self, info: &NodeInstanceInfo) {
         let query_str = "INSERT OR REPLACE INTO nodes (\
                 node_id, created, status_changed, status, \
+                is_status_locked, is_status_unknown, \
                 ip_addr, port, metrics_port, rewards_addr, \
                 home_network, upnp, node_logs, \
                 records, connected_peers, kbuckets_peers \
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             .to_string();
 
         let db_lock = self.db.lock().await;
@@ -312,6 +317,8 @@ impl DbClient {
             .bind(info.created.to_string())
             .bind(info.status_changed.to_string())
             .bind(json!(info.status).to_string())
+            .bind(info.is_status_locked)
+            .bind(info.is_status_unknown)
             .bind(info.node_ip.map_or("".to_string(), |v| v.to_string()))
             .bind(info.port)
             .bind(info.metrics_port)
