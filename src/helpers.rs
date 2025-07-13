@@ -34,7 +34,7 @@ pub fn show_alert_msg(msg: String) {
     spawn_local(async move {
         let mut rng = rand::rng();
         let random_id = rng.random::<u64>();
-        logging::log!("Alert msg. displayed: {msg}");
+        logging::log!("Displaying alert message: {msg}");
         context.alerts.update(|msgs| msgs.push((random_id, msg)));
         TimeoutFuture::new(ALERT_MSG_DURATION_MILLIS).await;
         context
@@ -106,7 +106,7 @@ pub async fn node_logs_stream(
     received_logs: WriteSignal<Vec<String>>,
 ) -> Result<(), ServerFnError> {
     use futures_util::stream::StreamExt;
-    logging::log!("Initiating node logs stream from node {node_id}...");
+    logging::log!("Starting node logs stream for node {node_id} ...");
     let mut logs_stream = start_node_logs_stream(node_id.clone()).await?.into_inner();
 
     let context = expect_context::<ClientGlobalState>();
@@ -127,7 +127,7 @@ pub async fn node_logs_stream(
                 }
             }
             Err(err) => {
-                logging::log!("Error reading log: {err}");
+                logging::error!("[ERROR] Error reading node logs: {err}");
                 break;
             }
         }
@@ -143,6 +143,6 @@ pub async fn node_logs_stream(
         }
     }
 
-    logging::log!("Dropped node logs stream from node {node_id}.");
+    logging::log!("Node logs stream ended for node {node_id}");
     Ok(())
 }

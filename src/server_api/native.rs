@@ -112,7 +112,7 @@ pub(crate) async fn helper_create_node_instance(
     let random_str = Alphanumeric.sample_string(&mut rand::rng(), NODE_ID_LENGTH / 2);
     let node_id = hex::encode(random_str);
     logging::log!(
-        "Creating new node with IP '{}', port {}, and Id {node_id} ...",
+        "Creating new node with IP '{}', port {}, and ID {node_id} ...",
         node_opts.node_ip,
         node_opts.port
     );
@@ -134,12 +134,12 @@ pub(crate) async fn helper_create_node_instance(
     };
 
     if let Err(err) = context.node_manager.new_node(&node_info).await {
-        logging::error!("Failed to create new node's directory: {err:?}");
+        logging::error!("[ERROR] Failed to create new node directory: {err:?}");
         return Err(err.into());
     }
 
     context.db_client.insert_node_metadata(&node_info).await;
-    logging::log!("New node created with id: {node_id}");
+    logging::log!("New node created successfully with ID: {node_id}");
 
     if node_opts.auto_start {
         helper_start_node_instance(node_id.clone(), context).await?;
@@ -206,7 +206,7 @@ pub(crate) async fn helper_start_node_instance(
         return Ok(());
     }
 
-    logging::log!("Starting node with Id: {node_id} ...");
+    logging::log!("Starting node with ID: {node_id} ...");
     context
         .node_status_locked
         .lock(node_id.clone(), Duration::from_secs(20))
@@ -286,7 +286,7 @@ pub(crate) async fn helper_stop_node_instance(
 /// Upgrade a node instance with given id
 #[server(name = UpgradeNodeInstance, prefix = "/api", endpoint = "/nodes/upgrade")]
 pub async fn upgrade_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
-    logging::log!("Upgrading node with Id: {node_id} ...");
+    logging::log!("Upgrading node with ID: {node_id} ...");
     let context = expect_context::<ServerGlobalState>();
 
     helper_upgrade_node_instance(

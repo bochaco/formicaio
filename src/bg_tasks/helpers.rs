@@ -49,7 +49,7 @@ impl TasksContext {
     }
 
     pub fn apply_settings(&mut self, settings: AppSettings) {
-        logging::log!("Applying new settings values immediataly to bg tasks: {settings:#?}");
+        logging::log!("Applying new settings to background tasks: {settings:#?}");
 
         // helper to create a new interval only if new period differs from current
         let update_interval = |target: &mut Interval, new_period: Duration| {
@@ -112,7 +112,7 @@ impl NodeManagerProxy {
     }
 
     pub async fn pull_formica_image(&self) -> Result<(), DockerClientError> {
-        logging::log!("Pulling formica node image ...");
+        logging::log!("Pulling Formica node image from registry ...");
         self.docker_client.pull_formica_image().await
     }
 
@@ -167,7 +167,7 @@ impl NodeManagerProxy {
         {
             Ok(v) => *latest_bin_version.write().await = Some(v),
             Err(err) => {
-                logging::error!("Failed to download v{version} of node binary: {err:?}")
+                logging::error!("Failed to download node binary version {version}: {err:?}");
             }
         }
     }

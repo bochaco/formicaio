@@ -256,7 +256,9 @@ pub async fn helper_node_action_batch(
             // TODO: filter out nodes which are already part of a batch,
             // perhaps even return an error...?...
             if l.is_empty() {
-                return Err(ServerFnError::new("Empty list of node ids received."));
+                return Err(ServerFnError::new(
+                    "Cannot create batch: No node IDs provided.",
+                ));
             }
 
             // let's lock all nodes which are part of the batch,
@@ -276,7 +278,7 @@ pub async fn helper_node_action_batch(
 
     let batch_id = rand::rng().random_range(0..=u16::MAX);
     let batch_info = NodesActionsBatch::new(batch_id, batch_type, interval_secs);
-    logging::log!("Creating new batch with id {batch_id}: {batch_info:?}");
+    logging::log!("Creating new batch with ID {batch_id}: {batch_info:?}");
 
     let len = {
         let batches = &mut context.node_action_batches.write().await.1;
@@ -325,8 +327,8 @@ async fn run_batches(context: ServerGlobalState) {
                             node_opts_clone.metrics_port += i;
                             i += 1;
                             match helper_create_node_instance(node_opts_clone, &context).await {
-                                Err(err) => logging::log!(
-                                    "Failed to create node instance {i}/{count} as part of a batch: {err}"
+                                Err(err) => logging::error!(
+                                    "[ERROR] Failed to create node instance {i}/{count} as part of a batch: {err}"
                                 ),
                                 Ok(_) => if let Some(ref mut b) = context
                                     .node_action_batches.write().await.1

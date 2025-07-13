@@ -160,7 +160,7 @@ fn spawn_nodes_list_polling() {
             let delay_millis = match nodes_instances(None).await {
                 Err(err) => {
                     context.is_online.set(false);
-                    logging::log!("Failed to get up to date nodes info from server: {err}");
+                    logging::log!("Failed to get updated node information from server: {err}");
                     0u64
                 }
                 Ok(info) => {

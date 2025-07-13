@@ -54,7 +54,7 @@ async fn start_backend(
     // Alternately a file can be specified such as Some("Cargo.toml")
     // The file would need to be included with the executable when moved to deployment
     let mut leptos_options = get_configuration(None)
-        .wrap_err("Failed to obtain Leptos config options from env values")?
+        .wrap_err("Failed to load Leptos configuration from environment variables. Please check your configuration settings.")?
         .leptos_options;
 
     // we make sure some values are set to some
@@ -69,7 +69,7 @@ async fn start_backend(
         leptos_options.env = "PROD".into();
     }
 
-    logging::log!("Web service config: {leptos_options:?}");
+    logging::log!("Web service configuration: {leptos_options:?}");
     let listen_addr = listen_addr.unwrap_or(leptos_options.site_addr);
     let routes = generate_route_list(App);
 
@@ -81,7 +81,7 @@ async fn start_backend(
 
     let db_client = DbClient::connect(db_path)
         .await
-        .wrap_err("Failed to initialise database")?;
+        .wrap_err("Failed to initialize database connection. Please check your database configuration and permissions.")?;
 
     // List of nodes which status is temporarily immutable
     let node_status_locked = ImmutableNodeStatus::default();
@@ -89,14 +89,16 @@ async fn start_backend(
     #[cfg(not(feature = "native"))]
     let docker_client = formicaio::docker_client::DockerClient::new()
         .await
-        .wrap_err("Failed to initialise Docker client")?;
+        .wrap_err(
+            "Failed to initialize Docker client. Please ensure Docker is running and accessible.",
+        )?;
     #[cfg(feature = "native")]
     let node_manager = formicaio::node_manager::NodeManager::new(
         node_status_locked.clone(),
         sub_cmds.data_dir_path,
     )
     .await
-    .wrap_err("Failed to instantiate node manager")?;
+    .wrap_err("Failed to initialize node manager.")?;
 
     let latest_bin_version = Arc::new(RwLock::new(None));
     let nodes_metrics = Arc::new(RwLock::new(NodesMetrics::new(db_client.clone())));
@@ -154,7 +156,7 @@ async fn start_backend(
         let auto_start_interval = if sub_cmds.no_auto_start {
             if sub_cmds.node_start_interval.is_some() {
                 eyre::bail!(
-                    "Cannot set 'node-start-interval' when the flag 'no-auto-start' is set."
+                    "Invalid arguments: Cannot set 'node-start-interval' when 'no-auto-start' flag is enabled."
                 );
             } else {
                 None
@@ -166,7 +168,7 @@ async fn start_backend(
         if let Some(node_start_interval) = auto_start_interval {
             if !active_nodes.is_empty() {
                 logging::log!(
-                    "Nodes which were active ({}) will now be started with an interval of {node_start_interval:?}",
+                    "Auto-starting {} previously active nodes with {node_start_interval} second intervals",
                     active_nodes.len()
                 );
                 let _ = formicaio::server_api::helper_node_action_batch(
@@ -192,11 +194,13 @@ async fn start_backend(
 
     let listener = tokio::net::TcpListener::bind(&listen_addr)
         .await
-        .wrap_err("Failed to bind to TCP address")?;
-    logging::log!("listening on http://{}", &listen_addr);
+        .wrap_err(format!("Failed to bind to TCP address {listen_addr}. Please check if the port is available and you have sufficient permissions."))?;
+    logging::log!("Formicaio backend server is now listening on http://{listen_addr}");
     axum::serve(listener, app.into_make_service())
         .await
-        .wrap_err("Failed to start HTTP listener")?;
+        .wrap_err(
+            "Failed to start HTTP server. Please check your network configuration and try again.",
+        )?;
 
     Ok(())
 }

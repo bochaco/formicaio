@@ -83,7 +83,7 @@ pub(crate) async fn helper_create_node_instance(
         .docker_client
         .create_new_container(node_opts)
         .await?;
-    logging::log!("New node Id: {node_id} ...");
+    logging::log!("New node ID: {node_id} ...");
 
     let mut node_info = context.docker_client.get_container_info(&node_id).await?;
     logging::log!("New node created: {node_info:?}");
@@ -136,7 +136,7 @@ pub(crate) async fn helper_start_node_instance(
         .check_node_is_not_batched(&node_id)
         .await?;
 
-    logging::log!("Starting node with Id: {node_id} ...");
+    logging::log!("Starting node with ID: {node_id} ...");
 
     context
         .db_client
@@ -215,7 +215,7 @@ pub(crate) async fn helper_stop_node_instance(
 /// Upgrade a node instance with given id
 #[server(name = UpgradeNodeInstance, prefix = "/api", endpoint = "/nodes/upgrade")]
 pub async fn upgrade_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
-    logging::log!("Upgrading node with Id: {node_id} ...");
+    logging::log!("Upgrading node with ID: {node_id} ...");
     let context = expect_context::<ServerGlobalState>();
 
     helper_upgrade_node_instance(

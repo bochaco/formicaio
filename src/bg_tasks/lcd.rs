@@ -61,12 +61,12 @@ pub async fn display_stats_on_lcd(
     let mut display = match setup_i2c(&settings) {
         Ok(d) => {
             logging::log!(
-                "LCD device configured with I2C device: /dev/i2c-{cur_lcd_device}, address: 0x{cur_lcd_addr}."
+                "LCD device configured successfully: I2C device /dev/i2c-{cur_lcd_device}, address 0x{cur_lcd_addr}."
             );
             d
         }
         Err(err) => {
-            logging::log!("[ERROR] {err}");
+            logging::error!("[ERROR] LCD device configuration failed: {err}");
             return;
         }
     };
@@ -82,7 +82,7 @@ pub async fn display_stats_on_lcd(
                         || cur_lcd_device != s.lcd_device
                         || cur_lcd_addr != s.lcd_addr
                     {
-                        logging::log!("Disabling LCD device on /dev/i2c-{cur_lcd_device}, address: 0x{cur_lcd_addr}...");
+                        logging::log!("Disabling LCD device on /dev/i2c-{cur_lcd_device}, address 0x{cur_lcd_addr}");
                         let mut pcf_8574: Pcf8574 = display.unwrap(); // this unwrap doesn't panic
                         pcf_8574.backlight(false);
                         return;
@@ -91,7 +91,7 @@ pub async fn display_stats_on_lcd(
             },
             _ = update_lcd.tick() => {
                 let stats_clone = { stats.read().await.clone() };
-                logging::log!("Updating stats on LCD device...");
+                logging::log!("Updating statistics on LCD device");
                 for (k, v) in stats_clone.iter() {
                     display.clear();
                     display.home();
@@ -158,7 +158,7 @@ impl Hardware for Pcf8574 {
 
     fn apply(&mut self) {
         if let Err(err) = self.dev.smbus_write_byte(self.data) {
-            logging::log!("[ERROR] LCD smbus_write_byte failed: {err}");
+            logging::error!("[ERROR] LCD I2C communication error: {err}");
         }
     }
 }

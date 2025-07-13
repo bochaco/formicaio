@@ -65,23 +65,19 @@ pub const UPGRADE_NODE_BIN_TIMEOUT_SECS: u64 = 8 * 60; // 8 mins
 #[derive(Debug, Error)]
 pub enum DockerClientError {
     #[error(transparent)]
-    StdIoError(#[from] std::io::Error),
-    #[error(transparent)]
     HyperError(#[from] hyper::Error),
-    #[error("Docker client error: {0}")]
-    ClientError(String),
-    #[error("Container not found with id: {0}")]
+    #[error("Docker client connection error: {0}")]
+    ClientConnError(String),
+    #[error("Container not found with ID: {0}")]
     CointainerNotFound(NodeId),
-    #[error("Image not found locally")]
+    #[error("Docker image not found locally.")]
     ImageNotFound,
-    #[error("Docker server error with code {0}: {1}")]
+    #[error("Docker server error (HTTP {0}): {1}")]
     DockerServerError(u16, String),
     #[error(transparent)]
     SerdeJson(#[from] serde_json::Error),
     #[error(transparent)]
     Http(#[from] http::Error),
-    #[error("Value received couldn't be parsed as integer: '{0}'")]
-    InvalidValue(String),
 }
 
 // Type of request supported by internal helpers herein.
@@ -110,7 +106,7 @@ impl ReqMethod {
         socket_path: &Path,
     ) -> Result<Response<Incoming>, DockerClientError> {
         let unix_stream = UnixStream::connect(socket_path).await.map_err(|err| {
-            DockerClientError::ClientError(format!(
+            DockerClientError::ClientConnError(format!(
                 "Failed to connect to Docker socket at {socket_path:?}: {err:?}"
             ))
         })?;
@@ -118,7 +114,7 @@ impl ReqMethod {
         let (mut docker_reqs_sender, connection) = conn::http1::handshake(io).await?;
         tokio::spawn(async move {
             if let Err(err) = connection.await {
-                logging::log!("Error when connecting to Docker: {err:?}");
+                logging::error!("[ERROR] Docker connection error: {err:?}");
             }
         });
 
@@ -204,7 +200,7 @@ impl DockerClient {
             Ok(v) => v.to_string(),
             Err(_) => DEFAULT_NODE_CONTAINER_IMAGE_TAG.to_string(),
         };
-        logging::log!("Using formica node image: {node_image_name}:{node_image_tag}");
+        logging::log!("Using Formica node image: {node_image_name}:{node_image_tag}");
 
         Ok(Self {
             socket_path,
@@ -256,7 +252,7 @@ impl DockerClient {
     // Request the Docker server to DELETE a container matching the given id
     pub async fn delete_container(&self, id: &NodeId) -> Result<(), DockerClientError> {
         let url = format!("{DOCKER_CONTAINERS_API}/{id}");
-        logging::log!("[DELETE] Sending Docker request to DELETE containers: {url} ...");
+        logging::log!("[DELETE] Sending Docker request to delete containers: {url} ...");
         let query = &[("force", "true")];
         self.send_request(ReqMethod::Delete, &url, query).await?;
         Ok(())
@@ -269,7 +265,7 @@ impl DockerClient {
         get_ips: bool,
     ) -> Result<(Option<String>, Option<String>, Option<String>), DockerClientError> {
         let url = format!("{DOCKER_CONTAINERS_API}/{id}/start");
-        logging::log!("[START] Sending Docker request to START a container: {url} ...");
+        logging::log!("[START] Sending Docker request to start container: {url} ...");
         self.send_request(ReqMethod::post_empty_body(), &url, &[])
             .await?;
 
@@ -293,7 +289,7 @@ impl DockerClient {
     // Request the Docker server to STOP a container matching the given id
     pub async fn stop_container(&self, id: &NodeId) -> Result<(), DockerClientError> {
         let url = format!("{DOCKER_CONTAINERS_API}/{id}/stop");
-        logging::log!("[STOP] Sending Docker request to STOP a container: {url} ...");
+        logging::log!("[STOP] Sending Docker request to stop container: {url} ...");
         self.send_request(ReqMethod::post_empty_body(), &url, &[])
             .await?;
 
@@ -382,7 +378,7 @@ impl DockerClient {
 
         let random_name = hex::encode(rand::random::<[u8; 10]>());
         logging::log!(
-            "[CREATE] Sending Docker request to CREATE a new container (named: {random_name}): {url} ..."
+            "[CREATE] Sending Docker request to create a new container (named: {random_name}): {url} ..."
         );
         let resp_bytes = self
             .send_request(
@@ -392,7 +388,7 @@ impl DockerClient {
             )
             .await?;
         let container: ContainerCreateExecSuccess = serde_json::from_slice(&resp_bytes)?;
-        logging::log!("Container created successfully: {container:#?}");
+        logging::log!("Container '{random_name}' created successfully: {container:#?}");
 
         Ok(container.Id)
     }
@@ -404,7 +400,7 @@ impl DockerClient {
     ) -> Result<impl Stream<Item = Result<Bytes, DockerClientError>> + use<>, DockerClientError>
     {
         let url = format!("{DOCKER_CONTAINERS_API}/{id}/exec");
-        logging::log!("[LOGS] Sending Docker query to get container LOGS stream: {url} ...");
+        logging::log!("[LOGS] Sending Docker request to get container logs stream: {url} ...");
         let exec_cmd = ContainerExec {
             AttachStdin: Some(false),
             AttachStdout: Some(true),
@@ -420,7 +416,7 @@ impl DockerClient {
             .send_request(ReqMethod::post(&exec_cmd)?, &url, &[])
             .await?;
         let exec_result: ContainerCreateExecSuccess = serde_json::from_slice(&resp_bytes)?;
-        logging::log!("Cmd to stream logs created successfully: {exec_result:#?}");
+        logging::log!("Log streaming command created successfully: {exec_result:#?}");
         let exec_id = exec_result.Id;
 
         // let's now start the exec cmd created
@@ -440,7 +436,7 @@ impl DockerClient {
         id: &NodeId,
         get_ips: bool,
     ) -> Result<(Option<String>, Option<String>), DockerClientError> {
-        logging::log!("[UPGRADE] Sending Docker request to UPGRADE node within a container...");
+        logging::log!("[UPGRADE] Sending Docker request to upgrade node within container {id}");
 
         let cmd = "./antup node -n -p /app".to_string();
         let exec_cmd = self.exec_in_container(id, cmd, "upgrade node binary");
@@ -451,16 +447,16 @@ impl DockerClient {
             ),
             Ok(resp) => {
                 let (exec_id, _) = resp?;
-                logging::log!("Node upgrade process finished in container: {id}");
+                logging::log!("Node upgrade process completed in container {id}");
 
                 // let's check its exit code
                 let url = format!("{DOCKER_EXEC_API}/{exec_id}/json");
                 let resp_bytes = self.send_request(ReqMethod::Get, &url, &[]).await?;
                 let exec: ContainerExecJson = serde_json::from_slice(&resp_bytes)?;
-                logging::log!("Container exec: {exec:#?}");
+                logging::log!("Container execution result: {exec:#?}");
                 if exec.ExitCode != 0 {
                     let error_msg = format!("Failed to upgrade node, exit code: {}", exec.ExitCode);
-                    logging::log!("{error_msg}");
+                    logging::error!("[ERROR] {error_msg}");
                     return Err(DockerClientError::DockerServerError(
                         exec.ExitCode.into(),
                         error_msg,
@@ -496,7 +492,7 @@ impl DockerClient {
         let version = resp_str
             .strip_prefix("Autonomi Node v")
             .map(|v| v.replace(['\n', '\r'], ""));
-        logging::log!("Node bin version in container {id}: {version:?}");
+        logging::log!("Node binary version in container {id}: {version:?}");
 
         let cmd = "cat node_data/secret-key | od -A n -t x1 | tr -d ' \n'".to_string();
         let (_, resp_str) = self.exec_in_container(id, cmd, "get node peer id").await?;
@@ -508,7 +504,7 @@ impl DockerClient {
         } else {
             None
         };
-        logging::log!("Node peer id in container {id}: {peer_id:?}");
+        logging::log!("Node peer ID in container {id}: {peer_id:?}");
 
         let ips = if get_ips {
             let cmd = "ip -4 addr show | awk '/inet / {print $2}' | cut -d/ -f1 | paste -sd ' '"
@@ -517,7 +513,7 @@ impl DockerClient {
                 .exec_in_container(id, cmd, "get node network IPs")
                 .await?;
             let ips = ips.trim().replace(' ', ", ");
-            logging::log!("Node IPs in container {id}: {ips}");
+            logging::log!("Node IP addresses in container {id}: {ips}");
             Some(ips)
         } else {
             None
@@ -532,7 +528,7 @@ impl DockerClient {
         id: &NodeId,
         get_ips: bool,
     ) -> Result<(Option<String>, Option<String>, Option<String>), DockerClientError> {
-        logging::log!("[RECYCLE] Recycling container by clearing node's peer-id ...");
+        logging::log!("[RECYCLE] Recycling container {id} by clearing node's peer-id");
 
         // we write an empty file at '/app/node_data/secret-key-recycle' so the container removes
         // existing secret-key file before invoking the node binary upon restarting the container.
@@ -553,7 +549,7 @@ impl DockerClient {
         // restart container to obtain a new peer-id
         self.restart_container(id).await?;
 
-        logging::log!("Finished recycling node container: {id}");
+        logging::log!("Successfully recycled node container {id}");
 
         self.get_node_version_and_peer_id(id, get_ips).await
     }
@@ -561,7 +557,7 @@ impl DockerClient {
     // Restart the container wich has given id
     async fn restart_container(&self, id: &NodeId) -> Result<(), DockerClientError> {
         let url = format!("{DOCKER_CONTAINERS_API}/{id}/restart");
-        logging::log!("[RESTART] Sending Docker request to RESTART a container: {url} ...");
+        logging::log!("[RESTART] Sending Docker request to restart container: {url} ...");
         self.send_request(ReqMethod::post_empty_body(), &url, &[])
             .await?;
         Ok(())
@@ -586,7 +582,7 @@ impl DockerClient {
             .send_request(ReqMethod::post(&exec_cmd)?, &url, &[])
             .await?;
         let exec_result: ContainerCreateExecSuccess = serde_json::from_slice(&resp_bytes)?;
-        logging::log!("Cmd to {cmd_desc} created successfully: {exec_result:#?}");
+        logging::log!("Command to {cmd_desc} created successfully: {exec_result:#?}");
         let exec_id = exec_result.Id;
         // let's now start the exec cmd created
         let url = format!("{DOCKER_EXEC_API}/{exec_id}/start");
@@ -613,8 +609,9 @@ impl DockerClient {
         let resp = match method.try_send_request(url, query, &self.socket_path).await {
             Err(DockerClientError::ImageNotFound) => {
                 logging::log!(
-                    "We need to pull the formica image: {}.",
-                    self.node_image_name
+                    "We need to pull the Formica image: {}:{} ...",
+                    self.node_image_name,
+                    self.node_image_tag
                 );
                 // let's pull the image before retrying
                 self.pull_formica_image().await?;
@@ -638,8 +635,9 @@ impl DockerClient {
         let resp = match method.try_send_request(url, query, &self.socket_path).await {
             Err(DockerClientError::ImageNotFound) => {
                 logging::log!(
-                    "We need to pull the formica image: {} ...",
-                    self.node_image_name
+                    "We need to pull the Formica image: {}:{} ...",
+                    self.node_image_name,
+                    self.node_image_tag
                 );
                 // let's pull the image before retrying
                 self.pull_formica_image().await?;
@@ -655,7 +653,7 @@ impl DockerClient {
     pub async fn pull_formica_image(&self) -> Result<(), DockerClientError> {
         let url = format!("{DOCKER_IMAGES_API}/create");
         logging::log!(
-            "[PULL] Sending Docker request to PULL formica image: {}:{} ...",
+            "[PULL] Sending Docker request to pull Formica image: {}:{} ...",
             self.node_image_name,
             self.node_image_tag
         );

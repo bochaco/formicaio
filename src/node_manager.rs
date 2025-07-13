@@ -48,11 +48,11 @@ const GITHUB_API_URL: &str = "https://api.github.com";
 
 #[derive(Debug, Error)]
 pub enum NodeManagerError {
-    #[error("Failed to spawn a new node: {0}")]
+    #[error("Failed to spawn a new node process: {0}")]
     CannotSpawnNode(String),
-    #[error("Node bin version not found at {0:?}")]
+    #[error("Node binary version not found at path: {0:?}")]
     NodeBinVersionNotFound(PathBuf),
-    #[error("Missing '{0}' information to spawn node")]
+    #[error("Missing required parameter '{0}' to spawn node.")]
     SpawnNodeMissingParam(String),
     #[error(transparent)]
     StdIoError(#[from] std::io::Error),
@@ -80,7 +80,7 @@ impl NodeManager {
     ) -> Result<Self, NodeManagerError> {
         if !sysinfo::IS_SUPPORTED_SYSTEM {
             panic!(
-                "This OS isn't supported by our 'sysinfo' dependency which manages the nodes as native processes."
+                "Unsupported operating system: The 'sysinfo' dependency required for native process management is not supported on this platform. Please use Docker mode instead."
             );
         }
 
@@ -94,7 +94,7 @@ impl NodeManager {
             .to_path_buf()
         };
 
-        logging::log!("Node manager instantiated with root dir:: {root_dir:?}");
+        logging::log!("Node manager initialized with root directory: {root_dir:?}");
         create_dir_all(&root_dir).await?;
 
         let system = Arc::new(RwLock::new(System::new()));
@@ -225,7 +225,7 @@ impl NodeManager {
         command.stderr(Stdio::null());
         command.current_dir(&self.root_dir);
 
-        logging::log!("Spawning new node {node_id} with cmd: {command:?}");
+        logging::log!("Spawning new node process {node_id} with command: {command:?}");
         // Run the node
         match command.spawn() {
             Ok(child) => {
@@ -361,15 +361,17 @@ impl NodeManager {
         let mut child = match self.nodes.write().await.remove(node_id) {
             Some(child) => child,
             None => {
-                logging::error!("Failed to kill node, node not found with id: {node_id}");
+                logging::error!(
+                    "[ERROR] Failed to kill node process: Node {node_id} not found in managed processes"
+                );
                 return None;
             }
         };
 
         if let Err(err) = child.kill() {
-            logging::warn!("Failed to kill process for node {node_id}: {err:?}");
+            logging::warn!("[WARN] Failed to kill process for node {node_id}: {err:?}");
         } else {
-            logging::log!("Process of node {node_id} was killed.");
+            logging::log!("Successfully terminated node process {node_id}");
         }
 
         match child.wait_with_output() {
@@ -406,20 +408,20 @@ impl NodeManager {
         let version = match self.helper_read_node_version(Some(id)).await {
             Ok(version) => Some(version.to_string()),
             Err(err) => {
-                logging::log!("Failed to retrieve binary version of node {id}: {err:?}");
+                logging::error!("[ERROR] Failed to retrieve binary version for node {id}: {err:?}");
                 None
             }
         };
-        logging::log!("Node binary version in node {id}: {version:?}");
+        logging::log!("Node {id} binary version: {version:?}");
 
         let peer_id = match self.helper_read_peer_id(id).await {
             Ok(peer_id) => Some(peer_id),
             Err(err) => {
-                logging::log!("Failed to retrieve PeerId of node {id}: {err:?}");
+                logging::error!("[ERROR] Failed to retrieve Peer ID for node {id}: {err:?}");
                 None
             }
         };
-        logging::log!("Peer id in node {id}: {peer_id:?}");
+        logging::log!("Node {id} Peer ID: {peer_id:?}");
 
         let ips = if get_ips {
             match list_afinet_netifas() {
@@ -437,7 +439,7 @@ impl NodeManager {
                     Some(ips)
                 }
                 Err(err) => {
-                    logging::log!("Failed to retrieve node IPs for {id}: {err:?}");
+                    logging::error!("[ERROR] Failed to retrieve node IPs for {id}: {err:?}");
                     None
                 }
             }
@@ -504,7 +506,10 @@ impl NodeManager {
         &self,
         node_info: &mut NodeInstanceInfo,
     ) -> Result<NodePid, NodeManagerError> {
-        logging::log!("[UPGRADE] Upgrading node {} ...", node_info.node_id);
+        logging::log!(
+            "[UPGRADE] Starting upgrade process for node {} ...",
+            node_info.node_id
+        );
 
         // restart node to run with new node version
         let _res = self.kill_node(&node_info.node_id).await;
@@ -543,12 +548,12 @@ impl NodeManager {
         // we upgrade only if existing node binary is not the latest version
         if let Ok(version) = self.helper_read_node_version(None).await {
             if version == version_to_download {
-                logging::log!("Master node binary already matches version v{version}.");
+                logging::log!("Master node binary is already up to date (version v{version})");
                 return Ok(version);
             }
         }
 
-        logging::log!("Downloading node binary v{version_to_download} ...");
+        logging::log!("Downloading node binary version v{version_to_download} from repository ...");
         let platform = get_running_platform()?;
 
         let archive_path = release_repo
@@ -579,7 +584,7 @@ impl NodeManager {
         node_info: &mut NodeInstanceInfo,
     ) -> Result<NodePid, NodeManagerError> {
         logging::log!(
-            "[RECYCLE] Recycling node {} by clearing its peer-id ...",
+            "[RECYCLE] Starting recycling process for node {} by clearing its peer-id ...",
             node_info.node_id
         );
 
@@ -608,7 +613,7 @@ impl NodeManager {
         &self,
         id: &NodeId,
     ) -> Result<impl Stream<Item = Result<Bytes, NodeManagerError>> + use<>, NodeManagerError> {
-        logging::log!("[LOGS] Get LOGS stream from node {id} ...");
+        logging::log!("[LOGS] Starting log stream for node {id} ...");
         let log_file_path = self
             .root_dir
             .join(DEFAULT_NODE_DATA_FOLDER)
@@ -648,7 +653,7 @@ impl NodeManager {
     fn exec_cmd(&self, cmd: &mut Command, description: &str) -> Result<Output, NodeManagerError> {
         let output = cmd.output()?;
         if !output.status.success() {
-            logging::error!("Failed to execute command to {description}: {output:?}");
+            logging::error!("[ERROR] Command execution failed to {description}: {output:?}");
         }
         Ok(output)
     }

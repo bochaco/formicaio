@@ -172,11 +172,11 @@ impl DbClient {
             .await
             .unwrap_or(false)
         {
-            logging::log!("Creating database {sqlite_db_url}");
+            logging::log!("Creating database at: {sqlite_db_url}");
             match Sqlite::create_database(&sqlite_db_url).await {
-                Ok(()) => logging::log!("Created database successfully!"),
+                Ok(()) => logging::log!("Database created successfully!"),
                 Err(err) => {
-                    logging::log!("Failed to create database: {err}");
+                    logging::error!("[ERROR] Failed to create database: {err}");
                     return Err(err);
                 }
             }
@@ -185,10 +185,10 @@ impl DbClient {
         let db = SqlitePool::connect(&sqlite_db_url).await?;
 
         let migrations = current_dir()?.join("migrations");
-        logging::log!("Applying database migration scripts from: {migrations:?} ...");
+        logging::log!("Applying database migrations from: {migrations:?} ...");
         Migrator::new(migrations).await?.run(&db).await?;
 
-        logging::log!("Database migrations applied successfully!");
+        logging::log!("Database migrations completed successfully!");
         Ok(Self {
             db: Arc::new(Mutex::new(db)),
         })
@@ -209,7 +209,9 @@ impl DbClient {
                     retrieved_nodes.insert(node.node_id, node_info);
                 }
             }
-            Err(err) => logging::log!("Sqlite query error: {err}"),
+            Err(err) => {
+                logging::error!("[ERROR] Database query error while retrieving nodes: {err}")
+            }
         }
 
         retrieved_nodes
@@ -226,7 +228,9 @@ impl DbClient {
         .await
         {
             Ok(node) => node.merge_onto(info, get_status),
-            Err(err) => logging::log!("Sqlite query error: {err}"),
+            Err(err) => logging::error!(
+                "[ERROR] Database query error while retrieving node metadata: {err}"
+            ),
         }
     }
 
@@ -258,7 +262,9 @@ impl DbClient {
                 if v.is_empty() { None } else { Some(v) }
             }
             Err(err) => {
-                logging::log!("Sqlite bin version query error: {err}");
+                logging::error!(
+                    "[ERROR] Database query error while retrieving node binary version: {err}"
+                );
                 None
             }
         }
@@ -339,7 +345,9 @@ impl DbClient {
             .await
         {
             Ok(_) => {}
-            Err(err) => logging::log!("Sqlite insert query error: {err}"),
+            Err(err) => {
+                logging::error!("[ERROR] Database insert error while storing node metadata: {err}")
+            }
         }
     }
 
@@ -414,7 +422,9 @@ impl DbClient {
                     self.insert_node_metadata(info).await;
                 }
             }
-            Err(err) => logging::log!("Sqlite update query error: {err}"),
+            Err(err) => {
+                logging::error!("[ERROR] Database update error while updating node metadata: {err}")
+            }
         }
     }
 
@@ -427,7 +437,9 @@ impl DbClient {
             .await
         {
             Ok(_) => {}
-            Err(err) => logging::log!("Sqlite delete query error: {err}"),
+            Err(err) => {
+                logging::error!("[ERROR] Database delete error while removing node metadata: {err}")
+            }
         }
     }
 
@@ -456,7 +468,9 @@ impl DbClient {
         let db_lock = self.db.lock().await;
         match query.execute(&*db_lock).await {
             Ok(_) => {}
-            Err(err) => logging::log!("Sqlite update query error: {err}"),
+            Err(err) => {
+                logging::error!("[ERROR] Database error while updating node record fields: {err}")
+            }
         }
     }
 
@@ -515,7 +529,7 @@ impl DbClient {
                     });
                 });
             }
-            Err(err) => logging::log!("Sqlite query error: {err}"),
+            Err(err) => logging::error!("[ERROR] Database query error while retrieving node metrics: {err}"),
         }
 
         node_metrics
@@ -545,7 +559,9 @@ impl DbClient {
         let db_lock = self.db.lock().await;
         match query_builder.build().execute(&*db_lock).await {
             Ok(_) => {}
-            Err(err) => logging::log!("Sqlite insert query error: {err}."),
+            Err(err) => {
+                logging::error!("[ERROR] Database insert error while storing node metrics: {err}.")
+            }
         }
     }
 
@@ -558,7 +574,9 @@ impl DbClient {
             .await
         {
             Ok(_) => {}
-            Err(err) => logging::log!("Sqlite delete query error: {err}"),
+            Err(err) => {
+                logging::error!("[ERROR] Database delete error while removing node metrics: {err}")
+            }
         }
     }
 
@@ -582,7 +600,9 @@ impl DbClient {
         .await
         {
             Ok(res) => logging::log!("Removed {} metrics records", res.rows_affected()),
-            Err(err) => logging::log!("Sqlite pruning query error: {err}"),
+            Err(err) => {
+                logging::error!("[ERROR] Database delete error while pruning old metrics: {err}")
+            }
         }
     }
 
@@ -615,7 +635,9 @@ impl DbClient {
                 AppSettings::default()
             }
             Err(err) => {
-                logging::log!("Sqlite query error on settings: {err}. We'll be using defaults.");
+                logging::warn!(
+                    "[WARN] Database query error while retrieving settings: {err}. We'll be using defaults."
+                );
                 AppSettings::default()
             }
         }
@@ -651,11 +673,11 @@ impl DbClient {
         .await
         {
             Ok(_) => {
-                logging::log!("New app settings updated in DB cache.");
+                logging::log!("Application settings updated successfully in database.");
                 Ok(())
             }
             Err(err) => {
-                logging::log!("Sqlite settings update error: {err}");
+                logging::error!("[ERROR] Database error while updating settings: {err}");
                 Err(err.into())
             }
         }

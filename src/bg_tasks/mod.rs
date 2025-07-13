@@ -88,7 +88,7 @@ impl ImmutableNodeStatus {
 
 // Spawn any required background tasks
 pub fn spawn_bg_tasks(context: ServerGlobalState, settings: AppSettings) {
-    logging::log!("App settings to use: {settings:#?}");
+    logging::log!("Background tasks initialized with settings: {settings:#?}");
     let mut ctx = TasksContext::from(settings);
 
     let lcd_stats = Arc::new(RwLock::new(
@@ -159,7 +159,7 @@ pub fn spawn_bg_tasks(context: ServerGlobalState, settings: AppSettings) {
                     let node_mgr_proxy = node_mgr_proxy.clone();
                     tokio::spawn(async move {
                         if let Err(err) = node_mgr_proxy.pull_formica_image().await {
-                            logging::log!("Failed to pull node image from the periodic task: {err}");
+                            logging::error!("[ERROR] Periodic task failed to pull node image: {err}");
                         }
                     });
                 },
