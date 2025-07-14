@@ -51,6 +51,9 @@ tower-http = { version = "0.6", default-features = false, features = ["fs"], opt
 url = "2"
 wasm-bindgen = "=0.2.100"
 wasm-bindgen-futures = "0.4"
+# GraphQL dependencies
+async-graphql = { version = "7", optional = true }
+async-graphql-axum = { version = "7", optional = true }
 
 [features]
 # Nodes are launched as native OS processes instead of as Docker containers
@@ -79,6 +82,8 @@ ssr = [
     "dep:tokio",
     "dep:tower",
     "dep:tower-http",
+    "dep:async-graphql",
+    "dep:async-graphql-axum",
     "leptos/ssr",
     "leptos_meta/ssr",
     "leptos_router/ssr",

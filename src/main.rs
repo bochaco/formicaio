@@ -38,6 +38,7 @@ async fn start_backend(
         bg_tasks::spawn_bg_tasks,
         bg_tasks::{BgTasksCmds, ImmutableNodeStatus},
         db_client::DbClient,
+        graphql::create_schema,
         metrics_client::NodesMetrics,
         types::Stats,
     };
@@ -183,10 +184,18 @@ async fn start_backend(
 
     spawn_bg_tasks(app_state.clone(), settings);
 
+    // Create GraphQL schema
+    let schema = create_schema(Arc::new(app_state.clone()));
+
     let app = Router::new()
         .leptos_routes(&app_state, routes, {
             move || shell(leptos_options.clone())
         })
+        .route("/graphql", async_graphql_axum::GraphQL::new(schema))
+        .route(
+            "/graphiql",
+            async_graphql_axum::GraphiQLSource::new("/graphql").finish(),
+        )
         .fallback(leptos_axum::file_and_error_handler::<ServerGlobalState, _>(
             shell,
         ))
