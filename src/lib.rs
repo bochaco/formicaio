@@ -9,6 +9,8 @@ pub mod docker_client;
 #[cfg(all(feature = "ssr", not(feature = "native")))]
 mod docker_msgs;
 pub mod error_template;
+#[cfg(feature = "ssr")]
+pub mod graphql;
 mod helpers;
 #[cfg(feature = "ssr")]
 pub mod metrics_client;
