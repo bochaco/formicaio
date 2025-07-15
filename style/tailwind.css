@@ -32,10 +32,6 @@
     @apply block mb-2 text-sm font-medium text-gray-900 dark:text-white;
 }
 
-@utility form-popover {
-    @apply absolute z-10 invisible inline-block text-sm text-white transition-opacity duration-300 bg-gray-800 border border-gray-200 rounded-lg shadow-xs opacity-0 w-72 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-400;
-}
-
 @utility form-invalid-input-msg {
     @apply mt-2 text-sm text-red-600 dark:text-red-500;
 }
