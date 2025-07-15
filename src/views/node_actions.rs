@@ -409,6 +409,7 @@ fn MultipleNodesActionConfirm(modal_apply_action: RwSignal<Option<NodeAction>>) 
     view! {
         <form class="space-y-4">
             <NumberInput
+                id="actions_interval"
                 signal=interval
                 min=0
                 label="Delay (in seconds) between each node action in the batch:"
@@ -490,11 +491,13 @@ fn AddNodesForm(modal_visibility: RwSignal<bool>) -> impl IntoView {
             />
             <RewardsAddrInput signal=rewards_addr label="Rewards address:" />
             <NumberInput
+                id="nodes_count"
                 signal=count
                 min=1
                 label="Number of nodes (a batch will be created if the number is greater than one):"
             />
             <NumberInput
+                id="create_interval"
                 signal=interval
                 min=0
                 label="Delay (in seconds) between the creation of each node in the batch:"
@@ -584,9 +587,9 @@ fn PortNumberInput(
         <div class="relative w-full">
             <div class="flex flex-row">
                 <div class="basis-7/12">
-                    <span class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                    <label for=id class="form-label">
                         {label}
-                    </span>
+                    </label>
                 </div>
                 <div class="basis-4/12">
                     <input
@@ -594,7 +597,7 @@ fn PortNumberInput(
                         name=id
                         id=id
                         on:input=on_port_input
-                        class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white"
+                        class="form-input-box"
                         value=default
                         required
                     />
@@ -623,9 +626,7 @@ fn PortNumberInput(
             </div>
             <div>
                 <Show when=move || signal.read().is_err() fallback=move || view! { "" }.into_view()>
-                    <p class="mt-2 text-sm text-red-600 dark:text-red-500">
-                        Not a valid port number
-                    </p>
+                    <p class="form-invalid-input-msg">Not a valid port number</p>
                 </Show>
             </div>
         </div>
@@ -649,10 +650,7 @@ pub fn IpAddrInput(
 
     view! {
         <div>
-            <label
-                for="node_ip"
-                class="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
-            >
+            <label for="node_ip" class="form-label">
                 {label}
             </label>
 
@@ -664,7 +662,7 @@ pub fn IpAddrInput(
                         id="node_ip"
                         on:input=move |ev| validate_and_set(event_target_value(&ev))
                         required
-                        class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white"
+                        class="form-input-box"
                         prop:value=move || match signal.get() {
                             Ok(s) => s.to_string(),
                             Err((_, s)) => s,
@@ -694,9 +692,7 @@ pub fn IpAddrInput(
             </div>
 
             <Show when=move || signal.read().is_err() fallback=move || view! { "" }.into_view()>
-                <p class="mt-2 text-sm text-red-600 dark:text-red-500">
-                    {signal.get().err().map(|(e, _)| e)}
-                </p>
+                <p class="form-invalid-input-msg">{signal.get().err().map(|(e, _)| e)}</p>
             </Show>
         </div>
     }
@@ -704,6 +700,7 @@ pub fn IpAddrInput(
 
 #[component]
 pub fn NumberInput(
+    id: &'static str,
     signal: RwSignal<Result<u16, String>>,
     min: u16,
     label: &'static str,
@@ -720,15 +717,16 @@ pub fn NumberInput(
     view! {
         <div class="flex flex-row">
             <div class="basis-2/3">
-                <span class="block mr-2 text-sm font-medium text-gray-900 dark:text-white">
+                <label for=id class="form-label">
                     {label}
-                </span>
+                </label>
             </div>
             <div class="basis-1/3">
                 <input
                     type="number"
+                    id=id
                     on:input=on_input
-                    class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white"
+                    class="form-input-box"
                     value=signal.get_untracked().unwrap_or_default()
                     required
                 />
@@ -805,10 +803,7 @@ pub fn RewardsAddrInput(
 
     view! {
         <div>
-            <label
-                for="rewards_addr"
-                class="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
-            >
+            <label for="rewards_addr" class="form-label">
                 {label}
             </label>
 
@@ -820,7 +815,7 @@ pub fn RewardsAddrInput(
                         id="rewards_addr"
                         on:input=move |ev| validate_and_set(event_target_value(&ev))
                         required
-                        class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white"
+                        class="form-input-box"
                         prop:value=move || match signal.get() {
                             Ok(s) => s,
                             Err((_, s)) => s,
@@ -865,9 +860,7 @@ pub fn RewardsAddrInput(
             </div>
 
             <Show when=move || signal.read().is_err() fallback=move || view! { "" }.into_view()>
-                <p class="mt-2 text-sm text-red-600 dark:text-red-500">
-                    {signal.get().err().map(|(e, _)| e)}
-                </p>
+                <p class="form-invalid-input-msg">{signal.get().err().map(|(e, _)| e)}</p>
             </Show>
         </div>
     }
