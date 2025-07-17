@@ -2,7 +2,7 @@ name: build and package release native mode binaries
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "chore-upgrade-deps" ]
   pull_request:
     branches: [ "main" ]
 
@@ -90,14 +90,14 @@ jobs:
         run: npm install
 
       - name: Install stable Rust
-        uses: dtolnay/rust-toolchain@1.86.0
+        uses: dtolnay/rust-toolchain@1.88.0
 
       - name: Install build tools
         uses: cargo-bins/cargo-binstall@main
 
       - name: Install cargo leptos build tools
         shell: bash
-        run: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/leptos-rs/cargo-leptos/releases/download/v0.2.37/cargo-leptos-installer.sh | sh
+        run: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/leptos-rs/cargo-leptos/releases/download/v0.2.40/cargo-leptos-installer.sh | sh
 
       - name: Install musl-tools
         if: startsWith(matrix.target, 'x86_64-unknown-linux-musl')
