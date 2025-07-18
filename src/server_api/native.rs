@@ -130,6 +130,7 @@ pub(crate) async fn helper_create_node_instance(
         home_network: node_opts.home_network,
         upnp: node_opts.upnp,
         node_logs: node_opts.node_logs,
+        data_dir_path: Some(node_opts.data_dir_path.clone()),
         ..Default::default()
     };
 
@@ -173,10 +174,7 @@ pub(crate) async fn helper_delete_node_instance(
         .db_client
         .delete_node_metadata(&node_info.node_id)
         .await;
-    context
-        .node_manager
-        .remove_node_dir(&node_info.node_id)
-        .await;
+    context.node_manager.remove_node_dir(&node_info).await;
 
     context
         .nodes_metrics

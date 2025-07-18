@@ -142,7 +142,17 @@ pub async fn start_node_logs_stream(node_id: NodeId) -> Result<ByteStream, Serve
         .await?;
 
     #[cfg(feature = "native")]
-    let node_logs_stream = context.node_manager.get_node_logs_stream(&node_id).await?;
+    let node_logs_stream = {
+        let mut node_info = NodeInstanceInfo::new(node_id);
+        context
+            .db_client
+            .get_node_metadata(&mut node_info, true)
+            .await;
+        context
+            .node_manager
+            .get_node_logs_stream(&node_info)
+            .await?
+    };
 
     let converted_stream = node_logs_stream.map(|item| {
         item.map_err(ServerFnError::from) // convert the error type

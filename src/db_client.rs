@@ -76,6 +76,7 @@ struct CachedNodeMetadata {
     connected_peers: String,
     kbuckets_peers: String,
     ips: String,
+    data_dir_path: String,
 }
 
 impl CachedNodeMetadata {
@@ -143,6 +144,9 @@ impl CachedNodeMetadata {
         }
         if !self.ips.is_empty() {
             info.ips = Some(self.ips.clone());
+        }
+        if !self.data_dir_path.is_empty() {
+            info.data_dir_path = Some(PathBuf::from(&self.data_dir_path));
         }
     }
 }
@@ -313,8 +317,9 @@ impl DbClient {
                 is_status_locked, is_status_unknown, \
                 ip_addr, port, metrics_port, rewards_addr, \
                 home_network, upnp, node_logs, \
-                records, connected_peers, kbuckets_peers \
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                records, connected_peers, kbuckets_peers, \
+                data_dir_path \
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             .to_string();
 
         let db_lock = self.db.lock().await;
@@ -340,6 +345,11 @@ impl DbClient {
             .bind(
                 info.kbuckets_peers
                     .map_or("".to_string(), |v| v.to_string()),
+            )
+            .bind(
+                info.data_dir_path
+                    .clone()
+                    .map_or("".to_string(), |v| v.display().to_string()),
             )
             .execute(&*db_lock)
             .await
@@ -396,6 +406,10 @@ impl DbClient {
         if let Some(ips) = &info.ips {
             updates.push("ips=?");
             params.push(ips.clone());
+        }
+        if let Some(data_dir_path) = &info.data_dir_path {
+            updates.push("data_dir_path=?");
+            params.push(data_dir_path.clone().display().to_string());
         }
 
         if updates.is_empty() {

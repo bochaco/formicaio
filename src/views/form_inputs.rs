@@ -3,7 +3,7 @@ use crate::{app::get_addr_from_metamask, server_api::parse_and_validate_addr};
 use super::icons::*;
 
 use leptos::{prelude::*, task::spawn_local};
-use std::{net::IpAddr, num::ParseIntError};
+use std::{net::IpAddr, num::ParseIntError, path::PathBuf};
 
 #[component]
 pub fn PortNumberInput(
@@ -170,6 +170,54 @@ pub fn NumberInput(
                     "Invalid value: " {signal.get().err()}
                 </p>
             </Show>
+        </div>
+    }
+}
+
+#[component]
+pub fn TextInput(
+    signal: RwSignal<PathBuf>,
+    label: &'static str,
+    help_msg: &'static str,
+) -> impl IntoView {
+    view! {
+        <div>
+            <label for="textinput" class="form-label">
+                {label}
+            </label>
+
+            <div class="flex items-center">
+                <div class="relative w-full">
+                    <input
+                        type="text"
+                        id="textinput"
+                        on:input=move |ev| {
+                            signal.set(PathBuf::from(event_target_value(&ev)));
+                        }
+                        class="form-input-box"
+                        value=signal.get_untracked().display().to_string()
+                    />
+                </div>
+                <button
+                    data-popover-target="popover-text"
+                    data-popover-placement="top-end"
+                    type="button"
+                    class="btn-node-action"
+                >
+                    <IconHelpMsg />
+                    <span class="sr-only">Show information</span>
+                </button>
+
+                <div
+                    data-popover
+                    id="popover-text"
+                    role="tooltip"
+                    class="absolute z-10 invisible inline-block text-sm text-white transition-opacity duration-300 bg-gray-800 border border-gray-200 rounded-lg shadow-xs opacity-0 w-72 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-400"
+                >
+                    <div class="p-3 space-y-2">{help_msg}</div>
+                    <div data-popper-arrow></div>
+                </div>
+            </div>
         </div>
     }
 }

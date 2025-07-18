@@ -211,6 +211,12 @@ pub(super) fn NodeInstanceView(
                         </div>
                     </p>
                     <p>
+                        <span class="node-info-item">"Data dir: "</span>
+                        {move || value_or_dash(
+                            info.get().data_dir_path.map(|p| p.display().to_string()),
+                        )}
+                    </p>
+                    <p>
                         <div class="flex flex-row">
                             <div class="basis-1/2">
                                 <span class="node-info-item">"Balance: "</span>
