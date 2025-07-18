@@ -135,7 +135,7 @@ pub(crate) async fn helper_create_node_instance(
     };
 
     if let Err(err) = context.node_manager.new_node(&node_info).await {
-        logging::error!("[ERROR] Failed to create new node directory: {err:?}");
+        logging::error!("[ERROR] Failed to create new node: {err:?}");
         return Err(err.into());
     }
 

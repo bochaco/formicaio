@@ -1,7 +1,6 @@
-use super::icons::IconCancel;
+use super::{helpers::show_alert_msg, icons::IconCancel};
 use crate::{
     app::ClientGlobalState,
-    helpers::show_alert_msg,
     server_api::cancel_batch,
     types::{BatchType, NodesActionsBatch},
 };

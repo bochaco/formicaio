@@ -1,9 +1,9 @@
 use crate::{
     app::METRICS_MAX_SIZE_PER_NODE,
     db_client::DbClient,
-    helpers::truncated_balance_str,
     metrics_client::{NodeMetricsClient, NodesMetrics},
     types::{AppSettings, NodeInstanceInfo, NodeStatus, Stats},
+    views::truncated_balance_str,
 };
 
 use super::{BgTasksCmds, ImmutableNodeStatus, TokenContract, helpers::NodeManagerProxy};

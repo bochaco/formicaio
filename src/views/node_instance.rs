@@ -1,5 +1,6 @@
 use super::{
     chart::{ChartSeriesData, node_metrics_update},
+    helpers::{node_logs_stream, show_alert_msg, truncated_balance_str},
     icons::{
         IconRecycle, IconRemove, IconShowChart, IconShowLogs, IconStartNode, IconStopNode,
         IconUpgradeNode,
@@ -8,7 +9,6 @@ use super::{
 };
 use crate::{
     app::ClientGlobalState,
-    helpers::{node_logs_stream, show_alert_msg, truncated_balance_str},
     types::{InactiveReason, NodeInstanceInfo, NodeStatus},
 };
 

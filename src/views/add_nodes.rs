@@ -1,7 +1,10 @@
-use crate::{helpers::add_node_instances, types::NodeOpts};
+use crate::types::NodeOpts;
 
-use super::form_inputs::{
-    CheckboxInput, IpAddrInput, NumberInput, PortNumberInput, RewardsAddrInput, TextInput,
+use super::{
+    form_inputs::{
+        CheckboxInput, IpAddrInput, NumberInput, PortNumberInput, RewardsAddrInput, TextInput,
+    },
+    helpers::{add_node_instances, show_alert_msg},
 };
 
 use leptos::{logging, prelude::*};
@@ -36,7 +39,9 @@ pub fn AddNodesForm(modal_visibility: RwSignal<bool>) -> impl IntoView {
         let interval = *interval;
         async move {
             if let Err(err) = add_node_instances(node_opts, count, interval).await {
-                logging::error!("Failed to create node/s: {err}");
+                let msg = format!("Failed to create node/s: {err}");
+                logging::error!("{msg}");
+                show_alert_msg(msg);
             }
         }
     });
