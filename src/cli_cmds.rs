@@ -12,6 +12,8 @@ use crate::types::NodesInstancesInfo;
 
 #[cfg(feature = "ssr")]
 use eyre::{Result, WrapErr};
+#[cfg(feature = "ssr")]
+use url::form_urlencoded;
 
 use alloy_primitives::{Address, utils::format_units};
 use chrono::{DateTime, Local, Utc};
@@ -201,6 +203,9 @@ pub struct NodeOptsCmd {
     /// Delay (in seconds) between the creation of each node in the batch.
     #[structopt(long, default_value = "0")]
     interval: u64,
+    /// Custom path for storing node data files. If not specified, uses the default data directory.
+    #[structopt(long)]
+    data_dir_path: PathBuf,
 }
 
 // Parser for the node status CLI args
@@ -282,6 +287,7 @@ impl CliCommands {
                     upnp: node_opts_cmd.upnp,
                     node_logs: true,
                     auto_start: node_opts_cmd.auto_start,
+                    data_dir_path: node_opts_cmd.data_dir_path.clone(),
                 };
                 if node_opts_cmd.count > 1 {
                     let batch_id = nodes_actions_batch_create(
@@ -470,7 +476,7 @@ impl CliCommands {
                 if opts.count > 1 {
                     // TODO: use some crate which performs this serialisation
                     let body = format!(
-                        "batch_type[Create][node_opts][node_ip]={}&batch_type[Create][node_opts][port]={}&batch_type[Create][node_opts][metrics_port]={}&batch_type[Create][node_opts][rewards_addr]={}&batch_type[Create][node_opts][home_network]={}&batch_type[Create][node_opts][upnp]={}&batch_type[Create][node_opts][node_logs]={}&batch_type[Create][node_opts][auto_start]={}&batch_type[Create][count]={}&interval_secs={}",
+                        "batch_type[Create][node_opts][node_ip]={}&batch_type[Create][node_opts][port]={}&batch_type[Create][node_opts][metrics_port]={}&batch_type[Create][node_opts][rewards_addr]={}&batch_type[Create][node_opts][home_network]={}&batch_type[Create][node_opts][upnp]={}&batch_type[Create][node_opts][node_logs]={}&batch_type[Create][node_opts][auto_start]={}&batch_type[Create][node_opts][data_dir_path]={}&batch_type[Create][count]={}&interval_secs={}",
                         node_ip,
                         opts.port,
                         opts.metrics_port,
@@ -479,6 +485,10 @@ impl CliCommands {
                         opts.upnp,
                         true,
                         opts.auto_start,
+                        form_urlencoded::byte_serialize(
+                            opts.data_dir_path.display().to_string().as_bytes()
+                        )
+                        .collect::<String>(),
                         opts.count,
                         opts.interval
                     );
@@ -489,7 +499,7 @@ impl CliCommands {
                 } else {
                     // TODO: use some crate which performs this serialisation
                     let body = format!(
-                        "node_opts[node_ip]={}&node_opts[port]={}&node_opts[metrics_port]={}&node_opts[rewards_addr]={}&node_opts[home_network]={}&node_opts[upnp]={}&node_opts[node_logs]={}&node_opts[auto_start]={}",
+                        "node_opts[node_ip]={}&node_opts[port]={}&node_opts[metrics_port]={}&node_opts[rewards_addr]={}&node_opts[home_network]={}&node_opts[upnp]={}&node_opts[node_logs]={}&node_opts[auto_start]={}&node_opts[data_dir_path]={}",
                         node_ip,
                         opts.port,
                         opts.metrics_port,
@@ -497,7 +507,11 @@ impl CliCommands {
                         opts.home_network,
                         opts.upnp,
                         true,
-                        opts.auto_start
+                        opts.auto_start,
+                        form_urlencoded::byte_serialize(
+                            opts.data_dir_path.display().to_string().as_bytes()
+                        )
+                        .collect::<String>()
                     );
 
                     match send_req::<NodeInstanceInfo>(
@@ -656,6 +670,12 @@ impl CliCmdResponse {
                         table.add_row(row!["PID", value_or_dash(info.pid)]);
                         table.add_row(row!["Version", value_or_dash(info.bin_version.clone())]);
                         table.add_row(row!["Listen IP", value_or_dash(info.node_ip)]);
+                        table.add_row(row![
+                            "Data dir",
+                            value_or_dash(
+                                info.data_dir_path.as_ref().map(|p| p.display().to_string())
+                            )
+                        ]);
                         table.add_row(row![
                             "Memory Used",
                             value_or_dash(info.mem_used.map(|v| format!("{v:.2} MB")))

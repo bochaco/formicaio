@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     fmt,
     net::{IpAddr, Ipv4Addr},
+    path::PathBuf,
 };
 
 /// Information of a node action batch
@@ -103,6 +104,7 @@ pub struct NodeOpts {
     pub upnp: bool,
     pub node_logs: bool,
     pub auto_start: bool,
+    pub data_dir_path: PathBuf,
 }
 
 impl Default for NodeOpts {
@@ -116,6 +118,7 @@ impl Default for NodeOpts {
             upnp: bool::default(),
             node_logs: bool::default(),
             auto_start: bool::default(),
+            data_dir_path: PathBuf::default(),
         }
     }
 }

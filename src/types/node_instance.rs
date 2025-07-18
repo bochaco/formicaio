@@ -6,7 +6,7 @@ use alloy_primitives::U256;
 use chrono::Utc;
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::net::IpAddr;
+use std::{net::IpAddr, path::PathBuf};
 
 // Length of nodes PeerIds' prefix and suffix to be displayed
 const PEER_ID_PREFIX_SUFFIX_LEN: usize = 12;
@@ -54,6 +54,7 @@ pub struct NodeInstanceInfo {
     pub shunned_count: Option<usize>,
     pub net_size: Option<usize>,
     pub ips: Option<String>,
+    pub data_dir_path: Option<PathBuf>, // Custom data directory path for this node
 }
 
 impl NodeInstanceInfo {

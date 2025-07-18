@@ -110,9 +110,8 @@ impl NodeManager {
 
     // Create directory to hold node's data and cloned node binary
     pub async fn new_node(&self, node_info: &NodeInstanceInfo) -> Result<(), NodeManagerError> {
-        let node_id = &node_info.node_id;
         let node_bin_path = self.root_dir.join(NODE_BIN_NAME);
-        let new_node_data_dir = self.root_dir.join(DEFAULT_NODE_DATA_FOLDER).join(node_id);
+        let new_node_data_dir = self.get_node_data_dir(node_info);
 
         create_dir_all(&new_node_data_dir).await?;
 
@@ -159,14 +158,10 @@ impl NodeManager {
                     "rewards address".to_string(),
                 ))?;
 
-        let node_data_dir = self.root_dir.join(DEFAULT_NODE_DATA_FOLDER).join(node_id);
+        let node_data_dir = self.get_node_data_dir(node_info);
         let node_bin_path = node_data_dir.join(NODE_BIN_NAME);
         let bootstrap_cache_dir = self.root_dir.join(DEFAULT_BOOTSTRAP_CACHE_FOLDER);
-        let log_output_dir = self
-            .root_dir
-            .join(DEFAULT_NODE_DATA_FOLDER)
-            .join(node_id)
-            .join(DEFAULT_LOGS_FOLDER);
+        let log_output_dir = node_data_dir.join(DEFAULT_LOGS_FOLDER);
 
         // if node dir and binary don't exist we create them
         if let Err(err) = metadata(&node_bin_path).await {
@@ -235,14 +230,7 @@ impl NodeManager {
                 node_info.pid = Some(pid);
                 // let's delay it for a moment so it generates the peer id
                 sleep(Duration::from_secs(2)).await;
-                match self
-                    .get_node_version_and_peer_id(
-                        &node_info.node_id,
-                        !node_info.home_network,
-                        node_info.node_ip.is_none_or(|ip| ip.is_ipv4()),
-                    )
-                    .await
-                {
+                match self.get_node_version_and_peer_id(node_info).await {
                     Ok((bin_version, peer_id, ips)) => {
                         node_info.bin_version = bin_version;
                         node_info.peer_id = peer_id;
@@ -391,21 +379,37 @@ impl NodeManager {
     }
 
     // Remove node's data dir
-    pub async fn remove_node_dir(&self, node_id: &NodeId) {
-        let node_data_dir = self.root_dir.join(DEFAULT_NODE_DATA_FOLDER).join(node_id);
+    pub async fn remove_node_dir(&self, node_info: &NodeInstanceInfo) {
+        let node_data_dir = self.get_node_data_dir(node_info);
         if let Err(err) = remove_dir_all(&node_data_dir).await {
             logging::warn!("Failed to remove node's dir {node_data_dir:?}: {err:?}");
+        }
+    }
+
+    // Helper to get node data dir based on node-mgr root dir and node custom data dir if set
+    fn get_node_data_dir(&self, node_info: &NodeInstanceInfo) -> PathBuf {
+        let node_id = &node_info.node_id;
+        if let Some(custom_path) = &node_info.data_dir_path {
+            if custom_path.is_absolute() {
+                custom_path.join(node_id)
+            } else {
+                self.root_dir.join(custom_path).join(node_id)
+            }
+        } else {
+            self.root_dir.join(DEFAULT_NODE_DATA_FOLDER).join(node_id)
         }
     }
 
     // Retrieve version of the node binary and its peer id
     async fn get_node_version_and_peer_id(
         &self,
-        id: &NodeId,
-        get_ips: bool,
-        only_ipv4: bool,
+        node_info: &NodeInstanceInfo,
     ) -> Result<(Option<String>, Option<String>, Option<String>), NodeManagerError> {
-        let version = match self.helper_read_node_version(Some(id)).await {
+        let id = &node_info.node_id;
+        let get_ips = !node_info.home_network;
+        let only_ipv4 = node_info.node_ip.is_none_or(|ip| ip.is_ipv4());
+
+        let version = match self.helper_read_node_version(Some(node_info)).await {
             Ok(version) => Some(version.to_string()),
             Err(err) => {
                 logging::error!("[ERROR] Failed to retrieve binary version for node {id}: {err:?}");
@@ -414,7 +418,7 @@ impl NodeManager {
         };
         logging::log!("Node {id} binary version: {version:?}");
 
-        let peer_id = match self.helper_read_peer_id(id).await {
+        let peer_id = match self.helper_read_peer_id(node_info).await {
             Ok(peer_id) => Some(peer_id),
             Err(err) => {
                 logging::error!("[ERROR] Failed to retrieve Peer ID for node {id}: {err:?}");
@@ -455,13 +459,11 @@ impl NodeManager {
     // to retrieve the version of the master node binary.
     async fn helper_read_node_version(
         &self,
-        id: Option<&NodeId>,
+        node_info: Option<&NodeInstanceInfo>,
     ) -> Result<Version, NodeManagerError> {
-        let node_bin_path = if let Some(id) = id {
-            self.root_dir
-                .join(DEFAULT_NODE_DATA_FOLDER)
-                .join(id)
-                .join(NODE_BIN_NAME)
+        let node_bin_path = if let Some(info) = node_info {
+            let node_data_dir = self.get_node_data_dir(info);
+            node_data_dir.join(NODE_BIN_NAME)
         } else {
             self.root_dir.join(NODE_BIN_NAME)
         };
@@ -487,12 +489,12 @@ impl NodeManager {
         }
     }
 
-    async fn helper_read_peer_id(&self, id: &NodeId) -> Result<String, NodeManagerError> {
-        let sk_file_path = self
-            .root_dir
-            .join(DEFAULT_NODE_DATA_FOLDER)
-            .join(id)
-            .join("secret-key");
+    async fn helper_read_peer_id(
+        &self,
+        node_info: &NodeInstanceInfo,
+    ) -> Result<String, NodeManagerError> {
+        let node_data_dir = self.get_node_data_dir(node_info);
+        let sk_file_path = node_data_dir.join("secret-key");
         let mut file = File::open(sk_file_path).await?;
         let mut key_str = Vec::new();
         file.read_to_end(&mut key_str).await?;
@@ -589,11 +591,8 @@ impl NodeManager {
         );
 
         // we remove 'secret-key' file so the node will re-generate it when restarted.
-        let file_path = self
-            .root_dir
-            .join(DEFAULT_NODE_DATA_FOLDER)
-            .join(node_info.node_id.clone())
-            .join("secret-key");
+        let node_data_dir = self.get_node_data_dir(node_info);
+        let file_path = node_data_dir.join("secret-key");
         remove_file(file_path).await?;
 
         // restart node to obtain a new peer-id
@@ -611,15 +610,15 @@ impl NodeManager {
     // Return a node logs stream.
     pub async fn get_node_logs_stream(
         &self,
-        id: &NodeId,
+        node_info: &NodeInstanceInfo,
     ) -> Result<impl Stream<Item = Result<Bytes, NodeManagerError>> + use<>, NodeManagerError> {
-        logging::log!("[LOGS] Starting log stream for node {id} ...");
-        let log_file_path = self
-            .root_dir
-            .join(DEFAULT_NODE_DATA_FOLDER)
-            .join(id)
-            .join(DEFAULT_LOGS_FOLDER)
-            .join("antnode.log");
+        logging::log!(
+            "[LOGS] Starting log stream for node {} ...",
+            node_info.node_id
+        );
+
+        let node_data_dir = self.get_node_data_dir(node_info);
+        let log_file_path = node_data_dir.join(DEFAULT_LOGS_FOLDER).join("antnode.log");
 
         let mut file = File::open(log_file_path).await?;
         let file_length = file.metadata().await?.len();
