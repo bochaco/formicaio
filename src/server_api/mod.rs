@@ -18,8 +18,8 @@ mod ssr_imports_and_defs {
     pub use crate::{
         app::ServerGlobalState,
         bg_tasks::BgTasksCmds,
-        helpers::truncated_balance_str,
         types::{NodeFilter, NodeStatus, WidgetStat},
+        views::truncated_balance_str,
     };
     pub use futures_util::StreamExt;
     pub use leptos::logging;

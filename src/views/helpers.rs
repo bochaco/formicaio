@@ -1,4 +1,4 @@
-use super::{
+use crate::{
     app::ClientGlobalState,
     server_api::{
         create_node_instance, delete_node_instance, nodes_actions_batch_create,
@@ -62,29 +62,39 @@ pub async fn add_node_instances(
         items.1.insert(tmp_node_id.clone(), RwSignal::new(tmp_node));
     });
 
-    if count > 1 {
+    let res = if count > 1 {
         let batch_type = BatchType::Create { node_opts, count };
-        let batch_id = nodes_actions_batch_create(batch_type.clone(), interval_secs).await?;
-        context.nodes.update(|items| {
-            items.1.remove(&tmp_node_id);
-        });
-        let batch_info = NodesActionsBatch::new(batch_id, batch_type, interval_secs);
-        context
-            .scheduled_batches
-            .update(|batches| batches.push(RwSignal::new(batch_info)))
-    } else {
-        let node_info = create_node_instance(node_opts).await?;
-        context.nodes.update(|items| {
-            items.1.remove(&tmp_node_id);
-            if !items.1.contains_key(&node_info.node_id) {
-                items
-                    .1
-                    .insert(node_info.node_id.clone(), RwSignal::new(node_info));
+        match nodes_actions_batch_create(batch_type.clone(), interval_secs).await {
+            Ok(batch_id) => {
+                let batch_info = NodesActionsBatch::new(batch_id, batch_type, interval_secs);
+                context
+                    .scheduled_batches
+                    .update(|batches| batches.push(RwSignal::new(batch_info)));
+                Ok(())
             }
-        });
+            Err(err) => Err(err),
+        }
+    } else {
+        match create_node_instance(node_opts).await {
+            Ok(node_info) => {
+                context.nodes.update(|items| {
+                    if !items.1.contains_key(&node_info.node_id) {
+                        items
+                            .1
+                            .insert(node_info.node_id.clone(), RwSignal::new(node_info));
+                    }
+                });
+                Ok(())
+            }
+            Err(err) => Err(err),
+        }
     };
 
-    Ok(())
+    context.nodes.update(|items| {
+        items.1.remove(&tmp_node_id);
+    });
+
+    res
 }
 
 // Removes a node instance with given id and updates given signal
@@ -127,7 +137,7 @@ pub async fn node_logs_stream(
                 }
             }
             Err(err) => {
-                logging::log!("Error reading log: {err}");
+                logging::error!("[ERROR] Error reading node logs: {err}");
                 break;
             }
         }
@@ -143,6 +153,6 @@ pub async fn node_logs_stream(
         }
     }
 
-    logging::log!("Dropped node logs stream from node {node_id}.");
+    logging::log!("Node logs stream ended for node {node_id}.");
     Ok(())
 }

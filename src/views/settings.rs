@@ -1,11 +1,10 @@
 use crate::{
     app::ClientGlobalState,
-    helpers::show_alert_msg,
     server_api::{get_settings, update_settings},
     types::AppSettings,
 };
 
-use super::icons::IconCancel;
+use super::{helpers::show_alert_msg, icons::IconCancel};
 
 use alloy_primitives::Address;
 use leptos::{logging, prelude::*};

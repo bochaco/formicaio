@@ -1,6 +1,5 @@
 use crate::{
     app::ClientGlobalState,
-    helpers::{remove_node_instance, show_alert_msg},
     server_api::{
         nodes_actions_batch_create, recycle_node_instance, start_node_instance, stop_node_instance,
         upgrade_node_instance,
@@ -8,7 +7,12 @@ use crate::{
     types::{BatchType, NodeInstanceInfo, NodeStatus, NodesActionsBatch, Stats},
 };
 
-use super::{add_nodes::AddNodesForm, form_inputs::NumberInput, icons::*};
+use super::{
+    add_nodes::AddNodesForm,
+    form_inputs::NumberInput,
+    helpers::{remove_node_instance, show_alert_msg},
+    icons::*,
+};
 
 use leptos::{logging, prelude::*, task::spawn_local};
 

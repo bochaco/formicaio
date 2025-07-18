@@ -1,4 +1,6 @@
-use crate::{app::ClientGlobalState, helpers::truncated_balance_str};
+use crate::app::ClientGlobalState;
+
+use super::helpers::truncated_balance_str;
 
 use alloy_primitives::utils::format_units;
 use leptos::prelude::*;

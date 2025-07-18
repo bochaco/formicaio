@@ -1,10 +1,10 @@
 use crate::{
-    helpers::truncated_balance_str,
     server_api::*,
     types::{
         AppSettings, BatchOnMatch, BatchType, NodeFilter, NodeId, NodeInstanceInfo, NodeOpts,
         NodeStatusFilter, NodesActionsBatch, NodesSortStrategy, Stats,
     },
+    views::truncated_balance_str,
 };
 
 #[cfg(feature = "ssr")]
