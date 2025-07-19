@@ -204,7 +204,7 @@ pub struct NodeOptsCmd {
     #[structopt(long, default_value = "0")]
     interval: u64,
     /// Custom path for storing node data files. If not specified, uses the default data directory.
-    #[structopt(long)]
+    #[structopt(long, default_value = "")]
     data_dir_path: PathBuf,
 }
 

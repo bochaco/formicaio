@@ -390,7 +390,9 @@ impl NodeManager {
     fn get_node_data_dir(&self, node_info: &NodeInstanceInfo) -> PathBuf {
         let node_id = &node_info.node_id;
         if let Some(custom_path) = &node_info.data_dir_path {
-            if custom_path.is_absolute() {
+            if custom_path.display().to_string().is_empty() {
+                self.root_dir.join(DEFAULT_NODE_DATA_FOLDER).join(node_id)
+            } else if custom_path.is_absolute() {
                 custom_path.join(node_id)
             } else {
                 self.root_dir.join(custom_path).join(node_id)
