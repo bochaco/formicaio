@@ -56,6 +56,7 @@ pub(super) fn NodeInstanceView(
             )
     };
 
+    let custom_data_dir = move || info.get().data_dir_path.map(|p| p.display().to_string());
     let peer_id = move || value_or_dash(info.read().short_peer_id());
 
     let rewards_addr = move || value_or_dash(info.read().short_rewards_addr());
@@ -210,12 +211,27 @@ pub(super) fn NodeInstanceView(
                             </div>
                         </div>
                     </p>
-                    <p>
-                        <span class="node-info-item">"Data dir: "</span>
-                        {move || value_or_dash(
-                            info.get().data_dir_path.map(|p| p.display().to_string()),
-                        )}
-                    </p>
+                    <Show
+                        when=move || { !custom_data_dir().is_none_or(|p| p.is_empty()) }
+                        fallback=|| view! { "" }
+                    >
+                        <p>
+                            <div class="flex flex-row">
+                                <div class="basis-4/12">
+                                    <span class="node-info-item">"Custom dir: "</span>
+                                </div>
+                                <div class="basis-7/12 overflow-hidden relative">
+                                    <div class=move || {
+                                        if custom_data_dir().is_none_or(|p| p.len() < 20) {
+                                            ""
+                                        } else {
+                                            "absolute whitespace-nowrap animate-slide"
+                                        }
+                                    }>{move || value_or_dash(custom_data_dir())}</div>
+                                </div>
+                            </div>
+                        </p>
+                    </Show>
                     <p>
                         <div class="flex flex-row">
                             <div class="basis-1/2">

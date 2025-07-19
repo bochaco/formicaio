@@ -351,9 +351,7 @@ pub fn NodesActionsView() -> impl IntoView {
                         </button>
                     </div>
 
-                    <div class="p-4 md:p-5">
-                        <AddNodesForm modal_visibility />
-                    </div>
+                    <AddNodesForm modal_visibility />
                 </div>
             </div>
         </div>
@@ -404,7 +402,7 @@ fn MultipleNodesActionConfirm(modal_apply_action: RwSignal<Option<NodeAction>>) 
     let interval = RwSignal::new(Ok(60));
 
     view! {
-        <form class="space-y-4">
+        <form class="space-y-3">
             <NumberInput
                 id="actions_interval"
                 signal=interval

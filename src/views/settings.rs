@@ -143,7 +143,7 @@ pub fn SettingsForm(
 
     view! {
         <span hidden=move || active_tab.read() != 0>
-            <form class="space-y-4">
+            <form class="space-y-3">
                 <div class="flex items-center">
                     <input
                         checked=move || { curr.nodes_auto_upgrade }
@@ -193,7 +193,7 @@ pub fn SettingsForm(
         </span>
 
         <span hidden=move || active_tab.read() != 1>
-            <form class="space-y-4">
+            <form class="space-y-3">
                 <div class="flex items-center">
                     <input
                         checked=move || {
