@@ -72,7 +72,6 @@ fn AddNodeTabs(modal_visibility: RwSignal<bool>, active_tab: RwSignal<u8>) -> im
         "Enter a rewards address".to_string(),
         "0x".to_string(),
     )));
-    let home_network = RwSignal::new(true);
     let upnp = RwSignal::new(true);
     let auto_start = RwSignal::new(false);
     let interval = RwSignal::new(Ok(60));
@@ -122,7 +121,7 @@ fn AddNodeTabs(modal_visibility: RwSignal<bool>, active_tab: RwSignal<u8>) -> im
                     label="Delay (in seconds) between the creation of each node in the batch:"
                 />
                 <div class="flex flex-row">
-                    <div class="basis-4/12">
+                    <div class="basis-1/2">
                         <CheckboxInput
                             signal=auto_start
                             id="auto_start"
@@ -130,15 +129,7 @@ fn AddNodeTabs(modal_visibility: RwSignal<bool>, active_tab: RwSignal<u8>) -> im
                             help_msg="Automatically starts nodes upon creation."
                         />
                     </div>
-                    <div class="basis-5/12">
-                        <CheckboxInput
-                            signal=home_network
-                            id="home-network"
-                            label="Home network"
-                            help_msg="Enables the mode to run as a relay client if it is behind a NAT and it is not externally reachable."
-                        />
-                    </div>
-                    <div class="basis-4/12">
+                    <div class="basis-1/2">
                         <CheckboxInput
                             signal=upnp
                             id="upnp"
@@ -186,7 +177,6 @@ fn AddNodeTabs(modal_visibility: RwSignal<bool>, active_tab: RwSignal<u8>) -> im
                         port: p,
                         metrics_port: m,
                         rewards_addr: addr.strip_prefix("0x").unwrap_or(&addr).to_string(),
-                        home_network: home_network.get(),
                         upnp: upnp.get(),
                         node_logs: true,
                         auto_start: auto_start.get(),

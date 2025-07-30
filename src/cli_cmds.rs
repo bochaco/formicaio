@@ -185,11 +185,6 @@ pub struct NodeOptsCmd {
     /// Rewards address
     #[structopt(long, parse(try_from_str = parse_and_validate_addr))]
     rewards_addr: Address,
-    /// Home network: the node is operating from a home network
-    /// and situated behind a NAT without port forwarding capabilities.
-    /// If this is not enabled and you're behind a NAT, the node is terminated.
-    #[structopt(long)]
-    home_network: bool,
     /// Try to use UPnP to open a port in the home router and allow incoming connections.
     /// If your router does not support UPnP, your node/s may struggle to connect to any peers. In this situation, create new node/s with UPnP disabled.
     #[structopt(long)]
@@ -283,7 +278,6 @@ impl CliCommands {
                     port: node_opts_cmd.port,
                     metrics_port: node_opts_cmd.metrics_port,
                     rewards_addr: node_opts_cmd.rewards_addr.to_string(),
-                    home_network: node_opts_cmd.home_network,
                     upnp: node_opts_cmd.upnp,
                     node_logs: true,
                     auto_start: node_opts_cmd.auto_start,
@@ -476,12 +470,11 @@ impl CliCommands {
                 if opts.count > 1 {
                     // TODO: use some crate which performs this serialisation
                     let body = format!(
-                        "batch_type[Create][node_opts][node_ip]={}&batch_type[Create][node_opts][port]={}&batch_type[Create][node_opts][metrics_port]={}&batch_type[Create][node_opts][rewards_addr]={}&batch_type[Create][node_opts][home_network]={}&batch_type[Create][node_opts][upnp]={}&batch_type[Create][node_opts][node_logs]={}&batch_type[Create][node_opts][auto_start]={}&batch_type[Create][node_opts][data_dir_path]={}&batch_type[Create][count]={}&interval_secs={}",
+                        "batch_type[Create][node_opts][node_ip]={}&batch_type[Create][node_opts][port]={}&batch_type[Create][node_opts][metrics_port]={}&batch_type[Create][node_opts][rewards_addr]={}&batch_type[Create][node_opts][upnp]={}&batch_type[Create][node_opts][node_logs]={}&batch_type[Create][node_opts][auto_start]={}&batch_type[Create][node_opts][data_dir_path]={}&batch_type[Create][count]={}&interval_secs={}",
                         node_ip,
                         opts.port,
                         opts.metrics_port,
                         opts.rewards_addr,
-                        opts.home_network,
                         opts.upnp,
                         true,
                         opts.auto_start,
@@ -499,12 +492,11 @@ impl CliCommands {
                 } else {
                     // TODO: use some crate which performs this serialisation
                     let body = format!(
-                        "node_opts[node_ip]={}&node_opts[port]={}&node_opts[metrics_port]={}&node_opts[rewards_addr]={}&node_opts[home_network]={}&node_opts[upnp]={}&node_opts[node_logs]={}&node_opts[auto_start]={}&node_opts[data_dir_path]={}",
+                        "node_opts[node_ip]={}&node_opts[port]={}&node_opts[metrics_port]={}&node_opts[rewards_addr]={}&node_opts[upnp]={}&node_opts[node_logs]={}&node_opts[auto_start]={}&node_opts[data_dir_path]={}",
                         node_ip,
                         opts.port,
                         opts.metrics_port,
                         opts.rewards_addr,
-                        opts.home_network,
                         opts.upnp,
                         true,
                         opts.auto_start,
@@ -710,18 +702,7 @@ impl CliCmdResponse {
                         ]);
                         table.add_row(row!["Port", value_or_dash(info.port)]);
                         table.add_row(row!["Metrics port", value_or_dash(info.metrics_port)]);
-                        table.add_row(row![
-                            "Home-network",
-                            if info.home_network { "On" } else { "Off" }
-                        ]);
                         table.add_row(row!["UPnP", if info.upnp { "On" } else { "Off" }]);
-                        if !info.home_network {
-                            table.add_row(row![
-                                "Relay clients",
-                                value_or_dash(info.connected_relay_clients)
-                            ]);
-                            table.add_row(row!["Host IPs", value_or_dash(info.ips.clone())]);
-                        }
                         table.add_row(row![
                             "Rewards address",
                             value_or_dash(info.rewards_addr.clone())

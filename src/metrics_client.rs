@@ -16,14 +16,13 @@ use thiserror::Error;
 const DEFAULT_NODES_METRICS_HOST: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
 
 // Predefined set of metrics to monitor and collect.
-const NODE_METRICS_TO_COLLECT: [&str; 10] = [
+const NODE_METRICS_TO_COLLECT: [&str; 9] = [
     METRIC_KEY_BALANCE,
     METRIC_KEY_MEM_USED_MB,
     METRIC_KEY_CPU_USEAGE,
     METRIC_KEY_RECORDS,
     METRIC_KEY_RELEVANT_RECORDS,
     METRIC_KEY_CONNECTED_PEERS,
-    METRIC_KEY_CONNECTED_RELAY_CLIENTS,
     METRIC_KEY_PEERS_IN_RT,
     METRIC_KEY_SHUNNED_COUNT,
     METRIC_KEY_NET_SIZE,
@@ -160,10 +159,6 @@ impl NodesMetrics {
 
             if let Some(metric) = metrics.get(METRIC_KEY_CONNECTED_PEERS) {
                 info.connected_peers = metric.value.parse::<usize>().ok();
-            }
-
-            if let Some(metric) = metrics.get(METRIC_KEY_CONNECTED_RELAY_CLIENTS) {
-                info.connected_relay_clients = metric.value.parse::<usize>().ok();
             }
 
             if let Some(metric) = metrics.get(METRIC_KEY_PEERS_IN_RT) {

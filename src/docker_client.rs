@@ -35,8 +35,6 @@ pub const LABEL_KEY_NODE_PORT: &str = "node_port";
 pub const LABEL_KEY_METRICS_PORT: &str = "metrics_port";
 // Label's key to cache the rewards address set for the node
 pub const LABEL_KEY_REWARDS_ADDR: &str = "rewards_addr";
-// Label's key to cache the flag value set --home-network for the node
-pub const LABEL_KEY_HOME_NETWORK_DISABLED: &str = "home_network_disabled";
 // Label's key to cache the flag value set --no-upnp for the node
 pub const LABEL_KEY_UPNP_DISABLED: &str = "upnp_disabled";
 // Label's key to cache the value set to node logs for the node
@@ -324,13 +322,6 @@ impl DockerClient {
             labels.push((
                 LABEL_KEY_REWARDS_ADDR.to_string(),
                 node_opts.rewards_addr.clone(),
-            ));
-        }
-        if !node_opts.home_network {
-            env_vars.push("HOME_NETWORK_ARG=".to_string());
-            labels.push((
-                LABEL_KEY_HOME_NETWORK_DISABLED.to_string(),
-                "true".to_string(),
             ));
         }
         env_vars.push(format!("IP_ARG=--ip {}", node_opts.node_ip));

@@ -360,34 +360,20 @@ pub(super) fn NodeInstanceView(
                     </p>
                     <p>
                         <div class="flex flex-row">
-                            <div class="basis-2/3">
-                                <span class="node-info-item">"Home-network: "</span>
-                                {move || if info.read().home_network { "On" } else { "Off" }}
-                            </div>
                             <div class="basis-1/3">
                                 <span class="node-info-item">"UPnP: "</span>
                                 {move || if info.read().upnp { "On" } else { "Off" }}
                             </div>
-                        </div>
-                    </p>
-                    <Show when=move || !info.read().home_network fallback=|| view! { "" }>
-                        <p>
-                            <div class="flex flex-row">
-                                <div class="basis-1/2">
-                                    <span class="node-info-item">"Relay clients: "</span>
-                                    {move || value_or_dash(info.get().connected_relay_clients)}
-                                </div>
-                                <div class="basis-3/12">
-                                    <span class="node-info-item">"Host IPs:"</span>
-                                </div>
-                                <div class="basis-2/5 overflow-hidden relative">
-                                    <div class="absolute whitespace-nowrap animate-slide">
-                                        {move || info.get().ips.unwrap_or_default()}
-                                    </div>
+                            <div class="basis-3/12">
+                                <span class="node-info-item">"Host IPs:"</span>
+                            </div>
+                            <div class="basis-2/5 overflow-hidden relative">
+                                <div class="absolute whitespace-nowrap animate-slide">
+                                    {move || info.get().ips.unwrap_or_default()}
                                 </div>
                             </div>
-                        </p>
-                    </Show>
+                        </div>
+                    </p>
                     <p>
                         <span class="node-info-item">"Created: "</span>
                         {move || {

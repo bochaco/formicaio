@@ -30,13 +30,6 @@ ENV METRICS_PORT=14000
 # that will receive the rewards for the node: --rewards-address <REWARDS_ADDRESS>
 ENV REWARDS_ADDR_ARG=''
 
-# Specify whether the node is operating from a home network and situated
-# behind a NAT without port forwarding capabilities.
-# Setting this flag, activates hole-punching in antnode to facilitate direct
-# connections from other nodes.
-# If this not enabled and the node is behind a NAT, the node is terminated.
-ENV HOME_NETWORK_ARG='--relay'
-
 ENV UPNP_ARG=''
 ENV IP_ARG=''
 
@@ -50,7 +43,6 @@ ENV NODE_LOGS_ARG='--log-output-dest /app/node_data/logs'
 CMD ["sh", "-c", \
       "if [ -e '/app/node_data/secret-key-recycle' ]; then rm -f /app/node_data/secret-key*; fi \
       && /app/antnode \
-      ${HOME_NETWORK_ARG} \
       ${UPNP_ARG} \
       ${IP_ARG} \
       --port ${NODE_PORT} \

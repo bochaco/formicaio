@@ -40,7 +40,6 @@ pub struct NodeInstanceInfo {
     pub node_ip: Option<IpAddr>,
     pub balance: Option<U256>,
     pub rewards_addr: Option<String>, // hex-encoded rewards address
-    pub home_network: bool,
     pub upnp: bool,
     pub node_logs: bool,
     pub rewards: Option<U256>,
@@ -49,7 +48,6 @@ pub struct NodeInstanceInfo {
     pub mem_used: Option<f64>,
     pub cpu_usage: Option<f64>,
     pub connected_peers: Option<usize>,
-    pub connected_relay_clients: Option<usize>,
     pub kbuckets_peers: Option<usize>,
     pub shunned_count: Option<usize>,
     pub net_size: Option<usize>,
@@ -139,7 +137,6 @@ impl NodeInstanceInfo {
         self.records = Some(0);
         self.relevant_records = None;
         self.connected_peers = Some(0);
-        self.connected_relay_clients = None;
         self.kbuckets_peers = Some(0);
         self.shunned_count = None;
         self.net_size = None;

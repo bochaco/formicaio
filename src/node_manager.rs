@@ -172,15 +172,11 @@ impl NodeManager {
             }
         }
 
-        let mut args = if node_info.home_network {
-            vec!["--relay".to_string()]
+        let mut args = if !node_info.upnp {
+            vec!["--no-upnp".to_string()]
         } else {
             vec![]
         };
-
-        if !node_info.upnp {
-            args.push("--no-upnp".to_string());
-        }
 
         args.push("--port".to_string());
         args.push(port.to_string());
@@ -408,7 +404,6 @@ impl NodeManager {
         node_info: &NodeInstanceInfo,
     ) -> Result<(Option<String>, Option<String>, Option<String>), NodeManagerError> {
         let id = &node_info.node_id;
-        let get_ips = !node_info.home_network;
         let only_ipv4 = node_info.node_ip.is_none_or(|ip| ip.is_ipv4());
 
         let version = match self.helper_read_node_version(Some(node_info)).await {
@@ -429,28 +424,24 @@ impl NodeManager {
         };
         logging::log!("Node {id} Peer ID: {peer_id:?}");
 
-        let ips = if get_ips {
-            match list_afinet_netifas() {
-                Ok(network_interfaces) => {
-                    let ips = network_interfaces
-                        .into_iter()
-                        .filter(|(_, ip)| if only_ipv4 { ip.is_ipv4() } else { true })
-                        .map(|(_, ip)| ip.to_string())
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    logging::log!(
-                        "IP{} addresses in host: {ips}",
-                        if only_ipv4 { "v4" } else { " v4/v6" }
-                    );
-                    Some(ips)
-                }
-                Err(err) => {
-                    logging::error!("[ERROR] Failed to retrieve node IPs for {id}: {err:?}");
-                    None
-                }
+        let ips = match list_afinet_netifas() {
+            Ok(network_interfaces) => {
+                let ips = network_interfaces
+                    .into_iter()
+                    .filter(|(_, ip)| if only_ipv4 { ip.is_ipv4() } else { true })
+                    .map(|(_, ip)| ip.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                logging::log!(
+                    "IP{} addresses in host: {ips}",
+                    if only_ipv4 { "v4" } else { " v4/v6" }
+                );
+                Some(ips)
             }
-        } else {
-            None
+            Err(err) => {
+                logging::error!("[ERROR] Failed to retrieve node IPs for {id}: {err:?}");
+                None
+            }
         };
 
         Ok((version, peer_id, ips))
