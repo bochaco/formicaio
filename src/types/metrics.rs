@@ -26,8 +26,6 @@ pub const METRIC_KEY_RECORDS: &str = "ant_networking_records_stored";
 pub const METRIC_KEY_RELEVANT_RECORDS: &str = "ant_networking_relevant_records";
 // The number of peers that we are currently connected to.
 pub const METRIC_KEY_CONNECTED_PEERS: &str = "ant_networking_connected_peers";
-// The number of relay clients that are currently connected to us.
-pub const METRIC_KEY_CONNECTED_RELAY_CLIENTS: &str = "ant_networking_connected_relay_clients";
 // The total number of peers in our routing table.
 pub const METRIC_KEY_PEERS_IN_RT: &str = "ant_networking_peers_in_routing_table";
 // Number of peers that have shunned our node.

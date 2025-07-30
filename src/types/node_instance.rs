@@ -22,37 +22,62 @@ pub type NodePid = u32;
 
 #[derive(Clone, Default, Debug, Deserialize, PartialEq, Serialize)]
 pub struct NodeInstanceInfo {
+    /// Hex-encoded unique identifier for the node
     pub node_id: NodeId,
+    /// Process ID of the node when running as a native OS process
     pub pid: Option<NodePid>,
+    /// UNIX timestamp (seconds) when the node instance was created
     pub created: u64,
+    /// UNIX timestamp (seconds) when the node's status last changed
     pub status_changed: u64,
+    /// Current status of the node (active, inactive, etc.)
     pub status: NodeStatus,
-    // When locked, users cannot change its status by executing any type of action on it.
+    /// When true, the node's status is locked and cannot be changed by user actions
     pub is_status_locked: bool,
-    // Its status is not known, it has been unreachable when trying fetch metrics.
-    // The value kept in 'status' field is the last one being known.
+    /// When true, the node's status is unknown (unreachable for metrics); 'status' holds the last known value
     pub is_status_unknown: bool,
-    pub peer_id: Option<String>, // base58-encoded Peer Id bytes
+    /// Base58-encoded Peer ID bytes for the node
+    pub peer_id: Option<String>,
+    /// Additional information or message about the node's status
     pub status_info: String,
+    /// Version of the node binary, if known
     pub bin_version: Option<String>,
+    /// TCP port used by the node for main operations
     pub port: Option<u16>,
+    /// TCP port used by the node for metrics reporting
     pub metrics_port: Option<u16>,
+    /// Listening IP address set by the user for the node (IPv4 or IPv6, including special values like `0.0.0.0` or `::`)
     pub node_ip: Option<IpAddr>,
+    /// Current balance of the node (if known)
     pub balance: Option<U256>,
-    pub rewards_addr: Option<String>, // hex-encoded rewards address
+    /// Hex-encoded rewards address for the node
+    pub rewards_addr: Option<String>,
+    /// Whether UPnP is enabled for this node
     pub upnp: bool,
+    /// Whether node logs are enabled for this node
     pub node_logs: bool,
+    /// Current rewards earned by the node
     pub rewards: Option<U256>,
+    /// Total number of records stored by the node
     pub records: Option<usize>,
+    /// Number of relevant records for the node
     pub relevant_records: Option<usize>,
+    /// Memory used by the node in MB (if active)
     pub mem_used: Option<f64>,
+    /// CPU usage percentage for the node (if active)
     pub cpu_usage: Option<f64>,
+    /// Number of peers currently connected to the node
     pub connected_peers: Option<usize>,
+    /// Number of peers in the node's k-buckets
     pub kbuckets_peers: Option<usize>,
+    /// Number of times the node has shunned peers
     pub shunned_count: Option<usize>,
+    /// Estimated total network size as seen by the node
     pub net_size: Option<usize>,
+    /// Comma-separated list of IP addresses in the host
     pub ips: Option<String>,
-    pub data_dir_path: Option<PathBuf>, // Custom data directory path for this node
+    /// Custom data directory path for this node instance
+    pub data_dir_path: Option<PathBuf>,
 }
 
 impl NodeInstanceInfo {

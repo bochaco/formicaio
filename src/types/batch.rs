@@ -96,13 +96,21 @@ impl BatchOnMatch {
 /// Options when creating a new node instance.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct NodeOpts {
+    /// Listening IP address set by the user for the node (IPv4 or IPv6, including special values like `0.0.0.0` or `::`)
     pub node_ip: IpAddr,
+    /// TCP port used by the node for main operations
     pub port: u16,
+    /// TCP port used by the node for metrics reporting
     pub metrics_port: u16,
+    /// Hex-encoded rewards address for the node
     pub rewards_addr: String,
+    /// Whether UPnP is enabled for this node
     pub upnp: bool,
+    /// Whether node logs are enabled for this node
     pub node_logs: bool,
+    /// Whether to automatically start the node after creation
     pub auto_start: bool,
+    /// Custom data directory path for this node instance
     pub data_dir_path: PathBuf,
 }
 
