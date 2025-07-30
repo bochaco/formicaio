@@ -1,223 +1,240 @@
 <img src="public/formicaio.svg" width="150" />
 
+# Formicaio - Node Management for the Autonomi Network
+
+> *Le formiche sono insetti sociali che vivono in colonie e sono note per la loro organizzazione e cooperazione.*
+> 
+> Ants are social insects that live in colonies and are known for their organization and cooperation.
+
 ## Table of Contents
 
 - [Introduction](#introduction)
-- [How to use](#how-to-use)
-- [Running a native executable on Linux, Windows, and macOS](#running-a-native-executable-on-linux-windows-and-macos)
-- [UmbrelOS](#umbrelos)
-- [CasaOS](#casaos)
-- [Linux (amd64/arm64) with Docker](#linux-amd64arm64-with-docker)
-- [Linux/Windows/MacOS (amd64/arm64) with Podman](#linuxwindowsmacos-amd64arm64-with-podman)
-- [Displaying nodes stats on external LCD device](#displaying-nodes-stats-on-external-lcd-device)
+- [Features](#features)
+- [Installation & Deployment](#installation--deployment)
+  - [Native Executable](#native-executable)
+  - [UmbrelOS](#umbrelos)
+  - [CasaOS](#casaos)
+  - [Docker](#docker)
+  - [Podman](#podman)
+- [LCD Display Support](#lcd-display-support)
+- [Configuration](#configuration)
 - [Disclaimer](#disclaimer)
 - [License](#license)
 
 ## Introduction
 
-*Le formiche sono insetti sociali che vivono in colonie e sono note per la loro organizzazione e cooperazione.*
+### Simplify your decentralized experience with Formicaio
 
-Ants are social insects that live in colonies and are 
-known for their organization and cooperation.
+Formicaio is an intuitive application designed to help you run and manage nodes on the [Autonomi](https://autonomi.com) network. This P2P network allows users to share storage and bandwidth in exchange for ANT tokens, an ERC-20 token on the Arbitrum One network.
 
-#### Simplify your decentralized experience with Formicaio
+The name "Formicaio" is derived from the Italian word for "anthill", symbolizing the collaborative and structured nature of both ants and the decentralized network it supports. Just as ants work together to build and maintain their colonies, Formicaio empowers users to collaborate and contribute to the Autonomi network.
 
-Formicaio is an intuitive application designed to help you run nodes on
-the [Autonomi](https://autonomi.com) network. This P2P network allows users
-to share storage and bandwidth in exchange for ANT tokens, an ERC-20 token
-on the Arbitrum One network (https://forum.autonomi.community/t/formicaio).
+### What is Autonomi?
 
-The name "Formicaio" is derived from the Italian word for "anthill"
-symbolizing the collaborative and structured nature of both ants and the
-decentralized network it supports. Just as ants work together to build and
-maintain their colonies, Formicaio empowers users to collaborate and contribute
-to the Autonomi network.
+Autonomi is a decentralized storage and bandwidth sharing network where users can earn ANT tokens by contributing their resources. The network operates on Arbitrum One, providing fast and cost-effective transactions. (https://forum.autonomi.community/t/formicaio)
 
-#### Node management made easy
+## Features
 
-With Formicaio, you can easily run and manage nodes using either a graphical
-user interface (GUI) or a terminal. This flexibility allows you to perform
-various actions on individual nodes or groups of selected nodes, including:
-- Creating new nodes
-- Starting or stopping nodes
-- Recycling nodes to generate a new peer ID
-- Removing nodes
-- Upgrading nodes when a new binary version is available
-- Viewing individual node logs in real time
-- Monitoring memory and CPU usage with detailed charts
-- Sorting nodes by different criteria, such as creation date, status, or number of connected peers
+### 🚀 Node Management Made Easy
+
+With Formicaio, you can easily run and manage nodes using either a graphical user interface (GUI) or a terminal. This flexibility allows you to perform various actions on individual nodes or groups of selected nodes:
+
+- **Create new nodes** with customizable settings
+- **Start or stop nodes** individually or in batches
+- **Recycle nodes** to generate new peer IDs
+- **Remove nodes** when no longer needed
+- **Upgrade nodes** when new binary versions are available
+- **View individual node logs** in real-time
+- **Monitor memory and CPU usage** with detailed charts
+- **Sort nodes** by different criteria (creation date, status, connected peers, etc.)
 
 <img src="img/screenshot_05.png" width="400" height="212" />
 <img src="img/screenshot_03.png" width="400" height="212" />
 <img src="img/screenshot_06.png" width="400" height="212" />
 
-The Formicaio backend actively monitors your nodes, providing real-time
-status updates and statistics, including:
-- Rewards balance for each node
-- Memory and CPU usage
-- Number of records stored locally
-- Current peer connections
-- Peers in the routing table
-- Peers that have shunned the node(s)
-- Estimated total nodes in the network
+### 📊 Real-time Monitoring & Statistics
+
+The Formicaio backend actively monitors your nodes, providing real-time status updates and comprehensive statistics:
+
+- **Rewards balance** for each node
+- **Memory and CPU usage** tracking
+- **Number of records** stored locally
+- **Current peer connections** count
+- **Peers in routing table** (k-buckets)
+- **Shunned peers** tracking
+- **Estimated total nodes** in the network
 
 <img src="img/screenshot_01.png" width="400" height="212" />
 
-#### Customizable monitoring and management
+### ⚙️ Customizable Settings
 
-A settings panel allows you to customize monitoring tasks and node management, including:
-- Auto-upgrading nodes when a new binary version is available
-- Delay settings for node upgrades
-- Frequency of version checks for the node binary
-- Frequency of token balance queries
-- Frequency of metrics and node information retrieval
-- Configuration of the ERC20 token contract address and RPC URL for reward balance queries
-- Displaying node statistics on an external LCD device (via I2C interface)
+A comprehensive settings panel allows you to customize monitoring tasks and node management:
+
+- **Auto-upgrade nodes** when new binary versions are available
+- **Configurable delays** for node upgrades
+- **Version check frequency** for the node binary
+- **Token balance query frequency**
+- **Metrics retrieval frequency**
+- **ERC20 token contract configuration** (address and RPC URL)
+- **LCD display configuration** for external monitoring
 
 <img src="img/screenshot_04.png" width="300" height="367" />
 
-#### Connection types for nodes
+### 🌐 Network Connectivity Options
 
 When setting up nodes, you can define their connection type:
-- Home-Network mode: Ideal for nodes behind a NAT without port forwarding. This mode activates hole-punching to facilitate direct connections from other nodes. If this not enabled and you're behind a NAT, nodes will struggle to connect to other peers.
-- UPnP support: Attempt to use UPnP to open a port on your home router for incoming connections. If your router does not support or is not configured for UPnP, create new nodes with UPnP disabled to ensure connectivity.
+
+- **UPnP support**: Attempts to use UPnP to open a port on your home router for incoming connections. If your router doesn't support UPnP, create nodes with UPnP disabled to ensure connectivity.
 
 <img src="img/screenshot_02.png" width="300" height="367" />
 
-## How to use
+## Installation & Deployment
 
-Formicaio can be deployed/executed in several ways:
-- running a native executable on Linux, Windows, and macOS
-- installed as an application on [UmbrelOS](https://umbrel.com) (https://github.com/getumbrel/umbrel).
-- installed as an application on [CasaOS](https://casaos.zimaspace.com) (https://casaos.zimaspace.com).
-- on Linux (amd64/arm64) with [Docker](https://www.docker.com) or [Podman](https://podman.io)
-- on Windows/MacOS with Podman
+Formicaio can be deployed and executed in several ways to suit your needs:
 
-## Running a native executable on Linux, Windows, and macOS
+### Native Executable
 
-To launch Formicaio:
-1. Download the package for your preferred platform from [latest release](https://github.com/bochaco/formicaio/releases).
-2. Unzip it to your desired location.
-3. Run the backed using the binary: `formicaio start` / `formicaio.exe start`
+**Supported Platforms**: Linux, Windows, and macOS
 
-Upon startup, Formicaio will automatically download the latest node binary available. Once this process is complete, the GUI frontend will be accessible at http://localhost:52100.
+#### Quick Start
 
-The same binary can be used to run CLI commands. In order to get a list of available commands and options, simply run:
-```
-$ formicaio --help
-```
+1. **Download** the package for your platform from the [latest release](https://github.com/bochaco/formicaio/releases)
+2. **Extract** the package to your desired location
+3. **Run** the backend using the binary:
+   ```bash
+   # Linux/macOS
+   ./formicaio start
+   
+   # Windows
+   formicaio.exe start
+   ```
 
-For upgrading Formicaio, if you are already running a previous version, stop/kill the Formicaio application, download the new version and unzip it on top of the same folder where you unzipped the previous version, e.g.:
-```
-$ unzip -o formicaio-v<version>-<target-platform>.zip -d <path-to-existing-formicaio-folder>
-```
-Then simply just run the new `formicaio` / `formicaio.exe` binary from that same folder.
+Upon startup, Formicaio will automatically download the latest node binary. Once complete, the GUI frontend will be accessible at `http://localhost:52100`.
 
-#### Formicaio and nodes files/data
-All Formicaio and nodes files/data are stored within the same directory from which the application is executed. Please note that deleting this folder will remove all data associated with the nodes and the Formicaio database.
+#### Command Line Interface
 
-#### Running in the background
-If you need to close the console or terminal from which Formicaio is being launched, please use a tool like [screen](https://www.shellhacks.com/linux-screen-command-run-in-background/) to keep Formicaio and its nodes running in the background. Otherwise, closing the console/terminal will stop the application and all nodes.
+The same binary can be used for CLI commands. To see all available commands:
 
-#### macOS and Windows Permissions
-On both macOS and Windows, you may need to authorize the application to run it as unverified. For macOS users, follow [these instructions](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac).
-
-**Note for macOS Users**: It is recommended to launch Formicaio from a terminal, double-clicking the executable may not work properly.
-
-## UmbrelOS
-
-This application has not yet been published on the official UmbrelOS app store. However, you can still install and run it on any UmbrelOS device using the [Formicaio community app store](https://github.com/bochaco/formicaio-app-store). To do this, simply add the GitHub URL (https://github.com/bochaco/formicaio-app-store) through the UmbrelOS user interface, as demonstrated in the following demo:
-
-https://user-images.githubusercontent.com/10330103/197889452-e5cd7e96-3233-4a09-b475-94b754adc7a3.mp4
-
-## CasaOS
-
-You need to copy the below source link and add it to your [CasaOS](https://casaos.zimaspace.com) settings to access the this app store:
-
-    https://github.com/bochaco/formicaio-casaos-app-store/archive/refs/heads/main.zip
-
-Please refer to the following instructions for moe details: https://github.com/bochaco/formicaio-casaos-app-store
-
-## Linux (amd64/arm64) with Docker
-
-This application can also be launched on a Linux (amd64/arm64) machine using Docker Compose with the following commands:
-
-```
-$ git clone https://github.com/bochaco/formicaio
-$ cd formicaio/deploy/local
-$ docker compose up -d
+```bash
+formicaio --help
 ```
 
-Once Docker has completed pulling the images and starting the containers, the app will be running in the background, and you can access the Formicaio app from a web browser at `localhost:52100`
+#### Upgrading
 
-To see the logs you can simply use the following command:
-```
-$ docker compose logs -f
-```
+To upgrade Formicaio:
 
-Upgrading the application (without stopping the running node instances) can be simply achieved by pulling the new Formicaio image and restarting the service:
-```
-$ docker compose pull formicaio
-$ docker compose down formicaio
-$ docker compose up formicaio -d
-```
+1. **Stop** the current Formicaio application
+2. **Download** the new version from releases
+3. **Extract** over the existing folder:
+   ```bash
+   unzip -o formicaio-v<version>-<platform>.zip -d <existing-formicaio-folder>
+   ```
+4. **Run** the new binary from the same folder
 
-For stopping the Formicaio app and services simply run:
-```
-$ docker compose down
-```
+#### Important Notes
 
-## Linux/Windows/MacOS (amd64/arm64) with Podman
+- **Data Storage**: All Formicaio and node data are stored in the execution directory. Deleting this folder removes all associated data.
+- **Background Running**: Use tools like [screen](https://www.shellhacks.com/linux-screen-command-run-in-background/) to keep Formicaio running when closing the terminal.
+- **macOS/Windows Permissions**: You may need to authorize the application as unverified. For macOS, follow [these instructions](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac).
+- **macOS Recommendation**: Launch from terminal; double-clicking may not work properly.
 
-Formicaio can be deployed and run using [Podman](https://podman.io/) instead of Docker on Linux, Windows, or macOS. To get started, you'll need to install Podman by following the instructions available at https://podman.io/docs/installation.
-You can choose to install either Podman Desktop or just the command-line interface (CLI), depending on your preference and the installation options available for your platform.
-Be sure to follow the installation guide specific to your operating system, which will include executing the following two commands to initialize and start the Podman machine:
-```
-$ podman machine init
-```
-...and this second command (which may or may not be necessary):
-```
-$ podman machine start
-```
+### UmbrelOS
 
-After the above steps are done, you can run Formicaio with the following commands:
-```
-$ git clone https://github.com/bochaco/formicaio
-$ cd formicaio/deploy/local/k8s
-$ podman play kube formicaio-pod.yaml
-```
+Formicaio is available through the [Formicaio community app store](https://github.com/bochaco/formicaio-app-store). To install:
 
-Once Podman has completed pulling the images and starting the containers, the app will be running in the background, and you can access the Formicaio app from a web browser at `localhost:52100`. Please note that instantiating the very first node could take a few seconds to finish since it needs to pull the node image from the internet, subsequent nodes will be much faster to instantiate afterwards.
+1. Add the GitHub URL: `https://github.com/bochaco/formicaio-app-store`
+2. Install through the UmbrelOS user interface
 
-To see the logs you can simply use the following command:
-```
-$ podman logs -f formicaio-pod-formicaio 
-```
+**Demo**: [Installation Video](https://user-images.githubusercontent.com/10330103/197889452-e5cd7e96-3233-4a09-b475-94b754adc7a3.mp4)
 
-Upgrading the application can be simply achieved by pulling the new Formicaio image and restarting the service:
-```
-$ podman pull docker.io/bochaco/formicaio:latest-native
-$ podman rm formicaio-pod-formicaio -f
-$ podman run --name formicaio -dt -v pod_volume_formicaio:/data -e DB_PATH=/data -e NODE_MGR_ROOT_DIR=/data --pod formicaio-pod docker.io/bochaco/formicaio:latest-native
+### CasaOS
+
+To install on CasaOS:
+
+1. Copy this source link: `https://github.com/bochaco/formicaio-casaos-app-store/archive/refs/heads/main.zip`
+2. Add it to your [CasaOS](https://casaos.zimaspace.com) settings
+3. Follow the detailed instructions at: https://github.com/bochaco/formicaio-casaos-app-store
+
+### Docker
+
+**Supported Platforms**: Linux (amd64/arm64)
+
+#### Quick Start
+
+```bash
+git clone https://github.com/bochaco/formicaio
+cd formicaio/deploy/local
+docker compose up -d
 ```
 
-For stopping the Formicaio app and services simply run:
-```
-$ podman pod stop formicaio-pod
+Access the application at `http://localhost:52100`
+
+#### Management Commands
+
+```bash
+# View logs
+docker compose logs -f
+
+# Upgrade (without stopping nodes)
+docker compose pull formicaio
+docker compose down formicaio
+docker compose up formicaio -d
+
+# Stop all services
+docker compose down
 ```
 
-...and for starting them back again:
-```
-$ podman pod start formicaio-pod
+### Podman
+
+**Supported Platforms**: Linux, Windows, macOS (amd64/arm64)
+
+#### Prerequisites
+
+1. Install [Podman](https://podman.io/) following the [installation guide](https://podman.io/docs/installation)
+2. Initialize and start Podman machine:
+   ```bash
+   podman machine init
+   podman machine start  # May not be necessary
+   ```
+
+#### Quick Start
+
+```bash
+git clone https://github.com/bochaco/formicaio
+cd formicaio/deploy/local/k8s
+podman play kube formicaio-pod.yaml
 ```
 
-## Displaying nodes stats on external LCD device
+Access the application at `http://localhost:52100`
+
+**Note**: The first node creation may take a few seconds as it downloads the node image.
+
+#### Management Commands
+
+```bash
+# View logs
+podman logs -f formicaio-pod-formicaio
+
+# Upgrade
+podman pull docker.io/bochaco/formicaio:latest-native
+podman rm formicaio-pod-formicaio -f
+podman run --name formicaio -dt -v pod_volume_formicaio:/data -e DB_PATH=/data -e NODE_MGR_ROOT_DIR=/data --pod formicaio-pod docker.io/bochaco/formicaio:latest-native
+
+# Stop services
+podman pod stop formicaio-pod
+
+# Start services
+podman pod start formicaio-pod
+```
+
+## LCD Display Support
 
 <img src="img/lcd_00.png" width="350" height="263" />
 <img src="img/lcd_01.png" width="350" height="263" />
 <img src="img/lcd_02.png" width="350" height="263" />
 
-When running Formicaio on a Raspberry Pi, it is possible to connect an external LCD display and have Formicaio to show nodes stats on it, currently the following stats are shown:
+When running Formicaio on a Raspberry Pi, you can connect an external LCD display to show real-time node statistics:
+
 - Formicaio version
 - Estimated network size
 - Number of running nodes
@@ -225,49 +242,68 @@ When running Formicaio on a Raspberry Pi, it is possible to connect an external 
 - Node binary version
 - Total rewards balance
 
-You can follow the instructions in this [Raspberry Pi4 LCD setup guide](https://medium.com/@thedyslexiccoder/how-to-set-up-a-raspberry-pi-4-with-lcd-display-using-i2c-backpack-189a0760ae15) for enabling the I2C interface which is the one Formicaio supports/uses to communicate with the LCD device (you can ignore the step related to running a python example app).
+### Setup Instructions
 
-As part of the setup, take note of both the configured I2C device path, e.g. '/dev/i2c-1', and the I2C address backpack detected with the `i2cdetect` tool/cmd (usually 0x27 or 0x3F), you'll need them to set up Formicaio through its settings panel.
+1. Follow the [Raspberry Pi4 LCD setup guide](https://medium.com/@thedyslexiccoder/how-to-set-up-a-raspberry-pi-4-with-lcd-display-using-i2c-backpack-189a0760ae15) to enable I2C interface
+2. Note the I2C device path (e.g., `/dev/i2c-1`) and address (usually `0x27` or `0x3F`) from `i2cdetect`
+3. Configure these settings in Formicaio's settings panel
 
-Note that the above may not work if you are using UmbrelOS, as it has the boot path mounted as read-only. In such case you would see the following error thrown when exiting from `raspi-config` tool:
-```
-/usr/bin/raspi-config: 338: cannot create /boot/config.txt.bak: Read-only file system
-```
+### UmbrelOS Workaround
 
-This means the tool cannot overwrite the file to enable the I2C interface. The following is a workaround to this limitation, but please be aware that attempting this may pose significant risks and leave your UmbrelOS in a non-functional state. If you choose to proceed with the following workaround, be advised that it involves advanced technical commands and should only be attempted by those with a strong understanding of system configurations and potential consequences. Proceed with caution and at your own risk specially if you have important data and/or application on the device:
-```
-$ sudo apt install raspi-config
+If using UmbrelOS with read-only boot partition, you may encounter errors. Here's a workaround (**use at your own risk**):
 
-$ sudo umount /boot
-
-$ sudo mount /dev/<boot-fs-device> /boot -t vfat -o rw,relatime,fmask=0022,dmask=0022,codepage=437,iocharset=ascii,shortname=mixed,errors=remount-ro
-
-$ sudo raspi-config
+```bash
+sudo apt install raspi-config
+sudo umount /boot
+sudo mount /dev/<boot-fs-device> /boot -t vfat -o rw,relatime,fmask=0022,dmask=0022,codepage=437,iocharset=ascii,shortname=mixed,errors=remount-ro
+sudo raspi-config
 ```
 
-Replacing `<boot-fs-device>` with the partition name where the /boot is originally mounted on, you can find out by running the following cmd:
+Find your boot device with: `mount | grep /boot`
 
-```
-$ mount | grep /boot
+## Configuration
 
-/dev/mmcblk0p2 on /boot type vfat (ro,relatime,fmask=0022,dmask=0022,codepage=437,iocharset=ascii,shortname=mixed,errors=remount-ro)
-```
+### Environment Variables
 
-Once I2c was successfully enabled through `raspi-config`, reboot the Rasberry Pi, and then enable the LCD display in Formicaio through its settings panel.
+Formicaio supports various environment variables for customization:
+
+- `DB_PATH`: Database file path
+- `NODE_MGR_ROOT_DIR`: Root directory for node data
+- `DOCKER_SOCKET_PATH`: Docker socket path (default: `/var/run/docker.sock`)
+- `NODE_CONTAINER_IMAGE_NAME`: Node container image name
+- `NODE_CONTAINER_IMAGE_TAG`: Node container image tag
+
+### Settings Panel
+
+Access the settings panel through the web interface to configure:
+
+- **Auto-upgrade settings**
+- **Monitoring frequencies**
+- **Network connectivity options**
+- **LCD display configuration**
+- **Token contract settings**
 
 ## Disclaimer
 
-Please be aware that the Formicaio backend application, as well as the `antnode` binary running within each user-created node instance (released by [Autonomi](https://autonomi.com/)), utilizes third-party RPC services to retrieve information related to the Arbitrum L2 ledger.
+⚠️ **Important Privacy Notice**
 
-Specifically, the Formicaio backend application queries the RPC server at `https://arb1.arbitrum.io/rpc` to periodically check the current rewards balances for each node instance based on the configured (ETH) rewards addresses.
+The Formicaio backend application and the `antnode` binary utilize third-party RPC services to retrieve Arbitrum L2 ledger information. Specifically, the application queries `https://arb1.arbitrum.io/rpc` to check rewards balances for each node instance.
 
-Risks:
-- Privacy: Using third-party RPC services may expose your IP address and other metadata to those services. This means that the service provider can potentially track which addresses you are querying, which could lead to privacy concerns regarding your activity on the Arbitrum network.
-- Data Exposure: Any data sent to the RPC service may be logged or monitored by the service provider, which could include sensitive information related to your node instances.
+### Potential Risks
 
-We recommend considering these risks when using the application and taking appropriate measures to protect your privacy.
+- **Privacy**: Third-party RPC services may expose your IP address and metadata, potentially allowing tracking of queried addresses
+- **Data Exposure**: Data sent to RPC services may be logged or monitored by service providers
+
+### Recommendations
+
+- Consider these risks when using the application
+- Take appropriate measures to protect your privacy
+- Consider using alternative RPC endpoints if privacy is a concern
 
 ## License
 
-This project is licensed under the General Public License (GPL), version
-3 ([LICENSE](http://www.gnu.org/licenses/gpl-3.0.en.html)).
+This project is licensed under the **GNU General Public License (GPL) v3**.
+
+- **License**: [GPL-3.0](http://www.gnu.org/licenses/gpl-3.0.en.html)
+- **Source Code**: [GitHub Repository](https://github.com/bochaco/formicaio)
+- **Issues & Support**: [GitHub Issues](https://github.com/bochaco/formicaio/issues)

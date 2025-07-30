@@ -20,7 +20,7 @@ RUN apk update && \
 RUN curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
 
 # Install cargo-leptos
-RUN cargo binstall cargo-leptos@0.2.37 -y
+RUN cargo binstall cargo-leptos@0.2.42 -y
 
 # Add the WASM target
 RUN rustup target add wasm32-unknown-unknown
