@@ -91,7 +91,7 @@ mod tests {
     #[test]
     fn test_node_filter_default_and_matches() {
         let filter = NodeFilter::default();
-        let mut info = NodeInstanceInfo::new(NodeId::new("node1".to_string()));
+        let mut info = NodeInstanceInfo::new("node1");
         info.status = NodeStatus::Active;
         assert!(filter.passes(&info));
         assert!(!filter.matches(&info));
@@ -100,15 +100,12 @@ mod tests {
     #[test]
     fn test_node_filter_with_node_ids() {
         let filter = NodeFilter {
-            node_ids: Some(vec![
-                NodeId::new("node1".to_string()),
-                NodeId::new("node2".to_string()),
-            ]),
+            node_ids: Some(vec![NodeId::new("node1"), NodeId::new("node2")]),
             status: None,
         };
-        let info1 = NodeInstanceInfo::new(NodeId::new("node1".to_string()));
-        let info2 = NodeInstanceInfo::new(NodeId::new("node2".to_string()));
-        let info3 = NodeInstanceInfo::new(NodeId::new("node3".to_string()));
+        let info1 = NodeInstanceInfo::new("node1");
+        let info2 = NodeInstanceInfo::new("node2");
+        let info3 = NodeInstanceInfo::new("node3");
 
         assert!(filter.passes(&info1));
         assert!(filter.passes(&info2));
@@ -124,11 +121,11 @@ mod tests {
             node_ids: None,
             status: Some(vec![NodeStatusFilter::Active, NodeStatusFilter::Restarting]),
         };
-        let mut active_info = NodeInstanceInfo::new(NodeId::new("active_node".to_string()));
+        let mut active_info = NodeInstanceInfo::new("active_node");
         active_info.status = NodeStatus::Active;
-        let mut restarting_info = NodeInstanceInfo::new(NodeId::new("restarting_node".to_string()));
+        let mut restarting_info = NodeInstanceInfo::new("restarting_node");
         restarting_info.status = NodeStatus::Restarting;
-        let mut inactive_info = NodeInstanceInfo::new(NodeId::new("inactive_node".to_string()));
+        let mut inactive_info = NodeInstanceInfo::new("inactive_node");
         inactive_info.status = NodeStatus::Inactive(InactiveReason::Stopped);
 
         assert!(filter.passes(&active_info));
@@ -142,14 +139,14 @@ mod tests {
     #[test]
     fn test_node_filter_with_both_node_ids_and_status() {
         let filter = NodeFilter {
-            node_ids: Some(vec![NodeId::new("node1".to_string())]),
+            node_ids: Some(vec![NodeId::new("node1")]),
             status: Some(vec![NodeStatusFilter::Active]),
         };
-        let mut matching_info = NodeInstanceInfo::new(NodeId::new("node1".to_string()));
+        let mut matching_info = NodeInstanceInfo::new("node1");
         matching_info.status = NodeStatus::Active;
-        let mut wrong_status_info = NodeInstanceInfo::new(NodeId::new("node1".to_string()));
+        let mut wrong_status_info = NodeInstanceInfo::new("node1");
         wrong_status_info.status = NodeStatus::Inactive(InactiveReason::Stopped);
-        let mut wrong_id_info = NodeInstanceInfo::new(NodeId::new("node2".to_string()));
+        let mut wrong_id_info = NodeInstanceInfo::new("node2");
         wrong_id_info.status = NodeStatus::Active;
 
         // passes() should return true if either node_id matches OR status matches
@@ -176,17 +173,16 @@ mod tests {
             ]),
         };
 
-        let mut created_info = NodeInstanceInfo::new(NodeId::new("created_node".to_string()));
+        let mut created_info = NodeInstanceInfo::new("created_node");
         created_info.status = NodeStatus::Inactive(InactiveReason::Created);
-        let mut stopped_info = NodeInstanceInfo::new(NodeId::new("stopped_node".to_string()));
+        let mut stopped_info = NodeInstanceInfo::new("stopped_node");
         stopped_info.status = NodeStatus::Inactive(InactiveReason::Stopped);
-        let mut start_failed_info =
-            NodeInstanceInfo::new(NodeId::new("start_failed_node".to_string()));
+        let mut start_failed_info = NodeInstanceInfo::new("start_failed_node");
         start_failed_info.status =
             NodeStatus::Inactive(InactiveReason::StartFailed("error".to_string()));
-        let mut exited_info = NodeInstanceInfo::new(NodeId::new("exited_node".to_string()));
+        let mut exited_info = NodeInstanceInfo::new("exited_node");
         exited_info.status = NodeStatus::Inactive(InactiveReason::Exited("bye".to_string()));
-        let mut unknown_info = NodeInstanceInfo::new(NodeId::new("unknown_node".to_string()));
+        let mut unknown_info = NodeInstanceInfo::new("unknown_node");
         unknown_info.status = NodeStatus::Inactive(InactiveReason::Unknown);
 
         assert!(filter.passes(&created_info));
@@ -202,9 +198,9 @@ mod tests {
             node_ids: None,
             status: Some(vec![NodeStatusFilter::Batched]),
         };
-        let mut locked_info = NodeInstanceInfo::new(NodeId::new("locked_node".to_string()));
+        let mut locked_info = NodeInstanceInfo::new("locked_node");
         locked_info.is_status_locked = true;
-        let mut unlocked_info = NodeInstanceInfo::new(NodeId::new("unlocked_node".to_string()));
+        let mut unlocked_info = NodeInstanceInfo::new("unlocked_node");
         unlocked_info.is_status_locked = false;
 
         assert!(filter.passes(&locked_info));
@@ -217,7 +213,7 @@ mod tests {
             node_ids: None,
             status: None,
         };
-        let info = NodeInstanceInfo::new(NodeId::new("any_node".to_string()));
+        let info = NodeInstanceInfo::new("any_node");
 
         // passes() should return true when no filters are set
         assert!(empty_filter.passes(&info));
@@ -235,7 +231,7 @@ mod tests {
             node_ids: None,
             status: Some(vec![]),
         };
-        let info = NodeInstanceInfo::new(NodeId::new("any_node".to_string()));
+        let info = NodeInstanceInfo::new("any_node");
 
         // Both should behave like no filters
         assert!(empty_ids_filter.passes(&info));

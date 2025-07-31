@@ -13,8 +13,8 @@ const NODE_ID_PREFIX_LEN: usize = 12;
 pub struct NodeId(String);
 
 impl NodeId {
-    pub fn new(id: String) -> Self {
-        Self(id)
+    pub fn new(id: impl Into<String>) -> Self {
+        Self(id.into())
     }
 
     pub fn random() -> Self {
@@ -44,5 +44,17 @@ impl FromStr for NodeId {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(Self(s.to_string()))
+    }
+}
+
+impl From<&str> for NodeId {
+    fn from(s: &str) -> Self {
+        Self(s.to_string())
+    }
+}
+
+impl From<String> for NodeId {
+    fn from(s: String) -> Self {
+        Self(s)
     }
 }

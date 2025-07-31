@@ -77,9 +77,9 @@ pub struct NodeInstanceInfo {
 }
 
 impl NodeInstanceInfo {
-    pub fn new(node_id: NodeId) -> Self {
+    pub fn new(node_id: impl Into<NodeId>) -> Self {
         Self {
-            node_id,
+            node_id: node_id.into(),
             ..Default::default()
         }
     }
@@ -183,19 +183,19 @@ mod tests {
     #[test]
     fn test_node_instance_info_default_and_new() {
         let default_info = NodeInstanceInfo::default();
-        assert_eq!(default_info.node_id.to_string(), "");
+        assert_eq!(default_info.node_id, "".into());
         assert_eq!(default_info.status, NodeStatus::Creating);
         assert!(!default_info.is_status_locked);
         assert!(!default_info.is_status_unknown);
 
-        let info = NodeInstanceInfo::new(NodeId::new("node123".to_string()));
-        assert_eq!(info.node_id, NodeId::new("node123".to_string()));
+        let info = NodeInstanceInfo::new("node123");
+        assert_eq!(info.node_id, "node123".into());
         assert_eq!(info.status, NodeStatus::Creating);
     }
 
     #[test]
     fn test_status_summary_and_lock_status() {
-        let mut info = NodeInstanceInfo::new(NodeId::new("node1".to_string()));
+        let mut info = NodeInstanceInfo::new("node1");
         info.status = NodeStatus::Active;
         assert_eq!(info.status_summary(), "Active");
         info.is_status_locked = true;
@@ -207,7 +207,7 @@ mod tests {
 
     #[test]
     fn test_set_status_active_and_inactive() {
-        let mut info = NodeInstanceInfo::new(NodeId::new("node2".to_string()));
+        let mut info = NodeInstanceInfo::new("node2");
         info.status = NodeStatus::Inactive(InactiveReason::Stopped);
         info.is_status_unknown = true;
         info.set_status_active();
@@ -224,7 +224,7 @@ mod tests {
 
     #[test]
     fn test_set_status_to_unknown() {
-        let mut info = NodeInstanceInfo::new(NodeId::new("node3".to_string()));
+        let mut info = NodeInstanceInfo::new("node3");
         info.status = NodeStatus::Active;
         info.set_status_to_unknown();
         assert!(info.is_status_unknown);
@@ -237,7 +237,7 @@ mod tests {
 
     #[test]
     fn test_lock_status() {
-        let mut info = NodeInstanceInfo::new(NodeId::new("node4".to_string()));
+        let mut info = NodeInstanceInfo::new("node4");
         assert!(!info.is_status_locked);
         info.lock_status();
         assert!(info.is_status_locked);
@@ -245,7 +245,7 @@ mod tests {
 
     #[test]
     fn test_set_status_changed_now_updates_timestamp() {
-        let mut info = NodeInstanceInfo::new(NodeId::new("node5".to_string()));
+        let mut info = NodeInstanceInfo::new("node5");
         let before = now_ts();
         info.set_status_changed_now();
         let after = now_ts();
@@ -254,7 +254,7 @@ mod tests {
 
     #[test]
     fn test_set_status_active_updates_status_changed() {
-        let mut info = NodeInstanceInfo::new(NodeId::new("node6".to_string()));
+        let mut info = NodeInstanceInfo::new("node6");
         info.status = NodeStatus::Inactive(InactiveReason::Stopped);
         info.is_status_unknown = true;
         let before = now_ts();
@@ -267,7 +267,7 @@ mod tests {
 
     #[test]
     fn test_set_status_inactive_updates_status_changed() {
-        let mut info = NodeInstanceInfo::new(NodeId::new("node7".to_string()));
+        let mut info = NodeInstanceInfo::new("node7");
         info.status = NodeStatus::Active;
         let before = now_ts();
         info.set_status_inactive(InactiveReason::Exited("bye".to_string()));
@@ -282,7 +282,7 @@ mod tests {
 
     #[test]
     fn test_set_status_to_unknown_updates_status_changed() {
-        let mut info = NodeInstanceInfo::new(NodeId::new("node8".to_string()));
+        let mut info = NodeInstanceInfo::new("node8");
         info.status = NodeStatus::Active;
         let before = now_ts();
         info.set_status_to_unknown();

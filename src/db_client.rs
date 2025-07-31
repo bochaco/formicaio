@@ -298,7 +298,8 @@ impl DbClient {
                     .unwrap_or(Version::new(0, 0, 0));
 
                 if &current < version {
-                    Some((NodeId::new(v.get("node_id")), current))
+                    let id: String = v.get("node_id");
+                    Some((NodeId::new(id), current))
                 } else {
                     None
                 }
