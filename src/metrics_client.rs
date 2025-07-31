@@ -110,7 +110,7 @@ impl NodesMetrics {
         // store into our DB cache those we keep as logs/historic values
         self.db_client
             .store_node_metrics(
-                node_id.to_string(),
+                node_id,
                 metrics
                     .iter()
                     .filter(|m| NODE_METRICS_TO_STORE_IN_DB.contains(&m.key.as_str())),
@@ -120,7 +120,7 @@ impl NodesMetrics {
         // let's now update our in-memory cache with new metrics values
         let metrics: HashMap<String, NodeMetric> =
             metrics.iter().map(|m| (m.key.clone(), m.clone())).collect();
-        let _ = self.data.insert(node_id.to_string(), metrics.clone());
+        let _ = self.data.insert(node_id.clone(), metrics.clone());
     }
 
     // Remove all the metrics for the specified node id

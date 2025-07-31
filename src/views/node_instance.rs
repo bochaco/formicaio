@@ -9,7 +9,7 @@ use super::{
 };
 use crate::{
     app::ClientGlobalState,
-    types::{InactiveReason, NodeInstanceInfo, NodeStatus},
+    types::{InactiveReason, NodeId, NodeInstanceInfo, NodeStatus},
 };
 
 use alloy_primitives::utils::format_units;
@@ -434,7 +434,7 @@ fn NodeLogs(info: RwSignal<NodeInstanceInfo>, set_logs: WriteSignal<Vec<String>>
     };
 
     // action to trigger the streaming of logs from the node to the 'set_logs' signal
-    let start_logs_stream = Action::new(move |id: &String| {
+    let start_logs_stream = Action::new(move |id: &NodeId| {
         context.logs_stream_on_for.set(Some(id.clone()));
         let id = id.clone();
         async move {
@@ -480,7 +480,7 @@ fn NodeChartShow(
     };
 
     // action to trigger the update of nodes metrics charts
-    let start_metrics_update = move |id: String| {
+    let start_metrics_update = move |id: NodeId| {
         set_render_chart.set(true);
         context.metrics_update_on_for.set(Some(id.clone()));
         leptos::task::spawn_local(async move {

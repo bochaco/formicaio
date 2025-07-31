@@ -213,7 +213,7 @@ impl DockerClient {
         id: &NodeId,
     ) -> Result<NodeInstanceInfo, DockerClientError> {
         let mut filters = HashMap::default();
-        filters.insert("id".to_string(), vec![id.clone()]);
+        filters.insert("id".to_string(), vec![id.to_string()]);
         let containers = self.list_containers(&filters, true).await?;
         containers
             .into_iter()
@@ -381,7 +381,7 @@ impl DockerClient {
         let container: ContainerCreateExecSuccess = serde_json::from_slice(&resp_bytes)?;
         logging::log!("Container '{random_name}' created successfully: {container:#?}");
 
-        Ok(container.Id)
+        Ok(NodeId::new(container.Id))
     }
 
     // Request the Docker server to return a node container logs stream.

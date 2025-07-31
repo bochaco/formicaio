@@ -52,7 +52,7 @@ pub async fn add_node_instances(
     let context = expect_context::<ClientGlobalState>();
 
     // random node_id and temporary
-    let tmp_node_id = format!("tmp-{}", hex::encode(rand::random::<[u8; 6]>()));
+    let tmp_node_id = NodeId::random();
     let tmp_node = NodeInstanceInfo {
         node_id: tmp_node_id.clone(),
         created: u64::MAX, // just so it's shown first as the newest in the UI

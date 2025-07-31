@@ -64,7 +64,7 @@ pub struct ClientGlobalState {
     // Flag which tells the frontend when the connection to the backend is lost.
     pub is_online: RwSignal<bool>,
     // List of nodes instances and their info/state
-    pub nodes: RwSignal<(bool, HashMap<String, RwSignal<NodeInstanceInfo>>)>,
+    pub nodes: RwSignal<(bool, HashMap<NodeId, RwSignal<NodeInstanceInfo>>)>,
     // Node global stats
     pub stats: RwSignal<Stats>,
     // Flag to enable/disable nodes' logs stream

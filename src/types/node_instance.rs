@@ -1,6 +1,6 @@
 use crate::app::ClientGlobalState;
 
-use super::{InactiveReason, NodeStatus};
+use super::{InactiveReason, NodeId, NodeStatus};
 
 use alloy_primitives::U256;
 use chrono::Utc;
@@ -10,13 +10,9 @@ use std::{net::IpAddr, path::PathBuf};
 
 // Length of nodes PeerIds' prefix and suffix to be displayed
 const PEER_ID_PREFIX_SUFFIX_LEN: usize = 12;
-// Length of nodes ids' prefix to be displayed
-const NODE_ID_PREFIX_LEN: usize = 12;
 // Length of nodes rewards address' prefix and suffix to be displayed
 const REWARDS_ADDR_PREFIX_SUFFIX_LEN: usize = 8;
 
-// Hex-encoded node id
-pub type NodeId = String;
 // PID of a node when running as a OS native process
 pub type NodePid = u32;
 
@@ -81,7 +77,7 @@ pub struct NodeInstanceInfo {
 }
 
 impl NodeInstanceInfo {
-    pub fn new(node_id: String) -> Self {
+    pub fn new(node_id: NodeId) -> Self {
         Self {
             node_id,
             ..Default::default()
@@ -115,11 +111,7 @@ impl NodeInstanceInfo {
     }
 
     pub fn short_node_id(&self) -> String {
-        if self.node_id.len() > NODE_ID_PREFIX_LEN {
-            self.node_id[..NODE_ID_PREFIX_LEN].to_string()
-        } else {
-            self.node_id.clone()
-        }
+        self.node_id.short_node_id()
     }
 
     pub fn short_peer_id(&self) -> Option<String> {

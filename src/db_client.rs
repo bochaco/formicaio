@@ -83,7 +83,7 @@ impl CachedNodeMetadata {
     // fields with non zero/empty values; zero/empty value means it was unknown when stored.
     fn merge_onto(&self, info: &mut NodeInstanceInfo, get_status: bool) {
         if !self.node_id.is_empty() {
-            info.node_id = self.node_id.clone();
+            info.node_id = NodeId::new(self.node_id.clone());
         }
         if self.pid > 0 {
             info.pid = Some(self.pid);
@@ -208,7 +208,7 @@ impl DbClient {
                 for node in nodes {
                     let mut node_info = NodeInstanceInfo::default();
                     node.merge_onto(&mut node_info, true);
-                    retrieved_nodes.insert(node.node_id, node_info);
+                    retrieved_nodes.insert(NodeId::new(node.node_id), node_info);
                 }
             }
             Err(err) => {
@@ -225,7 +225,7 @@ impl DbClient {
         match sqlx::query_as::<_, CachedNodeMetadata>(
             "SELECT * FROM nodes WHERE node_id LIKE ? || '%'",
         )
-        .bind(info.node_id.clone())
+        .bind(info.node_id.to_string())
         .fetch_one(&*db_lock)
         .await
         {
@@ -252,10 +252,10 @@ impl DbClient {
     }
 
     // Retrieve node binary version from local cache DB
-    pub async fn get_node_bin_version(&self, node_id: &str) -> Option<String> {
+    pub async fn get_node_bin_version(&self, node_id: &NodeId) -> Option<String> {
         let db_lock = self.db.lock().await;
         match sqlx::query("SELECT bin_version FROM nodes WHERE node_id LIKE ? || '%'")
-            .bind(node_id)
+            .bind(node_id.to_string())
             .fetch_one(&*db_lock)
             .await
         {
@@ -298,7 +298,7 @@ impl DbClient {
                     .unwrap_or(Version::new(0, 0, 0));
 
                 if &current < version {
-                    Some((v.get("node_id"), current))
+                    Some((NodeId::new(v.get("node_id")), current))
                 } else {
                     None
                 }
@@ -322,7 +322,7 @@ impl DbClient {
 
         let db_lock = self.db.lock().await;
         match sqlx::query(&query_str)
-            .bind(info.node_id.clone())
+            .bind(info.node_id.to_string())
             .bind(info.created.to_string())
             .bind(info.status_changed.to_string())
             .bind(json!(info.status).to_string())
@@ -417,7 +417,7 @@ impl DbClient {
             "UPDATE nodes SET {} WHERE node_id LIKE ? || '%'",
             updates.join(", ")
         );
-        params.push(info.node_id.clone());
+        params.push(info.node_id.to_string());
 
         let mut query = sqlx::query(&query_str);
         for p in params {
@@ -440,10 +440,10 @@ impl DbClient {
     }
 
     // Remove node metadata from local cache DB
-    pub async fn delete_node_metadata(&self, node_id: &str) {
+    pub async fn delete_node_metadata(&self, node_id: &NodeId) {
         let db_lock = self.db.lock().await;
         match sqlx::query("DELETE FROM nodes WHERE node_id LIKE ? || '%'")
-            .bind(node_id)
+            .bind(node_id.to_string())
             .execute(&*db_lock)
             .await
         {
@@ -455,16 +455,16 @@ impl DbClient {
     }
 
     // Update node metadata onto local cache DB by specifying specific fields and new values
-    async fn update_node_metadata_fields(&self, node_id: &str, fields_values: &[(&str, &str)]) {
+    async fn update_node_metadata_fields(&self, node_id: &NodeId, fields_values: &[(&str, &str)]) {
         let (updates, mut params) =
             fields_values
                 .iter()
                 .fold((vec![], vec![]), |(mut u, mut p), (field, param)| {
                     u.push(format!("{field}=?"));
-                    p.push(*param);
+                    p.push(param.to_string());
                     (u, p)
                 });
-        params.push(node_id);
+        params.push(node_id.to_string());
 
         let query_str = format!(
             "UPDATE nodes SET {} WHERE node_id LIKE ? || '%'",
@@ -486,32 +486,32 @@ impl DbClient {
     }
 
     // Convenient method to update node status field
-    pub async fn update_node_status(&self, node_id: &str, status: &NodeStatus) {
+    pub async fn update_node_status(&self, node_id: &NodeId, status: &NodeStatus) {
         self.update_node_metadata_fields(node_id, &[("status", &json!(status).to_string())])
             .await
     }
 
     // Convenient method to lock node status field and status-changed timestamp
-    pub async fn set_node_status_to_locked(&self, node_id: &str) {
+    pub async fn set_node_status_to_locked(&self, node_id: &NodeId) {
         self.update_node_metadata_fields(node_id, &[("is_status_locked", "1")])
             .await
     }
 
     // Convenient method to unlock node status and set it to its previous status
-    pub async fn unlock_node_status(&self, node_id: &str) {
+    pub async fn unlock_node_status(&self, node_id: &NodeId) {
         self.update_node_metadata_fields(node_id, &[("is_status_locked", "0")])
             .await
     }
 
     // Convenient method to update node balance field
-    pub async fn update_node_balance(&self, node_id: &str, balance: &str) {
+    pub async fn update_node_balance(&self, node_id: &NodeId, balance: &str) {
         self.update_node_metadata_fields(node_id, &[("balance", balance)])
             .await
     }
 
     // Explicit method to update node PID so the caller is aware the PID
     // will be changed, otherwise it could cause problems if updated from the incorrect flow.
-    pub async fn update_node_pid(&self, node_id: &str, pid: NodePid) {
+    pub async fn update_node_pid(&self, node_id: &NodeId, pid: NodePid) {
         self.update_node_metadata_fields(node_id, &[("pid", &pid.to_string())])
             .await
     }
@@ -524,7 +524,7 @@ impl DbClient {
         match sqlx::query(
             "SELECT * FROM nodes_metrics WHERE node_id LIKE ? || '%' AND timestamp > ? ORDER BY timestamp",
         )
-        .bind(node_id.clone())
+        .bind(node_id.to_string())
         .bind(since.unwrap_or_default())
         .fetch_all(&*db_lock)
         .await
@@ -549,7 +549,7 @@ impl DbClient {
     // Store node metrics onto local cache DB
     pub async fn store_node_metrics(
         &self,
-        node_id: NodeId,
+        node_id: &NodeId,
         metrics: impl IntoIterator<Item = &NodeMetric>,
     ) {
         let metrics = metrics.into_iter().collect::<Vec<_>>();
@@ -561,7 +561,7 @@ impl DbClient {
             QueryBuilder::new("INSERT INTO nodes_metrics (node_id, timestamp, key, value) ");
 
         query_builder.push_values(metrics, |mut b, metric| {
-            b.push_bind(node_id.clone())
+            b.push_bind(node_id.to_string())
                 .push_bind(metric.timestamp)
                 .push_bind(metric.key.clone())
                 .push_bind(metric.value.clone());
@@ -577,10 +577,10 @@ impl DbClient {
     }
 
     // Remove node metrics from local cache DB
-    pub async fn delete_node_metrics(&self, node_id: &str) {
+    pub async fn delete_node_metrics(&self, node_id: &NodeId) {
         let db_lock = self.db.lock().await;
         match sqlx::query("DELETE FROM nodes_metrics WHERE node_id LIKE ? || '%'")
-            .bind(node_id)
+            .bind(node_id.to_string())
             .execute(&*db_lock)
             .await
         {
@@ -604,8 +604,8 @@ impl DbClient {
                         LIMIT 1 OFFSET ? \
                     )",
         )
-        .bind(node_id.clone())
-        .bind(node_id)
+        .bind(node_id.to_string())
+        .bind(node_id.to_string())
         .bind(max_size as i64)
         .execute(&*db_lock)
         .await

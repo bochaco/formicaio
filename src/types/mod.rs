@@ -1,6 +1,7 @@
 mod batch;
 mod filters;
 pub mod metrics;
+mod node_id;
 mod node_instance;
 mod node_status;
 mod settings;
@@ -10,7 +11,8 @@ mod stats;
 pub use batch::{BatchOnMatch, BatchType, NodeOpts, NodesActionsBatch};
 pub use filters::{NodeFilter, NodeStatusFilter};
 pub use metrics::*;
-pub use node_instance::{NodeId, NodeInstanceInfo, NodePid};
+pub use node_id::NodeId;
+pub use node_instance::{NodeInstanceInfo, NodePid};
 pub use node_status::{InactiveReason, NodeStatus};
 pub use settings::AppSettings;
 pub use sort_nodes::NodesSortStrategy;
@@ -20,7 +22,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// List of nodes keyed by node ID
-pub type NodeList = HashMap<String, NodeInstanceInfo>;
+pub type NodeList = HashMap<NodeId, NodeInstanceInfo>;
 
 /// List of nodes, stats and currently running batch.
 #[derive(Clone, Debug, Serialize, Deserialize)]

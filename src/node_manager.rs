@@ -222,7 +222,7 @@ impl NodeManager {
             Ok(child) => {
                 let pid = child.id();
                 logging::log!("Node process for {node_id} spawned with PID: {pid}");
-                self.nodes.write().await.insert(node_id.to_string(), child);
+                self.nodes.write().await.insert(node_id.clone(), child);
                 node_info.pid = Some(pid);
                 // let's delay it for a moment so it generates the peer id
                 sleep(Duration::from_secs(2)).await;
@@ -384,17 +384,21 @@ impl NodeManager {
 
     // Helper to get node data dir based on node-mgr root dir and node custom data dir if set
     fn get_node_data_dir(&self, node_info: &NodeInstanceInfo) -> PathBuf {
-        let node_id = &node_info.node_id;
+        let node_id_str = node_info.node_id.to_string();
         if let Some(custom_path) = &node_info.data_dir_path {
             if custom_path.display().to_string().is_empty() {
-                self.root_dir.join(DEFAULT_NODE_DATA_FOLDER).join(node_id)
+                self.root_dir
+                    .join(DEFAULT_NODE_DATA_FOLDER)
+                    .join(node_id_str)
             } else if custom_path.is_absolute() {
-                custom_path.join(node_id)
+                custom_path.join(node_id_str)
             } else {
-                self.root_dir.join(custom_path).join(node_id)
+                self.root_dir.join(custom_path).join(node_id_str)
             }
         } else {
-            self.root_dir.join(DEFAULT_NODE_DATA_FOLDER).join(node_id)
+            self.root_dir
+                .join(DEFAULT_NODE_DATA_FOLDER)
+                .join(node_id_str)
         }
     }
 

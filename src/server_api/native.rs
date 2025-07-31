@@ -15,11 +15,7 @@ mod ssr_imports_and_defs {
     pub use chrono::{DateTime, Utc};
     pub use futures_util::StreamExt;
     pub use leptos::logging;
-    pub use rand::distr::{Alphanumeric, SampleString};
     pub use std::time::Duration;
-
-    // Length of generated node ids
-    pub const NODE_ID_LENGTH: usize = 12;
 
     // Number of seconds before timing out an attempt to upgrade the node binary.
     pub const UPGRADE_NODE_BIN_TIMEOUT_SECS: u64 = 8 * 60; // 8 mins
@@ -108,9 +104,7 @@ pub(crate) async fn helper_create_node_instance(
     node_opts: NodeOpts,
     context: &ServerGlobalState,
 ) -> Result<NodeInstanceInfo, ServerFnError> {
-    // Generate a random string as node id
-    let random_str = Alphanumeric.sample_string(&mut rand::rng(), NODE_ID_LENGTH / 2);
-    let node_id = hex::encode(random_str);
+    let node_id = NodeId::random();
     logging::log!(
         "Creating new node with IP '{}', port {}, and ID {node_id} ...",
         node_opts.node_ip,
