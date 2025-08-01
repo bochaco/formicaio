@@ -2,7 +2,7 @@ name: build and package release native mode binaries
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "chore-upgrade-deps" ]
   pull_request:
     branches: [ "main" ]
 
@@ -90,10 +90,20 @@ jobs:
         run: npm install
 
       - name: Install stable Rust
-        uses: dtolnay/rust-toolchain@1.86.0
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Install build tools
         uses: cargo-bins/cargo-binstall@main
+
+      - name: Install Mold linker for MacOS-x86_64
+        if: startsWith(matrix.target, 'AAAAAAAx86_64-apple-darwin')
+        run: |
+          git clone --branch stable https://github.com/rui314/mold.git
+          cd mold
+          ./install-build-deps.sh
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=c++ -B build
+          cmake --build build -j$(nproc)
+          sudo cmake --build build --target install
 
       - name: Install cargo leptos build tools
         shell: bash
