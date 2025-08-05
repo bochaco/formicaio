@@ -1,6 +1,6 @@
 use crate::{
-    app::ServerGlobalState,
-    bg_tasks::{BgTasksCmds, ImmutableNodeStatus, NodesMetrics},
+    app::AppContext,
+    bg_tasks::{BgTasksCmds, NodesMetrics},
     db_client::{DbClient, DbError},
     types::{InactiveReason, NodeFilter, NodeId, NodeInstanceInfo, NodeList, NodeOpts, NodeStatus},
 };
@@ -31,13 +31,15 @@ pub enum NodeManagerError {
 
 #[derive(Clone, Debug)]
 pub struct NodeManager {
-    pub db_client: DbClient,
-    pub docker_client: DockerClient,
+    context: AppContext,
+    db_client: DbClient,
+    docker_client: DockerClient,
 }
 
 impl NodeManager {
-    pub async fn new(db_client: DbClient) -> Result<Self, NodeManagerError> {
+    pub async fn new(context: AppContext, db_client: DbClient) -> Result<Self, NodeManagerError> {
         Ok(Self {
+            context,
             db_client,
             docker_client: DockerClient::new().await?,
         })
@@ -53,9 +55,8 @@ impl NodeManager {
     pub async fn upgrade_master_node_binary(
         &self,
         version: Option<&Version>,
-        latest_bin_version: Arc<RwLock<Option<Version>>>,
     ) -> Result<(), NodeManagerError> {
-        *latest_bin_version.write().await = version.cloned();
+        *self.context.latest_bin_version.write().await = version.cloned();
         Ok(())
     }
 
@@ -63,7 +64,6 @@ impl NodeManager {
     pub async fn create_node_instance(
         &self,
         node_opts: NodeOpts,
-        context: &ServerGlobalState,
     ) -> Result<NodeInstanceInfo, NodeManagerError> {
         logging::log!("Creating new node with port {} ...", node_opts.port);
         let auto_start = node_opts.auto_start;
@@ -73,14 +73,14 @@ impl NodeManager {
         let mut node_info = self.docker_client.get_container_info(&node_id).await?;
         logging::log!("New node created: {node_info:?}");
 
-        context.db_client.insert_node_metadata(&node_info).await;
+        self.db_client.insert_node_metadata(&node_info).await;
 
         if auto_start {
-            self.start_node_instance(node_id.clone(), context).await?;
+            self.start_node_instance(node_id.clone()).await?;
             node_info = self.docker_client.get_container_info(&node_id).await?;
         }
 
-        context
+        self.context
             .bg_tasks_cmds_tx
             .send(BgTasksCmds::CheckBalanceFor(node_info.clone()))
             .map_err(|err| NodeManagerError::BgTasks(err.to_string()))?;
@@ -89,20 +89,12 @@ impl NodeManager {
     }
 
     // Start a node instance with given id
-    pub async fn start_node_instance(
-        &self,
-        node_id: NodeId,
-        context: &ServerGlobalState,
-    ) -> Result<(), NodeManagerError> {
-        let _ = context
-            .db_client
-            .check_node_is_not_batched(&node_id)
-            .await?;
+    pub async fn start_node_instance(&self, node_id: NodeId) -> Result<(), NodeManagerError> {
+        let _ = self.db_client.check_node_is_not_batched(&node_id).await?;
 
         logging::log!("Starting node with ID: {node_id} ...");
 
-        context
-            .db_client
+        self.db_client
             .update_node_status(&node_id, &NodeStatus::Restarting)
             .await;
 
@@ -118,31 +110,20 @@ impl NodeManager {
             ..Default::default()
         };
 
-        context
-            .db_client
-            .update_node_metadata(&node_info, false)
-            .await;
+        self.db_client.update_node_metadata(&node_info, false).await;
 
         Ok(())
     }
 
     // Stop a node instance with given id
-    pub async fn stop_node_instance(
-        &self,
-        node_id: NodeId,
-        context: &ServerGlobalState,
-    ) -> Result<(), NodeManagerError> {
-        let _ = context
-            .db_client
-            .check_node_is_not_batched(&node_id)
-            .await?;
+    pub async fn stop_node_instance(&self, node_id: NodeId) -> Result<(), NodeManagerError> {
+        let _ = self.db_client.check_node_is_not_batched(&node_id).await?;
 
-        context
+        self.context
             .node_status_locked
             .lock(node_id.clone(), Duration::from_secs(20))
             .await;
-        context
-            .db_client
+        self.db_client
             .update_node_status(&node_id, &NodeStatus::Stopping)
             .await;
 
@@ -161,34 +142,27 @@ impl NodeManager {
                 ..Default::default()
             };
 
-            context
-                .db_client
-                .update_node_metadata(&node_info, true)
-                .await;
+            self.db_client.update_node_metadata(&node_info, true).await;
         }
 
-        context.node_status_locked.remove(&node_id).await;
+        self.context.node_status_locked.remove(&node_id).await;
 
         Ok(res?)
     }
 
     // Delete a node instance with given id
-    pub async fn delete_node_instance(
-        &self,
-        node_id: NodeId,
-        context: &ServerGlobalState,
-    ) -> Result<(), NodeManagerError> {
+    pub async fn delete_node_instance(&self, node_id: NodeId) -> Result<(), NodeManagerError> {
         let node_info = self.docker_client.get_container_info(&node_id).await?;
         self.docker_client.delete_container(&node_id).await?;
-        context.db_client.delete_node_metadata(&node_id).await;
-        context
+        self.db_client.delete_node_metadata(&node_id).await;
+        self.context
             .nodes_metrics
             .write()
             .await
             .remove_node_metrics(&node_id)
             .await;
 
-        context
+        self.context
             .bg_tasks_cmds_tx
             .send(BgTasksCmds::DeleteBalanceFor(node_info))
             .map_err(|err| NodeManagerError::BgTasks(err.to_string()))?;
@@ -197,15 +171,12 @@ impl NodeManager {
     }
 
     // Upgrade a node instance with given id
-    pub async fn upgrade_node_instance(
-        &self,
-        node_id: &NodeId,
-        node_status_locked: &ImmutableNodeStatus,
-    ) -> Result<(), NodeManagerError> {
+    pub async fn upgrade_node_instance(&self, node_id: &NodeId) -> Result<(), NodeManagerError> {
         let _ = self.db_client.check_node_is_not_batched(node_id).await?;
 
         // TODO: use docker 'extract' api to simply copy the new node binary into the container.
-        node_status_locked
+        self.context
+            .node_status_locked
             .lock(
                 node_id.clone(),
                 Duration::from_secs(UPGRADE_NODE_BIN_TIMEOUT_SECS),
@@ -239,7 +210,7 @@ impl NodeManager {
             self.db_client.update_node_metadata(&node_info, true).await;
         }
 
-        node_status_locked.remove(node_id).await;
+        self.context.node_status_locked.remove(node_id).await;
 
         let _ = res?;
 
@@ -247,22 +218,14 @@ impl NodeManager {
     }
 
     // Recycle a node instance by restarting it with a new node peer-id
-    pub async fn recycle_node_instance(
-        &self,
-        node_id: NodeId,
-        context: &ServerGlobalState,
-    ) -> Result<(), NodeManagerError> {
-        let _ = context
-            .db_client
-            .check_node_is_not_batched(&node_id)
-            .await?;
+    pub async fn recycle_node_instance(&self, node_id: NodeId) -> Result<(), NodeManagerError> {
+        let _ = self.db_client.check_node_is_not_batched(&node_id).await?;
 
-        context
+        self.context
             .node_status_locked
             .lock(node_id.clone(), Duration::from_secs(20))
             .await;
-        context
-            .db_client
+        self.db_client
             .update_node_status(&node_id, &NodeStatus::Recycling)
             .await;
 
@@ -280,12 +243,9 @@ impl NodeManager {
             ..Default::default()
         };
 
-        context
-            .db_client
-            .update_node_metadata(&node_info, false)
-            .await;
+        self.db_client.update_node_metadata(&node_info, false).await;
 
-        context.node_status_locked.remove(&node_id).await;
+        self.context.node_status_locked.remove(&node_id).await;
 
         Ok(())
     }

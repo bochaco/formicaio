@@ -2,7 +2,7 @@
 use super::server_api::nodes_instances;
 #[cfg(feature = "ssr")]
 use super::{
-    bg_tasks::{BgTasksCmds, ImmutableNodeStatus, NodesMetrics},
+    bg_tasks::{BgTasksCmds, ImmutableNodeStatus, NodeActionsBatches, NodesMetrics},
     db_client::DbClient,
     node_mgr::NodeManager,
 };
@@ -46,15 +46,21 @@ pub const PAGE_SIZE: usize = 100;
 
 #[cfg(feature = "ssr")]
 #[derive(Clone, FromRef, Debug)]
-pub struct ServerGlobalState {
-    pub leptos_options: LeptosOptions,
-    pub db_client: DbClient,
-    pub node_manager: NodeManager,
+pub struct AppContext {
     pub latest_bin_version: Arc<RwLock<Option<semver::Version>>>,
     pub nodes_metrics: Arc<RwLock<NodesMetrics>>,
     pub node_status_locked: ImmutableNodeStatus,
     pub bg_tasks_cmds_tx: broadcast::Sender<BgTasksCmds>,
-    pub node_action_batches: Arc<RwLock<(broadcast::Sender<u16>, Vec<NodesActionsBatch>)>>,
+    pub node_action_batches: NodeActionsBatches,
+}
+
+#[cfg(feature = "ssr")]
+#[derive(Clone, FromRef, Debug)]
+pub struct ServerGlobalState {
+    pub leptos_options: LeptosOptions,
+    pub db_client: DbClient,
+    pub node_manager: NodeManager,
+    pub app_ctx: AppContext,
     pub stats: Arc<RwLock<Stats>>,
 }
 

@@ -11,14 +11,13 @@ use std::{collections::HashMap, str::FromStr};
 #[cfg(feature = "ssr")]
 mod ssr_imports_and_defs {
     pub use crate::{
-        app::ServerGlobalState, bg_tasks::BgTasksCmds, types::WidgetStat,
+        app::ServerGlobalState,
+        bg_tasks::{BgTasksCmds, prepare_node_action_batch},
+        types::WidgetStat,
         views::truncated_balance_str,
     };
     pub use futures_util::StreamExt;
     pub use leptos::logging;
-    pub use rand::Rng;
-    pub use std::time::Duration;
-    pub use tokio::{select, time::sleep};
 }
 
 #[cfg(feature = "ssr")]
@@ -79,6 +78,7 @@ pub async fn nodes_instances(
     let context = expect_context::<ServerGlobalState>();
 
     let latest_bin_version = context
+        .app_ctx
         .latest_bin_version
         .read()
         .await
@@ -88,10 +88,10 @@ pub async fn nodes_instances(
 
     let nodes = context
         .node_manager
-        .filtered_nodes_list(filter, context.nodes_metrics)
+        .filtered_nodes_list(filter, context.app_ctx.nodes_metrics)
         .await?;
 
-    let scheduled_batches = context.node_action_batches.read().await.1.clone();
+    let scheduled_batches = context.app_ctx.node_action_batches.read().await.1.clone();
 
     Ok(NodesInstancesInfo {
         latest_bin_version,
@@ -109,10 +109,7 @@ pub async fn create_node_instance(node_opts: NodeOpts) -> Result<NodeInstanceInf
     // validate rewards address before proceeding
     parse_and_validate_addr(&node_opts.rewards_addr).map_err(ServerFnError::new)?;
 
-    let info = context
-        .node_manager
-        .create_node_instance(node_opts, &context)
-        .await?;
+    let info = context.node_manager.create_node_instance(node_opts).await?;
     Ok(info)
 }
 
@@ -120,10 +117,7 @@ pub async fn create_node_instance(node_opts: NodeOpts) -> Result<NodeInstanceInf
 #[server(name = StartNodeInstance, prefix= "/api", endpoint = "/nodes/start")]
 pub async fn start_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
-    context
-        .node_manager
-        .start_node_instance(node_id, &context)
-        .await?;
+    context.node_manager.start_node_instance(node_id).await?;
     Ok(())
 }
 
@@ -132,10 +126,7 @@ pub async fn start_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
 pub async fn stop_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
     logging::log!("Stopping node with Id: {node_id} ...");
     let context = expect_context::<ServerGlobalState>();
-    context
-        .node_manager
-        .stop_node_instance(node_id, &context)
-        .await?;
+    context.node_manager.stop_node_instance(node_id).await?;
     Ok(())
 }
 
@@ -144,10 +135,7 @@ pub async fn stop_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
 pub async fn delete_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
     logging::log!("Deleting node with Id: {node_id} ...");
     let context = expect_context::<ServerGlobalState>();
-    context
-        .node_manager
-        .delete_node_instance(node_id, &context)
-        .await?;
+    context.node_manager.delete_node_instance(node_id).await?;
     Ok(())
 }
 
@@ -156,12 +144,7 @@ pub async fn delete_node_instance(node_id: NodeId) -> Result<(), ServerFnError> 
 pub async fn upgrade_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
     logging::log!("Upgrading node with ID: {node_id} ...");
     let context = expect_context::<ServerGlobalState>();
-
-    context
-        .node_manager
-        .upgrade_node_instance(&node_id, &context.node_status_locked)
-        .await?;
-
+    context.node_manager.upgrade_node_instance(&node_id).await?;
     Ok(())
 }
 
@@ -170,10 +153,7 @@ pub async fn upgrade_node_instance(node_id: NodeId) -> Result<(), ServerFnError>
 pub async fn recycle_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
     logging::log!("Recycling node instance with Id: {node_id} ...");
-    context
-        .node_manager
-        .recycle_node_instance(node_id, &context)
-        .await?;
+    context.node_manager.recycle_node_instance(node_id).await?;
     Ok(())
 }
 
@@ -182,7 +162,6 @@ pub async fn recycle_node_instance(node_id: NodeId) -> Result<(), ServerFnError>
 pub async fn start_node_logs_stream(node_id: NodeId) -> Result<ByteStream, ServerFnError> {
     logging::log!("Starting logs stream from node with Id: {node_id} ...");
     let context = expect_context::<ServerGlobalState>();
-
     let node_logs_stream = context.node_manager.get_node_logs_stream(&node_id).await?;
 
     let converted_stream = node_logs_stream.map(|item| {
@@ -199,12 +178,12 @@ pub async fn node_metrics(
 ) -> Result<HashMap<String, Vec<super::types::NodeMetric>>, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
     let metrics = context
+        .app_ctx
         .nodes_metrics
         .read()
         .await
         .get_node_metrics(node_id, since)
         .await;
-
     Ok(metrics)
 }
 
@@ -213,7 +192,6 @@ pub async fn node_metrics(
 pub async fn get_settings() -> Result<super::types::AppSettings, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
     let settings = context.db_client.get_settings().await;
-
     Ok(settings)
 }
 
@@ -223,6 +201,7 @@ pub async fn update_settings(settings: super::types::AppSettings) -> Result<(), 
     let context = expect_context::<ServerGlobalState>();
     context.db_client.update_settings(&settings).await?;
     context
+        .app_ctx
         .bg_tasks_cmds_tx
         .send(BgTasksCmds::ApplySettings(settings))?;
     Ok(())
@@ -232,8 +211,7 @@ pub async fn update_settings(settings: super::types::AppSettings) -> Result<(), 
 #[server(name = ListNodesActionsBatches, prefix = "/api", endpoint = "/batch/list")]
 pub async fn nodes_actions_batches() -> Result<Vec<NodesActionsBatch>, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
-
-    let batches = context.node_action_batches.read().await.1.clone();
+    let batches = context.app_ctx.node_action_batches.read().await.1.clone();
     Ok(batches)
 }
 
@@ -244,7 +222,15 @@ pub async fn nodes_actions_batch_create(
     interval_secs: u64,
 ) -> Result<u16, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
-    helper_node_action_batch(batch_type, interval_secs, &context).await
+    let batch_id = prepare_node_action_batch(
+        batch_type,
+        interval_secs,
+        &context.app_ctx,
+        &context.node_manager,
+        &context.db_client,
+    )
+    .await?;
+    Ok(batch_id)
 }
 
 /// Create a nodes actions batch based on matching rules
@@ -271,177 +257,16 @@ pub async fn nodes_actions_batch_on_match(
         BatchOnMatch::RecycleOnMatch(filter) => BatchType::Recycle(matching_nodes(filter)),
         BatchOnMatch::RemoveOnMatch(filter) => BatchType::Remove(matching_nodes(filter)),
     };
-    helper_node_action_batch(batch_type, interval_secs, &context).await
-}
 
-// Helper to prepare a node actions batch
-#[cfg(feature = "ssr")]
-pub async fn helper_node_action_batch(
-    batch_type: BatchType,
-    interval_secs: u64,
-    context: &ServerGlobalState,
-) -> Result<u16, ServerFnError> {
-    match &batch_type {
-        BatchType::Create { node_opts, .. } => {
-            // validate rewards address before accepting the batch
-            parse_and_validate_addr(&node_opts.rewards_addr).map_err(ServerFnError::new)?;
-        }
-        BatchType::Start(l)
-        | BatchType::Stop(l)
-        | BatchType::Upgrade(l)
-        | BatchType::Recycle(l)
-        | BatchType::Remove(l) => {
-            // TODO: filter out nodes which are already part of a batch,
-            // perhaps even return an error...?...
-            if l.is_empty() {
-                return Err(ServerFnError::new(
-                    "Cannot create batch: No node IDs provided.",
-                ));
-            }
-
-            // let's lock all nodes which are part of the batch,
-            // so the user cannot action on it till the batch is completed or cancelled.
-            let duration = Duration::from_secs((interval_secs + 2) * l.len() as u64);
-            for node_id in l.iter() {
-                context.db_client.set_node_status_to_locked(node_id).await;
-
-                // let's also prevent the backend from updating its status
-                context
-                    .node_status_locked
-                    .lock(node_id.clone(), duration)
-                    .await;
-            }
-        }
-    }
-
-    let batch_id = rand::rng().random_range(0..=u16::MAX);
-    let batch_info = NodesActionsBatch::new(batch_id, batch_type, interval_secs);
-    logging::log!("Creating new batch with ID {batch_id}: {batch_info:?}");
-
-    let len = {
-        let batches = &mut context.node_action_batches.write().await.1;
-        batches.push(batch_info);
-        batches.len()
-    };
-    if len == 1 {
-        tokio::spawn(run_batches(context.clone()));
-    }
-
+    let batch_id = prepare_node_action_batch(
+        batch_type,
+        interval_secs,
+        &context.app_ctx,
+        &context.node_manager,
+        &context.db_client,
+    )
+    .await?;
     Ok(batch_id)
-}
-
-#[cfg(feature = "ssr")]
-async fn run_batches(context: ServerGlobalState) {
-    let mut cancel_rx = context.node_action_batches.read().await.0.subscribe();
-
-    loop {
-        let batch_info =
-            if let Some(next_batch) = context.node_action_batches.write().await.1.first_mut() {
-                let mut batch = next_batch.clone();
-                batch.status = "In progress".to_string();
-                *next_batch = batch.clone();
-                batch
-            } else {
-                return;
-            };
-
-        match batch_info.batch_type {
-            BatchType::Create {
-                ref node_opts,
-                count,
-            } => {
-                logging::log!("Started node instances creation batch of {count} nodes ...");
-                let mut i = 0;
-                loop {
-                    select! {
-                        batch_id = cancel_rx.recv() => {
-                            if matches!(batch_id, Ok(id) if id == batch_info.id) {
-                                break;
-                            }
-                        },
-                        _ = sleep(Duration::from_secs(batch_info.interval_secs)) => {
-                            let mut node_opts_clone = node_opts.clone();
-                            node_opts_clone.port += i;
-                            node_opts_clone.metrics_port += i;
-                            i += 1;
-                            match context.node_manager.create_node_instance(node_opts_clone, &context).await {
-                                Err(err) => logging::error!(
-                                    "[ERROR] Failed to create node instance {i}/{count} as part of a batch: {err}"
-                                ),
-                                Ok(_) => if let Some(ref mut b) = context
-                                    .node_action_batches.write().await.1
-                                    .iter_mut()
-                                    .find(|batch| batch.id == batch_info.id)
-                                {
-                                    b.complete += 1;
-                                }
-                            }
-
-                            if i == count {
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-            BatchType::Start(ref nodes)
-            | BatchType::Stop(ref nodes)
-            | BatchType::Upgrade(ref nodes)
-            | BatchType::Recycle(ref nodes)
-            | BatchType::Remove(ref nodes) => {
-                let count = nodes.len();
-                logging::log!("Starting actions batch for {count} nodes ...");
-                let mut i = 0;
-                loop {
-                    select! {
-                        batch_id = cancel_rx.recv() => {
-                            if matches!(batch_id, Ok(id) if id == batch_info.id) {
-                                break;
-                            }
-                        },
-                        _ = sleep(Duration::from_secs(batch_info.interval_secs)) => {
-                            let node_id = nodes[i].clone();
-                            context.node_status_locked.remove(&node_id).await;
-                            context.db_client.unlock_node_status(&node_id).await;
-                            let res = match batch_info.batch_type {
-                                BatchType::Start(_) => context.node_manager.start_node_instance(node_id, &context).await,
-                                BatchType::Stop(_) => context.node_manager.stop_node_instance(node_id, &context).await,
-                                BatchType::Upgrade(_) => context.node_manager.upgrade_node_instance(&node_id, &context.node_status_locked).await,
-                                BatchType::Recycle(_) => context.node_manager.recycle_node_instance(node_id, &context).await,
-                                BatchType::Remove(_) => context.node_manager.delete_node_instance(node_id, &context).await,
-                                BatchType::Create {..} => Ok(())
-                            };
-
-                            match res {
-                                Err(err) => logging::log!(
-                                    "Node action failed on node instance {}/{count} as part of a batch: {err}", i+1
-                                ),
-                                Ok(()) => if let Some(ref mut b) = context
-                                    .node_action_batches.write().await.1
-                                    .iter_mut()
-                                    .find(|batch| batch.id == batch_info.id)
-                                {
-                                    b.complete += 1;
-                                }
-                            }
-
-                            i += 1;
-                            if i == count {
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        context
-            .node_action_batches
-            .write()
-            .await
-            .1
-            .retain(|batch| batch.id != batch_info.id);
-    }
 }
 
 /// Cancel all node instances creation batches
@@ -450,13 +275,13 @@ pub async fn cancel_batch(batch_id: u16) -> Result<(), ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
     logging::log!("Cancelling node action batch {batch_id} ...");
 
-    let mut guard = context.node_action_batches.write().await;
+    let mut guard = context.app_ctx.node_action_batches.write().await;
     guard.0.send(batch_id)?;
 
     if let Some(index) = guard.1.iter().position(|b| b.id == batch_id) {
         let batch = guard.1.remove(index);
         for node_id in batch.batch_type.ids().iter() {
-            context.node_status_locked.remove(node_id).await;
+            context.app_ctx.node_status_locked.remove(node_id).await;
             context.db_client.unlock_node_status(node_id).await;
         }
     }

@@ -1,3 +1,4 @@
+mod batches;
 #[cfg(not(feature = "lcd-disabled"))]
 mod lcd;
 mod metrics_client;
@@ -6,22 +7,27 @@ mod tasks_ctx;
 
 use super::{
     app::ServerGlobalState,
-    types::{AppSettings, NodeId, NodeInstanceInfo},
+    types::{AppSettings, NodeId, NodeInstanceInfo, NodesActionsBatch},
 };
+
+pub use batches::{ActionsBatchError, prepare_node_action_batch};
+pub use metrics_client::NodesMetrics;
 
 use alloy::sol;
 #[cfg(not(feature = "lcd-disabled"))]
 use lcd::display_stats_on_lcd;
 use leptos::logging;
-pub use metrics_client::NodesMetrics;
 use std::{collections::HashMap, sync::Arc};
 use tasks::{balance_checker_task, check_node_bin_version, prune_metrics, update_nodes_info};
 use tasks_ctx::TasksContext;
 use tokio::{
     select,
-    sync::RwLock,
+    sync::{RwLock, broadcast},
     time::{Duration, Instant},
 };
+
+// Set of scheduled/running batches indexed by their Id
+pub type NodeActionsBatches = Arc<RwLock<(broadcast::Sender<u16>, Vec<NodesActionsBatch>)>>;
 
 // ERC20 token contract ABI
 sol!(
@@ -107,7 +113,7 @@ pub fn spawn_bg_tasks(context: ServerGlobalState, settings: AppSettings) {
     if ctx.app_settings.lcd_display_enabled {
         tokio::spawn(display_stats_on_lcd(
             ctx.app_settings.clone(),
-            context.bg_tasks_cmds_tx.subscribe(),
+            context.app_ctx.bg_tasks_cmds_tx.subscribe(),
             lcd_stats.clone(),
         ));
     }
@@ -120,12 +126,12 @@ pub fn spawn_bg_tasks(context: ServerGlobalState, settings: AppSettings) {
         node_manager.clone(),
         context.db_client.clone(),
         lcd_stats.clone(),
-        context.bg_tasks_cmds_tx.clone(),
+        context.app_ctx.bg_tasks_cmds_tx.clone(),
         context.stats.clone(),
     ));
 
     tokio::spawn(async move {
-        let mut bg_tasks_cmds_rx = context.bg_tasks_cmds_tx.subscribe();
+        let mut bg_tasks_cmds_rx = context.app_ctx.bg_tasks_cmds_tx.subscribe();
         loop {
             select! {
                 settings = bg_tasks_cmds_rx.recv() => {
@@ -140,7 +146,7 @@ pub fn spawn_bg_tasks(context: ServerGlobalState, settings: AppSettings) {
                             // perhaps we need websockets for errors like this one.
                             tokio::spawn(display_stats_on_lcd(
                                 s.clone(),
-                                context.bg_tasks_cmds_tx.subscribe(),
+                                context.app_ctx.bg_tasks_cmds_tx.subscribe(),
                                 lcd_stats.clone()
                             ));
                         }
@@ -159,13 +165,11 @@ pub fn spawn_bg_tasks(context: ServerGlobalState, settings: AppSettings) {
                 _ = ctx.node_bin_version_check.tick() => {
                     tokio::spawn(check_node_bin_version(
                         node_manager.clone(),
-                        context.latest_bin_version.clone(),
                         context.db_client.clone(),
-                        context.node_status_locked.clone()
                     ));
                 },
                 _ = ctx.balances_retrieval.tick() => {
-                    let _ = context.bg_tasks_cmds_tx.send(BgTasksCmds::CheckAllBalances);
+                    let _ = context.app_ctx.bg_tasks_cmds_tx.send(BgTasksCmds::CheckAllBalances);
                 },
                 _ = ctx.metrics_pruning.tick() => {
                     tokio::spawn(prune_metrics(
@@ -181,9 +185,9 @@ pub fn spawn_bg_tasks(context: ServerGlobalState, settings: AppSettings) {
                     // with multiple overlapping tasks being launched.
                     update_nodes_info(
                         &node_manager,
-                        &context.nodes_metrics,
+                        &context.app_ctx.nodes_metrics,
                         &context.db_client,
-                        &context.node_status_locked,
+                        &context.app_ctx.node_status_locked,
                         query_bin_version,
                         &lcd_stats,
                         context.stats.clone()

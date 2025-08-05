@@ -34,9 +34,10 @@ async fn start_backend(
     use axum::Router;
     use eyre::WrapErr;
     use formicaio::{
-        app::{App, ServerGlobalState, shell},
+        app::{App, AppContext, ServerGlobalState, shell},
         bg_tasks::{BgTasksCmds, ImmutableNodeStatus, NodesMetrics, spawn_bg_tasks},
         db_client::DbClient,
+        node_mgr::NodeManager,
         types::Stats,
     };
     use leptos::{logging, prelude::*};
@@ -81,101 +82,52 @@ async fn start_backend(
         .await
         .wrap_err("Failed to initialize database connection. Please check your database configuration and permissions.")?;
 
-    // List of nodes which status is temporarily immutable
-    let node_status_locked = ImmutableNodeStatus::default();
-
-    #[cfg(not(feature = "native"))]
-    let node_manager = formicaio::node_mgr::NodeManager::new(db_client.clone())
-        .await
-        .wrap_err(
-            "Failed to initialize Docker client. Please ensure Docker is running and accessible.",
-        )?;
-    #[cfg(feature = "native")]
-    let node_manager = formicaio::node_mgr::NodeManager::new(
-        db_client.clone(),
-        node_status_locked.clone(),
-        sub_cmds.data_dir_path,
-    )
-    .await
-    .wrap_err("Failed to initialize node manager.")?;
-
-    let latest_bin_version = Arc::new(RwLock::new(None));
     let nodes_metrics = Arc::new(RwLock::new(NodesMetrics::new(db_client.clone())));
 
+    // List of nodes which status is temporarily immutable
+    let node_status_locked = ImmutableNodeStatus::default();
     // Channel to send commands to the bg jobs.
     let (bg_tasks_cmds_tx, _rx) = broadcast::channel::<BgTasksCmds>(1_000);
+
+    let latest_bin_version = Arc::new(RwLock::new(None));
     // Let's read currently cached settings to use and push it to channel
     let settings = db_client.get_settings().await;
     // List of node instaces batches currently in progress
     let node_action_batches = Arc::new(RwLock::new((broadcast::channel(3).0, Vec::new())));
     let stats = Arc::new(RwLock::new(Stats::default()));
 
-    let app_state = ServerGlobalState {
-        leptos_options: leptos_options.clone(),
-        db_client,
-        node_manager,
+    let app_ctx = AppContext {
         latest_bin_version,
         nodes_metrics,
         node_status_locked,
         bg_tasks_cmds_tx,
         node_action_batches,
-        stats,
     };
 
-    // TODO: move this logic into the NodeManager
+    #[cfg(not(feature = "native"))]
+    let node_manager = NodeManager::new(app_ctx.clone(), db_client.clone())
+        .await
+        .wrap_err(
+            "Failed to initialize Docker client. Please ensure Docker is running and accessible.",
+        )?;
     #[cfg(feature = "native")]
-    {
-        // let's make sure we have node binary installed before continuing
-        app_state
-            .node_manager
-            .upgrade_master_node_binary(None, app_state.latest_bin_version.clone())
-            .await
-            .wrap_err("Failed to download node binary")?;
+    let node_manager = NodeManager::new(
+        app_ctx.clone(),
+        db_client.clone(),
+        sub_cmds.data_dir_path,
+        sub_cmds.no_auto_start,
+        sub_cmds.node_start_interval,
+    )
+    .await
+    .wrap_err("Failed to initialize node manager.")?;
 
-        // let's create a batch to start nodes which were Active
-        use formicaio::types::{InactiveReason, NodeStatus};
-        let nodes_in_db = app_state.db_client.get_nodes_list().await;
-        let mut active_nodes = vec![];
-        for (node_id, node_info) in nodes_in_db {
-            if node_info.status.is_active() {
-                // let's set it to inactive otherwise it won't be started
-                app_state
-                    .db_client
-                    .update_node_status(&node_id, &NodeStatus::Inactive(InactiveReason::Stopped))
-                    .await;
-                active_nodes.push(node_id);
-            } else if node_info.is_status_locked {
-                app_state.db_client.unlock_node_status(&node_id).await;
-            }
-        }
-
-        let auto_start_interval = if sub_cmds.no_auto_start {
-            if sub_cmds.node_start_interval.is_some() {
-                eyre::bail!(
-                    "Invalid arguments: Cannot set 'node-start-interval' when 'no-auto-start' flag is enabled."
-                );
-            } else {
-                None
-            }
-        } else {
-            sub_cmds.node_start_interval.or(Some(5))
-        };
-
-        if let Some(node_start_interval) = auto_start_interval {
-            if !active_nodes.is_empty() {
-                logging::log!(
-                    "Auto-starting {} previously active nodes with {node_start_interval} second intervals",
-                    active_nodes.len()
-                );
-                let _ = formicaio::server_api::helper_node_action_batch(
-                    formicaio::types::BatchType::Start(active_nodes),
-                    node_start_interval,
-                    &app_state,
-                )
-                .await;
-            }
-        }
-    }
+    let app_state = ServerGlobalState {
+        leptos_options: leptos_options.clone(),
+        db_client,
+        node_manager,
+        app_ctx,
+        stats,
+    };
 
     spawn_bg_tasks(app_state.clone(), settings);
 

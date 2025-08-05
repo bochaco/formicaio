@@ -42,17 +42,12 @@ const LCD_LABEL_BALANCE: &str = "Total balance:";
 
 // Check latest version of node binary and upgrade nodes
 // automatically if auto-upgrade was enabled by the user.
-pub async fn check_node_bin_version(
-    node_manager: NodeManager,
-    latest_bin_version: Arc<RwLock<Option<Version>>>,
-    db_client: DbClient,
-    node_status_locked: ImmutableNodeStatus,
-) {
+pub async fn check_node_bin_version(node_manager: NodeManager, db_client: DbClient) {
     if let Some(latest_version) = latest_version_available().await {
         logging::log!("Latest version of node binary available: {latest_version}");
 
         if let Err(err) = node_manager
-            .upgrade_master_node_binary(Some(&latest_version), latest_bin_version.clone())
+            .upgrade_master_node_binary(Some(&latest_version))
             .await
         {
             logging::error!("Failed to download node binary version {latest_version}: {err:?}");
@@ -77,10 +72,7 @@ pub async fn check_node_bin_version(
                     logging::log!(
                         "Auto-upgrading node binary from v{v} to v{latest_version} for node instance {node_id} ..."
                     );
-                    if let Err(err) = node_manager
-                        .upgrade_node_instance(&node_id, &node_status_locked)
-                        .await
-                    {
+                    if let Err(err) = node_manager.upgrade_node_instance(&node_id).await {
                         logging::log!(
                             "Failed to auto-upgrade node binary for node instance {node_id}: {err:?}."
                         );
