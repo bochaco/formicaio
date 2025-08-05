@@ -1,13 +1,12 @@
 use crate::types::{InactiveReason, NodeId, NodeInstanceInfo};
 
 #[cfg(feature = "ssr")]
-use crate::{
-    docker_client::{
-        LABEL_KEY_METRICS_PORT, LABEL_KEY_NODE_LOGS_DISABLED, LABEL_KEY_NODE_PORT,
-        LABEL_KEY_REWARDS_ADDR, LABEL_KEY_UPNP_DISABLED,
-    },
-    types::NodeStatus,
+use super::docker_client::{
+    LABEL_KEY_METRICS_PORT, LABEL_KEY_NODE_LOGS_DISABLED, LABEL_KEY_NODE_PORT,
+    LABEL_KEY_REWARDS_ADDR, LABEL_KEY_UPNP_DISABLED,
 };
+#[cfg(feature = "ssr")]
+use crate::types::NodeStatus;
 
 use serde::{Deserialize, Serialize};
 use std::{

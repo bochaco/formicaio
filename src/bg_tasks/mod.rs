@@ -1,20 +1,22 @@
-mod helpers;
 #[cfg(not(feature = "lcd-disabled"))]
 mod lcd;
+mod metrics_client;
 mod tasks;
-
-#[cfg(not(feature = "lcd-disabled"))]
-use lcd::display_stats_on_lcd;
-use tasks::{balance_checker_task, check_node_bin_version, prune_metrics, update_nodes_info};
+mod tasks_ctx;
 
 use super::{
     app::ServerGlobalState,
     types::{AppSettings, NodeId, NodeInstanceInfo},
 };
+
 use alloy::sol;
-use helpers::{NodeManagerProxy, TasksContext};
+#[cfg(not(feature = "lcd-disabled"))]
+use lcd::display_stats_on_lcd;
 use leptos::logging;
+pub use metrics_client::NodesMetrics;
 use std::{collections::HashMap, sync::Arc};
+use tasks::{balance_checker_task, check_node_bin_version, prune_metrics, update_nodes_info};
+use tasks_ctx::TasksContext;
 use tokio::{
     select,
     sync::RwLock,
@@ -110,21 +112,12 @@ pub fn spawn_bg_tasks(context: ServerGlobalState, settings: AppSettings) {
         ));
     }
 
-    #[cfg(not(feature = "native"))]
-    let node_mgr_proxy = NodeManagerProxy {
-        db_client: context.db_client.clone(),
-        docker_client: context.docker_client.clone(),
-    };
-    #[cfg(feature = "native")]
-    let node_mgr_proxy = NodeManagerProxy {
-        db_client: context.db_client.clone(),
-        node_manager: context.node_manager.clone(),
-    };
+    let node_manager = context.node_manager.clone();
 
     // Spawn task which checks address balances as requested on the provided channel
     tokio::spawn(balance_checker_task(
         ctx.app_settings.clone(),
-        node_mgr_proxy.clone(),
+        node_manager.clone(),
         context.db_client.clone(),
         lcd_stats.clone(),
         context.bg_tasks_cmds_tx.clone(),
@@ -156,16 +149,16 @@ pub fn spawn_bg_tasks(context: ServerGlobalState, settings: AppSettings) {
                     }
                 },
                 _ = ctx.formica_image_pulling.tick() => {
-                    let node_mgr_proxy = node_mgr_proxy.clone();
+                    let node_manager = node_manager.clone();
                     tokio::spawn(async move {
-                        if let Err(err) = node_mgr_proxy.pull_formica_image().await {
+                        if let Err(err) = node_manager.pull_formica_image().await {
                             logging::error!("[ERROR] Periodic task failed to pull node image: {err}");
                         }
                     });
                 },
                 _ = ctx.node_bin_version_check.tick() => {
                     tokio::spawn(check_node_bin_version(
-                        node_mgr_proxy.clone(),
+                        node_manager.clone(),
                         context.latest_bin_version.clone(),
                         context.db_client.clone(),
                         context.node_status_locked.clone()
@@ -176,7 +169,7 @@ pub fn spawn_bg_tasks(context: ServerGlobalState, settings: AppSettings) {
                 },
                 _ = ctx.metrics_pruning.tick() => {
                     tokio::spawn(prune_metrics(
-                        node_mgr_proxy.clone(),
+                        node_manager.clone(),
                         context.db_client.clone()
                     ));
                 },
@@ -187,7 +180,7 @@ pub fn spawn_bg_tasks(context: ServerGlobalState, settings: AppSettings) {
                     // too long to complete and we may start overwhelming the backend
                     // with multiple overlapping tasks being launched.
                     update_nodes_info(
-                        &node_mgr_proxy,
+                        &node_manager,
                         &context.nodes_metrics,
                         &context.db_client,
                         &context.node_status_locked,

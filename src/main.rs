@@ -35,10 +35,8 @@ async fn start_backend(
     use eyre::WrapErr;
     use formicaio::{
         app::{App, ServerGlobalState, shell},
-        bg_tasks::spawn_bg_tasks,
-        bg_tasks::{BgTasksCmds, ImmutableNodeStatus},
+        bg_tasks::{BgTasksCmds, ImmutableNodeStatus, NodesMetrics, spawn_bg_tasks},
         db_client::DbClient,
-        metrics_client::NodesMetrics,
         types::Stats,
     };
     use leptos::{logging, prelude::*};
@@ -87,13 +85,14 @@ async fn start_backend(
     let node_status_locked = ImmutableNodeStatus::default();
 
     #[cfg(not(feature = "native"))]
-    let docker_client = formicaio::docker_client::DockerClient::new()
+    let node_manager = formicaio::node_mgr::NodeManager::new(db_client.clone())
         .await
         .wrap_err(
             "Failed to initialize Docker client. Please ensure Docker is running and accessible.",
         )?;
     #[cfg(feature = "native")]
-    let node_manager = formicaio::node_manager::NodeManager::new(
+    let node_manager = formicaio::node_mgr::NodeManager::new(
+        db_client.clone(),
         node_status_locked.clone(),
         sub_cmds.data_dir_path,
     )
@@ -114,9 +113,6 @@ async fn start_backend(
     let app_state = ServerGlobalState {
         leptos_options: leptos_options.clone(),
         db_client,
-        #[cfg(not(feature = "native"))]
-        docker_client,
-        #[cfg(feature = "native")]
         node_manager,
         latest_bin_version,
         nodes_metrics,
@@ -126,15 +122,15 @@ async fn start_backend(
         stats,
     };
 
+    // TODO: move this logic into the NodeManager
     #[cfg(feature = "native")]
     {
         // let's make sure we have node binary installed before continuing
-        let version = app_state
+        app_state
             .node_manager
-            .upgrade_master_node_binary(None)
+            .upgrade_master_node_binary(None, app_state.latest_bin_version.clone())
             .await
             .wrap_err("Failed to download node binary")?;
-        *app_state.latest_bin_version.write().await = Some(version);
 
         // let's create a batch to start nodes which were Active
         use formicaio::types::{InactiveReason, NodeStatus};

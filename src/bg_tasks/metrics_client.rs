@@ -1,4 +1,4 @@
-use super::{
+use crate::{
     db_client::DbClient,
     types::{NodeId, NodeInstanceInfo, metrics::*},
 };

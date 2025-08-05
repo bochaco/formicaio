@@ -1,4 +1,4 @@
-use super::{
+use crate::{
     bg_tasks::ImmutableNodeStatus,
     types::{InactiveReason, NodeId, NodeInstanceInfo, NodePid},
 };
@@ -47,7 +47,7 @@ const ANTNODE_S3_BASE_URL: &str = "https://antnode.s3.eu-west-2.amazonaws.com";
 const GITHUB_API_URL: &str = "https://api.github.com";
 
 #[derive(Debug, Error)]
-pub enum NodeManagerError {
+pub enum NativeNodesError {
     #[error("Failed to spawn a new node process: {0}")]
     CannotSpawnNode(String),
     #[error("Node binary version not found at path: {0:?}")]
@@ -66,18 +66,18 @@ pub enum NodeManagerError {
 
 // Execution and management of nodes as native OS processes
 #[derive(Clone, Debug)]
-pub struct NodeManager {
+pub struct NativeNodes {
     root_dir: PathBuf,
     system: Arc<RwLock<System>>,
     nodes: Arc<RwLock<HashMap<NodeId, Child>>>,
     node_status_locked: ImmutableNodeStatus,
 }
 
-impl NodeManager {
+impl NativeNodes {
     pub async fn new(
         node_status_locked: ImmutableNodeStatus,
         data_dir_path: Option<PathBuf>,
-    ) -> Result<Self, NodeManagerError> {
+    ) -> Result<Self, NativeNodesError> {
         if !sysinfo::IS_SUPPORTED_SYSTEM {
             panic!(
                 "Unsupported operating system: The 'sysinfo' dependency required for native process management is not supported on this platform. Please use Docker mode instead."
@@ -109,7 +109,7 @@ impl NodeManager {
     }
 
     // Create directory to hold node's data and cloned node binary
-    pub async fn new_node(&self, node_info: &NodeInstanceInfo) -> Result<(), NodeManagerError> {
+    pub async fn new_node(&self, node_info: &NodeInstanceInfo) -> Result<(), NativeNodesError> {
         let node_bin_path = self.root_dir.join(NODE_BIN_NAME);
         let new_node_data_dir = self.get_node_data_dir(node_info);
 
@@ -137,24 +137,24 @@ impl NodeManager {
     pub async fn spawn_new_node(
         &self,
         node_info: &mut NodeInstanceInfo,
-    ) -> Result<NodePid, NodeManagerError> {
+    ) -> Result<NodePid, NativeNodesError> {
         let node_id = &node_info.node_id;
         let port = node_info
             .port
-            .ok_or(NodeManagerError::SpawnNodeMissingParam(
+            .ok_or(NativeNodesError::SpawnNodeMissingParam(
                 "port number".to_string(),
             ))?;
         let metrics_port =
             node_info
                 .metrics_port
-                .ok_or(NodeManagerError::SpawnNodeMissingParam(
+                .ok_or(NativeNodesError::SpawnNodeMissingParam(
                     "metrics port number".to_string(),
                 ))?;
         let rewards_address =
             node_info
                 .rewards_addr
                 .clone()
-                .ok_or(NodeManagerError::SpawnNodeMissingParam(
+                .ok_or(NativeNodesError::SpawnNodeMissingParam(
                     "rewards address".to_string(),
                 ))?;
 
@@ -243,7 +243,7 @@ impl NodeManager {
             }
             Err(err) => {
                 logging::error!("Failed to spawn new node {node_id}: {err:?}");
-                Err(NodeManagerError::CannotSpawnNode(err.to_string()))
+                Err(NativeNodesError::CannotSpawnNode(err.to_string()))
             }
         }
     }
@@ -252,7 +252,7 @@ impl NodeManager {
     pub async fn get_nodes_list(
         &self,
         mut nodes_info: HashMap<NodeId, NodeInstanceInfo>,
-    ) -> Result<Vec<NodeInstanceInfo>, NodeManagerError> {
+    ) -> Result<Vec<NodeInstanceInfo>, NativeNodesError> {
         // first update processes information of our `System` struct
         let mut sys = self.system.write().await;
         sys.refresh_processes_specifics(
@@ -406,7 +406,7 @@ impl NodeManager {
     async fn get_node_version_and_peer_id(
         &self,
         node_info: &NodeInstanceInfo,
-    ) -> Result<(Option<String>, Option<String>, Option<String>), NodeManagerError> {
+    ) -> Result<(Option<String>, Option<String>, Option<String>), NativeNodesError> {
         let id = &node_info.node_id;
         let only_ipv4 = node_info.node_ip.is_none_or(|ip| ip.is_ipv4());
 
@@ -457,7 +457,7 @@ impl NodeManager {
     async fn helper_read_node_version(
         &self,
         node_info: Option<&NodeInstanceInfo>,
-    ) -> Result<Version, NodeManagerError> {
+    ) -> Result<Version, NativeNodesError> {
         let node_bin_path = if let Some(info) = node_info {
             let node_data_dir = self.get_node_data_dir(info);
             node_data_dir.join(NODE_BIN_NAME)
@@ -482,14 +482,14 @@ impl NodeManager {
 
             Ok(version_str.parse()?)
         } else {
-            Err(NodeManagerError::NodeBinVersionNotFound(node_bin_path))
+            Err(NativeNodesError::NodeBinVersionNotFound(node_bin_path))
         }
     }
 
     async fn helper_read_peer_id(
         &self,
         node_info: &NodeInstanceInfo,
-    ) -> Result<String, NodeManagerError> {
+    ) -> Result<String, NativeNodesError> {
         let node_data_dir = self.get_node_data_dir(node_info);
         let sk_file_path = node_data_dir.join("secret-key");
         let mut file = File::open(sk_file_path).await?;
@@ -504,7 +504,7 @@ impl NodeManager {
     pub async fn upgrade_node(
         &self,
         node_info: &mut NodeInstanceInfo,
-    ) -> Result<NodePid, NodeManagerError> {
+    ) -> Result<NodePid, NativeNodesError> {
         logging::log!(
             "[UPGRADE] Starting upgrade process for node {} ...",
             node_info.node_id
@@ -527,7 +527,7 @@ impl NodeManager {
     pub async fn upgrade_master_node_binary(
         &self,
         version: Option<&Version>,
-    ) -> Result<Version, NodeManagerError> {
+    ) -> Result<Version, NativeNodesError> {
         let release_repo = AntReleaseRepository {
             github_api_base_url: GITHUB_API_URL.to_string(),
             nat_detection_base_url: "".to_string(),
@@ -581,7 +581,7 @@ impl NodeManager {
     pub async fn regenerate_peer_id(
         &self,
         node_info: &mut NodeInstanceInfo,
-    ) -> Result<NodePid, NodeManagerError> {
+    ) -> Result<NodePid, NativeNodesError> {
         logging::log!(
             "[RECYCLE] Starting recycling process for node {} by clearing its peer-id ...",
             node_info.node_id
@@ -608,7 +608,7 @@ impl NodeManager {
     pub async fn get_node_logs_stream(
         &self,
         node_info: &NodeInstanceInfo,
-    ) -> Result<impl Stream<Item = Result<Bytes, NodeManagerError>> + use<>, NodeManagerError> {
+    ) -> Result<impl Stream<Item = Result<Bytes, NativeNodesError>> + use<>, NativeNodesError> {
         logging::log!(
             "[LOGS] Starting log stream for node {} ...",
             node_info.node_id
@@ -646,7 +646,7 @@ impl NodeManager {
     }
 
     // Helper to execute a cmd
-    fn exec_cmd(&self, cmd: &mut Command, description: &str) -> Result<Output, NodeManagerError> {
+    fn exec_cmd(&self, cmd: &mut Command, description: &str) -> Result<Output, NativeNodesError> {
         let output = cmd.output()?;
         if !output.status.success() {
             logging::error!("[ERROR] Command execution failed to {description}: {output:?}");

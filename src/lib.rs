@@ -4,15 +4,9 @@ pub mod bg_tasks;
 pub mod cli_cmds;
 #[cfg(feature = "ssr")]
 pub mod db_client;
-#[cfg(all(feature = "ssr", not(feature = "native")))]
-pub mod docker_client;
-#[cfg(all(feature = "ssr", not(feature = "native")))]
-mod docker_msgs;
 pub mod error_template;
 #[cfg(feature = "ssr")]
-pub mod metrics_client;
-#[cfg(feature = "ssr")]
-pub mod node_manager;
+pub mod node_mgr;
 pub mod server_api;
 pub mod types;
 mod views;

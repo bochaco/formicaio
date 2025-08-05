@@ -1,7 +1,6 @@
-use crate::{
-    docker_msgs::*,
-    types::{NodeId, NodeInstanceInfo, NodeOpts},
-};
+use crate::types::{NodeId, NodeInstanceInfo, NodeOpts};
+
+use super::docker_msgs::*;
 
 use axum::body::Body;
 use bytes::Bytes;

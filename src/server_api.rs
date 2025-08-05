@@ -1,11 +1,6 @@
-#[cfg(not(feature = "native"))]
-mod docker;
-#[cfg(feature = "native")]
-mod native;
-
 use crate::types::{
-    BatchOnMatch, BatchType, NodeId, NodeInstanceInfo, NodeOpts, NodesActionsBatch, Stats,
-    WidgetFourStats,
+    BatchOnMatch, BatchType, NodeFilter, NodeId, NodeInstanceInfo, NodeOpts, NodesActionsBatch,
+    NodesInstancesInfo, Stats, WidgetFourStats,
 };
 
 use alloy_primitives::Address;
@@ -16,9 +11,7 @@ use std::{collections::HashMap, str::FromStr};
 #[cfg(feature = "ssr")]
 mod ssr_imports_and_defs {
     pub use crate::{
-        app::ServerGlobalState,
-        bg_tasks::BgTasksCmds,
-        types::{NodeFilter, NodeStatus, WidgetStat},
+        app::ServerGlobalState, bg_tasks::BgTasksCmds, types::WidgetStat,
         views::truncated_balance_str,
     };
     pub use futures_util::StreamExt;
@@ -30,11 +23,6 @@ mod ssr_imports_and_defs {
 
 #[cfg(feature = "ssr")]
 use ssr_imports_and_defs::*;
-
-#[cfg(not(feature = "native"))]
-pub use docker::*;
-#[cfg(feature = "native")]
-pub use native::*;
 
 // Expected length of entered hex-encoded rewards address.
 const REWARDS_ADDR_LENGTH: usize = 40;
@@ -83,7 +71,37 @@ pub async fn fetch_stats_widget() -> Result<WidgetFourStats, ServerFnError> {
     Ok(widget_stats)
 }
 
-// Create and add a new node instance returning its info
+/// Obtain the list of existing nodes instances with their info.
+#[server(name = ListNodeInstances, prefix = "/api", endpoint = "/nodes/list")]
+pub async fn nodes_instances(
+    filter: Option<NodeFilter>,
+) -> Result<NodesInstancesInfo, ServerFnError> {
+    let context = expect_context::<ServerGlobalState>();
+
+    let latest_bin_version = context
+        .latest_bin_version
+        .read()
+        .await
+        .clone()
+        .map(|v| v.to_string());
+    let stats = context.stats.read().await.clone();
+
+    let nodes = context
+        .node_manager
+        .filtered_nodes_list(filter, context.nodes_metrics)
+        .await?;
+
+    let scheduled_batches = context.node_action_batches.read().await.1.clone();
+
+    Ok(NodesInstancesInfo {
+        latest_bin_version,
+        nodes,
+        stats,
+        scheduled_batches,
+    })
+}
+
+/// Create and add a new node instance returning its info
 #[server(name = CreateNodeInstance, prefix= "/api", endpoint = "/nodes/create")]
 pub async fn create_node_instance(node_opts: NodeOpts) -> Result<NodeInstanceInfo, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
@@ -91,23 +109,33 @@ pub async fn create_node_instance(node_opts: NodeOpts) -> Result<NodeInstanceInf
     // validate rewards address before proceeding
     parse_and_validate_addr(&node_opts.rewards_addr).map_err(ServerFnError::new)?;
 
-    helper_create_node_instance(node_opts, &context).await
+    let info = context
+        .node_manager
+        .create_node_instance(node_opts, &context)
+        .await?;
+    Ok(info)
 }
 
-// Start a node instance with given id
+/// Start a node instance with given id
 #[server(name = StartNodeInstance, prefix= "/api", endpoint = "/nodes/start")]
 pub async fn start_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
-    helper_start_node_instance(node_id, &context).await?;
+    context
+        .node_manager
+        .start_node_instance(node_id, &context)
+        .await?;
     Ok(())
 }
 
-// Stop a node instance with given id
+/// Stop a node instance with given id
 #[server(name = StopNodeInstance, prefix= "/api", endpoint = "/nodes/stop")]
 pub async fn stop_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
     logging::log!("Stopping node with Id: {node_id} ...");
     let context = expect_context::<ServerGlobalState>();
-    helper_stop_node_instance(node_id, &context, NodeStatus::Stopping).await?;
+    context
+        .node_manager
+        .stop_node_instance(node_id, &context)
+        .await?;
     Ok(())
 }
 
@@ -116,43 +144,46 @@ pub async fn stop_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
 pub async fn delete_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
     logging::log!("Deleting node with Id: {node_id} ...");
     let context = expect_context::<ServerGlobalState>();
-    helper_delete_node_instance(node_id, &context).await?;
+    context
+        .node_manager
+        .delete_node_instance(node_id, &context)
+        .await?;
     Ok(())
 }
 
-// Recycle a node instance by restarting it with a new node peer-id
+/// Upgrade a node instance with given id
+#[server(name = UpgradeNodeInstance, prefix = "/api", endpoint = "/nodes/upgrade")]
+pub async fn upgrade_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
+    logging::log!("Upgrading node with ID: {node_id} ...");
+    let context = expect_context::<ServerGlobalState>();
+
+    context
+        .node_manager
+        .upgrade_node_instance(&node_id, &context.node_status_locked)
+        .await?;
+
+    Ok(())
+}
+
+/// Recycle a node instance by restarting it with a new node peer-id
 #[server(name = RecycleNodeInstance, prefix= "/api", endpoint = "/nodes/recycle")]
 pub async fn recycle_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
     logging::log!("Recycling node instance with Id: {node_id} ...");
-    helper_recycle_node_instance(node_id, &context).await?;
+    context
+        .node_manager
+        .recycle_node_instance(node_id, &context)
+        .await?;
     Ok(())
 }
 
-// Start streaming logs from a node instance with given id
+/// Start streaming logs from a node instance with given id
 #[server(output = Streaming, name = StartNodeLogsStream, prefix = "/api", endpoint = "/nodes/logs_stream")]
 pub async fn start_node_logs_stream(node_id: NodeId) -> Result<ByteStream, ServerFnError> {
     logging::log!("Starting logs stream from node with Id: {node_id} ...");
     let context = expect_context::<ServerGlobalState>();
 
-    #[cfg(not(feature = "native"))]
-    let node_logs_stream = context
-        .docker_client
-        .get_container_logs_stream(&node_id)
-        .await?;
-
-    #[cfg(feature = "native")]
-    let node_logs_stream = {
-        let mut node_info = NodeInstanceInfo::new(node_id);
-        context
-            .db_client
-            .get_node_metadata(&mut node_info, true)
-            .await;
-        context
-            .node_manager
-            .get_node_logs_stream(&node_info)
-            .await?
-    };
+    let node_logs_stream = context.node_manager.get_node_logs_stream(&node_id).await?;
 
     let converted_stream = node_logs_stream.map(|item| {
         item.map_err(ServerFnError::from) // convert the error type
@@ -160,7 +191,7 @@ pub async fn start_node_logs_stream(node_id: NodeId) -> Result<ByteStream, Serve
     Ok(ByteStream::new(converted_stream))
 }
 
-// Retrieve the metrics for a node instance with given id and filters
+/// Retrieve the metrics for a node instance with given id and filters
 #[server(name = NodeMetrics, prefix = "/api", endpoint = "/nodes/metrics")]
 pub async fn node_metrics(
     node_id: NodeId,
@@ -177,7 +208,7 @@ pub async fn node_metrics(
     Ok(metrics)
 }
 
-// Retrieve the settings
+/// Retrieve the settings
 #[server(name = GetSettings, prefix = "/api", endpoint = "/settings/get")]
 pub async fn get_settings() -> Result<super::types::AppSettings, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
@@ -186,7 +217,7 @@ pub async fn get_settings() -> Result<super::types::AppSettings, ServerFnError> 
     Ok(settings)
 }
 
-// Update the settings
+/// Update the settings
 #[server(name = UpdateSettings, prefix = "/api", endpoint = "/settings/set")]
 pub async fn update_settings(settings: super::types::AppSettings) -> Result<(), ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
@@ -223,10 +254,7 @@ pub async fn nodes_actions_batch_on_match(
     interval_secs: u64,
 ) -> Result<u16, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
-    #[cfg(not(feature = "native"))]
-    let nodes_list = context.docker_client.get_containers_list().await?;
-    #[cfg(feature = "native")]
-    let nodes_list = context.db_client.get_nodes_list().await.into_values();
+    let nodes_list = context.node_manager.get_nodes_list().await?;
 
     let matching_nodes = move |filter: NodeFilter| {
         nodes_list
@@ -336,7 +364,7 @@ async fn run_batches(context: ServerGlobalState) {
                             node_opts_clone.port += i;
                             node_opts_clone.metrics_port += i;
                             i += 1;
-                            match helper_create_node_instance(node_opts_clone, &context).await {
+                            match context.node_manager.create_node_instance(node_opts_clone, &context).await {
                                 Err(err) => logging::error!(
                                     "[ERROR] Failed to create node instance {i}/{count} as part of a batch: {err}"
                                 ),
@@ -376,18 +404,11 @@ async fn run_batches(context: ServerGlobalState) {
                             context.node_status_locked.remove(&node_id).await;
                             context.db_client.unlock_node_status(&node_id).await;
                             let res = match batch_info.batch_type {
-                                BatchType::Start(_) => helper_start_node_instance(node_id, &context).await,
-                                BatchType::Stop(_) => helper_stop_node_instance(node_id,&context,NodeStatus::Stopping).await,
-                                BatchType::Upgrade(_) => helper_upgrade_node_instance(&node_id,
-                                        &context.node_status_locked,
-                                        &context.db_client,
-                                        #[cfg(not(feature = "native"))]
-                                        &context.docker_client,
-                                        #[cfg(feature = "native")]
-                                        &context.node_manager
-                                    ).await,
-                                BatchType::Recycle(_) => helper_recycle_node_instance(node_id,&context).await,
-                                BatchType::Remove(_) => helper_delete_node_instance(node_id,&context).await,
+                                BatchType::Start(_) => context.node_manager.start_node_instance(node_id, &context).await,
+                                BatchType::Stop(_) => context.node_manager.stop_node_instance(node_id, &context).await,
+                                BatchType::Upgrade(_) => context.node_manager.upgrade_node_instance(&node_id, &context.node_status_locked).await,
+                                BatchType::Recycle(_) => context.node_manager.recycle_node_instance(node_id, &context).await,
+                                BatchType::Remove(_) => context.node_manager.delete_node_instance(node_id, &context).await,
                                 BatchType::Create {..} => Ok(())
                             };
 
@@ -423,7 +444,7 @@ async fn run_batches(context: ServerGlobalState) {
     }
 }
 
-// Cancel all node instances creation batches
+/// Cancel all node instances creation batches
 #[server(name = CancelNodesActionsBatch, prefix = "/api", endpoint = "/batch/cancel")]
 pub async fn cancel_batch(batch_id: u16) -> Result<(), ServerFnError> {
     let context = expect_context::<ServerGlobalState>();

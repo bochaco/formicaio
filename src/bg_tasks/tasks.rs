@@ -1,12 +1,15 @@
 use crate::{
     app::METRICS_MAX_SIZE_PER_NODE,
     db_client::DbClient,
-    metrics_client::{NodeMetricsClient, NodesMetrics},
+    node_mgr::NodeManager,
     types::{AppSettings, NodeInstanceInfo, NodeStatus, Stats},
     views::truncated_balance_str,
 };
 
-use super::{BgTasksCmds, ImmutableNodeStatus, TokenContract, helpers::NodeManagerProxy};
+use super::{
+    BgTasksCmds, ImmutableNodeStatus, TokenContract,
+    metrics_client::{NodeMetricsClient, NodesMetrics},
+};
 
 use alloy::{
     network::Network,
@@ -40,7 +43,7 @@ const LCD_LABEL_BALANCE: &str = "Total balance:";
 // Check latest version of node binary and upgrade nodes
 // automatically if auto-upgrade was enabled by the user.
 pub async fn check_node_bin_version(
-    node_mgr_proxy: NodeManagerProxy,
+    node_manager: NodeManager,
     latest_bin_version: Arc<RwLock<Option<Version>>>,
     db_client: DbClient,
     node_status_locked: ImmutableNodeStatus,
@@ -48,9 +51,12 @@ pub async fn check_node_bin_version(
     if let Some(latest_version) = latest_version_available().await {
         logging::log!("Latest version of node binary available: {latest_version}");
 
-        node_mgr_proxy
-            .upgrade_master_node_binary(&latest_version, latest_bin_version.clone())
-            .await;
+        if let Err(err) = node_manager
+            .upgrade_master_node_binary(Some(&latest_version), latest_bin_version.clone())
+            .await
+        {
+            logging::error!("Failed to download node binary version {latest_version}: {err:?}");
+        }
 
         loop {
             let auto_upgrade = db_client.get_settings().await.nodes_auto_upgrade;
@@ -71,9 +77,14 @@ pub async fn check_node_bin_version(
                     logging::log!(
                         "Auto-upgrading node binary from v{v} to v{latest_version} for node instance {node_id} ..."
                     );
-                    node_mgr_proxy
+                    if let Err(err) = node_manager
                         .upgrade_node_instance(&node_id, &node_status_locked)
-                        .await;
+                        .await
+                    {
+                        logging::log!(
+                            "Failed to auto-upgrade node binary for node instance {node_id}: {err:?}."
+                        );
+                    }
 
                     let delay = db_client.get_settings().await.nodes_auto_upgrade_delay;
                     sleep(delay).await;
@@ -140,7 +151,7 @@ async fn update_node_metadata(
 // Fetch up to date information for each active node instance
 // from nodes' exposed metrics server caching them in global context.
 pub async fn update_nodes_info(
-    node_mgr_proxy: &NodeManagerProxy,
+    node_manager: &NodeManager,
     nodes_metrics: &Arc<RwLock<NodesMetrics>>,
     db_client: &DbClient,
     node_status_locked: &ImmutableNodeStatus,
@@ -149,7 +160,7 @@ pub async fn update_nodes_info(
     global_stats: Arc<RwLock<Stats>>,
 ) {
     let ts = Utc::now();
-    let nodes = node_mgr_proxy.get_nodes_list().await.unwrap_or_else(|err| {
+    let nodes = node_manager.get_nodes_list().await.unwrap_or_else(|err| {
         logging::log!("[{ts}] Failed to get nodes list: {err}");
         vec![]
     });
@@ -260,8 +271,8 @@ pub async fn update_nodes_info(
 }
 
 // Prune metrics records from the cache DB to always keep the number of records within a limit.
-pub async fn prune_metrics(node_mgr_proxy: NodeManagerProxy, db_client: DbClient) {
-    let nodes = match node_mgr_proxy.get_nodes_list().await {
+pub async fn prune_metrics(node_manager: NodeManager, db_client: DbClient) {
+    let nodes = match node_manager.get_nodes_list().await {
         Ok(nodes) if !nodes.is_empty() => nodes,
         Err(err) => {
             logging::log!("Failed to get nodes list: {err}");
@@ -283,7 +294,7 @@ pub async fn prune_metrics(node_mgr_proxy: NodeManagerProxy, db_client: DbClient
 
 pub async fn balance_checker_task(
     settings: AppSettings,
-    node_mgr_proxy: NodeManagerProxy,
+    node_manager: NodeManager,
     db_client: DbClient,
     lcd_stats: Arc<RwLock<HashMap<String, String>>>,
     bg_tasks_cmds_tx: broadcast::Sender<BgTasksCmds>,
@@ -384,7 +395,7 @@ pub async fn balance_checker_task(
                 updated_balances.clear();
                 let mut total_balance = U256::from(0u64);
                 if let Some(ref token_contract) = token_contract {
-                    match node_mgr_proxy.get_nodes_list().await {
+                    match node_manager.get_nodes_list().await {
                         Ok(nodes) if !nodes.is_empty() => {
                             retrieve_current_balances(
                                 nodes,

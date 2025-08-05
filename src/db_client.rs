@@ -3,7 +3,7 @@ use super::types::{
 };
 
 use alloy_primitives::U256;
-use leptos::{logging, prelude::*};
+use leptos::logging;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -27,6 +27,8 @@ use tokio::sync::Mutex;
 pub enum DbError {
     #[error(transparent)]
     SqlxError(#[from] sqlx::Error),
+    #[error("Node is part of a running/scheduled batch")]
+    NodeIsBatched,
 }
 
 // Sqlite DB filename.
@@ -240,13 +242,11 @@ impl DbClient {
     pub async fn check_node_is_not_batched(
         &self,
         node_id: &NodeId,
-    ) -> Result<NodeInstanceInfo, ServerFnError> {
+    ) -> Result<NodeInstanceInfo, DbError> {
         let mut node_info = NodeInstanceInfo::new(node_id.clone());
         self.get_node_metadata(&mut node_info, true).await;
         if node_info.is_status_locked {
-            return Err(ServerFnError::new(
-                "Node is part of a running/scheduled batch".to_string(),
-            ));
+            return Err(DbError::NodeIsBatched);
         }
         Ok(node_info)
     }

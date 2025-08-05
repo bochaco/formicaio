@@ -1,7 +1,11 @@
-#[cfg(feature = "ssr")]
-use super::bg_tasks::{BgTasksCmds, ImmutableNodeStatus};
 #[cfg(feature = "hydrate")]
 use super::server_api::nodes_instances;
+#[cfg(feature = "ssr")]
+use super::{
+    bg_tasks::{BgTasksCmds, ImmutableNodeStatus, NodesMetrics},
+    db_client::DbClient,
+    node_mgr::NodeManager,
+};
 use super::{
     error_template::{AppError, ErrorTemplate},
     types::{NodeId, NodeInstanceInfo, NodesActionsBatch, NodesSortStrategy, Stats},
@@ -44,17 +48,13 @@ pub const PAGE_SIZE: usize = 100;
 #[derive(Clone, FromRef, Debug)]
 pub struct ServerGlobalState {
     pub leptos_options: LeptosOptions,
-    pub db_client: super::db_client::DbClient,
-    #[cfg(not(feature = "native"))]
-    pub docker_client: super::docker_client::DockerClient,
-    #[cfg(feature = "native")]
-    pub node_manager: super::node_manager::NodeManager,
+    pub db_client: DbClient,
+    pub node_manager: NodeManager,
     pub latest_bin_version: Arc<RwLock<Option<semver::Version>>>,
-    pub nodes_metrics: Arc<RwLock<super::metrics_client::NodesMetrics>>,
+    pub nodes_metrics: Arc<RwLock<NodesMetrics>>,
     pub node_status_locked: ImmutableNodeStatus,
     pub bg_tasks_cmds_tx: broadcast::Sender<BgTasksCmds>,
-    pub node_action_batches:
-        Arc<RwLock<(broadcast::Sender<u16>, Vec<super::types::NodesActionsBatch>)>>,
+    pub node_action_batches: Arc<RwLock<(broadcast::Sender<u16>, Vec<NodesActionsBatch>)>>,
     pub stats: Arc<RwLock<Stats>>,
 }
 
