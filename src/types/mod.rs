@@ -8,7 +8,7 @@ mod settings;
 mod sort_nodes;
 mod stats;
 
-pub use batch::{BatchOnMatch, BatchType, NodeOpts, NodesActionsBatch};
+pub use batch::{BatchOnMatch, BatchStatus, BatchType, NodeOpts, NodesActionsBatch};
 pub use filters::{NodeFilter, NodeStatusFilter};
 pub use metrics::*;
 pub use node_id::NodeId;

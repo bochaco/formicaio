@@ -2,7 +2,7 @@ use crate::{
     app::AppContext,
     node_mgr::NodeManager,
     server_api::parse_and_validate_addr,
-    types::{BatchType, NodesActionsBatch},
+    types::{BatchStatus, BatchType, NodesActionsBatch},
 };
 
 use leptos::logging;
@@ -84,7 +84,7 @@ async fn run_batches(app_ctx: AppContext, node_manager: NodeManager) {
         let batch_info =
             if let Some(next_batch) = app_ctx.node_action_batches.write().await.1.first_mut() {
                 let mut batch = next_batch.clone();
-                batch.status = "In progress".to_string();
+                batch.status = BatchStatus::InProgress;
                 *next_batch = batch.clone();
                 batch
             } else {

@@ -7,13 +7,37 @@ use std::{
     path::PathBuf,
 };
 
-/// Information of a node action batch
+/// Represents the current status of a batch operation on nodes.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum BatchStatus {
+    /// The batch is scheduled and waiting to be processed.
+    Scheduled,
+    /// The batch is currently being processed.
+    InProgress,
+}
+
+impl fmt::Display for BatchStatus {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            BatchStatus::Scheduled => write!(f, "Scheduled"),
+            BatchStatus::InProgress => write!(f, "In progress"),
+        }
+    }
+}
+
+/// Represents a batch of actions to be performed on node instances, such as creation, start, stop, etc.
+/// Used to track the progress and status of bulk node operations.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct NodesActionsBatch {
+    /// Unique identifier for the batch.
     pub id: u16,
-    pub status: String,
+    /// Current status of the batch (e.g., "Scheduled", "Running", "Completed").
+    pub status: BatchStatus,
+    /// The type of batch operation and its associated data.
     pub batch_type: BatchType,
+    /// Interval in seconds between each action in the batch.
     pub interval_secs: u64,
+    /// Number of actions completed in the batch.
     pub complete: u16,
 }
 
@@ -22,7 +46,7 @@ impl NodesActionsBatch {
     pub fn new(id: u16, batch_type: BatchType, interval_secs: u64) -> Self {
         Self {
             id,
-            status: "Scheduled".to_string(),
+            status: BatchStatus::Scheduled,
             batch_type,
             interval_secs,
             complete: 0,
@@ -30,14 +54,25 @@ impl NodesActionsBatch {
     }
 }
 
-/// Type of batch and corresponding info needed to execute it
+/// Describes the type of batch operation to perform on nodes, along with any required data.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum BatchType {
-    Create { node_opts: NodeOpts, count: u16 },
+    /// Create a batch of new node instances with the given options and count.
+    Create {
+        /// Options for the nodes to be created in this batch.
+        node_opts: NodeOpts,
+        /// Number of nodes to create.
+        count: u16,
+    },
+    /// Start the specified node instances.
     Start(Vec<NodeId>),
+    /// Stop the specified node instances.
     Stop(Vec<NodeId>),
+    /// Upgrade the specified node instances.
     Upgrade(Vec<NodeId>),
+    /// Recycle (restart with new peer-id) the specified node instances.
     Recycle(Vec<NodeId>),
+    /// Remove (delete) the specified node instances.
     Remove(Vec<NodeId>),
 }
 
@@ -49,11 +84,11 @@ impl BatchType {
     pub fn ids(&self) -> Vec<NodeId> {
         match self {
             Self::Create { .. } => vec![],
-            Self::Start(ids) => ids.clone(),
-            Self::Stop(ids) => ids.clone(),
-            Self::Upgrade(ids) => ids.clone(),
-            Self::Recycle(ids) => ids.clone(),
-            Self::Remove(ids) => ids.clone(),
+            Self::Start(ids)
+            | Self::Stop(ids)
+            | Self::Upgrade(ids)
+            | Self::Recycle(ids)
+            | Self::Remove(ids) => ids.clone(),
         }
     }
 }

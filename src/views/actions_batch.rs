@@ -65,7 +65,7 @@ fn ActionBatchView(batch_info: RwSignal<NodesActionsBatch>) -> impl IntoView {
             </div>
 
             <h2 class="mb-2 text-lg font-semibold text-gray-900 dark:text-white">
-                "Batch " {move || batch_info.read().status.clone()} ":"
+                "Batch " {move || batch_info.read().status.to_string()} ":"
             </h2>
             <ul class="max-w-md space-y-1 text-gray-500 list-disc list-inside dark:text-gray-400">
                 <li>"Total number of nodes to " {batch_type.to_string()} ": " {count}</li>
