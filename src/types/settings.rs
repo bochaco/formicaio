@@ -23,8 +23,8 @@ impl Default for AppSettings {
             nodes_auto_upgrade: false,
             // Delay 10 secs. between each node being auto-upgraded.
             nodes_auto_upgrade_delay: Duration::from_secs(10),
-            // Check latest version of node binary every couple of hours.
-            node_bin_version_polling_freq: Duration::from_secs(60 * 60 * 2),
+            // Check latest version of node binary every six hours.
+            node_bin_version_polling_freq: Duration::from_secs(60 * 60 * 6),
             // How often to fetch metrics and node info from active/running nodes
             nodes_metrics_polling_freq: Duration::from_secs(5),
             // Retrieve balances every 15 mins.

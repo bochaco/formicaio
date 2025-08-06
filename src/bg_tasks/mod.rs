@@ -151,14 +151,6 @@ pub fn spawn_bg_tasks(app_ctx: AppContext, node_manager: NodeManager, settings: 
                         ctx.apply_settings(s);
                     }
                 },
-                _ = ctx.formica_image_pulling.tick() => {
-                    let node_manager = node_manager.clone();
-                    tokio::spawn(async move {
-                        if let Err(err) = node_manager.pull_formica_image().await {
-                            logging::error!("[ERROR] Periodic task failed to pull node image: {err}");
-                        }
-                    });
-                },
                 _ = ctx.node_bin_version_check.tick() => {
                     tokio::spawn(check_node_bin_version(
                         node_manager.clone(),

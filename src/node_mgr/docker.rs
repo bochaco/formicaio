@@ -43,17 +43,15 @@ impl NodeManager {
         })
     }
 
-    // TODO: try to remove this method merging its logic within 'upgrade_master_node_binary'
-    pub async fn pull_formica_image(&self) -> Result<(), NodeManagerError> {
-        logging::log!("Pulling Formica node image from registry ...");
-        self.docker_client.pull_formica_image().await?;
-        Ok(())
-    }
-
     pub async fn upgrade_master_node_binary(
         &self,
         version: Option<&Version>,
     ) -> Result<(), NodeManagerError> {
+        logging::log!("Pulling Formica node image from registry ...");
+        if let Err(err) = self.docker_client.pull_formica_image().await {
+            logging::error!("[ERROR] Failed to pull node image: {err}");
+            return Err(err.into());
+        }
         *self.app_ctx.latest_bin_version.write().await = version.cloned();
         Ok(())
     }

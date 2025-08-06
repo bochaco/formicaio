@@ -114,11 +114,6 @@ impl NodeManager {
         Ok(node_manager)
     }
 
-    // TODO: remove this method
-    pub async fn pull_formica_image(&self) -> Result<(), NodeManagerError> {
-        Ok(())
-    }
-
     pub async fn upgrade_master_node_binary(
         &self,
         version: Option<&Version>,

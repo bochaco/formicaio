@@ -6,12 +6,8 @@ use tokio::time::{Duration, Interval, interval};
 // How often to perform a metrics pruning in the DB.
 const METRICS_PRUNING_FREQ: Duration = Duration::from_secs(60 * 60); // every hour.
 
-// Frequency to pull a new version of the formica image.
-const FORMICA_IMAGE_PULLING_FREQ: Duration = Duration::from_secs(60 * 60 * 6); // every 6 hours.
-
 // App settings and set of intervals used to schedule each of the tasks.
 pub struct TasksContext {
-    pub formica_image_pulling: Interval,
     pub node_bin_version_check: Interval,
     pub balances_retrieval: Interval,
     pub metrics_pruning: Interval,
@@ -25,7 +21,6 @@ impl TasksContext {
         balances_retrieval.reset(); // the task will trigger the first check by itself
 
         Self {
-            formica_image_pulling: interval(FORMICA_IMAGE_PULLING_FREQ),
             node_bin_version_check: interval(settings.node_bin_version_polling_freq),
             balances_retrieval,
             metrics_pruning: interval(METRICS_PRUNING_FREQ),

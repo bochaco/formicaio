@@ -47,7 +47,9 @@ pub async fn check_node_bin_version(node_manager: NodeManager, db_client: DbClie
             .upgrade_master_node_binary(Some(&latest_version))
             .await
         {
-            logging::error!("Failed to download node binary version {latest_version}: {err:?}");
+            logging::error!(
+                "[ERROR] Failed to download node binary version {latest_version}: {err:?}"
+            );
         }
 
         loop {
