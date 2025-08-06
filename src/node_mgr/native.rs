@@ -2,6 +2,7 @@ use crate::{
     app::AppContext,
     bg_tasks::{ActionsBatchError, BgTasksCmds, NodesMetrics, prepare_node_action_batch},
     db_client::DbError,
+    server_api::parse_and_validate_addr,
     types::{
         BatchType, InactiveReason, NodeFilter, NodeId, NodeInstanceInfo, NodeList, NodeOpts,
         NodeStatus,
@@ -13,7 +14,6 @@ use super::{
     native_nodes::{NativeNodes, NativeNodesError},
 };
 
-use alloy_primitives::Address;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use futures_util::Stream;
@@ -25,8 +25,8 @@ use tokio::sync::RwLock;
 
 #[derive(Debug, Error)]
 pub enum NodeManagerError {
-    #[error(transparent)]
-    RewardsAddressError(#[from] alloy_primitives::AddressError),
+    #[error("Invalid rewards address: {0}")]
+    RewardsAddressError(String),
     #[error(transparent)]
     Db(#[from] DbError),
     #[error(transparent)]
@@ -138,14 +138,13 @@ impl NodeManager {
     ) -> Result<NodeInstanceInfo, NodeManagerError> {
         let node_id = NodeId::random();
         logging::log!(
-            "Creating new node with IP '{}', port {}, and ID {node_id} ...",
+            "Creating new node with listening IP '{}', port {}, and ID {node_id} ...",
             node_opts.node_ip,
             node_opts.port
         );
-        let _ = node_opts
-            .rewards_addr
-            .parse::<Address>()
-            .map_err(alloy_primitives::AddressError::from)?;
+
+        let _ = parse_and_validate_addr(&node_opts.rewards_addr)
+            .map_err(NodeManagerError::RewardsAddressError)?;
 
         let node_info = NodeInstanceInfo {
             node_id: node_id.clone(),
