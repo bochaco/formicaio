@@ -82,11 +82,14 @@ A comprehensive settings panel allows you to customize monitoring tasks and node
 
 ### 🌐 Network Connectivity Options
 
-When setting up nodes, you can define their connection type:
+When setting up nodes, you can define their connection type and custom data directory:
 
 - **UPnP support**: Attempts to use UPnP to open a port on your home router for incoming connections. If your router doesn't support UPnP, create nodes with UPnP disabled to ensure connectivity.
+- **Listening IP address**: This address determines which network interface the node will bind to for incoming connections. The application supports both IPv4 (e.g., `0.0.0.0`, `127.0.0.1`) and IPv6 (e.g., `::`, `fe80::1`) addresses, allowing users to control whether the node is accessible on all interfaces, only locally, or on a specific network. This flexibility is useful for running nodes in different environments, such as local development, private networks, or public-facing deployments.
+- **Custom data directory**: This directory is where the node will store its persistent data, such as chunks, logs, and configuration files. By assigning a unique data directory to each node, or batch of nodes, users can run multiple nodes on the same machine without data conflicts. This option is especially valuable for advanced setups or when running nodes with different hard disks or mounting points.
 
-<img src="img/screenshot_02.png" width="300" height="367" />
+<img src="img/screenshot_02.png" width="300" height="373" />
+<img src="img/screenshot_02_b.png" width="300" height="248" />
 
 ## Installation & Deployment
 
