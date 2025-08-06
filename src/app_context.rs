@@ -27,3 +27,20 @@ pub struct AppContext {
     /// Global statistics of all the node instances, shared and mutable across threads.
     pub stats: Arc<RwLock<Stats>>,
 }
+
+impl AppContext {
+    /// Creates a new instance of the application context with the provided database client.
+    pub fn new(db_client: DbClient) -> Self {
+        let nodes_metrics = Arc::new(RwLock::new(NodesMetrics::new(db_client.clone())));
+        let (bg_tasks_cmds_tx, _rx) = broadcast::channel::<BgTasksCmds>(1_000);
+        Self {
+            db_client,
+            latest_bin_version: Arc::new(RwLock::new(None)),
+            nodes_metrics,
+            node_status_locked: ImmutableNodeStatus::default(),
+            bg_tasks_cmds_tx,
+            node_action_batches: Arc::new(RwLock::new((broadcast::channel(3).0, Vec::new()))),
+            stats: Arc::new(RwLock::new(Stats::default())),
+        }
+    }
+}

@@ -35,15 +35,12 @@ async fn start_backend(
     use eyre::WrapErr;
     use formicaio::{
         app::{App, AppContext, ServerGlobalState, shell},
-        bg_tasks::{BgTasksCmds, ImmutableNodeStatus, NodesMetrics, spawn_bg_tasks},
+        bg_tasks::spawn_bg_tasks,
         db_client::DbClient,
         node_mgr::NodeManager,
-        types::Stats,
     };
     use leptos::{logging, prelude::*};
     use leptos_axum::{LeptosRoutes, generate_route_list};
-    use std::sync::Arc;
-    use tokio::sync::{RwLock, broadcast};
 
     logging::log!("Starting Formicaio v{} ...", env!("CARGO_PKG_VERSION"));
 
@@ -82,29 +79,10 @@ async fn start_backend(
         .await
         .wrap_err("Failed to initialize database connection. Please check your database configuration and permissions.")?;
 
-    let nodes_metrics = Arc::new(RwLock::new(NodesMetrics::new(db_client.clone())));
-
-    // List of nodes which status is temporarily immutable
-    let node_status_locked = ImmutableNodeStatus::default();
-    // Channel to send commands to the bg jobs.
-    let (bg_tasks_cmds_tx, _rx) = broadcast::channel::<BgTasksCmds>(1_000);
-
-    let latest_bin_version = Arc::new(RwLock::new(None));
-    // Let's read currently cached settings to use and push it to channel
+    // Let's read currently cached settings to use
     let settings = db_client.get_settings().await;
-    // List of node instaces batches currently in progress
-    let node_action_batches = Arc::new(RwLock::new((broadcast::channel(3).0, Vec::new())));
-    let stats = Arc::new(RwLock::new(Stats::default()));
 
-    let app_ctx = AppContext {
-        db_client,
-        latest_bin_version,
-        nodes_metrics,
-        node_status_locked,
-        bg_tasks_cmds_tx,
-        node_action_batches,
-        stats,
-    };
+    let app_ctx = AppContext::new(db_client);
 
     #[cfg(not(feature = "native"))]
     let node_manager = NodeManager::new(app_ctx.clone()).await.wrap_err(
