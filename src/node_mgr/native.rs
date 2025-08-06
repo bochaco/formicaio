@@ -1,7 +1,7 @@
 use crate::{
     app::AppContext,
     bg_tasks::{ActionsBatchError, BgTasksCmds, NodesMetrics, prepare_node_action_batch},
-    db_client::{DbClient, DbError},
+    db_client::DbError,
     types::{
         BatchType, InactiveReason, NodeFilter, NodeId, NodeInstanceInfo, NodeList, NodeOpts,
         NodeStatus,
@@ -43,24 +43,21 @@ pub enum NodeManagerError {
 
 #[derive(Clone, Debug)]
 pub struct NodeManager {
-    context: AppContext,
-    db_client: DbClient,
+    app_ctx: AppContext,
     native_nodes: NativeNodes,
 }
 
 impl NodeManager {
     pub async fn new(
-        context: AppContext,
-        db_client: DbClient,
+        app_ctx: AppContext,
         data_dir_path: Option<PathBuf>,
         no_auto_start: bool,
         node_start_interval: Option<u64>,
     ) -> Result<Self, NodeManagerError> {
         let native_nodes =
-            NativeNodes::new(context.node_status_locked.clone(), data_dir_path).await?;
+            NativeNodes::new(app_ctx.node_status_locked.clone(), data_dir_path).await?;
         let node_manager = Self {
-            context,
-            db_client,
+            app_ctx,
             native_nodes,
         };
 
@@ -68,18 +65,23 @@ impl NodeManager {
         node_manager.upgrade_master_node_binary(None).await?;
 
         // let's create a batch to start nodes which were Active
-        let nodes_in_db = node_manager.db_client.get_nodes_list().await;
+        let nodes_in_db = node_manager.app_ctx.db_client.get_nodes_list().await;
         let mut active_nodes = vec![];
         for (node_id, node_info) in nodes_in_db {
             if node_info.status.is_active() {
                 // let's set it to inactive otherwise it won't be started
                 node_manager
+                    .app_ctx
                     .db_client
                     .update_node_status(&node_id, &NodeStatus::Inactive(InactiveReason::Stopped))
                     .await;
                 active_nodes.push(node_id);
             } else if node_info.is_status_locked {
-                node_manager.db_client.unlock_node_status(&node_id).await;
+                node_manager
+                    .app_ctx
+                    .db_client
+                    .unlock_node_status(&node_id)
+                    .await;
             }
         }
 
@@ -102,9 +104,8 @@ impl NodeManager {
                 let _ = prepare_node_action_batch(
                     BatchType::Start(active_nodes),
                     node_start_interval,
-                    &node_manager.context,
+                    &node_manager.app_ctx,
                     &node_manager,
-                    &node_manager.db_client,
                 )
                 .await?;
             }
@@ -126,7 +127,7 @@ impl NodeManager {
             .native_nodes
             .upgrade_master_node_binary(version)
             .await?;
-        *self.context.latest_bin_version.write().await = Some(v);
+        *self.app_ctx.latest_bin_version.write().await = Some(v);
         Ok(())
     }
 
@@ -166,14 +167,17 @@ impl NodeManager {
             return Err(err.into());
         }
 
-        self.db_client.insert_node_metadata(&node_info).await;
+        self.app_ctx
+            .db_client
+            .insert_node_metadata(&node_info)
+            .await;
         logging::log!("New node created successfully with ID: {node_id}");
 
         if node_opts.auto_start {
             self.start_node_instance(node_id.clone()).await?;
         }
 
-        self.context
+        self.app_ctx
             .bg_tasks_cmds_tx
             .send(BgTasksCmds::CheckBalanceFor(node_info.clone()))
             .map_err(|err| NodeManagerError::BgTasks(err.to_string()))?;
@@ -183,34 +187,42 @@ impl NodeManager {
 
     // Start a node instance with given id
     pub async fn start_node_instance(&self, node_id: NodeId) -> Result<(), NodeManagerError> {
-        let mut node_info = self.db_client.check_node_is_not_batched(&node_id).await?;
+        let mut node_info = self
+            .app_ctx
+            .db_client
+            .check_node_is_not_batched(&node_id)
+            .await?;
         if node_info.status.is_active() {
             return Ok(());
         }
 
         logging::log!("Starting node with ID: {node_id} ...");
-        self.context
+        self.app_ctx
             .node_status_locked
             .lock(node_id.clone(), Duration::from_secs(20))
             .await;
 
         node_info.status = NodeStatus::Restarting;
-        self.db_client
+        self.app_ctx
+            .db_client
             .update_node_status(&node_id, &node_info.status)
             .await;
         let res = self.native_nodes.spawn_new_node(&mut node_info).await;
 
         node_info.status = match &res {
             Ok(pid) => {
-                self.db_client.update_node_pid(&node_id, *pid).await;
+                self.app_ctx.db_client.update_node_pid(&node_id, *pid).await;
                 NodeStatus::Active
             }
             Err(err) => NodeStatus::Inactive(InactiveReason::StartFailed(err.to_string())),
         };
 
         node_info.set_status_changed_now();
-        self.db_client.update_node_metadata(&node_info, true).await;
-        self.context.node_status_locked.remove(&node_id).await;
+        self.app_ctx
+            .db_client
+            .update_node_metadata(&node_info, true)
+            .await;
+        self.app_ctx.node_status_locked.remove(&node_id).await;
 
         res?;
         Ok(())
@@ -218,13 +230,18 @@ impl NodeManager {
 
     // Stop a node instance with given id
     pub async fn stop_node_instance(&self, node_id: NodeId) -> Result<(), NodeManagerError> {
-        let _ = self.db_client.check_node_is_not_batched(&node_id).await?;
+        let _ = self
+            .app_ctx
+            .db_client
+            .check_node_is_not_batched(&node_id)
+            .await?;
 
-        self.context
+        self.app_ctx
             .node_status_locked
             .lock(node_id.clone(), Duration::from_secs(20))
             .await;
-        self.db_client
+        self.app_ctx
+            .db_client
             .update_node_status(&node_id, &NodeStatus::Stopping)
             .await;
 
@@ -242,9 +259,12 @@ impl NodeManager {
             ..Default::default()
         };
 
-        self.db_client.update_node_metadata(&node_info, true).await;
+        self.app_ctx
+            .db_client
+            .update_node_metadata(&node_info, true)
+            .await;
 
-        self.context.node_status_locked.remove(&node_id).await;
+        self.app_ctx.node_status_locked.remove(&node_id).await;
 
         Ok(())
     }
@@ -252,26 +272,30 @@ impl NodeManager {
     // Delete a node instance with given id
     pub async fn delete_node_instance(&self, node_id: NodeId) -> Result<(), NodeManagerError> {
         let mut node_info = NodeInstanceInfo::new(node_id);
-        self.db_client.get_node_metadata(&mut node_info, true).await;
+        self.app_ctx
+            .db_client
+            .get_node_metadata(&mut node_info, true)
+            .await;
         if node_info.status.is_active() {
             // kill node's process
             self.native_nodes.kill_node(&node_info.node_id).await;
         }
 
         // remove node's metadata and directory
-        self.db_client
+        self.app_ctx
+            .db_client
             .delete_node_metadata(&node_info.node_id)
             .await;
         self.native_nodes.remove_node_dir(&node_info).await;
 
-        self.context
+        self.app_ctx
             .nodes_metrics
             .write()
             .await
             .remove_node_metrics(&node_info.node_id)
             .await;
 
-        self.context
+        self.app_ctx
             .bg_tasks_cmds_tx
             .send(BgTasksCmds::DeleteBalanceFor(node_info))
             .map_err(|err| NodeManagerError::BgTasks(err.to_string()))?;
@@ -281,9 +305,13 @@ impl NodeManager {
 
     // Upgrade a node instance with given id
     pub async fn upgrade_node_instance(&self, node_id: &NodeId) -> Result<(), NodeManagerError> {
-        let mut node_info = self.db_client.check_node_is_not_batched(node_id).await?;
+        let mut node_info = self
+            .app_ctx
+            .db_client
+            .check_node_is_not_batched(node_id)
+            .await?;
 
-        self.context
+        self.app_ctx
             .node_status_locked
             .lock(
                 node_id.clone(),
@@ -292,7 +320,8 @@ impl NodeManager {
             .await;
 
         node_info.status = NodeStatus::Upgrading;
-        self.db_client
+        self.app_ctx
+            .db_client
             .update_node_status(node_id, &node_info.status)
             .await;
 
@@ -304,15 +333,18 @@ impl NodeManager {
                     "Node binary upgraded to v{} in node {node_id}, new PID: {pid}.",
                     node_info.bin_version.as_deref().unwrap_or("[unknown]")
                 );
-                self.db_client.update_node_pid(node_id, *pid).await;
+                self.app_ctx.db_client.update_node_pid(node_id, *pid).await;
                 NodeStatus::Active
             }
             Err(err) => NodeStatus::Inactive(InactiveReason::StartFailed(err.to_string())),
         };
 
         node_info.set_status_changed_now();
-        self.db_client.update_node_metadata(&node_info, true).await;
-        self.context.node_status_locked.remove(node_id).await;
+        self.app_ctx
+            .db_client
+            .update_node_metadata(&node_info, true)
+            .await;
+        self.app_ctx.node_status_locked.remove(node_id).await;
 
         res?;
         Ok(())
@@ -320,15 +352,20 @@ impl NodeManager {
 
     // Recycle a node instance by restarting it with a new node peer-id
     pub async fn recycle_node_instance(&self, node_id: NodeId) -> Result<(), NodeManagerError> {
-        let mut node_info = self.db_client.check_node_is_not_batched(&node_id).await?;
+        let mut node_info = self
+            .app_ctx
+            .db_client
+            .check_node_is_not_batched(&node_id)
+            .await?;
 
-        self.context
+        self.app_ctx
             .node_status_locked
             .lock(node_id.clone(), Duration::from_secs(20))
             .await;
 
         node_info.status = NodeStatus::Recycling;
-        self.db_client
+        self.app_ctx
+            .db_client
             .update_node_status(&node_id, &node_info.status)
             .await;
 
@@ -336,15 +373,18 @@ impl NodeManager {
 
         node_info.status = match &res {
             Ok(pid) => {
-                self.db_client.update_node_pid(&node_id, *pid).await;
+                self.app_ctx.db_client.update_node_pid(&node_id, *pid).await;
                 NodeStatus::Active
             }
             Err(err) => NodeStatus::Inactive(InactiveReason::StartFailed(err.to_string())),
         };
 
         node_info.set_status_changed_now();
-        self.db_client.update_node_metadata(&node_info, true).await;
-        self.context.node_status_locked.remove(&node_id).await;
+        self.app_ctx
+            .db_client
+            .update_node_metadata(&node_info, true)
+            .await;
+        self.app_ctx.node_status_locked.remove(&node_id).await;
 
         res?;
         Ok(())
@@ -352,7 +392,7 @@ impl NodeManager {
 
     // Obtain a non-filtered list of existing nodes.
     pub async fn get_nodes_list(&self) -> Result<Vec<NodeInstanceInfo>, NodeManagerError> {
-        let nodes_in_db = self.db_client.get_nodes_list().await;
+        let nodes_in_db = self.app_ctx.db_client.get_nodes_list().await;
         let nodes = self.native_nodes.get_nodes_list(nodes_in_db).await?;
         Ok(nodes)
     }
@@ -363,7 +403,7 @@ impl NodeManager {
         filter: Option<NodeFilter>,
         nodes_metrics: Arc<RwLock<NodesMetrics>>,
     ) -> Result<NodeList, NodeManagerError> {
-        let mut nodes = self.db_client.get_nodes_list().await;
+        let mut nodes = self.app_ctx.db_client.get_nodes_list().await;
         // TODO: pass the filter/s to the db-client
         if let Some(filter) = filter {
             nodes.retain(|_, info| filter.passes(info));
@@ -387,7 +427,10 @@ impl NodeManager {
         node_id: &NodeId,
     ) -> Result<impl Stream<Item = Result<Bytes, NativeNodesError>> + use<>, NodeManagerError> {
         let mut node_info = NodeInstanceInfo::new(node_id.clone());
-        self.db_client.get_node_metadata(&mut node_info, true).await;
+        self.app_ctx
+            .db_client
+            .get_node_metadata(&mut node_info, true)
+            .await;
 
         let stream = self.native_nodes.get_node_logs_stream(&node_info).await?;
         Ok(stream)

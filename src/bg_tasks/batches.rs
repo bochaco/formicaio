@@ -1,6 +1,5 @@
 use crate::{
     app::AppContext,
-    db_client::DbClient,
     node_mgr::NodeManager,
     server_api::parse_and_validate_addr,
     types::{BatchType, NodesActionsBatch},
@@ -25,9 +24,8 @@ pub enum ActionsBatchError {
 pub async fn prepare_node_action_batch(
     batch_type: BatchType,
     interval_secs: u64,
-    context: &AppContext,
+    app_ctx: &AppContext,
     node_manager: &NodeManager,
-    db_client: &DbClient,
 ) -> Result<u16, ActionsBatchError> {
     match &batch_type {
         BatchType::Create { node_opts, .. } => {
@@ -50,10 +48,10 @@ pub async fn prepare_node_action_batch(
             // so the user cannot action on it till the batch is completed or cancelled.
             let duration = Duration::from_secs((interval_secs + 2) * l.len() as u64);
             for node_id in l.iter() {
-                db_client.set_node_status_to_locked(node_id).await;
+                app_ctx.db_client.set_node_status_to_locked(node_id).await;
 
                 // let's also prevent the backend from updating its status
-                context
+                app_ctx
                     .node_status_locked
                     .lock(node_id.clone(), duration)
                     .await;
@@ -66,29 +64,25 @@ pub async fn prepare_node_action_batch(
     logging::log!("Creating new batch with ID {batch_id}: {batch_info:?}");
 
     let len = {
-        let batches = &mut context.node_action_batches.write().await.1;
+        let batches = &mut app_ctx.node_action_batches.write().await.1;
         batches.push(batch_info);
         batches.len()
     };
 
     // spawn a task if there was no other tasks already batched
     if len == 1 {
-        tokio::spawn(run_batches(
-            context.clone(),
-            node_manager.clone(),
-            db_client.clone(),
-        ));
+        tokio::spawn(run_batches(app_ctx.clone(), node_manager.clone()));
     }
 
     Ok(batch_id)
 }
 
-async fn run_batches(context: AppContext, node_manager: NodeManager, db_client: DbClient) {
-    let mut cancel_rx = context.node_action_batches.read().await.0.subscribe();
+async fn run_batches(app_ctx: AppContext, node_manager: NodeManager) {
+    let mut cancel_rx = app_ctx.node_action_batches.read().await.0.subscribe();
 
     loop {
         let batch_info =
-            if let Some(next_batch) = context.node_action_batches.write().await.1.first_mut() {
+            if let Some(next_batch) = app_ctx.node_action_batches.write().await.1.first_mut() {
                 let mut batch = next_batch.clone();
                 batch.status = "In progress".to_string();
                 *next_batch = batch.clone();
@@ -120,7 +114,7 @@ async fn run_batches(context: AppContext, node_manager: NodeManager, db_client: 
                                 Err(err) => logging::error!(
                                     "[ERROR] Failed to create node instance {i}/{count} as part of a batch: {err}"
                                 ),
-                                Ok(_) => if let Some(ref mut b) = context
+                                Ok(_) => if let Some(ref mut b) = app_ctx
                                     .node_action_batches.write().await.1
                                     .iter_mut()
                                     .find(|batch| batch.id == batch_info.id)
@@ -153,8 +147,8 @@ async fn run_batches(context: AppContext, node_manager: NodeManager, db_client: 
                         },
                         _ = sleep(Duration::from_secs(batch_info.interval_secs)) => {
                             let node_id = nodes[i].clone();
-                            context.node_status_locked.remove(&node_id).await;
-                            db_client.unlock_node_status(&node_id).await;
+                            app_ctx.node_status_locked.remove(&node_id).await;
+                            app_ctx.db_client.unlock_node_status(&node_id).await;
                             let res = match batch_info.batch_type {
                                 BatchType::Start(_) => node_manager.start_node_instance(node_id).await,
                                 BatchType::Stop(_) => node_manager.stop_node_instance(node_id).await,
@@ -168,7 +162,7 @@ async fn run_batches(context: AppContext, node_manager: NodeManager, db_client: 
                                 Err(err) => logging::log!(
                                     "Node action failed on node instance {}/{count} as part of a batch: {err}", i+1
                                 ),
-                                Ok(()) => if let Some(ref mut b) = context
+                                Ok(()) => if let Some(ref mut b) = app_ctx
                                     .node_action_batches.write().await.1
                                     .iter_mut()
                                     .find(|batch| batch.id == batch_info.id)
@@ -187,7 +181,7 @@ async fn run_batches(context: AppContext, node_manager: NodeManager, db_client: 
             }
         }
 
-        context
+        app_ctx
             .node_action_batches
             .write()
             .await

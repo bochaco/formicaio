@@ -1,5 +1,7 @@
 pub mod app;
 #[cfg(feature = "ssr")]
+mod app_context;
+#[cfg(feature = "ssr")]
 pub mod bg_tasks;
 pub mod cli_cmds;
 #[cfg(feature = "ssr")]

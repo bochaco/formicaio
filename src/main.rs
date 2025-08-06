@@ -97,6 +97,7 @@ async fn start_backend(
     let stats = Arc::new(RwLock::new(Stats::default()));
 
     let app_ctx = AppContext {
+        db_client,
         latest_bin_version,
         nodes_metrics,
         node_status_locked,
@@ -106,15 +107,12 @@ async fn start_backend(
     };
 
     #[cfg(not(feature = "native"))]
-    let node_manager = NodeManager::new(app_ctx.clone(), db_client.clone())
-        .await
-        .wrap_err(
-            "Failed to initialize Docker client. Please ensure Docker is running and accessible.",
-        )?;
+    let node_manager = NodeManager::new(app_ctx.clone()).await.wrap_err(
+        "Failed to initialize Docker client. Please ensure Docker is running and accessible.",
+    )?;
     #[cfg(feature = "native")]
     let node_manager = NodeManager::new(
         app_ctx.clone(),
-        db_client.clone(),
         sub_cmds.data_dir_path,
         sub_cmds.no_auto_start,
         sub_cmds.node_start_interval,
@@ -124,12 +122,15 @@ async fn start_backend(
 
     let app_state = ServerGlobalState {
         leptos_options: leptos_options.clone(),
-        db_client,
         node_manager,
         app_ctx,
     };
 
-    spawn_bg_tasks(app_state.clone(), settings);
+    spawn_bg_tasks(
+        app_state.app_ctx.clone(),
+        app_state.node_manager.clone(),
+        settings.clone(),
+    );
 
     let app = Router::new()
         .leptos_routes(&app_state, routes, {

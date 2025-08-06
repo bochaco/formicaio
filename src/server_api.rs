@@ -191,7 +191,7 @@ pub async fn node_metrics(
 #[server(name = GetSettings, prefix = "/api", endpoint = "/settings/get")]
 pub async fn get_settings() -> Result<super::types::AppSettings, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
-    let settings = context.db_client.get_settings().await;
+    let settings = context.app_ctx.db_client.get_settings().await;
     Ok(settings)
 }
 
@@ -199,7 +199,7 @@ pub async fn get_settings() -> Result<super::types::AppSettings, ServerFnError> 
 #[server(name = UpdateSettings, prefix = "/api", endpoint = "/settings/set")]
 pub async fn update_settings(settings: super::types::AppSettings) -> Result<(), ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
-    context.db_client.update_settings(&settings).await?;
+    context.app_ctx.db_client.update_settings(&settings).await?;
     context
         .app_ctx
         .bg_tasks_cmds_tx
@@ -227,7 +227,6 @@ pub async fn nodes_actions_batch_create(
         interval_secs,
         &context.app_ctx,
         &context.node_manager,
-        &context.db_client,
     )
     .await?;
     Ok(batch_id)
@@ -263,7 +262,6 @@ pub async fn nodes_actions_batch_on_match(
         interval_secs,
         &context.app_ctx,
         &context.node_manager,
-        &context.db_client,
     )
     .await?;
     Ok(batch_id)
@@ -282,7 +280,7 @@ pub async fn cancel_batch(batch_id: u16) -> Result<(), ServerFnError> {
         let batch = guard.1.remove(index);
         for node_id in batch.batch_type.ids().iter() {
             context.app_ctx.node_status_locked.remove(node_id).await;
-            context.db_client.unlock_node_status(node_id).await;
+            context.app_ctx.db_client.unlock_node_status(node_id).await;
         }
     }
 

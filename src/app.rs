@@ -1,11 +1,10 @@
+#[cfg(feature = "ssr")]
+pub use super::app_context::AppContext;
+
+#[cfg(feature = "ssr")]
+use super::node_mgr::NodeManager;
 #[cfg(feature = "hydrate")]
 use super::server_api::nodes_instances;
-#[cfg(feature = "ssr")]
-use super::{
-    bg_tasks::{BgTasksCmds, ImmutableNodeStatus, NodeActionsBatches, NodesMetrics},
-    db_client::DbClient,
-    node_mgr::NodeManager,
-};
 use super::{
     error_template::{AppError, ErrorTemplate},
     types::{NodeId, NodeInstanceInfo, NodesActionsBatch, NodesSortStrategy, Stats},
@@ -16,10 +15,6 @@ use super::{
 use axum::extract::FromRef;
 #[cfg(feature = "hydrate")]
 use leptos::{logging, task::spawn_local};
-#[cfg(feature = "ssr")]
-use std::sync::Arc;
-#[cfg(feature = "ssr")]
-use tokio::sync::{RwLock, broadcast};
 
 #[cfg(feature = "hydrate")]
 use gloo_timers::future::sleep;
@@ -44,23 +39,15 @@ pub const NODES_LIST_POLLING_FREQ_MILLIS: u64 = 5_500;
 // Size of nodes list pages
 pub const PAGE_SIZE: usize = 100;
 
-#[cfg(feature = "ssr")]
-#[derive(Clone, FromRef, Debug)]
-pub struct AppContext {
-    pub latest_bin_version: Arc<RwLock<Option<semver::Version>>>,
-    pub nodes_metrics: Arc<RwLock<NodesMetrics>>,
-    pub node_status_locked: ImmutableNodeStatus,
-    pub bg_tasks_cmds_tx: broadcast::Sender<BgTasksCmds>,
-    pub node_action_batches: NodeActionsBatches,
-    pub stats: Arc<RwLock<Stats>>,
-}
-
+/// Global server-side state shared across the application, available only when running with SSR (server-side rendering).
 #[cfg(feature = "ssr")]
 #[derive(Clone, FromRef, Debug)]
 pub struct ServerGlobalState {
+    /// Leptos framework options and configuration.
     pub leptos_options: LeptosOptions,
-    pub db_client: DbClient,
+    /// Node manager responsible for managing node instances (either native or on Docker).
     pub node_manager: NodeManager,
+    /// Main application context holding shared state and resources.
     pub app_ctx: AppContext,
 }
 

@@ -6,7 +6,8 @@ mod tasks;
 mod tasks_ctx;
 
 use super::{
-    app::ServerGlobalState,
+    app::AppContext,
+    node_mgr::NodeManager,
     types::{AppSettings, NodeId, NodeInstanceInfo, NodesActionsBatch},
 };
 
@@ -95,7 +96,7 @@ impl ImmutableNodeStatus {
 }
 
 // Spawn any required background tasks
-pub fn spawn_bg_tasks(context: ServerGlobalState, settings: AppSettings) {
+pub fn spawn_bg_tasks(app_ctx: AppContext, node_manager: NodeManager, settings: AppSettings) {
     logging::log!("Background tasks initialized with settings: {settings:#?}");
     let mut ctx = TasksContext::from(settings);
 
@@ -113,25 +114,23 @@ pub fn spawn_bg_tasks(context: ServerGlobalState, settings: AppSettings) {
     if ctx.app_settings.lcd_display_enabled {
         tokio::spawn(display_stats_on_lcd(
             ctx.app_settings.clone(),
-            context.app_ctx.bg_tasks_cmds_tx.subscribe(),
+            app_ctx.bg_tasks_cmds_tx.subscribe(),
             lcd_stats.clone(),
         ));
     }
-
-    let node_manager = context.node_manager.clone();
 
     // Spawn task which checks address balances as requested on the provided channel
     tokio::spawn(balance_checker_task(
         ctx.app_settings.clone(),
         node_manager.clone(),
-        context.db_client.clone(),
+        app_ctx.db_client.clone(),
         lcd_stats.clone(),
-        context.app_ctx.bg_tasks_cmds_tx.clone(),
-        context.app_ctx.stats.clone(),
+        app_ctx.bg_tasks_cmds_tx.clone(),
+        app_ctx.stats.clone(),
     ));
 
     tokio::spawn(async move {
-        let mut bg_tasks_cmds_rx = context.app_ctx.bg_tasks_cmds_tx.subscribe();
+        let mut bg_tasks_cmds_rx = app_ctx.bg_tasks_cmds_tx.subscribe();
         loop {
             select! {
                 settings = bg_tasks_cmds_rx.recv() => {
@@ -146,7 +145,7 @@ pub fn spawn_bg_tasks(context: ServerGlobalState, settings: AppSettings) {
                             // perhaps we need websockets for errors like this one.
                             tokio::spawn(display_stats_on_lcd(
                                 s.clone(),
-                                context.app_ctx.bg_tasks_cmds_tx.subscribe(),
+                                app_ctx.bg_tasks_cmds_tx.subscribe(),
                                 lcd_stats.clone()
                             ));
                         }
@@ -165,16 +164,16 @@ pub fn spawn_bg_tasks(context: ServerGlobalState, settings: AppSettings) {
                 _ = ctx.node_bin_version_check.tick() => {
                     tokio::spawn(check_node_bin_version(
                         node_manager.clone(),
-                        context.db_client.clone(),
+                        app_ctx.db_client.clone(),
                     ));
                 },
                 _ = ctx.balances_retrieval.tick() => {
-                    let _ = context.app_ctx.bg_tasks_cmds_tx.send(BgTasksCmds::CheckAllBalances);
+                    let _ = app_ctx.bg_tasks_cmds_tx.send(BgTasksCmds::CheckAllBalances);
                 },
                 _ = ctx.metrics_pruning.tick() => {
                     tokio::spawn(prune_metrics(
                         node_manager.clone(),
-                        context.db_client.clone()
+                        app_ctx.db_client.clone()
                     ));
                 },
                 _ = ctx.nodes_metrics_polling.tick() => {
@@ -185,8 +184,7 @@ pub fn spawn_bg_tasks(context: ServerGlobalState, settings: AppSettings) {
                     // with multiple overlapping tasks being launched.
                     update_nodes_info(
                         &node_manager,
-                        context.app_ctx.clone(),
-                        &context.db_client,
+                        app_ctx.clone(),
                         query_bin_version,
                         &lcd_stats
                     ).await;

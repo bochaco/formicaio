@@ -142,7 +142,6 @@ async fn update_node_metadata(
 pub async fn update_nodes_info(
     node_manager: &NodeManager,
     app_ctx: AppContext,
-    db_client: &DbClient,
     query_bin_version: bool,
     lcd_stats: &Arc<RwLock<HashMap<String, String>>>,
 ) {
@@ -206,10 +205,14 @@ pub async fn update_nodes_info(
         }
 
         // store up to date metadata and status onto local DB cache
-        update_node_metadata(&node_info, db_client, &app_ctx.node_status_locked).await;
+        update_node_metadata(&node_info, &app_ctx.db_client, &app_ctx.node_status_locked).await;
 
         if query_bin_version {
-            if let Some(ref version) = db_client.get_node_bin_version(&node_info.node_id).await {
+            if let Some(ref version) = app_ctx
+                .db_client
+                .get_node_bin_version(&node_info.node_id)
+                .await
+            {
                 bin_version.insert(version.clone());
             }
         }
