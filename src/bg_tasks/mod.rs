@@ -123,10 +123,8 @@ pub fn spawn_bg_tasks(app_ctx: AppContext, node_manager: NodeManager, settings: 
     tokio::spawn(balance_checker_task(
         ctx.app_settings.clone(),
         node_manager.clone(),
-        app_ctx.db_client.clone(),
+        app_ctx.clone(),
         lcd_stats.clone(),
-        app_ctx.bg_tasks_cmds_tx.clone(),
-        app_ctx.stats.clone(),
     ));
 
     tokio::spawn(async move {

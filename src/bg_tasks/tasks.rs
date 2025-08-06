@@ -2,7 +2,7 @@ use crate::{
     app::{AppContext, METRICS_MAX_SIZE_PER_NODE},
     db_client::DbClient,
     node_mgr::NodeManager,
-    types::{AppSettings, NodeInstanceInfo, NodeStatus, Stats},
+    types::{AppSettings, NodeInstanceInfo, NodeStatus},
     views::truncated_balance_str,
 };
 
@@ -21,7 +21,7 @@ use std::{
     sync::Arc,
 };
 use tokio::{
-    sync::{RwLock, broadcast},
+    sync::RwLock,
     time::{Duration, sleep, timeout},
 };
 use url::Url;
@@ -285,18 +285,16 @@ pub async fn prune_metrics(node_manager: NodeManager, db_client: DbClient) {
 pub async fn balance_checker_task(
     settings: AppSettings,
     node_manager: NodeManager,
-    db_client: DbClient,
+    app_ctx: AppContext,
     lcd_stats: Arc<RwLock<HashMap<String, String>>>,
-    bg_tasks_cmds_tx: broadcast::Sender<BgTasksCmds>,
-    global_stats: Arc<RwLock<Stats>>,
 ) {
     // cache retrieved rewards balances to not query more than once per address,
     // as well as how many nodes have each address set for rewards.
     let mut updated_balances = HashMap::<Address, (U256, u64)>::new();
 
     // Let's trigger a first check now
-    let mut bg_tasks_cmds_rx = bg_tasks_cmds_tx.subscribe();
-    if let Err(err) = bg_tasks_cmds_tx.send(BgTasksCmds::CheckAllBalances) {
+    let mut bg_tasks_cmds_rx = app_ctx.bg_tasks_cmds_tx.subscribe();
+    if let Err(err) = app_ctx.bg_tasks_cmds_tx.send(BgTasksCmds::CheckAllBalances) {
         logging::warn!("Initial check for balances couldn't be triggered: {err:?}");
     }
 
@@ -346,7 +344,7 @@ pub async fn balance_checker_task(
                         update_token_contract(&s.token_contract_address, &s.l2_network_rpc_url);
                     prev_addr = s.token_contract_address;
                     prev_url = s.l2_network_rpc_url;
-                    let _ = bg_tasks_cmds_tx.send(BgTasksCmds::CheckAllBalances);
+                    let _ = app_ctx.bg_tasks_cmds_tx.send(BgTasksCmds::CheckAllBalances);
                 }
             }
             Ok(BgTasksCmds::CheckBalanceFor(node_info)) => {
@@ -354,14 +352,14 @@ pub async fn balance_checker_task(
                     retrieve_current_balances(
                         [node_info],
                         token_contract,
-                        &db_client,
+                        &app_ctx.db_client,
                         &mut updated_balances,
                     )
                     .await;
 
                     let total_balance: U256 = updated_balances.values().map(|(b, _)| b).sum();
                     update_balance_lcd_stats(&lcd_stats, total_balance).await;
-                    global_stats.write().await.total_balance = total_balance;
+                    app_ctx.stats.write().await.total_balance = total_balance;
                 }
             }
             Ok(BgTasksCmds::DeleteBalanceFor(node_info)) => {
@@ -378,7 +376,7 @@ pub async fn balance_checker_task(
                     }
                     let total_balance: U256 = updated_balances.values().map(|(b, _)| b).sum();
                     update_balance_lcd_stats(&lcd_stats, total_balance).await;
-                    global_stats.write().await.total_balance = total_balance;
+                    app_ctx.stats.write().await.total_balance = total_balance;
                 }
             }
             Ok(BgTasksCmds::CheckAllBalances) => {
@@ -390,7 +388,7 @@ pub async fn balance_checker_task(
                             retrieve_current_balances(
                                 nodes,
                                 token_contract,
-                                &db_client,
+                                &app_ctx.db_client,
                                 &mut updated_balances,
                             )
                             .await;
@@ -408,7 +406,7 @@ pub async fn balance_checker_task(
                         }
                     }
                 }
-                global_stats.write().await.total_balance = total_balance;
+                app_ctx.stats.write().await.total_balance = total_balance;
             }
             Err(_) => {}
         }
