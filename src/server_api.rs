@@ -30,7 +30,7 @@ const REWARDS_ADDR_LENGTH: usize = 40;
 #[server(name = FetchStats, prefix = "/api", endpoint = "/stats")]
 pub async fn fetch_stats() -> Result<Stats, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
-    let stats = context.stats.read().await.clone();
+    let stats = context.app_ctx.stats.read().await.clone();
     Ok(stats)
 }
 
@@ -38,7 +38,7 @@ pub async fn fetch_stats() -> Result<Stats, ServerFnError> {
 #[server(name = FetchStatsWidget, prefix = "/api", endpoint = "/stats_widget")]
 pub async fn fetch_stats_widget() -> Result<WidgetFourStats, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
-    let stats = context.stats.read().await.clone();
+    let stats = context.app_ctx.stats.read().await.clone();
     let widget_stats = WidgetFourStats {
         r#type: "four-stats".to_string(),
         refresh: "5s".to_string(),
@@ -84,7 +84,7 @@ pub async fn nodes_instances(
         .await
         .clone()
         .map(|v| v.to_string());
-    let stats = context.stats.read().await.clone();
+    let stats = context.app_ctx.stats.read().await.clone();
 
     let nodes = context
         .node_manager

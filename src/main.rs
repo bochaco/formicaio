@@ -102,6 +102,7 @@ async fn start_backend(
         node_status_locked,
         bg_tasks_cmds_tx,
         node_action_batches,
+        stats,
     };
 
     #[cfg(not(feature = "native"))]
@@ -126,7 +127,6 @@ async fn start_backend(
         db_client,
         node_manager,
         app_ctx,
-        stats,
     };
 
     spawn_bg_tasks(app_state.clone(), settings);

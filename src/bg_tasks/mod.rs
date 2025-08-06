@@ -127,7 +127,7 @@ pub fn spawn_bg_tasks(context: ServerGlobalState, settings: AppSettings) {
         context.db_client.clone(),
         lcd_stats.clone(),
         context.app_ctx.bg_tasks_cmds_tx.clone(),
-        context.stats.clone(),
+        context.app_ctx.stats.clone(),
     ));
 
     tokio::spawn(async move {
@@ -185,13 +185,10 @@ pub fn spawn_bg_tasks(context: ServerGlobalState, settings: AppSettings) {
                     // with multiple overlapping tasks being launched.
                     update_nodes_info(
                         &node_manager,
-                        &context.app_ctx.nodes_metrics,
+                        context.app_ctx.clone(),
                         &context.db_client,
-                        &context.app_ctx.node_status_locked,
                         query_bin_version,
-                        &lcd_stats,
-                        context.stats.clone()
-
+                        &lcd_stats
                     ).await;
                     // reset interval to start next period from this instant,
                     // regardless how long the above polling task lasted.

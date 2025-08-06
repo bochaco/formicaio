@@ -52,6 +52,7 @@ pub struct AppContext {
     pub node_status_locked: ImmutableNodeStatus,
     pub bg_tasks_cmds_tx: broadcast::Sender<BgTasksCmds>,
     pub node_action_batches: NodeActionsBatches,
+    pub stats: Arc<RwLock<Stats>>,
 }
 
 #[cfg(feature = "ssr")]
@@ -61,7 +62,6 @@ pub struct ServerGlobalState {
     pub db_client: DbClient,
     pub node_manager: NodeManager,
     pub app_ctx: AppContext,
-    pub stats: Arc<RwLock<Stats>>,
 }
 
 // Struct to use client side as a global context/state

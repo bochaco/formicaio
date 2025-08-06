@@ -1,15 +1,12 @@
 use crate::{
-    app::METRICS_MAX_SIZE_PER_NODE,
+    app::{AppContext, METRICS_MAX_SIZE_PER_NODE},
     db_client::DbClient,
     node_mgr::NodeManager,
     types::{AppSettings, NodeInstanceInfo, NodeStatus, Stats},
     views::truncated_balance_str,
 };
 
-use super::{
-    BgTasksCmds, ImmutableNodeStatus, TokenContract,
-    metrics_client::{NodeMetricsClient, NodesMetrics},
-};
+use super::{BgTasksCmds, ImmutableNodeStatus, TokenContract, metrics_client::NodeMetricsClient};
 
 use alloy::{
     network::Network,
@@ -144,12 +141,10 @@ async fn update_node_metadata(
 // from nodes' exposed metrics server caching them in global context.
 pub async fn update_nodes_info(
     node_manager: &NodeManager,
-    nodes_metrics: &Arc<RwLock<NodesMetrics>>,
+    app_ctx: AppContext,
     db_client: &DbClient,
-    node_status_locked: &ImmutableNodeStatus,
     query_bin_version: bool,
     lcd_stats: &Arc<RwLock<HashMap<String, String>>>,
-    global_stats: Arc<RwLock<Stats>>,
 ) {
     let ts = Utc::now();
     let nodes = node_manager.get_nodes_list().await.unwrap_or_else(|err| {
@@ -183,7 +178,7 @@ pub async fn update_nodes_info(
 
                 match timeout(NODE_METRICS_QUERY_TIMEOUT, metrics_client.fetch_metrics()).await {
                     Ok(Ok(metrics)) => {
-                        let mut node_metrics = nodes_metrics.write().await;
+                        let mut node_metrics = app_ctx.nodes_metrics.write().await;
                         node_metrics.store(&node_info.node_id, &metrics).await;
                         node_metrics.update_node_info(&mut node_info);
                         node_info.status = NodeStatus::Active;
@@ -211,7 +206,7 @@ pub async fn update_nodes_info(
         }
 
         // store up to date metadata and status onto local DB cache
-        update_node_metadata(&node_info, db_client, node_status_locked).await;
+        update_node_metadata(&node_info, db_client, &app_ctx.node_status_locked).await;
 
         if query_bin_version {
             if let Some(ref version) = db_client.get_node_bin_version(&node_info.node_id).await {
@@ -251,7 +246,7 @@ pub async fn update_nodes_info(
 
     update_lcd_stats(lcd_stats, &updated_vals).await;
 
-    let mut guard = global_stats.write().await;
+    let mut guard = app_ctx.stats.write().await;
     guard.total_nodes = num_nodes;
     guard.active_nodes = num_active_nodes;
     guard.inactive_nodes = num_inactive_nodes;
