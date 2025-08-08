@@ -95,20 +95,20 @@ impl NodeManager {
             node_start_interval.or(Some(5))
         };
 
-        if let Some(node_start_interval) = auto_start_interval {
-            if !active_nodes.is_empty() {
-                logging::log!(
-                    "Auto-starting {} previously active nodes with {node_start_interval} second intervals",
-                    active_nodes.len()
-                );
-                let _ = prepare_node_action_batch(
-                    BatchType::Start(active_nodes),
-                    node_start_interval,
-                    &node_manager.app_ctx,
-                    &node_manager,
-                )
-                .await?;
-            }
+        if let Some(node_start_interval) = auto_start_interval
+            && !active_nodes.is_empty()
+        {
+            logging::log!(
+                "Auto-starting {} previously active nodes with {node_start_interval} second intervals",
+                active_nodes.len()
+            );
+            let _ = prepare_node_action_batch(
+                BatchType::Start(active_nodes),
+                node_start_interval,
+                &node_manager.app_ctx,
+                &node_manager,
+            )
+            .await?;
         }
 
         Ok(node_manager)

@@ -96,10 +96,8 @@ impl CachedNodeMetadata {
         if self.status_changed > 0 {
             info.status_changed = self.status_changed;
         }
-        if get_status {
-            if let Ok(status) = serde_json::from_str(&self.status) {
-                info.status = status;
-            }
+        if get_status && let Ok(status) = serde_json::from_str(&self.status) {
+            info.status = status;
         }
         info.is_status_locked = self.is_status_locked;
         info.is_status_unknown = self.is_status_unknown;
@@ -118,17 +116,17 @@ impl CachedNodeMetadata {
         if self.metrics_port > 0 {
             info.metrics_port = Some(self.metrics_port);
         }
-        if !self.rewards.is_empty() {
-            if let Ok(v) = U256::from_str(&self.rewards) {
-                info.rewards = Some(v);
-            }
+        if !self.rewards.is_empty()
+            && let Ok(v) = U256::from_str(&self.rewards)
+        {
+            info.rewards = Some(v);
         }
         info.upnp = self.upnp;
         info.node_logs = self.node_logs;
-        if !self.balance.is_empty() {
-            if let Ok(v) = U256::from_str(&self.balance) {
-                info.balance = Some(v);
-            }
+        if !self.balance.is_empty()
+            && let Ok(v) = U256::from_str(&self.balance)
+        {
+            info.balance = Some(v);
         }
         if !self.rewards_addr.is_empty() {
             info.rewards_addr = Some(self.rewards_addr.clone());
@@ -273,10 +271,7 @@ impl DbClient {
     }
 
     // Retrieve the list of nodes which have a binary version not matching the provided version
-    pub async fn get_outdated_nodes_list(
-        &self,
-        version: &Version,
-    ) -> Result<Vec<(NodeId, Version)>, DbError> {
+    pub async fn get_outdated_nodes_list(&self, version: &Version) -> Result<Vec<NodeId>, DbError> {
         let db_lock = self.db.lock().await;
         let data = sqlx::query(
             "SELECT node_id, bin_version FROM nodes WHERE status = ? AND bin_version != ?",
@@ -286,10 +281,10 @@ impl DbClient {
         .fetch_all(&*db_lock)
         .await?;
 
-        let version = data
+        let nodes = data
             .iter()
-            .filter_map(|v| {
-                let current = v
+            .filter_map(|row| {
+                let current = row
                     .get::<String, _>("bin_version")
                     .parse()
                     // if we cannot parse it, let's assume it as outdated
@@ -298,15 +293,15 @@ impl DbClient {
                     .unwrap_or(Version::new(0, 0, 0));
 
                 if &current < version {
-                    let id: String = v.get("node_id");
-                    Some((NodeId::new(id), current))
+                    let id: String = row.get("node_id");
+                    Some(NodeId::new(id))
                 } else {
                     None
                 }
             })
             .collect();
 
-        Ok(version)
+        Ok(nodes)
     }
 
     // Insert node metadata onto local cache DB

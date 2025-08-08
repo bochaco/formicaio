@@ -304,10 +304,10 @@ impl NodeManager {
                 .await;
 
             // TODO: pass the filter/s to docker-client
-            if let Some(ref filter) = filter {
-                if !filter.passes(&node_info) {
-                    continue;
-                }
+            if let Some(ref f) = filter
+                && !f.passes(&node_info)
+            {
+                continue;
             }
 
             // if the node is Active, let's also get up to date metrics

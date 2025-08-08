@@ -152,10 +152,10 @@ pub fn spawn_bg_tasks(app_ctx: AppContext, node_manager: NodeManager, settings: 
                     }
                 },
                 _ = ctx.node_bin_version_check.tick() => {
-                    tokio::spawn(check_node_bin_version(
-                        node_manager.clone(),
-                        app_ctx.db_client.clone(),
-                    ));
+                    check_node_bin_version(
+                        &node_manager,
+                        &app_ctx,
+                    ).await;
                 },
                 _ = ctx.balances_retrieval.tick() => {
                     let _ = app_ctx.bg_tasks_cmds_tx.send(BgTasksCmds::CheckAllBalances);

@@ -201,10 +201,10 @@ fn spawn_nodes_list_polling() {
                     // let's now update those with new values
                     context.nodes.with_untracked(|(_, cx_nodes)| {
                         for (id, cn) in cx_nodes {
-                            if let Some(updated) = info.nodes.get(id) {
-                                if cn.read_untracked() != *updated {
-                                    cn.update(|cn| *cn = updated.clone());
-                                }
+                            if let Some(updated) = info.nodes.get(id)
+                                && cn.read_untracked() != *updated
+                            {
+                                cn.update(|cn| *cn = updated.clone());
                             }
                         }
                     });

@@ -2,11 +2,14 @@ use crate::{
     app::{AppContext, METRICS_MAX_SIZE_PER_NODE},
     db_client::DbClient,
     node_mgr::NodeManager,
-    types::{AppSettings, NodeInstanceInfo, NodeStatus},
+    types::{AppSettings, BatchType, NodeInstanceInfo, NodeStatus},
     views::truncated_balance_str,
 };
 
-use super::{BgTasksCmds, ImmutableNodeStatus, TokenContract, metrics_client::NodeMetricsClient};
+use super::{
+    BgTasksCmds, ImmutableNodeStatus, TokenContract, metrics_client::NodeMetricsClient,
+    prepare_node_action_batch,
+};
 
 use alloy::{
     network::Network,
@@ -22,7 +25,7 @@ use std::{
 };
 use tokio::{
     sync::RwLock,
-    time::{Duration, sleep, timeout},
+    time::{Duration, timeout},
 };
 use url::Url;
 
@@ -39,7 +42,7 @@ const LCD_LABEL_BALANCE: &str = "Total balance:";
 
 // Check latest version of node binary and upgrade nodes
 // automatically if auto-upgrade was enabled by the user.
-pub async fn check_node_bin_version(node_manager: NodeManager, db_client: DbClient) {
+pub async fn check_node_bin_version(node_manager: &NodeManager, app_ctx: &AppContext) {
     if let Some(latest_version) = latest_version_available().await {
         logging::log!("Latest version of node binary available: {latest_version}");
 
@@ -52,38 +55,44 @@ pub async fn check_node_bin_version(node_manager: NodeManager, db_client: DbClie
             );
         }
 
-        loop {
-            let auto_upgrade = db_client.get_settings().await.nodes_auto_upgrade;
-            logging::log!("Nodes auto-upgrading setting enabled?: {auto_upgrade}");
-            if !auto_upgrade {
-                break;
-            }
+        let auto_upgrade = app_ctx.db_client.get_settings().await.nodes_auto_upgrade;
+        logging::log!("Nodes auto-upgrading setting enabled?: {auto_upgrade}");
 
-            // we'll upgrade only one in each iteration of the loop, if the user changes the
-            // settings, in next iteration we will stop the auto-upgrade and/or avoid upgrading a node
-            // which may have been already upgraded by the user manually.
-            match db_client
+        if auto_upgrade {
+            match app_ctx
+                .db_client
                 .get_outdated_nodes_list(&latest_version)
                 .await
-                .map(|list| list.first().cloned())
             {
-                Ok(Some((node_id, v))) => {
+                Ok(nodes) if !nodes.is_empty() => {
                     logging::log!(
-                        "Auto-upgrading node binary from v{v} to v{latest_version} for node instance {node_id} ..."
+                        "Creating batch of {} nodes to auto-upgrade node binary to v{latest_version} ...",
+                        nodes.len()
                     );
-                    if let Err(err) = node_manager.upgrade_node_instance(&node_id).await {
+
+                    let delay = app_ctx
+                        .db_client
+                        .get_settings()
+                        .await
+                        .nodes_auto_upgrade_delay;
+                    if let Err(err) = prepare_node_action_batch(
+                        BatchType::Upgrade(nodes),
+                        delay.as_secs(),
+                        app_ctx,
+                        node_manager,
+                    )
+                    .await
+                    {
                         logging::log!(
-                            "Failed to auto-upgrade node binary for node instance {node_id}: {err:?}."
+                            "Failed to schedule batch to auto-upgrade nodes binary: {err:?}."
                         );
                     }
-
-                    let delay = db_client.get_settings().await.nodes_auto_upgrade_delay;
-                    sleep(delay).await;
                 }
-                Ok(None) => break, // all nodes are up to date
+                Ok(_) => logging::log!(
+                    "No node instances are pending auto-upgrade to node binary version v{latest_version}."
+                ),
                 Err(err) => {
-                    logging::log!("Failed to retrieve list of nodes' binary versions: {err:?}");
-                    break;
+                    logging::log!("Failed to retrieve list of nodes' binary versions: {err:?}")
                 }
             }
         }
@@ -116,10 +125,10 @@ async fn latest_version_available() -> Option<Version> {
             Err(_) => return None,
         };
 
-        if let Some(version) = json["crate"]["newest_version"].as_str() {
-            if let Ok(latest_version) = Version::parse(version) {
-                return Some(latest_version);
-            }
+        if let Some(version) = json["crate"]["newest_version"].as_str()
+            && let Ok(latest_version) = Version::parse(version)
+        {
+            return Some(latest_version);
         }
     }
 
@@ -209,14 +218,13 @@ pub async fn update_nodes_info(
         // store up to date metadata and status onto local DB cache
         update_node_metadata(&node_info, &app_ctx.db_client, &app_ctx.node_status_locked).await;
 
-        if query_bin_version {
-            if let Some(ref version) = app_ctx
+        if query_bin_version
+            && let Some(ref version) = app_ctx
                 .db_client
                 .get_node_bin_version(&node_info.node_id)
                 .await
-            {
-                bin_version.insert(version.clone());
-            }
+        {
+            bin_version.insert(version.clone());
         }
     }
 

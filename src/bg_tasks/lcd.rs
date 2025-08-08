@@ -77,10 +77,10 @@ pub async fn display_stats_on_lcd(
     loop {
         select! {
             settings = bg_tasks_cmds_rx.recv() => {
-                if let Ok(BgTasksCmds::ApplySettings(s)) = settings {
-                    if !s.lcd_display_enabled
+                if let Ok(BgTasksCmds::ApplySettings(s)) = settings
+                    && ( !s.lcd_display_enabled
                         || cur_lcd_device != s.lcd_device
-                        || cur_lcd_addr != s.lcd_addr
+                        || cur_lcd_addr != s.lcd_addr) {
                     {
                         logging::log!("Disabling LCD device on /dev/i2c-{cur_lcd_device}, address 0x{cur_lcd_addr}");
                         let mut pcf_8574: Pcf8574 = display.unwrap(); // this unwrap doesn't panic

@@ -545,11 +545,11 @@ impl NativeNodes {
         };
 
         // we upgrade only if existing node binary is not the latest version
-        if let Ok(version) = self.helper_read_node_version(None).await {
-            if version == version_to_download {
-                logging::log!("Master node binary is already up to date (version v{version})");
-                return Ok(version);
-            }
+        if let Ok(version) = self.helper_read_node_version(None).await
+            && version == version_to_download
+        {
+            logging::log!("Master node binary is already up to date (version v{version})");
+            return Ok(version);
         }
 
         logging::log!("Downloading node binary version v{version_to_download} from repository ...");
