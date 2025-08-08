@@ -4,80 +4,67 @@
 @import "flowbite/src/themes/default";
 @plugin "flowbite/plugin";
 
-@utility btn-modal {
+@layer utilities {
+  .btn-modal {
     @apply text-gray-600 bg-gray-100 hover:bg-gray-300 hover:text-gray-900 focus:outline-none focus:ring-4 focus:ring-gray-300 font-medium rounded-lg text-sm px-5 py-2.5 me-2 mb-2 dark:text-white dark:hover:text-white dark:bg-gray-800 dark:hover:bg-gray-600 dark:focus:ring-gray-600 dark:border-gray-600;
-}
-
-@utility btn-node-action {
+  }
+  .btn-node-action {
     @apply inline-flex items-center ml-1 px-1 py-1 text-xs font-medium text-gray-900 border border-gray-200 rounded hover:text-blue-700 focus:z-10 focus:ring-2 focus:ring-blue-700 focus:text-blue-700 dark:border-gray-700 dark:text-gray-400 dark:hover:text-white dark:focus:ring-blue-500 dark:focus:text-white;
-}
-
-@utility btn-disabled-node-action {
+  }
+  .btn-disabled-node-action {
     @apply inline-flex items-center ml-1 px-1 py-1 text-xs font-medium text-gray-200 border border-gray-200 rounded hover:text-blue-700 focus:z-10 focus:ring-2 focus:ring-blue-700 focus:text-blue-700 dark:border-gray-700 dark:text-gray-700 dark:hover:text-white dark:focus:ring-blue-500 dark:focus:text-white;
-}
-
-@utility btn-node-action-active {
+  }
+  .btn-node-action-active {
     @apply bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700;
-}
-
-@utility btn-node-action-inactive {
+  }
+  .btn-node-action-inactive {
     @apply bg-gray-50 hover:bg-gray-200 dark:bg-gray-900 dark:hover:bg-gray-800;
-}
-
-@utility form-input-box {
+  }
+  .form-input-box {
     @apply bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white;
-}
-
-@utility form-label {
+  }
+  .form-label {
     @apply block mb-2 text-sm font-medium text-gray-900 dark:text-white;
-}
-
-@utility form-invalid-input-msg {
+  }
+  .form-invalid-input-msg {
     @apply mt-2 text-sm text-red-600 dark:text-red-500;
-}
-
-@utility node-card {
+  }
+  .node-card {
     @apply relative max-w-sm m-2 p-4 border border-gray-200 rounded-lg shadow dark:border-gray-700;
-}
-
-@utility node-card-selected {
+  }
+  .node-card-selected {
     @apply relative max-w-sm m-2 p-4 border border-blue-700 rounded-lg shadow dark:border-blue-400;
-}
-
-@utility node-card-active {
+  }
+  .node-card-active {
     @apply bg-gray-100 dark:bg-gray-800;
-}
-
-@utility node-card-inactive {
+  }
+  .node-card-inactive {
     @apply bg-gray-50 dark:bg-gray-900;
-}
-
-@utility node-info-item {
+  }
+  .node-info-item {
     @apply text-blue-700 dark:text-blue-400;
-}
-
-@utility node-info-item-highlight {
+  }
+  .node-info-item-highlight {
     @apply text-green-700 dark:text-green-400;
-}
-
-@utility node-info-item-warn {
+  }
+  .node-info-item-warn {
     @apply text-red-700 dark:text-red-400;
-}
-
-@utility settings-tab {
+  }
+  .settings-tab {
     @apply inline-block p-4 border-b-2 border-transparent rounded-t-lg hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300;
-}
-
-@utility settings-active-tab {
+  }
+  .settings-active-tab {
     @apply inline-block p-4 text-blue-600 border-b-2 border-blue-600 rounded-t-lg dark:text-blue-500 dark:border-blue-500;
-}
-
-@utility btn-manage-nodes-action {
+  }
+  .btn-manage-nodes-action {
     @apply flex justify-center items-center w-[52px] h-[52px] text-gray-500 hover:text-gray-900 bg-white rounded-full border border-gray-200 dark:border-gray-600 shadow-sm dark:hover:text-white dark:text-gray-400 hover:bg-gray-50 dark:bg-gray-700 dark:hover:bg-gray-600 focus:ring-4 focus:ring-gray-300 focus:outline-none dark:focus:ring-gray-400;
-}
-
-@utility pagination-item {
+  }
+  .pagination-item {
     @apply flex items-center justify-center px-1.5 h-6 leading-tight text-gray-500 bg-white border border-gray-300 hover:bg-gray-100 hover:text-gray-700 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white;
+  }
+  .animate-slide {
+    animation: slide 25s linear infinite; /* Apply the sliding animation */
+  }
 }
 
 @keyframes slide {
@@ -87,8 +74,4 @@
     100% {
         transform: translateX(-85%); /* Slide out of view to the left */
     }
-}
-
-@utility animate-slide {
-    animation: slide 25s linear infinite; /* Apply the sliding animation */
 }
