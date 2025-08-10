@@ -150,6 +150,16 @@ Formicaio is available through the [Formicaio community app store](https://githu
 
 **Demo**: [Installation Video](https://user-images.githubusercontent.com/10330103/197889452-e5cd7e96-3233-4a09-b475-94b754adc7a3.mp4)
 
+To install the Formicaio widget on UmbrelOS, follow these steps:
+
+1. From the UmbrelOS home screen, right-click and select 'Edit widgets', or click the 'Edit widgets' button at the bottom menu
+<img src="img/widget_01.png" width="200" height="96" />
+
+2. Search for the Formicaio widget from the list of widgets, and click to activate
+<img src="img/widget_02.png" width="200" height="163" />
+
+3. Close the “edit widgets” panel, and you should see the Formicaio widget already on your UmbrelOS home screen displaying the stats and automatically refreshing every 5 secs.
+
 ### CasaOS
 
 To install on CasaOS:
