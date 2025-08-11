@@ -19,7 +19,7 @@ pub const METRIC_KEY_BALANCE: &str = "ant_node_current_reward_wallet_balance";
 // Memory used by the process in MegaBytes.
 pub const METRIC_KEY_MEM_USED_MB: &str = "ant_networking_process_memory_used_mb";
 // The percentage of CPU used by the process. Value is from 0-100.
-pub const METRIC_KEY_CPU_USEAGE: &str = "ant_networking_process_cpu_usage_percentage";
+pub const METRIC_KEY_CPU_USAGE: &str = "ant_networking_process_cpu_usage_percentage";
 // The number of records stored locally.
 pub const METRIC_KEY_RECORDS: &str = "ant_networking_records_stored";
 // The number of records that we're responsible for. This is used to calculate the store cost.

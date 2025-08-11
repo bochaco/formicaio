@@ -1,7 +1,7 @@
 use crate::{
     app::{ClientGlobalState, METRICS_MAX_SIZE_PER_NODE},
     server_api::{get_settings, node_metrics},
-    types::{METRIC_KEY_CPU_USEAGE, METRIC_KEY_MEM_USED_MB, NodeId},
+    types::{METRIC_KEY_CPU_USAGE, METRIC_KEY_MEM_USED_MB, NodeId},
 };
 
 use apexcharts_rs::prelude::ApexChart;
@@ -181,7 +181,7 @@ pub async fn node_metrics_update(
 
         match (
             update.get(METRIC_KEY_MEM_USED_MB),
-            update.get(METRIC_KEY_CPU_USEAGE),
+            update.get(METRIC_KEY_CPU_USAGE),
         ) {
             (Some(mem), Some(cpu)) if !mem.is_empty() && !cpu.is_empty() => {
                 since = mem.last().map(|m| m.timestamp);

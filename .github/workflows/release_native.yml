@@ -32,7 +32,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run unit tests
-        run: cargo test
+        run: cargo test --release --features native,ssr,lcd-disabled
 
   extract_version:
     if: "startsWith(github.event.head_commit.message, 'chore: set version to v')"

@@ -20,7 +20,7 @@ const DEFAULT_NODES_METRICS_HOST: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
 const NODE_METRICS_TO_COLLECT: [&str; 9] = [
     METRIC_KEY_BALANCE,
     METRIC_KEY_MEM_USED_MB,
-    METRIC_KEY_CPU_USEAGE,
+    METRIC_KEY_CPU_USAGE,
     METRIC_KEY_RECORDS,
     METRIC_KEY_RELEVANT_RECORDS,
     METRIC_KEY_CONNECTED_PEERS,
@@ -30,7 +30,7 @@ const NODE_METRICS_TO_COLLECT: [&str; 9] = [
 ];
 
 // Predefined set of historic metrics to store in DB.
-const NODE_METRICS_TO_STORE_IN_DB: [&str; 2] = [METRIC_KEY_MEM_USED_MB, METRIC_KEY_CPU_USEAGE];
+const NODE_METRICS_TO_STORE_IN_DB: [&str; 2] = [METRIC_KEY_MEM_USED_MB, METRIC_KEY_CPU_USAGE];
 // Env var to enable the use of a metrics proxy service by providing its IP and port number.
 const METRICS_PROXY_ADDR: &str = "METRICS_PROXY_ADDR";
 
@@ -60,8 +60,16 @@ impl NodeMetricsClient {
     // Fetch, filter, and return the predefined type of metrics.
     pub async fn fetch_metrics(&self) -> Result<Vec<NodeMetric>, MetricsClientError> {
         let response = reqwest::get(&self.endpoint).await?.text().await?;
-        let (_remaining, families) = openmetrics(&response)
-            .map_err(|err| MetricsClientError::ParseError(err.to_string()))?;
+        self.parse_and_filter_metrics(&response).await
+    }
+
+    // Parse an Openmetrics string and return the metrics we are interested in
+    async fn parse_and_filter_metrics(
+        &self,
+        data: &str,
+    ) -> Result<Vec<NodeMetric>, MetricsClientError> {
+        let (_remaining, families) =
+            openmetrics(data).map_err(|err| MetricsClientError::ParseError(err.to_string()))?;
 
         let mut fetched_metrics = Vec::new();
         let timestamp = Utc::now().timestamp_millis();
@@ -142,7 +150,7 @@ impl NodesMetrics {
                 info.mem_used = metric.value.parse::<f64>().ok();
             }
 
-            if let Some(metric) = metrics.get(METRIC_KEY_CPU_USEAGE) {
+            if let Some(metric) = metrics.get(METRIC_KEY_CPU_USAGE) {
                 info.cpu_usage = metric.value.parse::<f64>().ok();
             }
 
@@ -170,5 +178,47 @@ impl NodesMetrics {
                 info.net_size = metric.value.parse::<usize>().ok();
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use chrono::Utc;
+
+    #[tokio::test]
+    async fn test_metrics_parse_invalid() {
+        let client = NodeMetricsClient::new(8080);
+        let invalid_data = "not openmetrics format";
+        let result = client.parse_and_filter_metrics(invalid_data).await;
+        assert!(matches!(result, Err(MetricsClientError::ParseError(_))));
+    }
+
+    #[tokio::test]
+    async fn test_metrics_parse_valid() {
+        let client = NodeMetricsClient::new(8080);
+        let data = NODE_METRICS_TO_COLLECT
+            .iter()
+            .enumerate()
+            .map(|(i, key)| format!("# TYPE {key} gauge\n{key} {}", i + 1))
+            .collect::<Vec<_>>()
+            .join("\n")
+            + "\n# EOF\n";
+
+        let timestamp_prev = Utc::now().timestamp_millis();
+        let result = client.parse_and_filter_metrics(&data).await;
+        let timestamp_after = Utc::now().timestamp_millis();
+
+        let metrics = result.expect("Failed to parse metrics");
+
+        let timestamp = metrics.first().map_or(0, |m| m.timestamp);
+        assert!(timestamp >= timestamp_prev);
+        assert!(timestamp <= timestamp_after);
+
+        metrics.iter().enumerate().for_each(|(i, metric)| {
+            assert_eq!(metric.key, NODE_METRICS_TO_COLLECT[i]);
+            assert_eq!(metric.value, (i + 1).to_string());
+            assert_eq!(metric.timestamp, timestamp);
+        });
     }
 }
