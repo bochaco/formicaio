@@ -9,6 +9,7 @@ services:
     environment:
       FORMICAIO_ADDR: host.docker.internal:3100
       FORMICAIO_PROXY_PORT: 52101
+      FORMICAIO_WIDGET_PROXY_PORT: 52111
     extra_hosts:
       - host.docker.internal:host-gateway
     container_name: formicaio-apps-formicaio_formicaio_proxy_1
