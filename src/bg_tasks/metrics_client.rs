@@ -17,16 +17,20 @@ use thiserror::Error;
 const DEFAULT_NODES_METRICS_HOST: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
 
 // Predefined set of metrics to monitor and collect.
-const NODE_METRICS_TO_COLLECT: [&str; 9] = [
-    METRIC_KEY_BALANCE,
-    METRIC_KEY_MEM_USED_MB,
-    METRIC_KEY_CPU_USAGE,
-    METRIC_KEY_RECORDS,
-    METRIC_KEY_RELEVANT_RECORDS,
-    METRIC_KEY_CONNECTED_PEERS,
-    METRIC_KEY_PEERS_IN_RT,
-    METRIC_KEY_SHUNNED_COUNT,
-    METRIC_KEY_NET_SIZE,
+const NODE_METRICS_TO_COLLECT: [(&str, &str); 10] = [
+    (METRIC_KEY_BALANCE, ""),
+    (METRIC_KEY_MEM_USED_MB, ""),
+    (METRIC_KEY_CPU_USAGE, ""),
+    (METRIC_KEY_RECORDS, ""),
+    (METRIC_KEY_RELEVANT_RECORDS, ""),
+    (METRIC_KEY_CONNECTED_PEERS, ""),
+    (METRIC_KEY_PEERS_IN_RT, ""),
+    (METRIC_KEY_SHUNNED_COUNT, ""),
+    (METRIC_KEY_NET_SIZE, ""),
+    (
+        METRIC_KEY_REACHABILITY,
+        "status", // we will get only the one with value > 0
+    ),
 ];
 
 // Predefined set of historic metrics to store in DB.
@@ -45,6 +49,7 @@ pub enum MetricsClientError {
 // Client to query metrics from nodes
 pub struct NodeMetricsClient {
     endpoint: String,
+    metrics_to_collect: HashMap<String, String>,
 }
 
 impl NodeMetricsClient {
@@ -54,7 +59,15 @@ impl NodeMetricsClient {
             Err(_) => format!("http://{DEFAULT_NODES_METRICS_HOST}:{port}/metrics"),
         };
 
-        Self { endpoint }
+        let metrics_to_collect = NODE_METRICS_TO_COLLECT
+            .iter()
+            .map(|(key, label)| (key.to_string(), label.to_string()))
+            .collect();
+
+        Self {
+            metrics_to_collect,
+            endpoint,
+        }
     }
 
     // Fetch, filter, and return the predefined type of metrics.
@@ -77,12 +90,28 @@ impl NodeMetricsClient {
         for family in families {
             for sample in family.samples {
                 let key = sample.name();
-                if NODE_METRICS_TO_COLLECT.contains(&key) {
-                    fetched_metrics.push(NodeMetric {
-                        key: key.to_string(),
-                        value: sample.number().to_string(),
-                        timestamp,
-                    });
+                let value = sample.number();
+                if let Some(label) = self.metrics_to_collect.get(key) {
+                    if label.is_empty() {
+                        fetched_metrics.push(NodeMetric {
+                            key: key.to_string(),
+                            value: value.to_string(),
+                            timestamp,
+                        });
+                    } else if value > 0f64 {
+                        // we have specific label to extract
+                        sample
+                            .labels()
+                            .iter()
+                            .filter(|l| l.name == label)
+                            .for_each(|l| {
+                                fetched_metrics.push(NodeMetric {
+                                    key: key.to_string(),
+                                    value: l.value.to_string(),
+                                    timestamp,
+                                });
+                            });
+                    }
                 }
             }
         }
@@ -177,6 +206,10 @@ impl NodesMetrics {
             if let Some(metric) = metrics.get(METRIC_KEY_NET_SIZE) {
                 info.net_size = metric.value.parse::<usize>().ok();
             }
+
+            if let Some(metric) = metrics.get(METRIC_KEY_REACHABILITY) {
+                info.reachability = Some(metric.value.clone());
+            }
         }
     }
 }
@@ -200,7 +233,17 @@ mod test {
         let data = NODE_METRICS_TO_COLLECT
             .iter()
             .enumerate()
-            .map(|(i, key)| format!("# TYPE {key} gauge\n{key} {}", i + 1))
+            .map(|(i, (key, label))| {
+                if label.is_empty() {
+                    format!("# TYPE {key} gauge\n{key} {}", i + 1)
+                } else {
+                    format!(
+                        "{key}{{status=\"STATUS-{}\"}} 0\n{key}{{status=\"STATUS-{}\"}} 1",
+                        i + 100,
+                        i + 1
+                    )
+                }
+            })
             .collect::<Vec<_>>()
             .join("\n")
             + "\n# EOF\n";
@@ -216,8 +259,13 @@ mod test {
         assert!(timestamp <= timestamp_after);
 
         metrics.iter().enumerate().for_each(|(i, metric)| {
-            assert_eq!(metric.key, NODE_METRICS_TO_COLLECT[i]);
-            assert_eq!(metric.value, (i + 1).to_string());
+            let (key, label) = NODE_METRICS_TO_COLLECT[i];
+            assert_eq!(metric.key, key);
+            if label.is_empty() {
+                assert_eq!(metric.value, (i + 1).to_string());
+            } else {
+                assert_eq!(metric.value, format!("STATUS-{}", i + 1));
+            }
             assert_eq!(metric.timestamp, timestamp);
         });
     }

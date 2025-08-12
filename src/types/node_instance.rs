@@ -74,6 +74,8 @@ pub struct NodeInstanceInfo {
     pub ips: Option<String>,
     /// Custom data directory path for this node instance
     pub data_dir_path: Option<PathBuf>,
+    /// Reachability status of the node (from metrics server)
+    pub reachability: Option<String>,
 }
 
 impl NodeInstanceInfo {

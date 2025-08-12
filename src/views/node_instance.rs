@@ -296,6 +296,15 @@ pub(super) fn NodeInstanceView(
                             </div>
                         </div>
                     </p>
+                    <Show
+                        when=move || { info.read().reachability.is_some() }
+                        fallback=|| view! { "" }
+                    >
+                        <p>
+                            <span class="node-info-item">"Reachability check: "</span>
+                            {move || value_or_dash(info.read().reachability.clone())}
+                        </p>
+                    </Show>
                     <p>
                         <div class="flex flex-row">
                             <div class="basis-1/2">
