@@ -141,6 +141,8 @@ pub struct NodeOpts {
     pub rewards_addr: String,
     /// Whether UPnP is enabled for this node
     pub upnp: bool,
+    /// Whether reachability check is enabled for this node
+    pub reachability_check: bool,
     /// Whether node logs are enabled for this node
     pub node_logs: bool,
     /// Whether to automatically start the node after creation
@@ -157,6 +159,7 @@ impl Default for NodeOpts {
             metrics_port: u16::default(),
             rewards_addr: String::default(),
             upnp: bool::default(),
+            reachability_check: bool::default(),
             node_logs: bool::default(),
             auto_start: bool::default(),
             data_dir_path: PathBuf::default(),

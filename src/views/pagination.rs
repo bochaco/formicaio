@@ -47,7 +47,7 @@ pub fn PaginationView() -> impl IntoView {
     view! {
         <div class="flex w-full flex-col">
             <div class="divider">
-                <Show when=move || (num_pages() > 1) fallback=move || view! { "" }.into_view()>
+                <Show when=move || { num_pages() > 1 } fallback=move || view! { "" }.into_view()>
                     <ul class="flex items-center h-5 text-sm">
                         <li>
                             <label

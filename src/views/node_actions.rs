@@ -412,7 +412,7 @@ fn MultipleNodesActionConfirm(modal_apply_action: RwSignal<Option<NodeAction>>) 
 
             <button
                 type="button"
-                disabled=move || (interval.read().is_err() || modal_apply_action.read().is_none())
+                disabled=move || { interval.read().is_err() || modal_apply_action.read().is_none() }
                 on:click=move |_| {
                     if let (Ok(i), Some(action)) = (interval.get(), modal_apply_action.get()) {
                         modal_apply_action.set(None);

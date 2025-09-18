@@ -3,7 +3,7 @@ use crate::types::{InactiveReason, NodeId, NodeInstanceInfo};
 #[cfg(feature = "ssr")]
 use super::docker_client::{
     LABEL_KEY_METRICS_PORT, LABEL_KEY_NODE_LOGS_DISABLED, LABEL_KEY_NODE_PORT,
-    LABEL_KEY_REWARDS_ADDR, LABEL_KEY_UPNP_DISABLED,
+    LABEL_KEY_REACHABILITY_CHECK_DISABLED, LABEL_KEY_REWARDS_ADDR, LABEL_KEY_UPNP_DISABLED,
 };
 #[cfg(feature = "ssr")]
 use crate::types::NodeStatus;
@@ -70,6 +70,9 @@ impl From<Container> for NodeInstanceInfo {
             ),
             rewards_addr: val.Labels.get(LABEL_KEY_REWARDS_ADDR).cloned(),
             upnp: !val.Labels.contains_key(LABEL_KEY_UPNP_DISABLED),
+            reachability_check: !val
+                .Labels
+                .contains_key(LABEL_KEY_REACHABILITY_CHECK_DISABLED),
             node_logs: !val.Labels.contains_key(LABEL_KEY_NODE_LOGS_DISABLED),
             ..Default::default()
         }

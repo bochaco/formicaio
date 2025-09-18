@@ -32,5 +32,8 @@ pub const METRIC_KEY_PEERS_IN_RT: &str = "ant_networking_peers_in_routing_table"
 pub const METRIC_KEY_SHUNNED_COUNT: &str = "ant_networking_shunned_count_total";
 // The estimated number of nodes in the network calculated by the peers in our RT.
 pub const METRIC_KEY_NET_SIZE: &str = "ant_networking_estimated_network_size";
-// The reachability status of the node (e.g. Ongoing/NotPerformed/Reachable/NotRoutable/UPnPSupported).
-pub const METRIC_KEY_REACHABILITY: &str = "ant_networking_reachability_status";
+// The reachability adapter status of the node (e.g. Private/UPnP/Public).
+pub const METRIC_KEY_REACHABILITY: &str = "ant_networking_reachability_adapter";
+// Progress indicator for reachability check. 0 = not run, 1-99 = in progress, 100 = completed.
+pub const METRIC_KEY_REACHABILITY_CHECK_PROGRESS: &str =
+    "ant_networking_reachability_check_progress";

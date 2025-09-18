@@ -6,7 +6,7 @@ use alloy_primitives::U256;
 use chrono::Utc;
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::{net::IpAddr, path::PathBuf};
+use std::{fmt, net::IpAddr, path::PathBuf};
 
 // Length of nodes PeerIds' prefix and suffix to be displayed
 const PEER_ID_PREFIX_SUFFIX_LEN: usize = 12;
@@ -15,6 +15,32 @@ const REWARDS_ADDR_PREFIX_SUFFIX_LEN: usize = 8;
 
 // PID of a node when running as a OS native process
 pub type NodePid = u32;
+
+#[derive(Clone, Default, Debug, Deserialize, PartialEq, Serialize)]
+pub enum ReachabilityCheckStatus {
+    #[default]
+    NotRun,
+    InProgress(f64),
+    Done(String),
+    Unknown(String),
+}
+
+impl fmt::Display for ReachabilityCheckStatus {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::NotRun => write!(f, "Not run"),
+            Self::InProgress(percent) => write!(f, "{percent:.2}% (in progress)"),
+            Self::Done(s) => write!(f, "Resulted in '{s}'"),
+            Self::Unknown(s) => write!(f, "Unknown, '{s}'"),
+        }
+    }
+}
+
+impl ReachabilityCheckStatus {
+    pub fn in_progress(&self) -> bool {
+        matches!(self, Self::InProgress(_))
+    }
+}
 
 #[derive(Clone, Default, Debug, Deserialize, PartialEq, Serialize)]
 pub struct NodeInstanceInfo {
@@ -50,6 +76,8 @@ pub struct NodeInstanceInfo {
     pub rewards_addr: Option<String>,
     /// Whether UPnP is enabled for this node
     pub upnp: bool,
+    /// Whether reachability check is enabled for this node
+    pub reachability_check: bool,
     /// Whether node logs are enabled for this node
     pub node_logs: bool,
     /// Current rewards earned by the node
@@ -75,7 +103,7 @@ pub struct NodeInstanceInfo {
     /// Custom data directory path for this node instance
     pub data_dir_path: Option<PathBuf>,
     /// Reachability status of the node (from metrics server)
-    pub reachability: Option<String>,
+    pub reachability: Option<ReachabilityCheckStatus>,
 }
 
 impl NodeInstanceInfo {

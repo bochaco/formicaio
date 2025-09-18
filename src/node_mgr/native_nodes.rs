@@ -178,6 +178,10 @@ impl NativeNodes {
             vec![]
         };
 
+        if !node_info.reachability_check {
+            args.push("--skip-reachability-check".to_string());
+        }
+
         args.push("--port".to_string());
         args.push(port.to_string());
 
