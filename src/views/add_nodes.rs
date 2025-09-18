@@ -73,6 +73,7 @@ fn AddNodeTabs(modal_visibility: RwSignal<bool>, active_tab: RwSignal<u8>) -> im
         "0x".to_string(),
     )));
     let upnp = RwSignal::new(true);
+    let reachability_check = RwSignal::new(true);
     let auto_start = RwSignal::new(false);
     let interval = RwSignal::new(Ok(60));
     let data_dir_path = RwSignal::new(PathBuf::default());
@@ -121,7 +122,7 @@ fn AddNodeTabs(modal_visibility: RwSignal<bool>, active_tab: RwSignal<u8>) -> im
                     label="Delay (in seconds) between the creation of each node in the batch:"
                 />
                 <div class="flex flex-row">
-                    <div class="basis-1/2">
+                    <div class="basis-4/12">
                         <CheckboxInput
                             signal=auto_start
                             id="auto_start"
@@ -129,7 +130,15 @@ fn AddNodeTabs(modal_visibility: RwSignal<bool>, active_tab: RwSignal<u8>) -> im
                             help_msg="Automatically starts nodes upon creation."
                         />
                     </div>
-                    <div class="basis-1/2">
+                    <div class="basis-5/12">
+                        <CheckboxInput
+                            signal=reachability_check
+                            id="reachability_check"
+                            label="Reachability check"
+                            help_msg="Run reachability checks before starting the node. The reachability check determines the network connectivity and auto configures the node for you. Disable only if you are sure about the network configuration."
+                        />
+                    </div>
+                    <div class="basis-3/12">
                         <CheckboxInput
                             signal=upnp
                             id="upnp"
@@ -178,6 +187,7 @@ fn AddNodeTabs(modal_visibility: RwSignal<bool>, active_tab: RwSignal<u8>) -> im
                         metrics_port: m,
                         rewards_addr: addr.strip_prefix("0x").unwrap_or(&addr).to_string(),
                         upnp: upnp.get(),
+                        reachability_check: reachability_check.get(),
                         node_logs: true,
                         auto_start: auto_start.get(),
                         data_dir_path: data_dir_path.get(),

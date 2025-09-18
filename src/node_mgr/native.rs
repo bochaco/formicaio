@@ -151,6 +151,7 @@ impl NodeManager {
             metrics_port: Some(node_opts.metrics_port),
             rewards_addr: Some(node_opts.rewards_addr),
             upnp: node_opts.upnp,
+            reachability_check: node_opts.reachability_check,
             node_logs: node_opts.node_logs,
             data_dir_path: Some(node_opts.data_dir_path.clone()),
             ..Default::default()

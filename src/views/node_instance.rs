@@ -85,9 +85,15 @@ pub(super) fn NodeInstanceView(
     };
 
     // warn the user when there is no connected peers for more than 2 minutes
+    let reachability_check_running = move || {
+        info.get()
+            .reachability
+            .map(|r| r.in_progress())
+            .unwrap_or(false)
+    };
     let mut innactivity_started = 0i64;
     let mut warn_conn_peers = move || {
-        if info.read().status.is_active() {
+        if info.read().status.is_active() && !reachability_check_running() {
             if matches!(info.read().connected_peers, Some(0)) {
                 if innactivity_started == 0 {
                     innactivity_started = Utc::now().timestamp();
@@ -296,15 +302,6 @@ pub(super) fn NodeInstanceView(
                             </div>
                         </div>
                     </p>
-                    <Show
-                        when=move || { info.read().reachability.is_some() }
-                        fallback=|| view! { "" }
-                    >
-                        <p>
-                            <span class="node-info-item">"Reachability check: "</span>
-                            {move || value_or_dash(info.read().reachability.clone())}
-                        </p>
-                    </Show>
                     <p>
                         <div class="flex flex-row">
                             <div class="basis-1/2">
@@ -319,7 +316,7 @@ pub(super) fn NodeInstanceView(
                     </p>
                     <p>
                         <div class="flex flex-row">
-                            <div class="basis-1/2">
+                            <div class="basis-5/12">
                                 <span class=move || {
                                     if warn_conn_peers() {
                                         "node-info-item-warn"
@@ -331,9 +328,9 @@ pub(super) fn NodeInstanceView(
                                     if warn_conn_peers() { "node-info-item-warn" } else { "" }
                                 }>{move || { value_or_dash(info.read().connected_peers) }}</span>
                             </div>
-                            <div class="basis-1/2">
-                                <span class="node-info-item">"Shunned by: "</span>
-                                {move || { value_or_dash(info.read().shunned_count) }}
+                            <div class="basis-7/12">
+                                <span class="node-info-item">"Network size: "</span>
+                                {move || { value_or_dash(info.read().net_size) }}
                             </div>
                         </div>
                     </p>
@@ -344,8 +341,8 @@ pub(super) fn NodeInstanceView(
                                 {move || { value_or_dash(info.read().kbuckets_peers) }}
                             </div>
                             <div class="basis-1/2">
-                                <span class="node-info-item">"Network size: "</span>
-                                {move || { value_or_dash(info.read().net_size) }}
+                                <span class="node-info-item">"Shunned by: "</span>
+                                {move || { value_or_dash(info.read().shunned_count) }}
                             </div>
                         </div>
                     </p>
@@ -382,6 +379,27 @@ pub(super) fn NodeInstanceView(
                                 </div>
                             </div>
                         </div>
+                    </p>
+                    <p>
+                        <span class="node-info-item">"Reachability check: "</span>
+                        <Show
+                            when=move || { info.read().reachability.is_some() }
+                            fallback=move || {
+                                view! {
+                                    {move || {
+                                        if info.read().reachability_check { "On" } else { "Off" }
+                                    }}
+                                }
+                            }
+                        >
+                            <span class=move || {
+                                if reachability_check_running() {
+                                    "node-info-item-info"
+                                } else {
+                                    ""
+                                }
+                            }>{move || { value_or_dash(info.read().reachability.clone()) }}</span>
+                        </Show>
                     </p>
                     <p>
                         <span class="node-info-item">"Created: "</span>

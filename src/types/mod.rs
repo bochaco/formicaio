@@ -12,7 +12,7 @@ pub use batch::{BatchOnMatch, BatchStatus, BatchType, NodeOpts, NodesActionsBatc
 pub use filters::{NodeFilter, NodeStatusFilter};
 pub use metrics::*;
 pub use node_id::NodeId;
-pub use node_instance::{NodeInstanceInfo, NodePid};
+pub use node_instance::{NodeInstanceInfo, NodePid, ReachabilityCheckStatus};
 pub use node_status::{InactiveReason, NodeStatus};
 pub use settings::AppSettings;
 pub use sort_nodes::NodesSortStrategy;

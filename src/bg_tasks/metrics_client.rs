@@ -1,6 +1,6 @@
 use crate::{
     db_client::DbClient,
-    types::{NodeId, NodeInstanceInfo, metrics::*},
+    types::{NodeId, NodeInstanceInfo, ReachabilityCheckStatus, metrics::*},
 };
 
 use alloy_primitives::U256;
@@ -17,7 +17,7 @@ use thiserror::Error;
 const DEFAULT_NODES_METRICS_HOST: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
 
 // Predefined set of metrics to monitor and collect.
-const NODE_METRICS_TO_COLLECT: [(&str, &str); 10] = [
+const NODE_METRICS_TO_COLLECT: [(&str, &str); 11] = [
     (METRIC_KEY_BALANCE, ""),
     (METRIC_KEY_MEM_USED_MB, ""),
     (METRIC_KEY_CPU_USAGE, ""),
@@ -29,8 +29,9 @@ const NODE_METRICS_TO_COLLECT: [(&str, &str); 10] = [
     (METRIC_KEY_NET_SIZE, ""),
     (
         METRIC_KEY_REACHABILITY,
-        "status", // we will get only the one with value > 0
+        "mode", // we will get only the one with value > 0
     ),
+    (METRIC_KEY_REACHABILITY_CHECK_PROGRESS, ""),
 ];
 
 // Predefined set of historic metrics to store in DB.
@@ -207,8 +208,35 @@ impl NodesMetrics {
                 info.net_size = metric.value.parse::<usize>().ok();
             }
 
-            if let Some(metric) = metrics.get(METRIC_KEY_REACHABILITY) {
-                info.reachability = Some(metric.value.clone());
+            match metrics
+                .get(METRIC_KEY_REACHABILITY_CHECK_PROGRESS)
+                .map(|metric| {
+                    metric
+                        .value
+                        .parse::<f64>()
+                        .map_err(|_| metric.value.clone())
+                }) {
+                Some(Err(value)) => {
+                    // this shouldn't happen but we'll expose it just in case
+                    info.reachability = Some(ReachabilityCheckStatus::Unknown(value));
+                }
+                None | Some(Ok(0.0)) => {
+                    info.reachability = Some(ReachabilityCheckStatus::NotRun);
+                }
+                Some(Ok(v)) if v > 0.0 && v < 100.0 => {
+                    info.reachability = Some(ReachabilityCheckStatus::InProgress(v));
+                }
+                Some(Ok(v)) => {
+                    // it reached 100% so we should be able to get the final outcome of the check
+                    if let Some(metric) = metrics.get(METRIC_KEY_REACHABILITY) {
+                        info.reachability =
+                            Some(ReachabilityCheckStatus::Done(metric.value.clone()));
+                    } else {
+                        // this shouldn't happen, but let's expose it just in case
+                        info.reachability =
+                            Some(ReachabilityCheckStatus::Done(format!("Done {v:.2}%")));
+                    }
+                }
             }
         }
     }
@@ -238,7 +266,7 @@ mod test {
                     format!("# TYPE {key} gauge\n{key} {}", i + 1)
                 } else {
                     format!(
-                        "{key}{{status=\"STATUS-{}\"}} 0\n{key}{{status=\"STATUS-{}\"}} 1",
+                        "{key}{{{label}=\"STATUS-{}\"}} 0\n{key}{{{label}=\"STATUS-{}\"}} 1",
                         i + 100,
                         i + 1
                     )

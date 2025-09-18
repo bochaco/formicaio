@@ -32,6 +32,7 @@ ENV REWARDS_ADDR_ARG=''
 
 ENV UPNP_ARG=''
 ENV IP_ARG=''
+ENV REACHABILITY_CHECK_ARG=''
 
 # Define whether to enable node logs.
 ENV NODE_LOGS_ARG='--log-output-dest /app/node_data/logs'
@@ -44,6 +45,7 @@ CMD ["sh", "-c", \
       "if [ -e '/app/node_data/secret-key-recycle' ]; then rm -f /app/node_data/secret-key*; fi \
       && /app/antnode \
       ${UPNP_ARG} \
+      ${REACHABILITY_CHECK_ARG} \
       ${IP_ARG} \
       --port ${NODE_PORT} \
       --metrics-server-port ${METRICS_PORT} \

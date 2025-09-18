@@ -189,6 +189,10 @@ pub struct NodeOptsCmd {
     /// If your router does not support UPnP, your node/s may struggle to connect to any peers. In this situation, create new node/s with UPnP disabled.
     #[structopt(long)]
     upnp: bool,
+    /// Run reachability checks before starting the node. Reachability check determines the network connectivity and auto configures the node for you.
+    /// You don't need to enable this check if you are sure about the network configuration.
+    #[structopt(long)]
+    reachability_check: bool,
     /// Automatically starts nodes upon creation.
     #[structopt(long)]
     auto_start: bool,
@@ -279,6 +283,7 @@ impl CliCommands {
                     metrics_port: node_opts_cmd.metrics_port,
                     rewards_addr: node_opts_cmd.rewards_addr.to_string(),
                     upnp: node_opts_cmd.upnp,
+                    reachability_check: node_opts_cmd.reachability_check,
                     node_logs: true,
                     auto_start: node_opts_cmd.auto_start,
                     data_dir_path: node_opts_cmd.data_dir_path.clone(),
@@ -470,12 +475,13 @@ impl CliCommands {
                 if opts.count > 1 {
                     // TODO: use some crate which performs this serialisation
                     let body = format!(
-                        "batch_type[Create][node_opts][node_ip]={}&batch_type[Create][node_opts][port]={}&batch_type[Create][node_opts][metrics_port]={}&batch_type[Create][node_opts][rewards_addr]={}&batch_type[Create][node_opts][upnp]={}&batch_type[Create][node_opts][node_logs]={}&batch_type[Create][node_opts][auto_start]={}&batch_type[Create][node_opts][data_dir_path]={}&batch_type[Create][count]={}&interval_secs={}",
+                        "batch_type[Create][node_opts][node_ip]={}&batch_type[Create][node_opts][port]={}&batch_type[Create][node_opts][metrics_port]={}&batch_type[Create][node_opts][rewards_addr]={}&batch_type[Create][node_opts][upnp]={}&batch_type[Create][node_opts][reachability_check]={}&batch_type[Create][node_opts][node_logs]={}&batch_type[Create][node_opts][auto_start]={}&batch_type[Create][node_opts][data_dir_path]={}&batch_type[Create][count]={}&interval_secs={}",
                         node_ip,
                         opts.port,
                         opts.metrics_port,
                         opts.rewards_addr,
                         opts.upnp,
+                        opts.reachability_check,
                         true,
                         opts.auto_start,
                         form_urlencoded::byte_serialize(
@@ -492,12 +498,13 @@ impl CliCommands {
                 } else {
                     // TODO: use some crate which performs this serialisation
                     let body = format!(
-                        "node_opts[node_ip]={}&node_opts[port]={}&node_opts[metrics_port]={}&node_opts[rewards_addr]={}&node_opts[upnp]={}&node_opts[node_logs]={}&node_opts[auto_start]={}&node_opts[data_dir_path]={}",
+                        "node_opts[node_ip]={}&node_opts[port]={}&node_opts[metrics_port]={}&node_opts[rewards_addr]={}&node_opts[upnp]={}&node_opts[reachability_check]={}&node_opts[node_logs]={}&node_opts[auto_start]={}&node_opts[data_dir_path]={}",
                         node_ip,
                         opts.port,
                         opts.metrics_port,
                         opts.rewards_addr,
                         opts.upnp,
+                        opts.reachability_check,
                         true,
                         opts.auto_start,
                         form_urlencoded::byte_serialize(
@@ -703,6 +710,10 @@ impl CliCmdResponse {
                         table.add_row(row!["Port", value_or_dash(info.port)]);
                         table.add_row(row!["Metrics port", value_or_dash(info.metrics_port)]);
                         table.add_row(row!["UPnP", if info.upnp { "On" } else { "Off" }]);
+                        table.add_row(row![
+                            "Reachability check",
+                            if info.reachability_check { "On" } else { "Off" }
+                        ]);
                         table.add_row(row![
                             "Rewards address",
                             value_or_dash(info.rewards_addr.clone())
