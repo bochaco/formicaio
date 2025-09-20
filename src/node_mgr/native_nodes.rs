@@ -179,7 +179,13 @@ impl NativeNodes {
         };
 
         if !node_info.reachability_check {
-            args.push("--skip-reachability-check".to_string());
+            // disabling the reachability check is only available in version later than 0.4.4.
+            let version = self.helper_read_node_version(Some(node_info)).await;
+            if let Ok(v) = version
+                && v > Version::new(0, 4, 4)
+            {
+                args.push("--skip-reachability-check".to_string());
+            }
         }
 
         args.push("--port".to_string());
