@@ -35,7 +35,7 @@ async fn start_backend(
     use eyre::WrapErr;
     use formicaio::{
         app::{App, AppContext, ServerGlobalState, shell},
-        bg_tasks::spawn_bg_tasks,
+        bg_tasks::{spawn_bg_tasks, start_mcp_server},
         db_client::DbClient,
         node_mgr::NodeManager,
     };
@@ -110,6 +110,15 @@ async fn start_backend(
         settings.clone(),
     );
 
+    // If enabled by the user start the MCP server
+    if sub_cmds.mcp {
+        start_mcp_server(
+            sub_cmds.mcp_addr,
+            app_state.app_ctx.clone(),
+            app_state.node_manager.clone(),
+        );
+    }
+
     let app = Router::new()
         .leptos_routes(&app_state, routes, {
             move || shell(leptos_options.clone())
@@ -122,7 +131,7 @@ async fn start_backend(
     let listener = tokio::net::TcpListener::bind(&listen_addr)
         .await
         .wrap_err(format!("Failed to bind to TCP address {listen_addr}. Please check if the port is available and you have sufficient permissions."))?;
-    logging::log!("Formicaio backend server is now listening on http://{listen_addr}");
+    logging::log!("• Formicaio backend server is now listening on http://{listen_addr}");
     axum::serve(listener, app.into_make_service())
         .await
         .wrap_err(

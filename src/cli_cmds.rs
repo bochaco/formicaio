@@ -64,6 +64,12 @@ pub struct StartSubcommands {
     /// Setting this value will override the 'DB_PATH' and 'NODE_MGR_ROOT_DIR' environment variables.
     #[structopt(long)]
     pub data_dir_path: Option<PathBuf>,
+    /// Kick off an MCP server for AI agents to connect to with either through HTTP Streamable or SSE protocols.
+    #[structopt(long)]
+    pub mcp: bool,
+    /// MCP server address and port
+    #[structopt(long, default_value = "127.0.0.1:8080")]
+    pub mcp_addr: SocketAddr,
 }
 
 #[derive(Debug, PartialEq, StructOpt)]
