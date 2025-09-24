@@ -1,6 +1,8 @@
 mod batches;
 #[cfg(not(feature = "lcd-disabled"))]
 mod lcd;
+mod mcp;
+mod mcp_tools;
 mod metrics_client;
 mod tasks;
 mod tasks_ctx;
@@ -12,6 +14,7 @@ use super::{
 };
 
 pub use batches::{ActionsBatchError, prepare_node_action_batch};
+pub use mcp::start_mcp_server;
 pub use metrics_client::NodesMetrics;
 
 use alloy::sol;
