@@ -35,7 +35,7 @@ async fn start_backend(
     use eyre::WrapErr;
     use formicaio::{
         app::{App, AppContext, ServerGlobalState, shell},
-        bg_tasks::{spawn_bg_tasks, start_mcp_server},
+        bg_tasks::spawn_bg_tasks,
         db_client::DbClient,
         node_mgr::NodeManager,
     };
@@ -111,8 +111,9 @@ async fn start_backend(
     );
 
     // If enabled by the user start the MCP server
+    #[cfg(feature = "native")]
     if sub_cmds.mcp {
-        start_mcp_server(
+        formicaio::bg_tasks::start_mcp_server(
             sub_cmds.mcp_addr,
             app_state.app_ctx.clone(),
             app_state.node_manager.clone(),

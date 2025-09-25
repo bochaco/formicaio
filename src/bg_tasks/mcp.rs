@@ -77,7 +77,7 @@ pub fn start_mcp_server(addr: SocketAddr, app_ctx: AppContext, node_manager: Nod
             ..Default::default() // Using default values for other fields
         },
         meta: None,
-        instructions: Some("server instructions...".to_string()),
+        instructions: Some("Formicaio MCP Server - Use 'ListTools' to discover available node management tools. Connect via HTTP SSE or standard MCP protocols.".to_string()),
         protocol_version: LATEST_PROTOCOL_VERSION.to_string(),
     };
 
@@ -94,6 +94,7 @@ pub fn start_mcp_server(addr: SocketAddr, app_ctx: AppContext, node_manager: Nod
         HyperServerOptions {
             host: addr.ip().to_string(),
             port: addr.port(),
+            sse_support: false,
             ping_interval: Duration::from_secs(5),
             event_store: Some(Arc::new(InMemoryEventStore::default())), // enable resumability
             ..Default::default()
