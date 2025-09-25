@@ -97,7 +97,10 @@ The MCP server of Formicaio is designed to seamlessly integrate with any AI agen
 
 The video highlights the simplicity of connecting Formicaio with AI agents to automate tasks and streamline processes. You can see the integration in action using [n8n](https://n8n.io). We interact with Formicaio through an AI agent via chat, as well as demonstrate how to schedule a task that monitors CPU usage. Based on the detected CPU capacity on the host, the system can automatically request Formicaio to add or remove nodes, ensuring optimal performance. This is the AI prompt used in this showcase:
 ```text
-Make sure the CPU usage on the host is below 50%. If it is, add a new node instance on Formicaio with the same properties as the existing nodes, using a port number that is one higher than the highest current port. Also, keep the total number of nodes to 3; if there are more than 3, remove the extra ones.
+Make sure the CPU usage on the host is below 50%. If it is, add a new node
+instance on Formicaio with the same properties as the existing nodes, using a
+port number that is one higher than the highest current port. Also, keep the
+total number of nodes to 3; if there are more than 3, remove the extra ones.
 ```
 
 <img src="img/formicaio_mcp_with_n8n.gif" alt="Animation showing Formicaio MCP integration with n8n workflow automation" />
