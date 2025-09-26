@@ -48,7 +48,7 @@ structopt = "0.3"
 sqlx = { version = "0.8", default-features = false, features = ["derive","migrate","runtime-tokio","tls-rustls","sqlite"], optional = true }
 sysinfo = { version = "0.37", default-features = false, features = ["system"], optional = true }
 thiserror = "2"
-tokio = { version = "1", default-features = false, features = ["rt-multi-thread"], optional = true }
+tokio = { version = "1", default-features = false, features = ["rt-multi-thread","signal"], optional = true }
 tower = { version = "0.5", features = ["util"], optional = true }
 tower-http = { version = "0.6", default-features = false, features = ["fs"], optional = true }
 url = "2"

@@ -32,7 +32,7 @@ async fn start_backend(
     #[cfg(feature = "native")] sub_cmds: formicaio::cli_cmds::StartSubcommands,
 ) -> eyre::Result<()> {
     use axum::Router;
-    use eyre::WrapErr;
+    use eyre::{WrapErr, bail};
     use formicaio::{
         app::{App, AppContext, ServerGlobalState, shell},
         bg_tasks::spawn_bg_tasks,
@@ -133,11 +133,17 @@ async fn start_backend(
         .await
         .wrap_err(format!("Failed to bind to TCP address {listen_addr}. Please check if the port is available and you have sufficient permissions."))?;
     logging::log!("• Formicaio backend server is now listening on http://{listen_addr}");
-    axum::serve(listener, app.into_make_service())
-        .await
-        .wrap_err(
-            "Failed to start HTTP server. Please check your network configuration and try again.",
-        )?;
+
+    tokio::select! {
+        res = axum::serve(listener, app.into_make_service()) => {
+            if let Err(err) = res {
+                bail!("Failed to start HTTP server. Please check your network configuration and try again: {err:?}");
+            }
+        }
+        _ = tokio::signal::ctrl_c() => {
+            println!("Received Ctrl+C, shutting down...");
+        }
+    }
 
     Ok(())
 }
