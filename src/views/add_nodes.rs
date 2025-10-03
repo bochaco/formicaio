@@ -130,7 +130,15 @@ fn AddNodeTabs(modal_visibility: RwSignal<bool>, active_tab: RwSignal<u8>) -> im
                             help_msg="Automatically starts nodes upon creation."
                         />
                     </div>
-                    <div class="basis-1/2">
+                    <div class="basis-5/12">
+                        <CheckboxInput
+                            signal=reachability_check
+                            id="reachability_check"
+                            label="Reachability check"
+                            help_msg="Run reachability checks before starting the node. The reachability check determines the network connectivity and auto configures the node for you. Disable only if you are sure about the network configuration."
+                        />
+                    </div>
+                    <div class="basis-3/12">
                         <CheckboxInput
                             signal=upnp
                             id="upnp"
