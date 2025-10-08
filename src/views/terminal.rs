@@ -4,6 +4,39 @@ use leptos::prelude::*;
 use std::{cmp::Ordering, io::Cursor};
 use structopt::StructOpt;
 
+// Type of command to display in the terminal
+#[derive(Clone)]
+enum TerminalCmd {
+    Input(String),
+    Output(String),
+    Error(String),
+}
+
+impl TerminalCmd {
+    fn into_view(self) -> AnyView {
+        match self {
+            TerminalCmd::Input(cmd) => view! {
+                <span class="text-gray-900 dark:text-gray-200">
+                    <pre>{format!("> {cmd}")}</pre>
+                </span>
+            }
+            .into_any(),
+            TerminalCmd::Output(res) => view! {
+                <span class="">
+                    <pre>{res}</pre>
+                </span>
+            }
+            .into_any(),
+            TerminalCmd::Error(err) => view! {
+                <span class="text-red-700 dark:text-red-400">
+                    <pre>{format!("{err}\n")}</pre>
+                </span>
+            }
+            .into_any(),
+        }
+    }
+}
+
 #[component]
 pub fn TerminalView() -> impl IntoView {
     let output = RwSignal::new(vec![]);
@@ -20,31 +53,16 @@ pub fn TerminalView() -> impl IntoView {
         input_cmd.set(String::new());
 
         async move {
-            let cmp = view! {
-                <span class="text-gray-900 dark:text-gray-200">
-                    <pre>{format!("> {command}")}</pre>
-                </span>
-            }
-            .into_view();
+            let cmp = TerminalCmd::Input(format!("> {command}"));
             output.update(|o| o.push(cmp));
 
             match process_command(&command).await {
                 Ok(res) => {
-                    let cmp = view! {
-                        <span class="">
-                            <pre>{res.to_string()}</pre>
-                        </span>
-                    }
-                    .into_view();
+                    let cmp = TerminalCmd::Output(res.to_string());
                     output.update(|o| o.push(cmp));
                 }
                 Err(err) => {
-                    let cmp = view! {
-                        <span class="text-red-700 dark:text-red-400">
-                            <pre>{format!("{err}\n")}</pre>
-                        </span>
-                    }
-                    .into_view();
+                    let cmp = TerminalCmd::Error(format!("{err}\n"));
                     output.update(|o| o.push(cmp));
                 }
             }
@@ -58,11 +76,11 @@ pub fn TerminalView() -> impl IntoView {
                 <div class="p-2.5 border-transparent overflow-y-auto h-full">
                     <ul>
                         <For
-                            each=move || output.get().into_iter().enumerate()
+                            each=move || output.read().clone().into_iter().enumerate()
                             key=|(i, _)| *i
                             let:child
                         >
-                            <li>{child.1}</li>
+                            <li>{child.1.into_view()}</li>
                         </For>
                     </ul>
                 </div>
