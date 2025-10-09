@@ -1,6 +1,6 @@
 # Dockerfile for running a node
 
-FROM rust:1.81-alpine AS builder
+FROM rust:1-alpine AS builder
 
 RUN mkdir -p /app
 WORKDIR /app
@@ -36,9 +36,6 @@ ENV REACHABILITY_CHECK_ARG=''
 
 # Define whether to enable node logs.
 ENV NODE_LOGS_ARG='--log-output-dest /app/node_data/logs'
-
-#EXPOSE $NODE_PORT/udp
-#EXPOSE $METRICS_PORT/tcp
 
 # Run the node
 CMD ["sh", "-c", \
