@@ -4,8 +4,10 @@ use crate::types::{
 };
 
 use alloy_primitives::Address;
-use leptos::prelude::*;
-use leptos::server_fn::codec::{ByteStream, Streaming};
+use leptos::{
+    prelude::*,
+    server_fn::codec::{ByteStream, GetUrl, Streaming},
+};
 use std::{collections::HashMap, str::FromStr};
 
 #[cfg(feature = "ssr")]
@@ -35,7 +37,7 @@ pub async fn fetch_stats() -> Result<Stats, ServerFnError> {
 }
 
 /// Return a set of stats formatted for UmbrelOS widget
-#[server(name = FetchStatsWidget, prefix = "/api", endpoint = "/stats_widget")]
+#[server(name = FetchStatsWidget, input = GetUrl, prefix = "/api", endpoint = "/stats_widget")]
 pub async fn fetch_stats_widget() -> Result<WidgetFourStats, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
     let stats = context.app_ctx.stats.read().await.clone();
