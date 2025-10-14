@@ -5,20 +5,18 @@ services:
       APP_PORT: 52101
     container_name: formicaio-apps-formicaio_app_proxy_1
   formicaio_proxy:
-    image: bochaco/formicaio_proxy:latest
+    image: bochaco/formicaio_proxy:0.3.0
     user: 1000:1000
     environment:
       FORMICAIO_ADDR: host.docker.internal:3100
       FORMICAIO_PROXY_PORT: 52101
-      FORMICAIO_WIDGET_PROXY_PORT: 52111
     extra_hosts:
       - host.docker.internal:host-gateway
     container_name: formicaio-apps-formicaio_formicaio_proxy_1
   formicaio:
-    image: bochaco/formicaio:latest-native
+    image: bochaco/formicaio:0.6.2-native
     privileged: true
     restart: on-failure
-    user: 1000:1000
     network_mode: host
     stop_grace_period: 5s
     environment:
