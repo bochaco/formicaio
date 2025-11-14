@@ -6,6 +6,8 @@
 > 
 > Ants are social insects that live in colonies and are known for their organization and cooperation.
 
+<img src="https://camo.githubusercontent.com/18b74542412f5f3d9c9f98c1ba0bdcb29da8c6a9464a14f689825010b9809311/68747470733a2f2f617070732e756d6272656c2e636f6d2f62616467652d6461726b2e737667" />
+
 ## Table of Contents
 
 - [Introduction](#introduction)
@@ -167,8 +169,24 @@ To upgrade Formicaio:
 - **macOS Recommendation**: Launch from terminal; double-clicking may not work properly.
 
 ### UmbrelOS
+<img src="https://apps.umbrel.com/api/app/formicaio/badge-dark.svg" />
 
-Formicaio is available through the [Formicaio community app store](https://github.com/bochaco/formicaio-app-store). To install:
+Formicaio is available on:
+- Official UmbrelOS app store: [https://apps.umbrel.com](https://apps.umbrel.com)
+- Through the [Formicaio community app store](https://github.com/bochaco/formicaio-app-store). 
+
+#### Installation via UmbrelOS Official App Store
+
+To install Formicaio using the UmbrelOS official app store:
+1. Open your UmbrelOS dashboard and navigate to the App Store
+<img src="img/app_store_install_01.png" width="800" />
+
+2. Search for "Formicaio", and click "Install". The app will be automatically downloaded and set up on your UmbrelOS device
+<img src="img/app_store_install_02.png" width="800" />
+
+Once installed, you can access Formicaio directly from your UmbrelOS dashboard.
+
+#### Install via Formicaio community app store:
 
 1. Add the GitHub URL: `https://github.com/bochaco/formicaio-app-store`
 2. Install through the UmbrelOS user interface
