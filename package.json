@@ -1,9 +1,9 @@
 {
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.1.13",
-    "daisyui": "^5.1.10",
-    "flowbite": "^3.1.2",
+    "@tailwindcss/postcss": "^4.1.18",
+    "daisyui": "^5.5.14",
+    "flowbite": "^4.0.1",
     "postcss": "^8.5.6",
-    "tailwindcss": "^4.1.13"
+    "tailwindcss": "^4.1.18"
   }
 }
