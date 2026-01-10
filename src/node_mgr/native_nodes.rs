@@ -50,7 +50,9 @@ const GITHUB_API_URL: &str = "https://api.github.com";
 pub enum NativeNodesError {
     #[error("Failed to spawn a new node process: {0}")]
     CannotSpawnNode(String),
-    #[error("Node binary version not found at path: {0:?}")]
+    #[error("Failed to get node binary version at path {0:?}: {1}")]
+    NodeBinVersionFailure(PathBuf, String),
+    #[error("Node binary version not reported by executable at path: {0:?}")]
     NodeBinVersionNotFound(PathBuf),
     #[error("Missing required parameter '{0}' to spawn node.")]
     SpawnNodeMissingParam(String),
@@ -414,7 +416,7 @@ impl NativeNodes {
         let id = &node_info.node_id;
         let only_ipv4 = node_info.node_ip.is_none_or(|ip| ip.is_ipv4());
 
-        let version = match self.helper_read_node_version(Some(node_info)).await {
+        let version = match self.read_node_version(Some(node_info)).await {
             Ok(version) => Some(version.to_string()),
             Err(err) => {
                 logging::error!("[ERROR] Failed to retrieve binary version for node {id}: {err:?}");
@@ -458,7 +460,7 @@ impl NativeNodes {
     // Try to retrieve the version of existing instance's node binary.
     // If node id is otherwise not provided, it will then try
     // to retrieve the version of the master node binary.
-    async fn helper_read_node_version(
+    pub async fn read_node_version(
         &self,
         node_info: Option<&NodeInstanceInfo>,
     ) -> Result<Version, NativeNodesError> {
@@ -471,7 +473,11 @@ impl NativeNodes {
 
         let mut cmd = Command::new(&node_bin_path);
         cmd.arg("--version");
-        let output = self.exec_cmd(&mut cmd, "get node bin version")?;
+        let output = self
+            .exec_cmd(&mut cmd, "get node bin version")
+            .map_err(|err| {
+                NativeNodesError::NodeBinVersionFailure(node_bin_path.clone(), err.to_string())
+            })?;
 
         let lines = output
             .stdout
@@ -549,7 +555,7 @@ impl NativeNodes {
         };
 
         // we upgrade only if existing node binary is not the latest version
-        if let Ok(version) = self.helper_read_node_version(None).await
+        if let Ok(version) = self.read_node_version(None).await
             && version == version_to_download
         {
             logging::log!("Master node binary is already up to date (version v{version})");

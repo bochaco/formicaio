@@ -62,7 +62,16 @@ impl NodeManager {
         };
 
         // let's make sure we have node binary installed before continuing
-        node_manager.upgrade_master_node_binary(None).await?;
+        match node_manager.upgrade_master_node_binary(None).await {
+            Ok(()) => {}
+            Err(err) => {
+                logging::error!("[ERROR] Failed to get latest node binary: {err}");
+                let current_version = node_manager.native_nodes.read_node_version(None).await?;
+                logging::log!(
+                    "We will proceed using the locally available node binary: v{current_version}"
+                );
+            }
+        }
 
         // let's create a batch to start nodes which were Active
         let nodes_in_db = node_manager.app_ctx.db_client.get_nodes_list().await;
