@@ -43,7 +43,7 @@ pub fn MetricsViewerModal(
 
     view! {
         <div class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
-            <div class="bg-slate-900 border border-slate-800 w-full max-w-4xl rounded-2xl overflow-hidden shadow-2xl flex flex-col animate-in zoom-in-95 duration-300">
+            <div class="bg-slate-900 border border-slate-800 w-full rounded-2xl overflow-hidden shadow-2xl flex flex-col animate-in zoom-in-95 duration-300">
                 <header class="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-800/30 shrink-0">
                     <div class="flex items-center gap-3">
                         <h3 class="text-lg font-bold">
@@ -183,6 +183,12 @@ pub fn NodeChartView(
           ],
           "legend": {
             "show": false
+          },
+          "tooltip": {
+            "theme": "dark",
+            "onDatasetHover": {
+                "highlightDataSeries": true,
+            }
           }
         }
     );
@@ -254,7 +260,7 @@ pub async fn node_metrics_update(
     while let Some(true) = context
         .metrics_update_on_for
         .get_untracked()
-        .map(|node_info| node_info.read().node_id == node_id)
+        .map(|node_info| node_info.read_untracked().node_id == node_id)
     {
         let update = node_metrics(node_id.clone(), since).await?;
 
