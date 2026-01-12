@@ -1,13 +1,73 @@
 use leptos::prelude::*;
 
 #[component]
+pub fn IconTerminal() -> impl IntoView {
+    view! {
+        <svg
+            class="w-6 h-6 text-gray-800 dark:text-white"
+            aria-hidden="true"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+        >
+            <path
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="0.7"
+                d="m8 9 3 3-3 3m5 0h3M4 19h16a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1Z"
+            />
+        </svg>
+    }
+}
+
+#[component]
+pub fn IconDashboard() -> impl IntoView {
+    view! {
+        <svg
+            class="w-6 h-6 text-gray-800 dark:text-white"
+            aria-hidden="true"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+        >
+            <path
+                stroke="currentColor"
+                stroke-linejoin="round"
+                stroke-width="0.7"
+                d="M4 5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5Zm16 14a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2ZM4 13a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-6Zm16-2a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v6Z"
+            />
+        </svg>
+    }
+}
+
+#[component]
+pub fn IconNodes() -> impl IntoView {
+    view! {
+        <svg
+            class="w-6 h-6 text-gray-800 dark:text-white"
+            aria-hidden="true"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+        >
+            <path
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="0.7"
+                d="M5.005 11.19V12l6.998 4.042L19 12v-.81M5 16.15v.81L11.997 21l6.998-4.042v-.81M12.003 3 5.005 7.042l6.998 4.042L19 7.042 12.003 3Z"
+            />
+        </svg>
+    }
+}
+
+#[component]
 pub fn IconHelpMsg() -> impl IntoView {
     view! {
         <svg
-            class="w-6 h-6"
+            class="w-6 h-6 text-slate-500 cursor-help"
             xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
             fill="none"
             viewBox="0 0 24 24"
         >
@@ -27,7 +87,7 @@ pub fn IconAddNode() -> impl IntoView {
     view! {
         <svg
             xmlns="http://www.w3.org/2000/svg"
-            class="h-6 w-6 mx-2"
+            class="h-4 w-4"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -41,8 +101,8 @@ pub fn IconAddNode() -> impl IntoView {
 pub fn IconShowLogs() -> impl IntoView {
     view! {
         <svg
+            class="w-5 h-5"
             xmlns="http://www.w3.org/2000/svg"
-            class="h-6 w-6"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -82,8 +142,8 @@ pub fn IconCancel() -> impl IntoView {
 pub fn IconRecycle() -> impl IntoView {
     view! {
         <svg
+            class="w-5 h-5"
             xmlns="http://www.w3.org/2000/svg"
-            class="h-6 w-6"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -102,11 +162,9 @@ pub fn IconRecycle() -> impl IntoView {
 pub fn IconRemove() -> impl IntoView {
     view! {
         <svg
-            class="w-6 h-6"
+            class="w-5 h-5"
             aria-hidden="true"
             xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
             fill="none"
             viewBox="0 0 24 24"
         >
@@ -125,13 +183,13 @@ pub fn IconRemove() -> impl IntoView {
 pub fn IconStartNode() -> impl IntoView {
     view! {
         <svg
+            class="w-5 h-5"
             xmlns="http://www.w3.org/2000/svg"
-            class="h-6 w-6"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
         >
-            <polygon points="6,6 18,12 6,18" fill="currentColor" stroke-width="2" />
+            <polygon points="6,6 18,12 6,18" fill="none" stroke-width="2" />
         </svg>
     }
 }
@@ -140,13 +198,13 @@ pub fn IconStartNode() -> impl IntoView {
 pub fn IconStopNode() -> impl IntoView {
     view! {
         <svg
+            class="w-5 h-5"
             xmlns="http://www.w3.org/2000/svg"
-            class="h-6 w-6"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
         >
-            <rect width="13" height="13" x="5" y="5" fill="currentColor" stroke-width="2" />
+            <rect width="13" height="13" x="5" y="5" fill="none" stroke-width="2" />
         </svg>
     }
 }
@@ -155,11 +213,9 @@ pub fn IconStopNode() -> impl IntoView {
 pub fn IconShowChart() -> impl IntoView {
     view! {
         <svg
-            class="w-6 h-6"
+            class="w-5 h-5"
             aria-hidden="true"
             xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
             fill="none"
             viewBox="0 0 24 24"
         >
@@ -179,7 +235,7 @@ pub fn IconUpgradeNode(
     #[prop(default = "currentColor".to_string())] color: String,
 ) -> impl IntoView {
     view! {
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24">
+        <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="10" stroke=color.clone() stroke-width="2" />
             <path
                 stroke=color.clone()
@@ -193,16 +249,89 @@ pub fn IconUpgradeNode(
 }
 
 #[component]
+pub fn IconChevronDown(is_down: Signal<bool>) -> impl IntoView {
+    view! {
+        <svg
+            class=move || {
+                format!(
+                    "w-5 h-5 transition-transform duration-200 {}",
+                    if is_down.get() { "rotate-180" } else { "" },
+                )
+            }
+            aria-hidden="true"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+        >
+            <path
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="0.7"
+                d="m19 9-7 7-7-7"
+            />
+        </svg>
+    }
+}
+
+#[component]
+pub fn IconExpand() -> impl IntoView {
+    view! {
+        <svg
+            class="w-5 h-5"
+            aria-hidden="true"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+        >
+            <path
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="0.7"
+                d="M8 4H4m0 0v4m0-4 5 5m7-5h4m0 0v4m0-4-5 5M8 20H4m0 0v-4m0 4 5-5m7 5h4m0 0v-4m0 4-5-5"
+            />
+        </svg>
+    }
+}
+
+#[component]
+pub fn IconCollapse() -> impl IntoView {
+    view! {
+        <svg
+            class="w-5 h-5"
+            aria-hidden="true"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+        >
+            <path
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="0.7"
+                d="M5 9h4m0 0V5m0 4L4 4m15 5h-4m0 0V5m0 4 5-5M5 15h4m0 0v4m0-4-5 5m15-5h-4m0 0v4m0-4 5 5"
+            />
+        </svg>
+    }
+}
+
+#[component]
 pub fn IconAlertMsgError() -> impl IntoView {
     view! {
         <svg
-            class="flex-shrink-0 w-4 h-4 mx-2"
-            aria-hidden="true"
+            class="flex-shrink-0 w-6 h-6 mx-2"
             xmlns="http://www.w3.org/2000/svg"
-            fill="currentColor"
-            viewBox="0 0 20 20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
         >
-            <path d="M10 .5a9.5 9.5 0 1 0 9.5 9.5A9.51 9.51 0 0 0 10 .5ZM9.5 4a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM12 15H8a1 1 0 0 1 0-2h1v-3H8a1 1 0 0 1 0-2h2a1 1 0 0 1 1 1v4h1a1 1 0 0 1 0 2Z" />
+            <path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+            <path d="M12 9v4" />
+            <path d="M12 17h.01" />
         </svg>
     }
 }
@@ -229,14 +358,33 @@ pub fn IconHamburguer() -> impl IntoView {
 }
 
 #[component]
+pub fn IconPrompt() -> impl IntoView {
+    view! {
+        <svg
+            class="w-6 h-6 text-gray-800 dark:text-white"
+            aria-hidden="true"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+        >
+            <path
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="0.7"
+                d="m9 5 7 7-7 7"
+            />
+        </svg>
+    }
+}
+
+#[component]
 pub fn IconPasteAddr() -> impl IntoView {
     view! {
         <svg
             class="w-6 h-6"
             aria-hidden="true"
             xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
             fill="none"
             viewBox="0 0 24 24"
         >
@@ -258,8 +406,6 @@ pub fn IconSettings() -> impl IntoView {
             class="w-6 h-6"
             aria-hidden="true"
             xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
             fill="none"
             viewBox="0 0 24 24"
         >
@@ -277,167 +423,6 @@ pub fn IconSettings() -> impl IntoView {
                 stroke-width="2"
                 d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"
             />
-        </svg>
-    }
-}
-
-#[component]
-pub fn IconOpenActionsMenu() -> impl IntoView {
-    view! {
-        <svg
-            class="w-5 h-5 transition-transform group-hover:rotate-45"
-            aria-hidden="true"
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 18 18"
-        >
-            <path
-                stroke="currentColor"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M9 1v16M1 9h16"
-            />
-        </svg>
-    }
-}
-
-#[component]
-pub fn IconManageNodes() -> impl IntoView {
-    view! {
-        <svg
-            class="w-6 h-6"
-            aria-hidden="true"
-            xmlns="http://www.w3.org/2000/svg"
-            fill="currentColor"
-            viewBox="0 0 20 20"
-        >
-            <path d="m13.835 7.578-.005.007-7.137 7.137 2.139 2.138 7.143-7.142-2.14-2.14Zm-10.696 3.59 2.139 2.14 7.138-7.137.007-.005-2.141-2.141-7.143 7.143Zm1.433 4.261L2 12.852.051 18.684a1 1 0 0 0 1.265 1.264L7.147 18l-2.575-2.571Zm14.249-14.25a4.03 4.03 0 0 0-5.693 0L11.7 2.611 17.389 8.3l1.432-1.432a4.029 4.029 0 0 0 0-5.689Z" />
-        </svg>
-    }
-}
-
-#[component]
-pub fn IconSelectAll() -> impl IntoView {
-    view! {
-        <svg
-            class="w-6 h-6"
-            aria-hidden="true"
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            fill="none"
-            viewBox="0 0 24 24"
-        >
-            <path
-                stroke="currentColor"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M5 11.917 9.724 16.5 19 7.5"
-            />
-            <rect stroke="currentColor" width="22" height="22" x="1" y="1" stroke-width="2" />
-        </svg>
-    }
-}
-
-#[component]
-pub fn IconSelectActives() -> impl IntoView {
-    view! {
-        <svg
-            class="w-6 h-6"
-            aria-hidden="true"
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            fill="none"
-            viewBox="0 0 24 24"
-        >
-            <path
-                d="M 1 4 q 6 -6 12 0"
-                stroke="currentColor"
-                stroke-width="1"
-                fill="none"
-                stroke-linecap="round"
-            />
-            <path
-                d="M 3 6 q 4 -4 8 0"
-                stroke="currentColor"
-                stroke-width="1"
-                fill="none"
-                stroke-linecap="round"
-            />
-            <path
-                d="M 5 8 q 2 -2 4 0"
-                stroke="currentColor"
-                stroke-width="1"
-                fill="none"
-                stroke-linecap="round"
-            />
-            <circle r="1" cx="7" cy="10" fill="currentColor" />
-
-            <path
-                stroke="currentColor"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M14 17 16 19 20 13"
-            />
-            <rect stroke="currentColor" width="12" height="12" x="11" y="10" stroke-width="2" />
-        </svg>
-    }
-}
-
-#[component]
-pub fn IconSelectInactives() -> impl IntoView {
-    view! {
-        <svg
-            class="w-6 h-6"
-            aria-hidden="true"
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            fill="none"
-            viewBox="0 0 24 24"
-        >
-            <path
-                d="M 1 4 q 6 -6 12 0"
-                stroke="currentColor"
-                stroke-width="1"
-                fill="none"
-                stroke-linecap="round"
-            />
-            <path
-                d="M 3 6 q 4 -4 8 0"
-                stroke="currentColor"
-                stroke-width="1"
-                fill="none"
-                stroke-linecap="round"
-            />
-            <path
-                d="M 5 8 q 2 -2 4 0"
-                stroke="currentColor"
-                stroke-width="1"
-                fill="none"
-                stroke-linecap="round"
-            />
-            <circle r="1" cx="7" cy="10" fill="currentColor" />
-            <path
-                d="M 4 10 12 1"
-                stroke="currentColor"
-                stroke-width="1"
-                fill="none"
-                stroke-linecap="round"
-            />
-
-            <path
-                stroke="currentColor"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M14 17 16 19 20 13"
-            />
-            <rect stroke="currentColor" width="12" height="12" x="11" y="10" stroke-width="2" />
         </svg>
     }
 }
@@ -530,6 +515,88 @@ pub fn IconLastPage() -> impl IntoView {
 pub fn IconSort() -> impl IntoView {
     view! {
         <svg
+            class="w-4 h-4 text-gray-800 dark:text-white"
+            aria-hidden="true"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+        >
+            <path
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1"
+                d="M8 20V10m0 10-3-3m3 3 3-3m5-13v10m0-10 3 3m-3-3-3 3"
+            />
+        </svg>
+    }
+}
+
+#[component]
+pub fn IconGralSettings() -> impl IntoView {
+    view! {
+        <svg
+            class="w-6 h-6 text-gray-800 dark:text-white"
+            aria-hidden="true"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+        >
+            <path
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-width="2"
+                d="M20 6H10m0 0a2 2 0 1 0-4 0m4 0a2 2 0 1 1-4 0m0 0H4m16 6h-2m0 0a2 2 0 1 0-4 0m4 0a2 2 0 1 1-4 0m0 0H4m16 6H10m0 0a2 2 0 1 0-4 0m4 0a2 2 0 1 1-4 0m0 0H4"
+            />
+        </svg>
+    }
+}
+
+#[component]
+pub fn IconLcdSettings() -> impl IntoView {
+    view! {
+        <svg
+            class="w-6 h-6 text-gray-800 dark:text-white"
+            aria-hidden="true"
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        >
+            <rect width="20" height="14" x="2" y="3" rx="2" />
+            <line x1="8" x2="16" y1="21" y2="21" />
+            <line x1="12" x2="12" y1="17" y2="21" />
+        </svg>
+    }
+}
+
+#[component]
+pub fn IconSave() -> impl IntoView {
+    view! {
+        <svg
+            class="w-6 h-6 text-gray-800 dark:text-white"
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        >
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+            <polyline points="17 21 17 13 7 13 7 21" />
+            <polyline points="7 3 7 8 15 8" />
+        </svg>
+    }
+}
+
+#[component]
+pub fn IconCheck() -> impl IntoView {
+    view! {
+        <svg
             class="w-6 h-6 text-gray-800 dark:text-white"
             aria-hidden="true"
             xmlns="http://www.w3.org/2000/svg"
@@ -541,8 +608,206 @@ pub fn IconSort() -> impl IntoView {
                 stroke-linecap="round"
                 stroke-linejoin="round"
                 stroke-width="2"
-                d="M7 4v16M7 4l3 3M7 4 4 7m9-3h6l-6 6h6m-6.5 10 3.5-7 3.5 7M14 18h4"
+                d="M5 11.917 9.724 16.5 19 7.5"
             />
+        </svg>
+    }
+}
+
+#[component]
+pub fn IconServer(
+    #[prop(default = "text-gray-800 dark:text-white")] color: &'static str,
+) -> impl IntoView {
+    view! {
+        <svg
+            class=format!("w-6 h-6 {color}")
+            aria-hidden="true"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+        >
+            <path
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M5 12a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4a1 1 0 0 0-1-1M5 12h14M5 12a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1m-2 3h.01M14 15h.01M17 9h.01M14 9h.01"
+            />
+        </svg>
+    }
+}
+
+#[component]
+pub fn IconWallet(
+    #[prop(default = "text-gray-800 dark:text-white")] color: &'static str,
+) -> impl IntoView {
+    view! {
+        <svg
+            class=format!("w-6 h-6 {color}")
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        >
+            <path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1" />
+            <path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4" />
+        </svg>
+    }
+}
+
+#[component]
+pub fn IconFile(
+    #[prop(default = "text-gray-800 dark:text-white")] color: &'static str,
+) -> impl IntoView {
+    view! {
+        <svg
+            class=format!("w-6 h-6 {color}")
+
+            aria-hidden="true"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+        >
+            <path
+                stroke="currentColor"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M10 3v4a1 1 0 0 1-1 1H5m14-4v16a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V7.914a1 1 0 0 1 .293-.707l3.914-3.914A1 1 0 0 1 9.914 3H18a1 1 0 0 1 1 1Z"
+            />
+        </svg>
+    }
+}
+
+#[component]
+pub fn IconAbout() -> impl IntoView {
+    view! {
+        <svg
+            class="w-6 h-6 text-gray-800 dark:text-white"
+            aria-hidden="true"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+        >
+            <path
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1"
+                d="M10 11h2v5m-2 0h4m-2.592-8.5h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+            />
+        </svg>
+    }
+}
+
+#[component]
+pub fn IconGithub() -> impl IntoView {
+    view! {
+        <svg
+            class="w-6 h-6 text-gray-800 dark:text-white"
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        >
+            <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" />
+            <path d="M9 18c-4.51 2-5-2-7-2" />
+        </svg>
+    }
+}
+
+#[component]
+pub fn IconBook() -> impl IntoView {
+    view! {
+        <svg
+            class="w-6 h-6 text-gray-800 dark:text-white"
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        >
+            <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
+        </svg>
+    }
+}
+
+#[component]
+pub fn IconOffline() -> impl IntoView {
+    view! {
+        <svg
+            class="w-6 h-6 text-gray-800 dark:text-white"
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        >
+            <line x1="1" y1="1" x2="23" y2="23" />
+            <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55" />
+            <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39" />
+            <path d="M10.71 5.05A16 16 0 0 1 22 12.55" />
+            <path d="M2 12.55a16 16 0 0 1 4.11-4.4" />
+            <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+            <line x1="12" y1="20" x2="12" y2="20" />
+        </svg>
+    }
+}
+
+#[component]
+pub fn IconActivity(
+    #[prop(default = "text-gray-800 dark:text-white")] color: &'static str,
+) -> impl IntoView {
+    view! {
+        <svg
+            class=format!("w-6 h-6 {color}")
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        >
+            <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+        </svg>
+    }
+}
+
+#[component]
+pub fn IconPeers(
+    #[prop(default = "text-gray-800 dark:text-white")] color: &'static str,
+) -> impl IntoView {
+    view! {
+        <svg
+            class=format!("w-6 h-6 {color}")
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        >
+            <line x1="12" y1="12" x2="7" y2="6"></line>
+            <line x1="12" y1="12" x2="16" y2="4"></line>
+            <line x1="12" y1="12" x2="14" y2="20"></line>
+            <line x1="12" y1="12" x2="5" y2="13"></line>
+
+            <circle cx="12" cy="12" r="2.0" fill="currentColor"></circle>
+            <circle cx="7" cy="6" r="1.5" fill="currentColor"></circle>
+            <circle cx="16" cy="4" r="1.5" fill="currentColor"></circle>
+            <circle cx="14" cy="20" r="1.5" fill="currentColor"></circle>
+            <circle cx="5" cy="13" r="1.0" fill="currentColor"></circle>
         </svg>
     }
 }

@@ -1,18 +1,29 @@
 use super::{
-    actions_batch::NodesActionsBatchesView, chart::NodeChartView, icons::IconCancel,
+    actions_batch::NodesActionsBatchesView,
+    chart::ChartSeriesData,
+    icons::{
+        IconChevronDown, IconCollapse, IconExpand, IconRecycle, IconRemove, IconStartNode,
+        IconStopNode,
+    },
+    node_actions::{BatchActionModal, NodeAction},
     node_instance::NodeInstanceView,
+    pagination::PaginationView,
+    sort_nodes::SortStrategyView,
 };
-use crate::app::{ClientGlobalState, PAGE_SIZE};
+use crate::{
+    app::{ClientGlobalState, PAGE_SIZE},
+    views::icons::IconUpgradeNode,
+};
 
 use leptos::prelude::*;
 
 #[component]
-pub fn NodesListView() -> impl IntoView {
+pub fn NodesListView(
+    set_logs: WriteSignal<Vec<String>>,
+    set_render_chart: RwSignal<bool>,
+    set_chart_data: WriteSignal<ChartSeriesData>,
+) -> impl IntoView {
     let context = expect_context::<ClientGlobalState>();
-    // this signal keeps the reactive list of log entries
-    let (logs, set_logs) = signal(Vec::new());
-    let (chart_data, set_chart_data) = signal((vec![], vec![]));
-    let (is_render_chart, set_render_chart) = signal(false);
 
     // we display the instances sorted with the currently selected strategy
     let sorted_nodes = Memo::new(move |_| {
@@ -30,88 +41,258 @@ pub fn NodesListView() -> impl IntoView {
             .collect::<Vec<_>>()
     });
 
+    // signal to toggle the panel to confirm actions to nodes
+    let modal_apply_action = RwSignal::new(None);
+
     view! {
-        <Show
-            when=move || context.nodes.read().0
-            fallback=move || {
-                view! {
-                    <div class="text-center mt-12">
-                        <span class="loading loading-bars loading-lg">Loading...</span>
-                    </div>
-                }
-            }
-        >
+        <div>
+            // List Toolbar
+            <NodeListToolbarView
+                num_nodes=Memo::new(move |_| sorted_nodes.read().len())
+                modal_apply_action
+            />
 
-            <div class="flex flex-wrap">
-                <NodesActionsBatchesView />
-
-                <For each=move || sorted_nodes.get() key=|(node_id, _)| node_id.clone() let:child>
-                    <Show
-                        when=move || !child.1.read().status.is_creating()
-                        fallback=move || { view! { <CreatingNodeInstanceView /> }.into_view() }
-                    >
-                        <NodeInstanceView info=child.1 set_logs set_render_chart set_chart_data />
+            // Nodes Grid
+            <div class="p-4 lg:p-8">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <Show when=move || !context.scheduled_batches.read().is_empty()>
+                        <NodesActionsBatchesView />
                     </Show>
-                </For>
-            </div>
-        </Show>
 
-        <input
-            type="checkbox"
-            id="logs_stream_modal"
-            class="modal-toggle"
-            prop:checked=move || context.logs_stream_on_for.read().is_some()
-        />
-        <div class="modal" role="dialog">
-            <div class="modal-box border border-solid border-slate-50 max-w-full h-full overflow-hidden">
-                <h3 class="text-sm font-bold">Node logs</h3>
-                <div class="p-2.5 border-transparent overflow-y-auto h-full">
-                    <ul>
-                        <For
-                            each=move || logs.get().into_iter().enumerate()
-                            key=|(i, _)| *i
-                            let:child
-                        >
-                            <li>{child.1}</li>
-                        </For>
-                    </ul>
-                </div>
-
-                <div class="modal-action">
-                    <button
-                        class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
-                        on:click=move |_| context.logs_stream_on_for.set(None)
+                    <For
+                        each=move || sorted_nodes.get()
+                        key=|(node_id, _)| node_id.clone()
+                        let:child
                     >
-                        <IconCancel />
-                    </button>
+                        <Show
+                            when=move || !child.1.read().status.is_creating()
+                            fallback=move || { view! { <CreatingNodeInstanceView /> }.into_view() }
+                        >
+                            <NodeInstanceView
+                                info=child.1
+                                set_logs
+                                set_render_chart
+                                set_chart_data
+                            />
+                        </Show>
+                    </For>
+
+                    <Show when=move || {
+                        modal_apply_action.read().is_some() && *context.is_online.read()
+                    }>
+                        <BatchActionModal action=modal_apply_action />
+                    </Show>
+
                 </div>
             </div>
         </div>
+    }
+}
 
-        <input
-            type="checkbox"
-            id="node_chart_modal"
-            class="modal-toggle"
-            prop:checked=move || context.metrics_update_on_for.read().is_some()
-        />
-        <div class="modal" role="dialog">
-            <div class="modal-box border border-solid border-slate-50 w-4/5 max-w-full h-3/5 max-h-full overflow-y-auto">
-                <h3 class="text-sm font-bold">"Node Mem & CPU"</h3>
-                <div class="border-transparent h-full">
-                    <NodeChartView is_render_chart chart_data />
-                </div>
+#[component]
+fn NodeListToolbarView(
+    num_nodes: Memo<usize>,
+    modal_apply_action: RwSignal<Option<NodeAction>>,
+) -> impl IntoView {
+    let context = expect_context::<ClientGlobalState>();
+    let is_selection_open = RwSignal::new(false);
+    let num_selected_nodes = move || {
+        context
+            .selecting_nodes
+            .with(|(_enabled, selected)| selected.len())
+    };
 
-                <div class="modal-action">
-                    <button
-                        class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
-                        on:click=move |_| {
-                            set_render_chart.set(false);
-                            context.metrics_update_on_for.set(None);
+    let select_all = move || {
+        context.selecting_nodes.update(|(enabled, selected)| {
+            context
+                .nodes
+                .read()
+                .1
+                .iter()
+                .filter(|(_, n)| !n.read().is_status_locked)
+                .for_each(|(id, _)| {
+                    selected.insert(id.clone());
+                });
+            *enabled = !selected.is_empty();
+        });
+        is_selection_open.set(false);
+    };
+    let select_none = move || {
+        context.selecting_nodes.update(|(enabled, selected)| {
+            *enabled = false;
+            selected.clear();
+        });
+        is_selection_open.set(false);
+    };
+    let select_active = move || {
+        context.selecting_nodes.update(|(enabled, selected)| {
+            selected.clear();
+            context
+                .nodes
+                .read()
+                .1
+                .iter()
+                .filter(|(_, n)| n.read().status.is_active() && !n.read().is_status_locked)
+                .for_each(|(id, _)| {
+                    selected.insert(id.clone());
+                });
+            *enabled = !selected.is_empty();
+        });
+        is_selection_open.set(false);
+    };
+    let select_inactive = move || {
+        context.selecting_nodes.update(|(enabled, selected)| {
+            selected.clear();
+            context
+                .nodes
+                .read()
+                .1
+                .iter()
+                .filter(|(_, n)| n.read().status.is_inactive() && !n.read().is_status_locked)
+                .for_each(|(id, _)| {
+                    selected.insert(id.clone());
+                });
+            *enabled = !selected.is_empty();
+        });
+        is_selection_open.set(false);
+    };
+
+    view! {
+        <div class="sticky top-0 z-20 bg-slate-950/80 backdrop-blur-md border-b border-slate-800 px-4 lg:px-8">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-3">
+                <div class="flex items-center gap-4">
+                    <div class="relative">
+                        <button
+                            on:click=move |_| is_selection_open.update(|prev| *prev = !*prev)
+                            class="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-slate-400 hover:text-white bg-slate-800 border border-slate-700 rounded-lg transition-all"
+                        >
+                            Manage Selection
+                            <IconChevronDown is_down=Signal::derive(move || {
+                                is_selection_open.get()
+                            }) />
+                        </button>
+                        <Show when=move || is_selection_open.get() fallback=|| ()>
+                            <div class="absolute top-full mt-2 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-10 animate-in fade-in duration-150 py-1">
+                                <a
+                                    on:click=move |_| select_all()
+                                    class="block w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-700/50 cursor-pointer"
+                                >
+                                    Select All
+                                </a>
+                                <a
+                                    on:click=move |_| select_none()
+                                    class="block w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-700/50 cursor-pointer"
+                                >
+                                    Select None
+                                </a>
+                                <div class="h-px bg-slate-700 my-1" />
+                                <a
+                                    on:click=move |_| select_active()
+                                    class="block w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-700/50 cursor-pointer"
+                                >
+                                    Select Active
+                                </a>
+                                <a
+                                    on:click=move |_| select_inactive()
+                                    class="block w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-700/50 cursor-pointer"
+                                >
+                                    Select Inactive
+                                </a>
+                            </div>
+                        </Show>
+                    </div>
+
+                    <div class="h-4 w-px bg-slate-800" />
+
+                    <Show
+                        when=move || context.expanded_nodes.read().len() < num_nodes.get()
+                        fallback=move || {
+                            view! {
+                                <button
+                                    on:click=move |_| {
+                                        context
+                                            .expanded_nodes
+                                            .update(|expanded| {
+                                                expanded.clear();
+                                            });
+                                    }
+                                    class="flex items-center gap-1.5 text-sm font-medium text-slate-400 hover:text-slate-200 transition-colors"
+                                >
+                                    <IconCollapse />
+                                    <span>"Collapse All"</span>
+                                </button>
+                            }
                         }
                     >
-                        <IconCancel />
-                    </button>
+                        <button
+                            on:click=move |_| {
+                                context
+                                    .expanded_nodes
+                                    .update(|expanded| {
+                                        *expanded = context
+                                            .nodes
+                                            .read()
+                                            .1
+                                            .iter()
+                                            .map(|(id, _)| id.clone())
+                                            .collect();
+                                    });
+                            }
+                            class="flex items-center gap-1.5 text-sm font-medium text-slate-400 hover:text-slate-200 transition-colors"
+                        >
+                            <IconExpand />
+                            <span>"Expand All"</span>
+                        </button>
+                    </Show>
+
+                    <Show when=move || 0 < num_selected_nodes()>
+                        <div class="flex items-center gap-2 animate-in fade-in slide-in-from-left-2">
+                            <div class="h-4 w-px bg-slate-800 mx-2" />
+                            <span class="text-xs text-indigo-400 font-bold px-2 py-1 bg-indigo-500/10 rounded-lg">
+                                {move || num_selected_nodes()} " selected"
+                            </span>
+                            <button
+                                on:click=move |_| modal_apply_action.set(Some(NodeAction::Upgrade))
+                                class="p-1.5 hover:bg-cyan-500/10 text-cyan-500 rounded-lg transition-colors"
+                                title="Upgrade Selected"
+                            >
+                                <IconUpgradeNode />
+                            </button>
+                            <button
+                                on:click=move |_| modal_apply_action.set(Some(NodeAction::Recycle))
+                                class="p-1.5 hover:bg-cyan-500/10 text-cyan-500 rounded-lg transition-colors"
+                                title="Recycle Selected"
+                            >
+                                <IconRecycle />
+                            </button>
+                            <button
+                                on:click=move |_| modal_apply_action.set(Some(NodeAction::Start))
+                                class="p-1.5 hover:bg-emerald-500/10 text-emerald-500 rounded-lg transition-colors"
+                                title="Start Selected"
+                            >
+                                <IconStartNode />
+                            </button>
+                            <button
+                                on:click=move |_| modal_apply_action.set(Some(NodeAction::Stop))
+                                class="p-1.5 hover:bg-rose-500/10 text-rose-700 rounded-lg transition-colors"
+                                title="Stop Selected"
+                            >
+                                <IconStopNode />
+                            </button>
+                            <button
+                                on:click=move |_| modal_apply_action.set(Some(NodeAction::Remove))
+                                class="p-1.5 hover:bg-rose-500/10 text-rose-700 rounded-lg transition-colors"
+                                title="Remove Selected"
+                            >
+                                <IconRemove />
+                            </button>
+                        </div>
+                    </Show>
                 </div>
+
+                <PaginationView />
+
+                <SortStrategyView />
             </div>
         </div>
     }

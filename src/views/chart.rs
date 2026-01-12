@@ -4,6 +4,8 @@ use crate::{
     types::{METRIC_KEY_CPU_USAGE, METRIC_KEY_MEM_USED_MB, NodeId},
 };
 
+use super::icons::IconCancel;
+
 use apexcharts_rs::prelude::ApexChart;
 use chrono::Local;
 use gloo_timers::future::TimeoutFuture;
@@ -18,8 +20,85 @@ const CHART_MEM_SERIES_NAME: &str = "Memory (MB)";
 const CHART_CPU_SERIES_NAME: &str = "CPU (%)";
 
 #[component]
+pub fn MetricsViewerModal(
+    set_render_chart: RwSignal<bool>,
+    chart_data: ReadSignal<ChartSeriesData>,
+) -> impl IntoView {
+    let context = expect_context::<ClientGlobalState>();
+
+    let is_active = move || {
+        context
+            .metrics_update_on_for
+            .read()
+            .map(|info| info.read().status.is_active())
+            .unwrap_or(false)
+    };
+    let status_summary = move || {
+        context
+            .metrics_update_on_for
+            .read()
+            .map(|info| info.read().status_summary())
+            .unwrap_or_default()
+    };
+
+    view! {
+        <div class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+            <div class="bg-slate-900 border border-slate-800 w-full max-w-4xl rounded-2xl overflow-hidden shadow-2xl flex flex-col animate-in zoom-in-95 duration-300">
+                <header class="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-800/30 shrink-0">
+                    <div class="flex items-center gap-3">
+                        <h3 class="text-lg font-bold">
+                            "Real-time Mem & CPU Metrics: "
+                            <span class="text-indigo-400 font-mono">
+                                {move || {
+                                    context
+                                        .metrics_update_on_for
+                                        .read()
+                                        .as_ref()
+                                        .map(|n| n.read().short_node_id())
+                                        .unwrap_or_default()
+                                }}
+                            </span>
+                        </h3>
+                    </div>
+                    <button
+                        on:click=move |_| {
+                            set_render_chart.set(false);
+                            context.metrics_update_on_for.set(None);
+                        }
+                        class="p-2 text-slate-500 hover:text-white transition-colors rounded-lg"
+                    >
+                        <IconCancel />
+                    </button>
+                </header>
+
+                <main>
+                    <NodeChartView
+                        is_render_chart=Signal::derive(move || set_render_chart.get())
+                        chart_data
+                    />
+                </main>
+
+                <footer class="p-3 border-t border-slate-800 bg-slate-800/30 text-xs text-slate-500 flex items-center gap-2">
+                    <div class=move || {
+                        format!(
+                            "w-2 h-2 rounded-full {}",
+                            if is_active() { "bg-emerald-500 animate-pulse" } else { "bg-rose-500" },
+                        )
+                    } />
+                    <span>
+                        Node Status:
+                        <span class="font-bold capitalize">{move || status_summary()}</span>
+                    </span>
+                </footer>
+
+            </div>
+        </div>
+    }
+}
+
+#[component]
 pub fn NodeChartView(
-    is_render_chart: ReadSignal<bool>,
+    is_render_chart: Signal<bool>,
     chart_data: ReadSignal<ChartSeriesData>,
 ) -> impl IntoView {
     let chart_id = "metrics_chart".to_string();
@@ -175,7 +254,7 @@ pub async fn node_metrics_update(
     while let Some(true) = context
         .metrics_update_on_for
         .get_untracked()
-        .map(|id| id == node_id)
+        .map(|node_info| node_info.read().node_id == node_id)
     {
         let update = node_metrics(node_id.clone(), since).await?;
 

@@ -6,6 +6,33 @@ use leptos::{prelude::*, task::spawn_local};
 use std::{net::IpAddr, num::ParseIntError, path::PathBuf};
 
 #[component]
+fn FormField(
+    label: &'static str,
+    help_msg: &'static str,
+    #[prop(default = "right-0")] help_align: &'static str,
+    #[prop(default = Signal::derive(|| None))] error: Signal<Option<String>>,
+    children: Children,
+) -> impl IntoView {
+    view! {
+        <div class="space-y-2">
+            <label class="text-sm font-medium text-slate-300 flex items-center justify-between">
+                <span>{label}</span>
+                <div class="relative group flex items-center">
+                    <IconHelpMsg />
+                    <div class=format!(
+                        "{help_align} absolute bottom-full mb-2 w-64 bg-slate-950 text-white text-xs font-normal text-left px-3 py-2 rounded-lg border border-slate-700 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-lg",
+                    )>{help_msg}</div>
+                </div>
+            </label>
+            {children()}
+            <Show when=move || error.read().is_some()>
+                <p class="text-rose-500 text-sm mt-1">{error.get()}</p>
+            </Show>
+        </div>
+    }
+}
+
+#[component]
 pub fn PortNumberInput(
     id: &'static str,
     signal: RwSignal<Result<u16, ParseIntError>>,
@@ -16,52 +43,23 @@ pub fn PortNumberInput(
     let on_port_input = move |ev| signal.set(event_target_value(&ev).parse::<u16>());
 
     view! {
-        <div class="relative w-full">
-            <div class="flex flex-row">
-                <div class="basis-7/12">
-                    <label for=id class="form-label">
-                        {label}
-                    </label>
-                </div>
-                <div class="basis-4/12">
-                    <input
-                        type="number"
-                        name=id
-                        id=id
-                        on:input=on_port_input
-                        class="form-input-box"
-                        value=default
-                        required
-                    />
-                </div>
-                <div class="basis-1/12">
-                    <button
-                        data-popover-target=format!("popover-{id}")
-                        data-popover-placement="bottom-end"
-                        type="button"
-                        class="btn-node-action"
-                    >
-                        <IconHelpMsg />
-                        <span class="sr-only">Show information</span>
-                    </button>
-
-                    <div
-                        data-popover
-                        id=format!("popover-{id}")
-                        role="tooltip"
-                        class="absolute z-10 invisible inline-block text-sm text-white transition-opacity duration-300 bg-gray-800 border border-gray-200 rounded-lg shadow-xs opacity-0 w-72 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-400"
-                    >
-                        <div class="p-3 space-y-2">{help_msg}</div>
-                        <div data-popper-arrow></div>
-                    </div>
-                </div>
-            </div>
-            <div>
-                <Show when=move || signal.read().is_err() fallback=move || view! { "" }.into_view()>
-                    <p class="form-invalid-input-msg">Not a valid port number</p>
-                </Show>
-            </div>
-        </div>
+        <FormField
+            label
+            help_msg
+            error=Signal::derive(move || {
+                signal.read().clone().map_err(|_| "Not a valid port number".to_string()).err()
+            })
+        >
+            <input
+                type="number"
+                name=id
+                id=id
+                on:input=on_port_input
+                class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-sm focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                value=default
+                required
+            />
+        </FormField>
     }
 }
 
@@ -74,59 +72,30 @@ pub fn IpAddrInput(
     let validate_and_set = move |input_str: String| {
         let res = match input_str.parse() {
             Ok(addr) => Ok(addr),
-            Err::<IpAddr, std::net::AddrParseError>(err) => Err((err.to_string(), input_str)),
+            Err::<IpAddr, std::net::AddrParseError>(err) => Err((input_str, err.to_string())),
         };
-
         signal.set(res);
     };
 
     view! {
-        <div>
-            <label for="node_ip" class="form-label">
-                {label}
-            </label>
-
-            <div class="flex items-center">
-                <div class="relative w-full">
-                    <input
-                        type="text"
-                        name="node_ip"
-                        id="node_ip"
-                        on:input=move |ev| validate_and_set(event_target_value(&ev))
-                        required
-                        class="form-input-box"
-                        prop:value=move || match signal.get() {
-                            Ok(s) => s.to_string(),
-                            Err((_, s)) => s,
-                        }
-                    />
-                </div>
-
-                <button
-                    data-popover-target="popover-node_ip"
-                    data-popover-placement="bottom-end"
-                    type="button"
-                    class="btn-node-action"
-                >
-                    <IconHelpMsg />
-                    <span class="sr-only">Show information</span>
-                </button>
-
-                <div
-                    data-popover
-                    id="popover-node_ip"
-                    role="tooltip"
-                    class="absolute z-10 invisible inline-block text-sm text-white transition-opacity duration-300 bg-gray-800 border border-gray-200 rounded-lg shadow-xs opacity-0 w-72 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-400"
-                >
-                    <div class="p-3 space-y-2">{help_msg}</div>
-                    <div data-popper-arrow></div>
-                </div>
-            </div>
-
-            <Show when=move || signal.read().is_err() fallback=move || view! { "" }.into_view()>
-                <p class="form-invalid-input-msg">{signal.get().err().map(|(e, _)| e)}</p>
-            </Show>
-        </div>
+        <FormField
+            label
+            help_msg
+            error=Signal::derive(move || signal.read().clone().map_err(|(_, err)| err).err())
+        >
+            <input
+                type="text"
+                name="node_ip"
+                id="node_ip"
+                on:input=move |ev| validate_and_set(event_target_value(&ev))
+                required
+                prop:value=move || match signal.get() {
+                    Ok(s) => s.to_string(),
+                    Err((s, _)) => s,
+                }
+                class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-sm focus:ring-1 focus:ring-indigo-500 focus:outline-none font-mono"
+            />
+        </FormField>
     }
 }
 
@@ -136,41 +105,34 @@ pub fn NumberInput(
     signal: RwSignal<Result<u16, String>>,
     min: u16,
     label: &'static str,
+    help_msg: &'static str,
+    #[prop(default = "right-0")] help_align: &'static str,
 ) -> impl IntoView {
     let on_input = move |ev| {
         let val = match event_target_value(&ev).parse::<u16>() {
-            Ok(v) if v < min => Err(format!("value cannot be smaller than {min}.")),
+            Ok(v) if v < min => Err(format!("Value cannot be smaller than {min}.")),
             Ok(v) => Ok(v),
-            Err(err) => Err(err.to_string()),
+            Err(err) => Err(format!("Invalid value: {err}")),
         };
         signal.set(val);
     };
 
     view! {
-        <div class="flex flex-row">
-            <div class="basis-2/3">
-                <label for=id class="form-label">
-                    {label}
-                </label>
-            </div>
-            <div class="basis-1/3">
-                <input
-                    type="number"
-                    id=id
-                    on:input=on_input
-                    class="form-input-box"
-                    value=signal.get_untracked().unwrap_or_default()
-                    required
-                />
-            </div>
-        </div>
-        <div>
-            <Show when=move || signal.read().is_err() fallback=move || view! { "" }.into_view()>
-                <p class="ml-2 text-sm text-red-600 dark:text-red-500">
-                    "Invalid value: " {signal.get().err()}
-                </p>
-            </Show>
-        </div>
+        <FormField
+            label
+            help_msg
+            help_align
+            error=Signal::derive(move || signal.read().clone().err())
+        >
+            <input
+                type="number"
+                id=id
+                on:input=on_input
+                class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-sm focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                value=signal.get_untracked().unwrap_or_default()
+                required
+            />
+        </FormField>
     }
 }
 
@@ -181,44 +143,17 @@ pub fn TextInput(
     help_msg: &'static str,
 ) -> impl IntoView {
     view! {
-        <div>
-            <label for="textinput" class="form-label">
-                {label}
-            </label>
-
-            <div class="flex items-center">
-                <div class="relative w-full">
-                    <input
-                        type="text"
-                        id="textinput"
-                        on:input=move |ev| {
-                            signal.set(PathBuf::from(event_target_value(&ev)));
-                        }
-                        class="form-input-box"
-                        value=signal.get_untracked().display().to_string()
-                    />
-                </div>
-                <button
-                    data-popover-target="popover-text"
-                    data-popover-placement="top-end"
-                    type="button"
-                    class="btn-node-action"
-                >
-                    <IconHelpMsg />
-                    <span class="sr-only">Show information</span>
-                </button>
-
-                <div
-                    data-popover
-                    id="popover-text"
-                    role="tooltip"
-                    class="absolute z-10 invisible inline-block text-sm text-white transition-opacity duration-300 bg-gray-800 border border-gray-200 rounded-lg shadow-xs opacity-0 w-72 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-400"
-                >
-                    <div class="p-3 space-y-2">{help_msg}</div>
-                    <div data-popper-arrow></div>
-                </div>
-            </div>
-        </div>
+        <FormField label help_msg>
+            <input
+                type="text"
+                id="textinput"
+                on:input=move |ev| {
+                    signal.set(PathBuf::from(event_target_value(&ev)));
+                }
+                value=signal.get_untracked().display().to_string()
+                class="w-full bg-slate-800 border rounded-lg px-4 py-2.5 text-sm focus:ring-1 focus:outline-none border-slate-700 focus:ring-indigo-500"
+            />
+        </FormField>
     }
 }
 
@@ -228,42 +163,26 @@ pub fn CheckboxInput(
     id: &'static str,
     label: &'static str,
     help_msg: &'static str,
+    #[prop(default = "right-0")] help_align: &'static str,
 ) -> impl IntoView {
-    let checked = signal.get();
     view! {
-        <div class="flex items-center">
+        <label class="flex items-center gap-3 cursor-pointer">
             <input
-                checked=checked
+                type="checkbox"
+                checked=move || signal.get()
                 prop:checked=move || signal.get()
                 id=id
-                type="checkbox"
                 on:change=move |ev| { signal.set(event_target_checked(&ev)) }
-                class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-400"
+                class="w-4 h-4 rounded bg-slate-800 border-slate-700 text-indigo-600 focus:ring-indigo-500"
             />
-            <label for=id class="ms-2 text-sm font-medium text-gray-900 dark:text-gray-300">
-                {label}
-            </label>
-
-            <button
-                data-popover-target=format!("popover-{id}")
-                data-popover-placement="top-end"
-                type="button"
-                class="btn-node-action"
-            >
+            <span class="text-sm text-slate-300">{label}</span>
+            <div class="relative group flex items-center">
                 <IconHelpMsg />
-                <span class="sr-only">Show information</span>
-            </button>
-
-            <div
-                data-popover
-                id=format!("popover-{id}")
-                role="tooltip"
-                class="absolute z-10 invisible inline-block text-sm text-white transition-opacity duration-300 bg-gray-800 border border-gray-200 rounded-lg shadow-xs opacity-0 w-72 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-400"
-            >
-                <div class="p-3 space-y-2">{help_msg}</div>
-                <div data-popper-arrow></div>
+                <div class=format!(
+                    "{help_align} absolute bottom-full mb-2 w-64 bg-slate-950 text-white text-xs font-normal text-left px-3 py-2 rounded-lg border border-slate-700 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-lg",
+                )>{help_msg}</div>
             </div>
-        </div>
+        </label>
     }
 }
 
@@ -275,38 +194,32 @@ pub fn RewardsAddrInput(
     let validate_and_set = move |input_str: String| {
         let res = match parse_and_validate_addr(&input_str) {
             Ok(_) => Ok(input_str),
-            Err(err) => Err((err, input_str)),
+            Err(err) => Err((input_str, err)),
         };
-
         signal.set(res);
     };
 
     view! {
-        <div>
-            <label for="rewards_addr" class="form-label">
-                {label}
-            </label>
-
-            <div class="flex items-center">
-                <div class="relative w-full">
-                    <input
-                        type="text"
-                        name="rewards_addr"
-                        id="rewards_addr"
-                        on:input=move |ev| validate_and_set(event_target_value(&ev))
-                        required
-                        class="form-input-box"
-                        prop:value=move || match signal.get() {
-                            Ok(s) => s,
-                            Err((_, s)) => s,
-                        }
-                    />
-                </div>
-
+        <FormField
+            label
+            help_msg="The Arbitrum One network address where network rewards will be sent."
+            error=Signal::derive(move || signal.read().clone().map_err(|(_, err)| err).err())
+        >
+            <div class="relative group flex items-center">
+                <input
+                    type="text"
+                    name="rewardsAddress"
+                    placeholder="0x"
+                    prop:value=move || match signal.get() {
+                        Ok(s) => s,
+                        Err((s, _)) => s,
+                    }
+                    class="w-full bg-slate-800 border rounded-lg px-4 py-2.5 text-sm focus:ring-1 focus:outline-none border-slate-700 focus:ring-indigo-500"
+                    on:input=move |ev| validate_and_set(event_target_value(&ev))
+                />
                 <button
-                    data-tooltip-target="tooltip-rewards_addr"
-                    class="btn-node-action"
                     type="button"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
                     on:click=move |_| {
                         spawn_local(async move {
                             if let Some(addr) = get_addr_from_metamask().await.as_string() {
@@ -314,13 +227,13 @@ pub fn RewardsAddrInput(
                             } else {
                                 let prev = match signal.get_untracked() {
                                     Ok(s) => s,
-                                    Err((_, s)) => s,
+                                    Err((s, _)) => s,
                                 };
                                 signal
                                     .set(
                                         Err((
-                                            "Failed to retrieve address from Metamask".to_string(),
                                             prev,
+                                            "Failed to retrieve address from Metamask".to_string(),
                                         )),
                                     )
                             }
@@ -329,19 +242,10 @@ pub fn RewardsAddrInput(
                 >
                     <IconPasteAddr />
                 </button>
-                <div
-                    id="tooltip-rewards_addr"
-                    role="tooltip"
-                    class="absolute z-10 invisible inline-block px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-800 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700"
-                >
-                    <span>Retrieve address from Metamask</span>
-                    <div class="tooltip-arrow" data-popper-arrow></div>
+                <div class="absolute bottom-full mb-2 right-0 bg-slate-950 text-white text-xs font-normal text-left px-3 py-2 rounded-lg border border-slate-700 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-lg">
+                    "Retrieve address from Metamask"
                 </div>
             </div>
-
-            <Show when=move || signal.read().is_err() fallback=move || view! { "" }.into_view()>
-                <p class="form-invalid-input-msg">{signal.get().err().map(|(e, _)| e)}</p>
-            </Show>
-        </div>
+        </FormField>
     }
 }

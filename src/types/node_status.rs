@@ -98,6 +98,22 @@ impl NodeStatus {
                 | Self::Recycling
         )
     }
+
+    pub fn status_color(&self) -> &'static str {
+        match self {
+            Self::Creating => "text-yellow-400",
+            Self::Active => "text-emerald-400",
+            Self::Restarting | Self::Stopping => "text-amber-400",
+            Self::Removing => "text-red-400",
+            Self::Inactive(InactiveReason::Created | InactiveReason::Stopped) => "text-slate-500",
+            Self::Inactive(
+                InactiveReason::StartFailed(_)
+                | InactiveReason::Exited(_)
+                | InactiveReason::Unknown,
+            ) => "text-rose-400",
+            Self::Upgrading | Self::Recycling => "text-cyan-400",
+        }
+    }
 }
 
 #[cfg(test)]

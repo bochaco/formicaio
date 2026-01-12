@@ -8,8 +8,6 @@ use crate::{
 };
 
 use super::{
-    add_nodes::AddNodesForm,
-    form_inputs::NumberInput,
     helpers::{remove_node_instance, show_alert_msg},
     icons::*,
 };
@@ -127,397 +125,172 @@ fn no_zero_overflow_subs(v: &mut usize) {
 }
 
 #[component]
-pub fn NodesActionsView() -> impl IntoView {
+pub fn BatchActionModal(action: RwSignal<Option<NodeAction>>) -> impl IntoView {
     let context = expect_context::<ClientGlobalState>();
-    let is_selecting_nodes = move || context.selecting_nodes.read().0;
-    let btn_nodes_action_class = move || {
-        if is_selecting_nodes() {
-            "hidden"
-        } else if context.nodes.read().1.is_empty() {
-            "btn-disabled btn-manage-nodes-action"
-        } else {
-            "btn-manage-nodes-action"
-        }
+    let interval = RwSignal::new(60);
+
+    struct ActionDetails {
+        title: &'static str,
+        verb: &'static str,
+        icon: AnyView,
+        colors: ActionColors,
+    }
+    struct ActionColors {
+        header_bg: &'static str,
+        icon_text: &'static str,
+        button: &'static str,
+    }
+
+    let details = move || match action.get_untracked() {
+        None => ActionDetails {
+            title: "",
+            verb: "",
+            icon: view! { "" }.into_any(),
+            colors: ActionColors {
+                header_bg: "bg-emerald-500/10",
+                icon_text: "text-emerald-400",
+                button: "bg-emerald-600 hover:bg-emerald-500 shadow-emerald-500/20",
+            },
+        },
+        Some(NodeAction::Start) => ActionDetails {
+            title: "Start Nodes",
+            verb: "start",
+            icon: view! { <IconStartNode /> }.into_any(),
+            colors: ActionColors {
+                header_bg: "bg-emerald-500/10",
+                icon_text: "text-emerald-400",
+                button: "bg-emerald-600 hover:bg-emerald-500 shadow-emerald-500/20",
+            },
+        },
+        Some(NodeAction::Stop) => ActionDetails {
+            title: "Stop Nodes",
+            verb: "stop",
+            icon: view! { <IconStopNode /> }.into_any(),
+            colors: ActionColors {
+                header_bg: "bg-rose-500/10",
+                icon_text: "text-rose-400",
+                button: "bg-rose-600 hover:bg-rose-500 shadow-rose-500/20",
+            },
+        },
+        Some(NodeAction::Remove) => ActionDetails {
+            title: "Remove Nodes",
+            verb: "remove",
+            icon: view! { <IconRemove /> }.into_any(),
+            colors: ActionColors {
+                header_bg: "bg-rose-500/10",
+                icon_text: "text-rose-400",
+                button: "bg-rose-600 hover:bg-rose-500 shadow-rose-500/20",
+            },
+        },
+        Some(NodeAction::Upgrade) => ActionDetails {
+            title: "Upgrade Nodes",
+            verb: "upgrade",
+            icon: view! { <IconUpgradeNode /> }.into_any(),
+            colors: ActionColors {
+                header_bg: "bg-cyan-500/10",
+                icon_text: "text-cyan-400",
+                button: "bg-cyan-600 hover:bg-cyan-500 shadow-cyan-500/20",
+            },
+        },
+        Some(NodeAction::Recycle) => ActionDetails {
+            title: "Recycle Nodes",
+            verb: "recycle",
+            icon: view! { <IconRecycle /> }.into_any(),
+            colors: ActionColors {
+                header_bg: "bg-cyan-500/10",
+                icon_text: "text-cyan-400",
+                button: "bg-cyan-600 hover:bg-cyan-500 shadow-cyan-500/20",
+            },
+        },
     };
 
-    let show_actions_menu = RwSignal::new(false);
-    // signal to toggle the panel to add nodes
-    let modal_visibility = RwSignal::new(false);
-    // signal to toggle the panel to confirm actions to nodes
-    let modal_apply_action = RwSignal::new(None);
-
     view! {
-        <div class="fixed end-6 bottom-6 group z-10">
-            <div class=move || {
-                if *show_actions_menu.read() {
-                    "flex flex-col items-center mb-4 space-y-2"
-                } else {
-                    "hidden"
-                }
-            }>
-
-                <ActionsOnSelected show_actions_menu modal_apply_action />
-
-                <button
-                    type="button"
-                    on:click=move |_| {
-                        context
-                            .selecting_nodes
-                            .update(|(enabled, selected)| {
-                                *enabled = true;
-                                context
-                                    .nodes
-                                    .read()
-                                    .1
-                                    .iter()
-                                    .filter(|(_, n)| !n.read().is_status_locked)
-                                    .for_each(|(id, _)| {
-                                        selected.insert(id.clone());
-                                    });
-                            });
-                    }
-                    data-tooltip-target="tooltip-select-all"
-                    data-tooltip-placement="left"
-                    class=btn_nodes_action_class
-                >
-                    <IconSelectAll />
-                    <span class="sr-only">Select all</span>
-                </button>
-                <div
-                    id="tooltip-select-all"
-                    role="tooltip"
-                    class="absolute z-10 invisible inline-block w-auto px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700"
-                >
-                    Select all
-                    <div class="tooltip-arrow" data-popper-arrow></div>
+        <div class="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-300">
+            <div class="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
+                <div class=format!(
+                    "p-6 border-b border-slate-800 flex items-center justify-between {}",
+                    details().colors.header_bg,
+                )>
+                    <div class="flex items-center gap-4">
+                        <div class=details().colors.icon_text>{details().icon}</div>
+                        <h3 class="text-xl font-bold text-white">Confirm Batch Action</h3>
+                    </div>
+                    <button
+                        on:click=move |_| action.set(None)
+                        class="p-2 text-slate-500 hover:text-white transition-colors"
+                    >
+                        <IconCancel />
+                    </button>
                 </div>
 
-                <button
-                    type="button"
-                    on:click=move |_| {
-                        context
-                            .selecting_nodes
-                            .update(|(enabled, selected)| {
-                                *enabled = true;
-                                context
-                                    .nodes
-                                    .read()
-                                    .1
-                                    .iter()
-                                    .filter(|(_, n)| {
-                                        n.read().status.is_active() && !n.read().is_status_locked
-                                    })
-                                    .for_each(|(id, _)| {
-                                        selected.insert(id.clone());
-                                    });
-                            });
-                    }
-                    data-tooltip-target="tooltip-select-actives"
-                    data-tooltip-placement="left"
-                    class=btn_nodes_action_class
-                >
-                    <IconSelectActives />
-                    <span class="sr-only">Select actives</span>
-                </button>
-                <div
-                    id="tooltip-select-actives"
-                    role="tooltip"
-                    class="absolute z-10 invisible inline-block w-auto px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700"
-                >
-                    Select actives
-                    <div class="tooltip-arrow" data-popper-arrow></div>
-                </div>
+                <div class="p-8 space-y-6">
+                    <p class="text-slate-300 text-center text-lg">
+                        "You are about to "
+                        <span class=format!(
+                            "font-bold uppercase {}",
+                            details().colors.icon_text,
+                        )>{details().verb}</span> " "
+                        {context.selecting_nodes.read_untracked().1.len()} " selected node(s)."
+                    </p>
 
-                <button
-                    type="button"
-                    on:click=move |_| {
-                        context
-                            .selecting_nodes
-                            .update(|(enabled, selected)| {
-                                *enabled = true;
-                                context
-                                    .nodes
-                                    .read()
-                                    .1
-                                    .iter()
-                                    .filter(|(_, n)| {
-                                        n.read().status.is_inactive() && !n.read().is_status_locked
-                                    })
-                                    .for_each(|(id, _)| {
-                                        selected.insert(id.clone());
-                                    });
-                            });
-                    }
-                    data-tooltip-target="tooltip-select-inactives"
-                    data-tooltip-placement="left"
-                    class=btn_nodes_action_class
-                >
-                    <IconSelectInactives />
-                    <span class="sr-only">Select inactives</span>
-                </button>
-                <div
-                    id="tooltip-select-inactives"
-                    role="tooltip"
-                    class="absolute z-10 invisible inline-block w-auto px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700"
-                >
-                    Select inactives
-                    <div class="tooltip-arrow" data-popper-arrow></div>
-                </div>
-
-                <button
-                    type="button"
-                    on:click=move |_| {
-                        context.selecting_nodes.update(|(enabled, _)| *enabled = true);
-                    }
-                    data-tooltip-target="tooltip-manage"
-                    data-tooltip-placement="left"
-                    class=btn_nodes_action_class
-                >
-                    <IconManageNodes />
-                    <span class="sr-only">Manage</span>
-                </button>
-                <div
-                    id="tooltip-manage"
-                    role="tooltip"
-                    class="absolute z-10 invisible inline-block w-auto px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700"
-                >
-                    Manage
-                    <div class="tooltip-arrow" data-popper-arrow></div>
-                </div>
-
-                <button
-                    type="button"
-                    on:click=move |_| {
-                        show_actions_menu.set(false);
-                        modal_visibility.set(true);
-                    }
-                    data-tooltip-target="tooltip-add-nodes"
-                    data-tooltip-placement="left"
-                    class=move || {
-                        if is_selecting_nodes() { "hidden" } else { "btn-manage-nodes-action" }
-                    }
-                >
-                    <IconAddNode />
-                    <span class="sr-only">Add nodes</span>
-                </button>
-                <div
-                    id="tooltip-add-nodes"
-                    role="tooltip"
-                    class="absolute z-10 invisible inline-block w-auto px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700"
-                >
-                    Add nodes
-                    <div class="tooltip-arrow" data-popper-arrow></div>
-                </div>
-            </div>
-
-            <button
-                type="button"
-                on:click=move |_| {
-                    let showing = *show_actions_menu.read_untracked();
-                    show_actions_menu.set(!showing);
-                }
-                class="flex items-center justify-center text-white bg-blue-700 rounded-full w-14 h-14 hover:bg-blue-800 dark:bg-blue-600 dark:hover:bg-blue-700 focus:ring-4 focus:ring-blue-300 focus:outline-none dark:focus:ring-blue-800"
-            >
-                <IconOpenActionsMenu />
-                <span class="sr-only">Open actions menu</span>
-            </button>
-        </div>
-
-        <div
-            id="add_node_modal"
-            tabindex="-1"
-            aria-hidden="true"
-            class=move || {
-                if modal_visibility.get() && *context.is_online.read() {
-                    "overflow-y-auto overflow-x-hidden fixed inset-0 flex z-50 justify-center items-center w-full md:inset-0 h-[calc(100%-1rem)] max-h-full"
-                } else {
-                    "hidden"
-                }
-            }
-        >
-            <div class="relative p-4 w-full max-w-lg max-h-full">
-                <div class="relative bg-white rounded-lg shadow dark:bg-gray-700">
-                    <div class="flex items-center justify-between p-4 md:p-5 border-b rounded-t dark:border-gray-600">
-                        <h3 class="text-xl font-semibold text-gray-900 dark:text-white">
-                            Add nodes
-                        </h3>
-                        <button
-                            type="button"
-                            class="end-2.5 text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 ms-auto inline-flex justify-center items-center dark:hover:bg-gray-600 dark:hover:text-white"
-                            on:click=move |_| modal_visibility.set(false)
+                    <div class="space-y-3 pt-4">
+                        <label
+                            for="interval"
+                            class="flex items-center gap-2 text-sm font-bold text-slate-400 uppercase tracking-widest"
                         >
-                            <IconCancel />
-                            <span class="sr-only">Cancel</span>
-                        </button>
+                            "Delay between each node action in the batch:"
+                        </label>
+                        <div class="relative">
+                            <input
+                                id="interval"
+                                type="number"
+                                value=move || interval.get()
+                                min=0
+                                on:change=move |e| {
+                                    interval.set(event_target_value(&e).parse::<u64>().unwrap_or(0))
+                                }
+                                class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all pr-20"
+                            />
+                            <span class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 text-sm">
+                                seconds
+                            </span>
+                        </div>
                     </div>
 
-                    <AddNodesForm modal_visibility />
+                    <Show when=move || details().verb == "remove">
+                        <div class="bg-rose-500/10 border border-rose-500/20 text-rose-300 text-sm rounded-xl p-4 flex items-start gap-3">
+                            <p>
+                                This action is irreversible. Please ensure you have selected the correct nodes before proceeding.
+                            </p>
+                        </div>
+                    </Show>
                 </div>
-            </div>
-        </div>
 
-        <div
-            id="apply_node_action_modal"
-            tabindex="-1"
-            aria-hidden="true"
-            class=move || {
-                if modal_apply_action.read().is_some() && *context.is_online.read() {
-                    "overflow-y-auto overflow-x-hidden fixed inset-0 flex z-50 justify-center items-center w-full md:inset-0 h-[calc(100%-1rem)] max-h-full"
-                } else {
-                    "hidden"
-                }
-            }
-        >
-            <div class="relative p-4 w-full max-w-lg max-h-full">
-                <div class="relative bg-white rounded-lg shadow dark:bg-gray-700">
-                    <div class="flex items-center justify-between p-4 md:p-5 border-b rounded-t dark:border-gray-600">
-                        <h3 class="text-xl font-semibold text-gray-900 dark:text-white">
-                            Apply action to selected nodes
-                        </h3>
-                        <button
-                            type="button"
-                            class="end-2.5 text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 ms-auto inline-flex justify-center items-center dark:hover:bg-gray-600 dark:hover:text-white"
-                            on:click=move |_| {
-                                show_actions_menu.set(true);
-                                modal_apply_action.set(None);
-                            }
-                        >
-                            <IconCancel />
-                            <span class="sr-only">Cancel</span>
-                        </button>
-                    </div>
-
-                    <div class="p-4 md:p-5">
-                        <MultipleNodesActionConfirm modal_apply_action />
-                    </div>
-                </div>
-            </div>
-        </div>
-    }
-}
-
-#[component]
-fn MultipleNodesActionConfirm(modal_apply_action: RwSignal<Option<NodeAction>>) -> impl IntoView {
-    let context = expect_context::<ClientGlobalState>();
-    let interval = RwSignal::new(Ok(60));
-
-    view! {
-        <form class="space-y-3">
-            <NumberInput
-                id="actions_interval"
-                signal=interval
-                min=0
-                label="Delay (in seconds) between each node action in the batch:"
-            />
-
-            <button
-                type="button"
-                disabled=move || { interval.read().is_err() || modal_apply_action.read().is_none() }
-                on:click=move |_| {
-                    if let (Ok(i), Some(action)) = (interval.get(), modal_apply_action.get()) {
-                        modal_apply_action.set(None);
-                        apply_on_selected(action, i.into(), context);
-                    }
-                }
-                class="btn-modal"
-            >
-                {move || {
-                    let count = context.selecting_nodes.read_untracked().1.len();
-                    if let Some(action) = modal_apply_action.get() {
-                        format!(
-                            "{action:?} selected {}",
-                            if count > 1 { format!("{count} nodes") } else { "node".to_string() },
+                <div class="p-6 bg-slate-950 border-t border-slate-800 flex items-center justify-end gap-4">
+                    <button
+                        class="px-6 py-2.5 rounded-xl font-bold text-slate-400 hover:bg-slate-800 transition-colors"
+                        on:click=move |_| action.set(None)
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        class=format!(
+                            "px-8 py-2.5 rounded-xl font-bold text-white transition-all shadow-lg {}",
+                            details().colors.button,
                         )
-                    } else {
-                        "Apply action on selected node/s".to_string()
-                    }
-                }}
-            </button>
-        </form>
-    }
-}
-
-#[component]
-fn ActionsOnSelected(
-    show_actions_menu: RwSignal<bool>,
-    modal_apply_action: RwSignal<Option<NodeAction>>,
-) -> impl IntoView {
-    let context = expect_context::<ClientGlobalState>();
-    let is_selecting_nodes = move || context.selecting_nodes.read().0;
-
-    view! {
-        <button
-            type="button"
-            on:click=move |_| {
-                show_actions_menu.set(false);
-                context
-                    .selecting_nodes
-                    .update(|(enabled, selected)| {
-                        selected.clear();
-                        *enabled = false;
-                    })
-            }
-            data-tooltip-target="tooltip-cancel"
-            data-tooltip-placement="left"
-            class=move || {
-                if is_selecting_nodes() {
-                    "btn-manage-nodes-action ring-4 ring-gray-300 outline-none dark:ring-gray-400"
-                } else {
-                    "hidden"
-                }
-            }
-        >
-            <IconCancel />
-            <span class="sr-only">Cancel</span>
-        </button>
-        <div
-            id="tooltip-cancel"
-            role="tooltip"
-            class="absolute z-10 invisible inline-block w-auto px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700"
-        >
-            Cancel
-            <div class="tooltip-arrow" data-popper-arrow></div>
+                        on:click=move |_| {
+                            if let Some(a) = action.get() {
+                                apply_on_selected(a, interval.get(), context);
+                                action.set(None);
+                            }
+                        }
+                    >
+                        "Confirm & "
+                        {details().title}
+                    </button>
+                </div>
+            </div>
         </div>
-
-        <NodeActionButton
-            label="Start selected"
-            show_actions_menu
-            modal_apply_action
-            action=NodeAction::Start
-            icon=IconStartNode.into_any()
-        />
-
-        <NodeActionButton
-            label="Stop selected"
-            show_actions_menu
-            modal_apply_action
-            action=NodeAction::Stop
-            icon=IconStopNode.into_any()
-        />
-
-        <NodeActionButton
-            label="Upgrade selected"
-            show_actions_menu
-            modal_apply_action
-            action=NodeAction::Upgrade
-            icon=view! { <IconUpgradeNode /> }.into_any()
-        />
-
-        <NodeActionButton
-            label="Recycle selected"
-            show_actions_menu
-            modal_apply_action
-            action=NodeAction::Recycle
-            icon=IconRecycle.into_any()
-        />
-
-        <NodeActionButton
-            label="Remove selected"
-            show_actions_menu
-            modal_apply_action
-            action=NodeAction::Remove
-            icon=IconRemove.into_any()
-        />
     }
 }
 
@@ -565,50 +338,4 @@ fn apply_on_selected(action: NodeAction, interval: u64, context: ClientGlobalSta
             }
         }
     });
-}
-
-#[component]
-fn NodeActionButton(
-    label: &'static str,
-    show_actions_menu: RwSignal<bool>,
-    modal_apply_action: RwSignal<Option<NodeAction>>,
-    action: NodeAction,
-    icon: AnyView,
-) -> impl IntoView {
-    let context = expect_context::<ClientGlobalState>();
-    let is_selecting_nodes = move || context.selecting_nodes.read().0;
-    let id = label.replace(" ", "-");
-    let actions_class = move || {
-        if !is_selecting_nodes() {
-            "hidden"
-        } else if context.selecting_nodes.read().1.is_empty() {
-            "btn-manage-nodes-action btn-disabled"
-        } else {
-            "btn-manage-nodes-action"
-        }
-    };
-
-    view! {
-        <button
-            type="button"
-            on:click=move |_| {
-                show_actions_menu.set(false);
-                modal_apply_action.set(Some(action));
-            }
-            data-tooltip-target=id.clone()
-            data-tooltip-placement="left"
-            class=actions_class
-        >
-            {icon}
-            <span class="sr-only">{label}</span>
-        </button>
-        <div
-            id=id
-            role="tooltip"
-            class="absolute z-10 invisible inline-block w-auto px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700"
-        >
-            {label}
-            <div class="tooltip-arrow" data-popper-arrow></div>
-        </div>
-    }
 }

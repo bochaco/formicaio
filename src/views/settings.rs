@@ -1,354 +1,565 @@
 use crate::{
-    app::ClientGlobalState,
     server_api::{get_settings, update_settings},
     types::AppSettings,
 };
 
-use super::{helpers::show_alert_msg, icons::IconCancel};
+use super::{
+    helpers::show_alert_msg,
+    icons::{IconCheck, IconLcdSettings, IconSave, IconServer, IconWallet},
+};
 
 use alloy_primitives::Address;
+use gloo_timers::future::TimeoutFuture;
 use leptos::{logging, prelude::*};
 use std::time::Duration;
 use url::Url;
+use wasm_bindgen_futures::spawn_local;
+
+struct FormContent {
+    saved_settings: RwSignal<AppSettings>,
+    auto_upgrade: RwSignal<bool>,
+    auto_upgrade_delay: RwSignal<Result<u64, (String, String)>>,
+    bin_version_polling_freq: RwSignal<Result<u64, (String, String)>>,
+    balances_retrieval_freq: RwSignal<Result<u64, (String, String)>>,
+    metrics_polling_freq: RwSignal<Result<u64, (String, String)>>,
+    l2_network_rpc_url: RwSignal<Result<String, (String, String)>>,
+    token_contract_address: RwSignal<Result<String, (String, String)>>,
+    lcd_enabled: RwSignal<bool>,
+    lcd_device: RwSignal<Result<String, (String, String)>>,
+    lcd_addr: RwSignal<Result<String, (String, String)>>,
+}
+
+impl FormContent {
+    pub fn new(settings: AppSettings) -> Self {
+        Self {
+            saved_settings: RwSignal::new(settings.clone()),
+            auto_upgrade: RwSignal::new(settings.nodes_auto_upgrade),
+            auto_upgrade_delay: RwSignal::new(Ok(settings.nodes_auto_upgrade_delay.as_secs())),
+            bin_version_polling_freq: RwSignal::new(Ok(settings
+                .node_bin_version_polling_freq
+                .as_secs())),
+            balances_retrieval_freq: RwSignal::new(Ok(settings
+                .rewards_balances_retrieval_freq
+                .as_secs())),
+            metrics_polling_freq: RwSignal::new(Ok(settings.nodes_metrics_polling_freq.as_secs())),
+            l2_network_rpc_url: RwSignal::new(Ok(settings.l2_network_rpc_url.clone())),
+            token_contract_address: RwSignal::new(Ok(settings.token_contract_address.clone())),
+            lcd_enabled: RwSignal::new(settings.lcd_display_enabled),
+            lcd_device: RwSignal::new(Ok(settings.lcd_device.clone())),
+            lcd_addr: RwSignal::new(Ok(settings.lcd_addr.clone())),
+        }
+    }
+
+    pub fn is_unsaved_changes(&self) -> bool {
+        let saved_settings = self.saved_settings.read();
+        self.auto_upgrade.get() != saved_settings.nodes_auto_upgrade
+            || self.auto_upgrade_delay.get()
+                != Ok(saved_settings.nodes_auto_upgrade_delay.as_secs())
+            || self.bin_version_polling_freq.get()
+                != Ok(saved_settings.node_bin_version_polling_freq.as_secs())
+            || self.balances_retrieval_freq.get()
+                != Ok(saved_settings.rewards_balances_retrieval_freq.as_secs())
+            || self.metrics_polling_freq.get()
+                != Ok(saved_settings.nodes_metrics_polling_freq.as_secs())
+            || self.l2_network_rpc_url.get() != Ok(saved_settings.l2_network_rpc_url.clone())
+            || self.token_contract_address.get()
+                != Ok(saved_settings.token_contract_address.clone())
+            || self.lcd_enabled.get() != saved_settings.lcd_display_enabled
+            || self.lcd_device.get() != Ok(saved_settings.lcd_device.clone())
+            || self.lcd_addr.get() != Ok(saved_settings.lcd_addr.clone())
+    }
+
+    pub fn get_valid_changes(&self) -> Option<AppSettings> {
+        let values = (
+            self.auto_upgrade_delay.get(),
+            self.bin_version_polling_freq.get(),
+            self.balances_retrieval_freq.get(),
+            self.metrics_polling_freq.get(),
+            self.l2_network_rpc_url.get(),
+            self.token_contract_address.get(),
+            self.lcd_device.get(),
+            self.lcd_addr.get(),
+        );
+        if let (Ok(v1), Ok(v2), Ok(v3), Ok(v4), Ok(v5), Ok(v6), Ok(v7), Ok(v8)) = values {
+            Some(AppSettings {
+                nodes_auto_upgrade: self.auto_upgrade.get(),
+                nodes_auto_upgrade_delay: Duration::from_secs(v1),
+                node_bin_version_polling_freq: Duration::from_secs(v2),
+                rewards_balances_retrieval_freq: Duration::from_secs(v3),
+                nodes_metrics_polling_freq: Duration::from_secs(v4),
+                l2_network_rpc_url: v5,
+                token_contract_address: v6,
+                lcd_display_enabled: self.lcd_enabled.get(),
+                lcd_device: v7,
+                lcd_addr: v8,
+            })
+        } else {
+            None
+        }
+    }
+
+    pub fn discard_changes(&mut self) {
+        let saved_settings = self.saved_settings.read();
+        self.auto_upgrade.set(saved_settings.nodes_auto_upgrade);
+        self.auto_upgrade_delay
+            .set(Ok(saved_settings.nodes_auto_upgrade_delay.as_secs()));
+        self.bin_version_polling_freq
+            .set(Ok(saved_settings.node_bin_version_polling_freq.as_secs()));
+        self.balances_retrieval_freq
+            .set(Ok(saved_settings.rewards_balances_retrieval_freq.as_secs()));
+        self.metrics_polling_freq
+            .set(Ok(saved_settings.nodes_metrics_polling_freq.as_secs()));
+        self.l2_network_rpc_url
+            .set(Ok(saved_settings.l2_network_rpc_url.clone()));
+        self.token_contract_address
+            .set(Ok(saved_settings.token_contract_address.clone()));
+        self.lcd_enabled.set(saved_settings.lcd_display_enabled);
+        self.lcd_device.set(Ok(saved_settings.lcd_device.clone()));
+        self.lcd_addr.set(Ok(saved_settings.lcd_addr.clone()));
+    }
+}
 
 #[component]
-pub fn SettingsView(settings_panel: RwSignal<bool>) -> impl IntoView {
-    let context = expect_context::<ClientGlobalState>();
+fn SettingsForm(form: RwSignal<FormContent>, active_tab: RwSignal<u8>) -> impl IntoView {
+    view! {
+        <span hidden=move || active_tab.read() != 0>
+            <SettingsCard
+                icon=view! { <IconServer /> }.into_any()
+                title="Nodes Management"
+                description="Configure automated node upgrades, version checks, and metrics."
+            >
+                <SettingRow
+                    label="Auto-Upgrade Nodes"
+                    description="Automatically upgrade nodes to the latest version when available."
+                >
+                    <ToggleSwitch name="autoUpgrade" checked=form.read_untracked().auto_upgrade />
+                </SettingRow>
+                <SettingRow
+                    label="Auto-Upgrade Delay"
+                    description="Delay in seconds between when auto-upgrading each node."
+                    error=Signal::derive(move || {
+                        form.read().auto_upgrade_delay.read().clone().err()
+                    })
+                >
+                    <NumberInput
+                        name="upgradeDelay"
+                        signal=form.read_untracked().auto_upgrade_delay
+                        min=0
+                    />
+                </SettingRow>
+                <SettingRow
+                    label="Version Check Frequency"
+                    description="How often (in seconds) to check for a new node binary version."
+                    error=Signal::derive(move || {
+                        form.read().bin_version_polling_freq.read().clone().err()
+                    })
+                >
+                    <NumberInput
+                        name="versionCheckFreq"
+                        signal=form.read_untracked().bin_version_polling_freq
+                        min=3600
+                    />
+                </SettingRow>
+                <SettingRow
+                    label="Metrics Fetch Frequency"
+                    description="How often (in seconds) to fetch metrics from running nodes."
+                    error=Signal::derive(move || {
+                        form.read().metrics_polling_freq.read().clone().err()
+                    })
+                >
+                    <NumberInput
+                        name="metricsFreq"
+                        signal=form.read_untracked().metrics_polling_freq
+                        min=5
+                    />
+                </SettingRow>
+            </SettingsCard>
+        </span>
+        <span hidden=move || active_tab.read() != 1>
+            <SettingsCard
+                icon=view! { <IconWallet /> }.into_any()
+                title="Rewards"
+                description="Manage settings related to L2 network connectivity and token rewards."
+            >
+                <SettingRow
+                    label="Token Balance Query Frequency"
+                    description="How often (in seconds) to query wallet balances from the L2 network."
+                    error=Signal::derive(move || {
+                        form.read().balances_retrieval_freq.read().clone().err()
+                    })
+                >
+                    <NumberInput
+                        name="tokenQueryFreq"
+                        signal=form.read_untracked().balances_retrieval_freq
+                        min=600
+                    />
+                </SettingRow>
+                <SettingRow
+                    label="L2 RPC URL"
+                    description="The RPC endpoint used for querying balances and other on-chain data."
+                    full_width=true
+                    error=Signal::derive(move || {
+                        form.read().l2_network_rpc_url.read().clone().err()
+                    })
+                >
+                    <TextInputNew
+                        name="rpcUrl"
+                        signal=form.read_untracked().l2_network_rpc_url
+                        validator=|v| { v.parse::<Url>().map_err(|err| err.to_string()).map(|_| v) }
+                    />
+                </SettingRow>
+                <SettingRow
+                    label="ERC20 Token Contract Address"
+                    description="The smart contract address for the network's rewards token."
+                    full_width=true
+                    error=Signal::derive(move || {
+                        form.read().token_contract_address.read().clone().err()
+                    })
+                >
+                    <TextInputNew
+                        name="erc20Address"
+                        signal=form.read_untracked().token_contract_address
+                        validator=|v| {
+                            v.parse::<Address>().map_err(|err| err.to_string()).map(|_| v)
+                        }
+                    />
+                </SettingRow>
+            </SettingsCard>
+        </span>
 
+        <span hidden=move || active_tab.read() != 2>
+            <SettingsCard
+                icon=IconLcdSettings.into_any()
+                title="LCD Device Setup"
+                description="Configure an external I2C LCD display for real-time stats."
+            >
+                <SettingRow
+                    label="Enable LCD Display"
+                    description="Toggle on to send node statistics to a connected I2C LCD device."
+                >
+                    <ToggleSwitch name="lcdEnabled" checked=form.read_untracked().lcd_enabled />
+                </SettingRow>
+                <SettingRow
+                    label="I2C Bus Number"
+                    description="e.g., if the device path is /dev/i2c-1, the bus number is 1."
+                    error=Signal::derive(move || form.read().lcd_device.read().clone().err())
+                >
+                    <TextInputNew
+                        name="lcdBusNumber"
+                        signal=form.read_untracked().lcd_device
+                        validator=|v| { v.parse::<u8>().map_err(|err| err.to_string()).map(|_| v) }
+                    />
+                </SettingRow>
+                <SettingRow
+                    label="I2C Backpack Address"
+                    description="The hexadecimal address of the I2C backpack (usually 0x27 or 0x3F)."
+                    error=Signal::derive(move || form.read().lcd_addr.read().clone().err())
+                >
+                    <TextInputNew
+                        name="lcdBackpackAddress"
+                        signal=form.read_untracked().lcd_addr
+                        validator=|v| {
+                            u16::from_str_radix(v.strip_prefix("0x").unwrap_or(&v), 16)
+                                .map_err(|err| err.to_string())
+                                .map(|_| v)
+                        }
+                    />
+                </SettingRow>
+            </SettingsCard>
+        </span>
+    }
+}
+
+#[component]
+pub fn SettingsView() -> impl IntoView {
     let current_settings = Resource::new(
-        move || settings_panel.read() == true,
+        || (),
         |_| async move { get_settings().await.unwrap_or_default() },
     );
+    let form_content = RwSignal::new(FormContent::new(AppSettings::default()));
     let active_tab = RwSignal::new(0);
+    let is_saved = RwSignal::new(false);
+    let is_dirty = move || form_content.read().is_unsaved_changes();
 
     #[cfg(feature = "lcd-disabled")]
     let lcd_disabled = true;
     #[cfg(not(feature = "lcd-disabled"))]
     let lcd_disabled = false;
 
-    view! {
-        <div
-            id="settings_modal"
-            tabindex="-1"
-            aria-hidden="true"
-            class=move || {
-                if *settings_panel.read() && *context.is_online.read() {
-                    "overflow-y-auto overflow-x-hidden fixed inset-0 flex z-50 justify-center items-center w-full md:inset-0 h-[calc(100%-1rem)] max-h-full"
-                } else {
-                    "hidden"
-                }
-            }
-        >
-            <div class="relative p-4 w-full max-w-lg max-h-full">
-                <div class="relative bg-white rounded-lg shadow dark:bg-gray-700">
-                    <div class="flex items-center justify-between p-4 md:p-5 rounded-t dark:border-gray-600">
-                        <h3 class="text-xl font-semibold text-gray-900 dark:text-white">
-                            Settings
-                        </h3>
-                        <button
-                            type="button"
-                            class="end-2.5 text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 ms-auto inline-flex justify-center items-center dark:hover:bg-gray-600 dark:hover:text-white"
-                            on:click=move |_| settings_panel.set(false)
-                        >
-                            <IconCancel />
-                            <span class="sr-only">Cancel</span>
-                        </button>
-                    </div>
-
-                    <div class="border-b text-sm font-medium text-center text-gray-500 border-b border-gray-200 dark:text-gray-400 dark:border-gray-700">
-                        <ul class="flex flex-wrap -mb-px">
-                            <li class="me-2">
-                                <a
-                                    href="#"
-                                    on:click=move |_| active_tab.set(0)
-                                    class=move || {
-                                        if active_tab.read() == 0 {
-                                            "active settings-active-tab"
-                                        } else {
-                                            "settings-tab"
-                                        }
-                                    }
-                                >
-                                    General
-                                </a>
-                            </li>
-                            <li class="me-2" prop:hidden=lcd_disabled>
-                                <a
-                                    href="#"
-                                    on:click=move |_| active_tab.set(1)
-                                    class=move || {
-                                        if active_tab.read() == 1 {
-                                            "active settings-active-tab"
-                                        } else {
-                                            "settings-tab"
-                                        }
-                                    }
-                                >
-                                    LCD device setup
-                                </a>
-                            </li>
-                        </ul>
-                    </div>
-
-                    <div class="p-4 md:p-5">
-                        <Suspense fallback=move || {
-                            view! { <p>"Loading..."</p> }
-                        }>
-                            {move || Suspend::new(async move {
-                                view! {
-                                    <SettingsForm
-                                        curr=current_settings.await
-                                        settings_panel
-                                        active_tab
-                                    />
-                                }
-                            })}
-                        </Suspense>
-                    </div>
-                </div>
-            </div>
-        </div>
-    }
-}
-
-#[component]
-pub fn SettingsForm(
-    curr: AppSettings,
-    settings_panel: RwSignal<bool>,
-    active_tab: RwSignal<u8>,
-) -> impl IntoView {
-    let auto_upgrade = RwSignal::new(curr.nodes_auto_upgrade);
-    let auto_upgrade_delay = RwSignal::new(Ok(curr.nodes_auto_upgrade_delay.as_secs()));
-    let bin_version_polling_freq = RwSignal::new(Ok(curr.node_bin_version_polling_freq.as_secs()));
-    let balances_retrieval_freq = RwSignal::new(Ok(curr.rewards_balances_retrieval_freq.as_secs()));
-    let metrics_polling_freq = RwSignal::new(Ok(curr.nodes_metrics_polling_freq.as_secs()));
-    let l2_network_rpc_url = RwSignal::new(Ok(curr.l2_network_rpc_url.clone()));
-    let token_contract_address = RwSignal::new(Ok(curr.token_contract_address.clone()));
-    let lcd_enabled = RwSignal::new(curr.lcd_display_enabled);
-    let lcd_device = RwSignal::new(Ok(curr.lcd_device.clone()));
-    let lcd_addr = RwSignal::new(Ok(curr.lcd_addr.clone()));
-
     let update_settings_action = Action::new(move |settings: &AppSettings| {
-        let settings = settings.clone();
+        let settings_clone = settings.clone();
         async move {
-            if let Err(err) = update_settings(settings).await {
+            if let Err(err) = update_settings(settings_clone.clone()).await {
                 let msg = format!("Failed to update settings: {err:?}");
                 logging::log!("{msg}");
                 show_alert_msg(msg);
             } else {
-                settings_panel.set(false);
+                is_saved.set(true);
+                form_content.update(|f| f.saved_settings.set(settings_clone));
+                spawn_local(async move {
+                    TimeoutFuture::new(3000).await;
+                    is_saved.set(false);
+                });
             }
         }
     });
 
     view! {
-        <span hidden=move || active_tab.read() != 0>
-            <form class="space-y-3">
-                <div class="flex items-center">
-                    <input
-                        checked=move || { curr.nodes_auto_upgrade }
-                        id="auto_upgrade"
-                        type="checkbox"
-                        on:change=move |ev| { auto_upgrade.set(event_target_checked(&ev)) }
-                        class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-                    />
-                    <label
-                        for="auto_upgrade"
-                        class="ms-2 text-sm font-medium text-gray-900 dark:text-gray-300"
-                    >
-                        "Nodes auto-upgrading"
-                    </label>
+        <div class="p-4 lg:p-8 animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
+            <form on:submit=move |e| {
+                e.prevent_default();
+                if let Some(valid_settings) = form_content.read_untracked().get_valid_changes() {
+                    update_settings_action.dispatch(valid_settings);
+                }
+            }>
+                <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+                    <nav class="lg:col-span-1 space-y-2">
+                        <SideNavLink
+                            icon=view! { <IconServer /> }.into_any()
+                            label="Node Management"
+                            active_tab
+                            tab_index=0
+                        />
+                        <SideNavLink
+                            icon=view! { <IconWallet /> }.into_any()
+                            label="Rewards"
+                            active_tab
+                            tab_index=1
+                        />
+                        <Show when=move || !lcd_disabled>
+                            <SideNavLink
+                                icon=IconLcdSettings.into_any()
+                                label="LCD Device Setup"
+                                active_tab
+                                tab_index=2
+                            />
+                        </Show>
+                    </nav>
+                    <main class="lg:col-span-3">
+                        <Suspense fallback=move || {
+                            view! { <p>"Loading..."</p> }
+                        }>
+                            {move || Suspend::new(async move {
+                                form_content.set(FormContent::new(current_settings.await));
+                                view! { <SettingsForm form=form_content active_tab /> }
+                            })}
+                        </Suspense>
+                    </main>
                 </div>
-                <NumberInput
-                    signal=auto_upgrade_delay
-                    min=0
-                    label="Delay (in seconds) between nodes upgrading when auto-upgrading is enabled"
-                />
-                <NumberInput
-                    signal=bin_version_polling_freq
-                    min=3600
-                    label="How often (in seconds) to check which is the latest version of the node binary"
-                />
-                <NumberInput
-                    signal=balances_retrieval_freq
-                    min=600
-                    label="How often (in seconds) to query balances from the ledger using the configured L2 network RPC URL and token contract address"
-                />
-                <NumberInput
-                    signal=metrics_polling_freq
-                    min=5
-                    label="How often (in seconds) to fetch metrics and node info from active/running nodes"
-                />
-                <TextInput
-                    signal=l2_network_rpc_url
-                    label="RPC URL to send queries to get rewards addresses balances from L2 network:"
-                    validator=|v| { v.parse::<Url>().map_err(|err| err.to_string()).map(|_| v) }
-                />
-                <TextInput
-                    signal=token_contract_address
-                    label="ERC20 token contract address:"
-                    validator=|v| { v.parse::<Address>().map_err(|err| err.to_string()).map(|_| v) }
-                />
-            </form>
-        </span>
 
-        <span hidden=move || active_tab.read() != 1>
-            <form class="space-y-3">
-                <div class="flex items-center">
-                    <input
-                        checked=move || {
-                            let current = curr.lcd_display_enabled;
-                            lcd_enabled.set(current);
-                            current
-                        }
-                        id="lcd_enabled"
-                        type="checkbox"
-                        on:change=move |ev| { lcd_enabled.set(event_target_checked(&ev)) }
-                        class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-                    />
-                    <label
-                        for="lcd_enabled"
-                        class="ms-2 text-sm font-medium text-gray-900 dark:text-gray-300"
-                    >
-                        "Display nodes stats in external LCD display device (connected with an I2C backpack/interface)"
-                    </label>
-                </div>
-                <TextInput
-                    signal=lcd_device
-                    label="I2C bus number (e.g. if the device path is configured at /dev/i2c-1, the bus number is 1):"
-                    validator=|v| { v.parse::<u8>().map_err(|err| err.to_string()).map(|_| v) }
-                />
-                <TextInput
-                    signal=lcd_addr
-                    label="I2C backpack address (usually 0x27 or 0x3F):"
-                    validator=|v| {
-                        u16::from_str_radix(v.strip_prefix("0x").unwrap_or(&v), 16)
-                            .map_err(|err| err.to_string())
-                            .map(|_| v)
-                    }
-                />
+                <Show when=move || is_dirty()>
+                    <div class="sticky bottom-6 mt-6 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                        <div class="max-w-4xl mx-auto bg-slate-900/80 backdrop-blur-lg border border-slate-700 rounded-2xl shadow-2xl p-4 flex items-center justify-between">
+                            <p class="text-sm font-medium text-slate-300">
+                                You have unsaved changes.
+                            </p>
+                            <div class="flex items-center gap-4">
+                                <button
+                                    type="button"
+                                    on:click=move |_| form_content.update(|f| f.discard_changes())
+                                    class="px-4 py-2 text-sm font-bold text-slate-400 hover:bg-slate-800 rounded-lg transition-colors"
+                                >
+                                    Discard
+                                </button>
+                                <button
+                                    type="submit"
+                                    class="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2 rounded-lg font-bold transition-all shadow-lg shadow-indigo-500/20 flex items-center gap-2 disabled:bg-slate-600 disabled:text-slate-400 disabled:opacity-75 disabled:shadow-none disabled:cursor-not-allowed"
+                                    prop:disabled=move || {
+                                        form_content.read().get_valid_changes().is_none()
+                                    }
+                                >
+                                    <IconSave />
+                                    Save Changes
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </Show>
+
+                <Show when=move || is_saved.get()>
+                    <div class="fixed bottom-6 right-6 z-50 bg-emerald-500/90 backdrop-blur-lg border border-emerald-400/50 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                        <IconCheck />
+                        <span class="text-sm font-bold">Settings saved successfully!</span>
+                    </div>
+                </Show>
             </form>
-        </span>
+        </div>
+    }
+}
+
+#[component]
+fn SideNavLink(
+    icon: AnyView,
+    label: &'static str,
+    active_tab: RwSignal<u8>,
+    tab_index: u8,
+) -> impl IntoView {
+    view! {
         <button
             type="button"
-            disabled=move || {
-                auto_upgrade_delay.read().is_err() || bin_version_polling_freq.read().is_err()
-                    || balances_retrieval_freq.read().is_err()
-                    || metrics_polling_freq.read().is_err() || l2_network_rpc_url.read().is_err()
-                    || token_contract_address.read().is_err()
+            on:click=move |_| active_tab.set(tab_index)
+            class=move || {
+                format!(
+                    "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 {}",
+                    if active_tab.get() == tab_index {
+                        "bg-slate-800 text-white"
+                    } else {
+                        "text-slate-400 hover:text-slate-100 hover:bg-slate-800/50"
+                    },
+                )
             }
-
-            on:click=move |_| {
-                let values = (
-                    auto_upgrade_delay.get_untracked(),
-                    bin_version_polling_freq.get_untracked(),
-                    balances_retrieval_freq.get_untracked(),
-                    metrics_polling_freq.get_untracked(),
-                    l2_network_rpc_url.get_untracked(),
-                    token_contract_address.get_untracked(),
-                    lcd_device.get_untracked(),
-                    lcd_addr.get_untracked(),
-                );
-                if let (Ok(v1), Ok(v2), Ok(v3), Ok(v4), Ok(v5), Ok(v6), Ok(v7), Ok(v8)) = values {
-                    update_settings_action
-                        .dispatch(AppSettings {
-                            nodes_auto_upgrade: auto_upgrade.get_untracked(),
-                            nodes_auto_upgrade_delay: Duration::from_secs(v1),
-                            node_bin_version_polling_freq: Duration::from_secs(v2),
-                            rewards_balances_retrieval_freq: Duration::from_secs(v3),
-                            nodes_metrics_polling_freq: Duration::from_secs(v4),
-                            l2_network_rpc_url: v5,
-                            token_contract_address: v6,
-                            lcd_display_enabled: lcd_enabled.get_untracked(),
-                            lcd_device: v7,
-                            lcd_addr: v8,
-                        });
-                }
-            }
-            class="btn-modal"
         >
-            Save
+            {icon}
+            {label}
         </button>
     }
 }
 
 #[component]
-pub fn NumberInput(
-    signal: RwSignal<Result<u64, String>>,
-    min: u64,
-    label: &'static str,
+fn SettingsCard(
+    icon: AnyView,
+    title: &'static str,
+    description: &'static str,
+    children: Children,
 ) -> impl IntoView {
-    let on_input = move |ev| {
-        let val = match event_target_value(&ev).parse::<u64>() {
-            Ok(v) if v < min => Err(format!("value cannot be smaller than {min}.")),
-            Ok(v) => Ok(v),
-            Err(err) => Err(err.to_string()),
-        };
-        signal.set(val);
-    };
-
     view! {
-        <div class="flex flex-row">
-            <div class="basis-3/4">
-                <span class="block mr-2 text-sm font-medium text-gray-900 dark:text-white">
-                    {label} " (min: " {min} ")"
-                </span>
-            </div>
-            <div class="basis-1/4">
-                <input
-                    type="number"
-                    on:input=on_input
-                    class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white"
-                    value=signal.get_untracked().unwrap_or_default()
-                    required
-                />
-            </div>
-        </div>
-        <div>
-            <Show when=move || signal.read().is_err() fallback=move || view! { "" }.into_view()>
-                <p class="ml-2 text-sm text-red-600 dark:text-red-500">
-                    "Invalid value: " {signal.get().err()}
-                </p>
-            </Show>
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl animate-in fade-in duration-300">
+            <header class="p-6 border-b border-slate-800">
+                <div class="flex items-center gap-3 text-indigo-400 mb-1">
+                    {icon} <h3 class="text-lg font-bold text-white">{title}</h3>
+                </div>
+                <p class="text-sm text-slate-400">{description}</p>
+            </header>
+            <div class="divide-y divide-slate-800">{children()}</div>
         </div>
     }
 }
 
 #[component]
-pub fn TextInput(
-    signal: RwSignal<Result<String, String>>,
+fn SettingRow(
     label: &'static str,
-    validator: fn(String) -> Result<String, String>,
+    description: &'static str,
+    #[prop(default = false)] full_width: bool,
+    children: Children,
+    #[prop(default = Signal::derive(|| None))] error: Signal<Option<(String, String)>>,
+) -> impl IntoView {
+    view! {
+        <div class=format!(
+            "p-6 {}",
+            if full_width {
+                ""
+            } else {
+                "flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
+            },
+        )>
+            <div class=if full_width { "mb-3" } else { "w-full md:w-3/5" }>
+                <h4 class="font-semibold text-slate-200">{label}</h4>
+                <p class="text-sm text-slate-500 mt-1">{description}</p>
+            </div>
+            <div class=if full_width {
+                "w-full"
+            } else {
+                "w-full md:w-2/5"
+            }>
+                {children()} <Show when=move || error.read().is_some()>
+                    <p class="text-sm text-rose-400 mt-2 animate-in fade-in duration-300">
+                        {error.get().map(|(_, err)| err)}
+                    </p>
+                </Show>
+            </div>
+        </div>
+    }
+}
+
+#[component]
+pub fn NumberInput(
+    signal: RwSignal<Result<u64, (String, String)>>,
+    min: u64,
+    name: &'static str,
 ) -> impl IntoView {
     let on_input = move |ev| {
-        let val = match validator(event_target_value(&ev)) {
+        let orig_val = event_target_value(&ev);
+        let val = match orig_val.parse::<u64>() {
+            Ok(v) if v < min => Err((orig_val, format!("Value cannot be smaller than {min}."))),
             Ok(v) => Ok(v),
-            Err(err) => Err(err.to_string()),
+            Err(err) => Err((orig_val, format!("Invalid value, {err}"))),
         };
         signal.set(val);
     };
 
     view! {
-        <div>
-            <span class="block mt-5 mr-2 text-sm font-medium text-gray-900 dark:text-white">
-                {label}
-            </span>
-        </div>
-        <div>
-            <input
-                type="text"
-                on:input=on_input
-                class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white"
-                value=signal.get_untracked().unwrap_or_default()
-                required
-            />
-        </div>
-        <div>
-            <Show when=move || signal.read().is_err() fallback=move || view! { "" }.into_view()>
-                <p class="ml-2 text-sm text-red-600 dark:text-red-500">
-                    "Invalid value: " {signal.get().err()}
-                </p>
-            </Show>
-        </div>
+        <input
+            type="number"
+            name=name
+            value=signal.get_untracked().unwrap_or_default()
+            prop:value=move || signal.get().map_or_else(|(v, _)| v, |v| v.to_string())
+            on:input=on_input
+            class=move || {
+                format!(
+                    "w-full bg-slate-800 border rounded-md px-3 py-2 text-sm focus:outline-none font-mono transition-colors {}",
+                    if signal.read().is_err() {
+                        "border-rose-500 ring-1 ring-rose-500/50"
+                    } else {
+                        "border-slate-700 focus:ring-1 focus:ring-indigo-500"
+                    },
+                )
+            }
+        />
+    }
+}
+
+#[component]
+pub fn TextInputNew(
+    signal: RwSignal<Result<String, (String, String)>>,
+    name: &'static str,
+    validator: fn(String) -> Result<String, String>,
+) -> impl IntoView {
+    let on_input = move |ev| {
+        let orig_value = event_target_value(&ev);
+        let val = match validator(orig_value.clone()) {
+            Ok(v) => Ok(v),
+            Err(err) => Err((orig_value, format!("Invalid value, {err}"))),
+        };
+        signal.set(val);
+    };
+
+    view! {
+        <input
+            type="text"
+            name=name
+            value=signal.get_untracked().unwrap_or_default()
+            prop:value=move || signal.get().map_or_else(|(v, _)| v, |v| v.to_string())
+            on:input=on_input
+            class=move || {
+                format!(
+                    "w-full bg-slate-800 border rounded-md px-3 py-2 text-sm focus:outline-none font-mono transition-colors {}",
+                    if signal.read().is_err() {
+                        "border-rose-500 ring-1 ring-rose-500/50"
+                    } else {
+                        "border-slate-700 focus:ring-1 focus:ring-indigo-500"
+                    },
+                )
+            }
+        />
+    }
+}
+
+#[component]
+fn ToggleSwitch(name: &'static str, checked: RwSignal<bool>) -> impl IntoView {
+    view! {
+        <label for=name class="flex items-center cursor-pointer">
+            <div class="relative">
+                <input
+                    type="checkbox"
+                    id=name
+                    name=name
+                    class="sr-only peer"
+                    checked=move || checked.get()
+                    on:change=move |_| checked.update(|v| *v = !*v)
+                    prop:checked=move || checked.get()
+                />
+                <div class="w-11 h-6 bg-slate-700 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+            </div>
+        </label>
     }
 }

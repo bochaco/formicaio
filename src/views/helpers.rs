@@ -147,7 +147,7 @@ pub async fn node_logs_stream(
             != context
                 .logs_stream_on_for
                 .get_untracked()
-                .map(|id| id == node_id)
+                .map(|info| info.read().node_id == node_id)
         {
             break;
         }

@@ -2,7 +2,7 @@ use crate::{
     server_api::*,
     types::{
         AppSettings, BatchOnMatch, BatchType, NodeFilter, NodeId, NodeInstanceInfo, NodeOpts,
-        NodeStatusFilter, NodesActionsBatch, NodesSortStrategy, Stats,
+        NodeSortField, NodeStatusFilter, NodesActionsBatch, NodesSortStrategy, Stats,
     },
     views::truncated_balance_str,
 };
@@ -276,7 +276,8 @@ impl CliCommands {
                 .values()
                 .cloned()
                 .collect::<Vec<_>>();
-                let sort_strategy = sort.unwrap_or(NodesSortStrategy::NodeId(false));
+                let sort_strategy =
+                    sort.unwrap_or(NodesSortStrategy::new(NodeSortField::NodeId, false));
                 sort_strategy.sort_items(&mut sorted_nodes);
                 CliCmdResponse::Nodes(sorted_nodes, *extended)
             }
@@ -469,7 +470,8 @@ impl CliCommands {
                     .await
                     .map(|res: NodesInstancesInfo| {
                         let mut sorted_nodes = res.nodes.values().cloned().collect::<Vec<_>>();
-                        let sort_strategy = sort.unwrap_or(NodesSortStrategy::NodeId(false));
+                        let sort_strategy =
+                            sort.unwrap_or(NodesSortStrategy::new(NodeSortField::NodeId, false));
                         sort_strategy.sort_items(&mut sorted_nodes);
 
                         CliCmdResponse::Nodes(sorted_nodes, *extended)

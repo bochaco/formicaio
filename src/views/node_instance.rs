@@ -2,8 +2,8 @@ use super::{
     chart::{ChartSeriesData, node_metrics_update},
     helpers::{node_logs_stream, show_alert_msg, truncated_balance_str},
     icons::{
-        IconRecycle, IconRemove, IconShowChart, IconShowLogs, IconStartNode, IconStopNode,
-        IconUpgradeNode,
+        IconChevronDown, IconRecycle, IconRemove, IconShowChart, IconShowLogs, IconStartNode,
+        IconStopNode, IconUpgradeNode,
     },
     node_actions::NodeAction,
 };
@@ -16,16 +16,19 @@ use alloy_primitives::utils::format_units;
 use chrono::{DateTime, Local, Utc};
 use leptos::{logging, prelude::*, task::spawn_local};
 
+// Number of elapsed seconds to warn the user of an active node with 0 connected peers
+const WARN_ZERO_CONN_PEERS_SECS: i64 = 120;
+
 // Helper which converts a value to string or a dash sign if it's None
 fn value_or_dash<T: ToString>(val: Option<T>) -> String {
-    val.map_or(" -".to_string(), |v| v.to_string())
+    val.map_or("-".to_string(), |v| v.to_string())
 }
 
 #[component]
 pub(super) fn NodeInstanceView(
     info: RwSignal<NodeInstanceInfo>,
     set_logs: WriteSignal<Vec<String>>,
-    set_render_chart: WriteSignal<bool>,
+    set_render_chart: RwSignal<bool>,
     set_chart_data: WriteSignal<ChartSeriesData>,
 ) -> impl IntoView {
     let context = expect_context::<ClientGlobalState>();
@@ -37,9 +40,19 @@ pub(super) fn NodeInstanceView(
                 .1
                 .contains(&info.read_untracked().node_id)
     };
-    let is_show_node_select = move || {
-        let (is_selecting_nodes, _) = *context.selecting_nodes.read();
-        is_selecting_nodes || info.read().is_status_locked
+    let node_card_clicked = move || {
+        let (is_selecting, _) = *context.selecting_nodes.read_untracked();
+        if is_selecting && !info.read_untracked().is_status_locked {
+            let node_id = &info.read_untracked().node_id;
+            context.selecting_nodes.update(|(is_selecting, selected)| {
+                if selected.contains(node_id) {
+                    selected.remove(node_id);
+                } else {
+                    selected.insert(node_id.clone());
+                }
+                *is_selecting = !selected.is_empty();
+            });
+        }
     };
 
     let is_transitioning = move || info.read().status.is_transitioning();
@@ -56,10 +69,13 @@ pub(super) fn NodeInstanceView(
             )
     };
 
-    let custom_data_dir = move || info.get().data_dir_path.map(|p| p.display().to_string());
+    let custom_data_dir = move || {
+        info.get_untracked()
+            .data_dir_path
+            .map(|p| p.display().to_string())
+    };
     let peer_id = move || value_or_dash(info.read().short_peer_id());
-
-    let rewards_addr = move || value_or_dash(info.read().short_rewards_addr());
+    let rewards_addr = value_or_dash(info.read_untracked().short_rewards_addr());
 
     let display_if_active = move |v| {
         if info.read().status.is_active() {
@@ -69,42 +85,34 @@ pub(super) fn NodeInstanceView(
         }
     };
 
-    let node_card_clicked = move || {
-        let (is_selecting, _) = *context.selecting_nodes.read_untracked();
-        if is_selecting && !info.read_untracked().is_status_locked {
-            if is_selected() {
-                context.selecting_nodes.update(|(_, selected)| {
-                    selected.remove(&info.read_untracked().node_id);
-                })
-            } else {
-                context.selecting_nodes.update(|(_, selected)| {
-                    selected.insert(info.read_untracked().node_id.clone());
-                })
-            }
-        }
+    let is_expanded = move || {
+        context
+            .expanded_nodes
+            .read()
+            .contains(&info.read_untracked().node_id)
     };
 
     // warn the user when there is no connected peers for more than 2 minutes
+    let innactivity_started = RwSignal::new(0i64);
     let reachability_check_running = move || {
         info.get()
             .reachability
             .map(|r| r.in_progress())
             .unwrap_or(false)
     };
-    let mut innactivity_started = 0i64;
-    let mut warn_conn_peers = move || {
+    let warn_conn_peers = move || {
         if info.read().status.is_active() && !reachability_check_running() {
             if matches!(info.read().connected_peers, Some(0)) {
-                if innactivity_started == 0 {
-                    innactivity_started = Utc::now().timestamp();
+                if innactivity_started.get_untracked() == 0 {
+                    innactivity_started.set(Utc::now().timestamp());
                 } else {
-                    let elapsed_secs = Utc::now().timestamp() - innactivity_started;
-                    if elapsed_secs > 120 {
+                    let elapsed_secs = Utc::now().timestamp() - innactivity_started.get_untracked();
+                    if elapsed_secs > WARN_ZERO_CONN_PEERS_SECS {
                         return true;
                     }
                 }
             } else {
-                innactivity_started = 0i64;
+                innactivity_started.set(0i64);
             }
         }
 
@@ -114,38 +122,51 @@ pub(super) fn NodeInstanceView(
     view! {
         <div
             on:click=move |_| node_card_clicked()
-            class=move || match (is_selected(), info.read().status.is_active()) {
-                (true, true) => "node-card-selected node-card-active",
-                (true, false) => "node-card-selected node-card-inactive",
-                (false, true) => "node-card node-card-active",
-                (false, false) => "node-card node-card-inactive",
+            prop:id=info.read_untracked().short_node_id()
+            class=move || {
+                format!(
+                    "{} border rounded-2xl p-3 transition-all duration-300 hover:shadow-2xl hover:shadow-indigo-500/5 backdrop-blur-sm flex flex-col {} {}",
+                    if info.read().status.is_active() {
+                        "bg-slate-900/70"
+                    } else {
+                        "bg-slate-950/70"
+                    },
+                    if is_selected() {
+                        "border-indigo-500/50 ring-2 ring-indigo-500/20"
+                    } else {
+                        "border-slate-800"
+                    },
+                    if is_transitioning() { "opacity-60" } else { "" },
+                )
             }
         >
-
-            <div class="flex justify-end">
-                <Show when=move || is_show_node_select()>
-                    <NodeSelection info />
-                </Show>
-
+            // Card Header
+            <div class="flex items-start justify-between">
+                <NodeSelection info />
                 <Show when=move || is_transitioning()>
                     <div>
                         <span class="loading loading-spinner absolute left-4"></span>
                     </div>
                 </Show>
-
-                <Show when=move || info.read().upgradeable()>
-                    <ButtonUpgrade info />
-                </Show>
-
-                <NodeLogs info set_logs />
-                <NodeChartShow info set_render_chart set_chart_data />
-                <ButtonStopStart info />
-                <ButtonRecycle info />
-                <ButtonRemove info />
+                <div class="flex items-center gap-0 text-slate-400">
+                    <NodeLogs info set_logs />
+                    <NodeChartShow info set_render_chart set_chart_data />
+                    <Show when=move || info.read().upgradeable()>
+                        <ButtonUpgrade info />
+                    </Show>
+                    <ButtonStopStart info />
+                    <ButtonRecycle info />
+                    <ButtonRemove info />
+                </div>
             </div>
-            <div class="mt-2">
-                <p>
-                    <span class="node-info-item">"Status: "</span>
+
+            // Collapsed Summary
+            <div class="mt-2 grid grid-cols-2 gap-x-4 gap-y-1">
+                <DetailItemView
+                    label="Status"
+                    full_width=true
+                    children_class=Signal::derive(move || info.read().status.status_color())
+                >
                     <span class=move || {
                         if is_locked() {
                             "node-info-item-highlight"
@@ -164,22 +185,47 @@ pub(super) fn NodeInstanceView(
                             format!(", {}", info.read().status_info)
                         }
                     }}
-                </p>
-                <span class=move || { if is_transitioning() { "opacity-60" } else { "" } }>
-                    <p>
-                        <div class="flex flex-row">
-                            <div class="basis-2/3">
-                                <span class="node-info-item">"Node Id: "</span>
-                                {info.read_untracked().short_node_id()}
-                            </div>
-                            <div class="basis-1/3">
-                                <span class="node-info-item">"PID: "</span>
-                                {move || display_if_active(info.read().pid)}
-                            </div>
-                        </div>
-                    </p>
-                    <p>
-                        <span class="node-info-item">"Peer Id: "</span>
+                </DetailItemView>
+                <DetailItemView label="Node ID" full_width=true>
+                    {info.read_untracked().short_node_id()}
+                </DetailItemView>
+                <DetailItemView label="CPU">
+                    {move || value_or_dash(info.get().cpu_usage.map(|v| format!("{v:.2}%")))}
+                </DetailItemView>
+                <DetailItemView label="Memory Used">
+                    {move || value_or_dash(info.read().mem_used.map(|v| format!("{v:.2} MB")))}
+                </DetailItemView>
+                <DetailItemView label="Records">
+                    {move || value_or_dash(info.read().records)}
+                </DetailItemView>
+
+                <DetailItemView
+                    label="Connected Peers"
+                    children_class=Signal::derive(move || {
+                        if warn_conn_peers() { "text-rose-500" } else { "text-cyan-400" }
+                    })
+                >
+                    {move || value_or_dash(info.read().connected_peers)}
+                </DetailItemView>
+                <DetailItemView label="Network size" children_class=Signal::stored("text-cyan-400")>
+                    {move || { value_or_dash(info.read().net_size) }}
+                </DetailItemView>
+
+            </div>
+
+            // Expanded Details
+            <div class=move || {
+                format!(
+                    "transition-all duration-500 ease-in-out overflow-hidden {}",
+                    if is_expanded() {
+                        "max-h-[600px] opacity-100 pt-3 mt-3 border-t border-slate-800"
+                    } else {
+                        "max-h-0 opacity-0"
+                    },
+                )
+            }>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0">
+                    <DetailItemView label="Peer ID" full_width=true>
                         {move || {
                             if info.read().status.is_recycling() {
                                 view! {
@@ -192,196 +238,73 @@ pub(super) fn NodeInstanceView(
                                 peer_id().into_any()
                             }
                         }}
-                    </p>
-                    <p>
-                        <div class="flex flex-row">
-                            <div class="basis-2/5">
-                                <span class="node-info-item">"Version: "</span>
-                                {move || value_or_dash(info.get().bin_version)}
-                            </div>
-                            <div class="basis-3/12">
-                                <span class="node-info-item mr-2">"Listen IP:"</span>
-                            </div>
-                            <div class="basis-2/5 overflow-hidden relative">
-                                <div class=move || {
-                                    if info
-                                        .read()
-                                        .node_ip
-                                        .is_none_or(|ip| ip.to_string().len() < 15)
-                                    {
-                                        ""
-                                    } else {
-                                        "absolute whitespace-nowrap animate-slide"
-                                    }
-                                }>{move || value_or_dash(info.get().node_ip)}</div>
-                            </div>
-                        </div>
-                    </p>
-                    <Show
-                        when=move || { !custom_data_dir().is_none_or(|p| p.is_empty()) }
-                        fallback=|| view! { "" }
+                    </DetailItemView>
+                    <DetailItemView label="PID">
+                        {move || display_if_active(info.read().pid)}
+                    </DetailItemView>
+                    <DetailItemView label="Version">
+                        {move || value_or_dash(info.get().bin_version)}
+                    </DetailItemView>
+                    <DetailItemView
+                        label="Balance"
+                        children_class=Signal::stored("text-emerald-400")
                     >
-                        <p>
-                            <div class="flex flex-row">
-                                <div class="basis-4/12">
-                                    <span class="node-info-item">"Custom dir: "</span>
-                                </div>
-                                <div class="basis-7/12 overflow-hidden relative">
-                                    <div class=move || {
-                                        if custom_data_dir().is_none_or(|p| p.len() < 20) {
-                                            ""
-                                        } else {
-                                            "absolute whitespace-nowrap animate-slide"
-                                        }
-                                    }>{move || value_or_dash(custom_data_dir())}</div>
-                                </div>
-                            </div>
-                        </p>
-                    </Show>
-                    <p>
-                        <div class="flex flex-row">
-                            <div class="basis-1/2">
-                                <span class="node-info-item">"Balance: "</span>
-                                <div
-                                    class="tooltip tooltip-bottom tooltip-info"
-                                    data-tip=move || {
-                                        info.read()
-                                            .balance
-                                            .map_or(
-                                                "".to_string(),
-                                                |v| format_units(v, "ether").unwrap_or_default(),
-                                            )
-                                    }
-                                >
-                                    <span class="underline decoration-dotted">
-                                        {move || {
-                                            value_or_dash(
-                                                info.read().balance.map(truncated_balance_str),
-                                            )
-                                        }}
-                                    </span>
-                                </div>
-                            </div>
-                            <div class="basis-1/2">
-                                <span class="node-info-item">"Rewards: "</span>
-                                <div
-                                    class="tooltip tooltip-bottom tooltip-info"
-                                    data-tip=move || {
-                                        info.read()
-                                            .rewards
-                                            .map_or(
-                                                "".to_string(),
-                                                |v| format_units(v, "ether").unwrap_or_default(),
-                                            )
-                                    }
-                                >
-                                    <span class="underline decoration-dotted">
-                                        {move || {
-                                            value_or_dash(
-                                                info.read().rewards.map(truncated_balance_str),
-                                            )
-                                        }}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                    </p>
-                    <p>
-                        <span class="node-info-item">"Rewards addr: "</span>
-                        {move || rewards_addr}
-                    </p>
-                    <p>
-                        <div class="flex flex-row">
-                            <div class="basis-1/3">
-                                <span class="node-info-item">"Port: "</span>
-                                {move || { value_or_dash(info.read().port) }}
-                            </div>
-                            <div class="basis-2/3">
-                                <span class="node-info-item">"Node metrics Port: "</span>
-                                {move || { value_or_dash(info.read().metrics_port) }}
-                            </div>
-                        </div>
-                    </p>
-                    <p>
-                        <div class="flex flex-row">
-                            <div class="basis-1/2">
-                                <span class="node-info-item">"Records: "</span>
-                                {move || { value_or_dash(info.read().records) }}
-                            </div>
-                            <div class="basis-1/2">
-                                <span class="node-info-item">"Relevant: "</span>
-                                {move || { value_or_dash(info.read().relevant_records) }}
-                            </div>
-                        </div>
-                    </p>
-                    <p>
-                        <div class="flex flex-row">
-                            <div class="basis-5/12">
-                                <span class=move || {
-                                    if warn_conn_peers() {
-                                        "node-info-item-warn"
-                                    } else {
-                                        "node-info-item"
-                                    }
-                                }>"Conn. peers: "</span>
-                                <span class=move || {
-                                    if warn_conn_peers() { "node-info-item-warn" } else { "" }
-                                }>{move || { value_or_dash(info.read().connected_peers) }}</span>
-                            </div>
-                            <div class="basis-7/12">
-                                <span class="node-info-item">"Network size: "</span>
-                                {move || { value_or_dash(info.read().net_size) }}
-                            </div>
-                        </div>
-                    </p>
-                    <p>
-                        <div class="flex flex-row">
-                            <div class="basis-1/2">
-                                <span class="node-info-item">"kBuckets peers: "</span>
-                                {move || { value_or_dash(info.read().kbuckets_peers) }}
-                            </div>
-                            <div class="basis-1/2">
-                                <span class="node-info-item">"Shunned by: "</span>
-                                {move || { value_or_dash(info.read().shunned_count) }}
-                            </div>
-                        </div>
-                    </p>
-                    <p>
-                        <div class="flex flex-row">
-                            <div class="basis-2/3">
-                                <span class="node-info-item">"Memory used: "</span>
+                        <div class="relative group">
+                            <span class="cursor-help">
                                 {move || {
-                                    value_or_dash(
-                                        info.read().mem_used.map(|v| format!("{v:.2} MB")),
-                                    )
+                                    value_or_dash(info.read().balance.map(truncated_balance_str))
                                 }}
-                            </div>
-                            <div class="basis-1/3">
-                                <span class="node-info-item">"CPU: "</span>
+                            </span>
+                            <div class="absolute bottom-full mb-2 left-1/2 -translate-x-1/3 w-max max-w-xs bg-slate-950 text-emerald-400 text-xs font-mono break-all text-center px-3 py-1.5 rounded-lg border border-slate-700 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-lg">
                                 {move || {
-                                    value_or_dash(info.get().cpu_usage.map(|v| format!("{v:.2}%")))
+                                    info.read()
+                                        .balance
+                                        .map_or(
+                                            "".to_string(),
+                                            |v| format_units(v, "ether").unwrap_or_default(),
+                                        )
                                 }}
                             </div>
                         </div>
-                    </p>
-                    <p>
-                        <div class="flex flex-row">
-                            <div class="basis-1/3">
-                                <span class="node-info-item">"UPnP: "</span>
-                                {move || if info.read().upnp { "On" } else { "Off" }}
-                            </div>
-                            <div class="basis-3/12">
-                                <span class="node-info-item">"Host IPs:"</span>
-                            </div>
-                            <div class="basis-2/5 overflow-hidden relative">
-                                <div class="absolute whitespace-nowrap animate-slide">
-                                    {move || info.get().ips.unwrap_or_default()}
-                                </div>
-                            </div>
+                    </DetailItemView>
+                    <DetailItemView label="kBuckets Peers">
+                        {move || value_or_dash(info.read().kbuckets_peers)}
+                    </DetailItemView>
+                    <DetailItemView
+                        label="Shunned By"
+                        children_class=Signal::stored("text-amber-400")
+                    >
+                        {move || value_or_dash(info.read().shunned_count)}
+                    </DetailItemView>
+                    <DetailItemView label="Relevant Records">
+                        {move || value_or_dash(info.read().relevant_records)}
+                    </DetailItemView>
+
+                    <div class="col-span-full">
+                        <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                            "Listen IPs"
+                        </span>
+                        <div class="text-sm font-mono mt-0.5 text-slate-300 relative flex overflow-x-hidden">
+                            <div class=move || {
+                                if info.read().node_ip.is_none_or(|ip| ip.to_string().len() < 15) {
+                                    ""
+                                } else {
+                                    "flex whitespace-nowrap animate-slide"
+                                }
+                            }>{move || value_or_dash(info.get().node_ip)}</div>
                         </div>
-                    </p>
-                    <p>
-                        <span class="node-info-item">"Reachability check: "</span>
+                    </div>
+
+                    <DetailItemView label="Port">
+                        {value_or_dash(info.read_untracked().port)}
+                    </DetailItemView>
+                    <DetailItemView label="Metrics Port">
+                        {value_or_dash(info.read_untracked().metrics_port)}
+                    </DetailItemView>
+                    <DetailItemView label="UPnP">
+                        {if info.read_untracked().upnp { "On" } else { "Off" }}
+                    </DetailItemView>
+                    <DetailItemView label="Reachability Check">
                         <Show
                             when=move || { info.read().reachability.is_some() }
                             fallback=move || {
@@ -400,18 +323,90 @@ pub(super) fn NodeInstanceView(
                                 }
                             }>{move || { value_or_dash(info.read().reachability.clone()) }}</span>
                         </Show>
-                    </p>
-                    <p>
-                        <span class="node-info-item">"Created: "</span>
-                        {move || {
-                            DateTime::<Utc>::from_timestamp(info.read().created as i64, 0)
-                                .unwrap_or_default()
-                                .with_timezone(&Local)
-                                .to_string()
-                        }}
-                    </p>
-                </span>
+                    </DetailItemView>
+
+                    <div class="col-span-full">
+                        <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                            "Host IPs"
+                        </span>
+                        <div class="text-sm font-mono mt-0.5 text-slate-300 relative flex overflow-x-hidden">
+                            <div class="flex whitespace-nowrap animate-slide">
+                                {move || value_or_dash(info.get().ips)}
+                            </div>
+                        </div>
+                    </div>
+
+                    <DetailItemView label="Rewards Address" full_width=true>
+                        {rewards_addr}
+                    </DetailItemView>
+                    <Show when=move || { !custom_data_dir().is_none_or(|p| p.is_empty()) }>
+                        <div class="col-span-full">
+                            <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                "Custom Directory"
+                            </span>
+                            <div class="text-sm font-mono mt-0.5 text-slate-300 relative flex overflow-x-hidden">
+                                <div class=move || {
+                                    if custom_data_dir().is_none_or(|p| p.len() < 20) {
+                                        ""
+                                    } else {
+                                        "flex whitespace-nowrap animate-slide"
+                                    }
+                                }>{move || value_or_dash(custom_data_dir())}</div>
+                            </div>
+                        </div>
+                    </Show>
+                    <DetailItemView label="Created" full_width=true>
+                        {DateTime::<Utc>::from_timestamp(info.read_untracked().created as i64, 0)
+                            .unwrap_or_default()
+                            .with_timezone(&Local)
+                            .to_string()}
+                    </DetailItemView>
+                </div>
             </div>
+
+            // Card Footer with Toggle
+            <div class="mt-auto pt-2 border-t border-slate-800/50 flex justify-center">
+                <button
+                    on:click=move |_| {
+                        if is_expanded() {
+                            context
+                                .expanded_nodes
+                                .update(|expanded| {
+                                    expanded.remove(&info.read_untracked().node_id);
+                                });
+                        } else {
+                            context
+                                .expanded_nodes
+                                .update(|expanded| {
+                                    expanded.insert(info.get_untracked().node_id);
+                                });
+                        }
+                    }
+                    class="w-full flex items-center justify-center gap-2 text-xs text-slate-500 hover:text-indigo-400 font-semibold transition-colors py-1"
+                >
+                    <span>{move || if is_expanded() { "Show Less" } else { "Show More" }}</span>
+                    <IconChevronDown is_down=Signal::derive(is_expanded) />
+                </button>
+            </div>
+        </div>
+    }
+}
+
+#[component]
+pub(super) fn DetailItemView(
+    label: &'static str,
+    #[prop(default = Signal::stored("text-slate-300"))] children_class: Signal<&'static str>,
+    #[prop(default = false)] full_width: bool,
+    children: Children,
+) -> impl IntoView {
+    view! {
+        <div class=if full_width { "col-span-full" } else { "" }>
+            <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                {label}
+            </span>
+            <div class=move || {
+                format!("text-sm font-mono mt-0.5 break-words {}", children_class.get())
+            }>{children()}</div>
         </div>
     }
 }
@@ -427,23 +422,32 @@ fn NodeSelection(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                 .1
                 .contains(&info.read_untracked().node_id)
     };
+    let select_node_clicked = move || {
+        if !info.read_untracked().is_status_locked {
+            let node_id = &info.read_untracked().node_id;
+            context.selecting_nodes.update(|(is_selecting, selected)| {
+                if selected.contains(node_id) {
+                    selected.remove(node_id);
+                } else {
+                    selected.insert(node_id.clone());
+                }
+                *is_selecting = !selected.is_empty();
+            });
+        }
+    };
 
     view! {
-        <div>
-            <span class="absolute left-4">
-                <input
-                    type="checkbox"
-                    prop:checked=is_selected
-                    prop:disabled=move || info.read().is_status_locked
-                    class=move || {
-                        if info.read().status.is_transitioning() {
-                            "hidden"
-                        } else {
-                            "w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-                        }
-                    }
-                />
-            </span>
+        <div class="flex items-center gap-3">
+            <input
+                type="checkbox"
+                prop:checked=is_selected
+                prop:disabled=move || info.read().is_status_locked
+                prop:hidden=move || info.read().status.is_transitioning()
+                on:click=move |event| event.stop_propagation()
+                on:change=move |_| select_node_clicked()
+                class="w-5 h-5 mt-0.5 rounded-md border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-500/20 shrink-0"
+                aria-label=format!("Select node {}", info.read_untracked().short_node_id())
+            />
         </div>
     }
 }
@@ -462,7 +466,7 @@ fn NodeLogs(info: RwSignal<NodeInstanceInfo>, set_logs: WriteSignal<Vec<String>>
 
     // action to trigger the streaming of logs from the node to the 'set_logs' signal
     let start_logs_stream = Action::new(move |id: &NodeId| {
-        context.logs_stream_on_for.set(Some(id.clone()));
+        context.logs_stream_on_for.set(Some(info));
         let id = id.clone();
         async move {
             if let Err(err) = node_logs_stream(id.clone(), set_logs).await {
@@ -474,27 +478,24 @@ fn NodeLogs(info: RwSignal<NodeInstanceInfo>, set_logs: WriteSignal<Vec<String>>
     });
 
     view! {
-        <div class="tooltip tooltip-bottom tooltip-info" data-tip="view logs">
-            <button
-                prop:disabled=is_btn_disabled
-                class=move || {
-                    if is_btn_disabled() { "btn-disabled-node-action" } else { "btn-node-action" }
-                }
-                on:click=move |_| {
-                    set_logs.set(vec![]);
-                    start_logs_stream.dispatch(info.read_untracked().node_id.clone());
-                }
-            >
-                <IconShowLogs />
-            </button>
-        </div>
+        <button
+            prop:disabled=is_btn_disabled
+            class="p-2 hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+            title="view logs"
+            on:click=move |_| {
+                set_logs.set(vec![]);
+                start_logs_stream.dispatch(info.read_untracked().node_id.clone());
+            }
+        >
+            <IconShowLogs />
+        </button>
     }
 }
 
 #[component]
 fn NodeChartShow(
     info: RwSignal<NodeInstanceInfo>,
-    set_render_chart: WriteSignal<bool>,
+    set_render_chart: RwSignal<bool>,
     set_chart_data: WriteSignal<ChartSeriesData>,
 ) -> impl IntoView {
     // we use the context to switch on/off the update of metrics charts
@@ -509,7 +510,7 @@ fn NodeChartShow(
     // action to trigger the update of nodes metrics charts
     let start_metrics_update = move |id: NodeId| {
         set_render_chart.set(true);
-        context.metrics_update_on_for.set(Some(id.clone()));
+        context.metrics_update_on_for.set(Some(info));
         leptos::task::spawn_local(async move {
             if let Err(err) = node_metrics_update(id.clone(), set_chart_data).await {
                 let msg = format!("Failed to start updating metrics chart for node {id}: {err:?}");
@@ -520,19 +521,16 @@ fn NodeChartShow(
     };
 
     view! {
-        <div class="tooltip tooltip-bottom tooltip-info" data-tip="mem & cpu">
-            <button
-                prop:disabled=is_btn_disabled
-                class=move || {
-                    if is_btn_disabled() { "btn-disabled-node-action" } else { "btn-node-action" }
-                }
-                on:click=move |_| {
-                    start_metrics_update(info.read_untracked().node_id.clone());
-                }
-            >
-                <IconShowChart />
-            </button>
-        </div>
+        <button
+            prop:disabled=is_btn_disabled
+            on:click=move |_| {
+                start_metrics_update(info.read_untracked().node_id.clone());
+            }
+            class="p-2 hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+            title="mem & cpu"
+        >
+            <IconShowChart />
+        </button>
     }
 }
 
@@ -554,32 +552,34 @@ fn ButtonStopStart(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
     };
 
     view! {
-        <div class="tooltip tooltip-bottom tooltip-info" data-tip=tip>
-            <button
-                prop:disabled=is_btn_disabled
-                class=move || match (is_btn_disabled(), info.read().status.is_active()) {
-                    (true, true) => "btn-disabled-node-action btn-node-action-active",
-                    (true, false) => "btn-disabled-node-action btn-node-action-inactive",
-                    (false, true) => "btn-node-action btn-node-action-active",
-                    (false, false) => "btn-node-action btn-node-action-inactive",
-                }
-                on:click=move |_| spawn_local(async move {
-                    if info.read_untracked().status.is_inactive() {
-                        NodeAction::Start.apply(&info, &context.stats).await;
+        <button
+            title=tip
+            prop:disabled=move || is_btn_disabled()
+            class=move || {
+                format!(
+                    "p-2 {} rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent",
+                    if info.read().status.is_inactive() {
+                        "hover:bg-emerald-500/10 text-emerald-500"
                     } else {
-                        NodeAction::Stop.apply(&info, &context.stats).await;
-                    }
-                })
+                        "hover:bg-rose-500/10 text-rose-700"
+                    },
+                )
+            }
+            on:click=move |_| spawn_local(async move {
+                if info.read_untracked().status.is_inactive() {
+                    NodeAction::Start.apply(&info, &context.stats).await;
+                } else {
+                    NodeAction::Stop.apply(&info, &context.stats).await;
+                }
+            })
+        >
+            <Show
+                when=move || info.read().status.is_inactive()
+                fallback=|| view! { <IconStopNode /> }
             >
-
-                <Show
-                    when=move || info.read().status.is_inactive()
-                    fallback=|| view! { <IconStopNode /> }
-                >
-                    <IconStartNode />
-                </Show>
-            </button>
-        </div>
+                <IconStartNode />
+            </Show>
+        </button>
     }
 }
 
@@ -605,14 +605,12 @@ fn ButtonUpgrade(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
             <button
                 type="button"
                 prop:disabled=is_btn_disabled
-                class=move || {
-                    if is_btn_disabled() { "btn-disabled-node-action" } else { "btn-node-action" }
-                }
+                class="p-2 hover:bg-cyan-500/10 text-cyan-500 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                 on:click=move |_| spawn_local(async move {
                     NodeAction::Upgrade.apply(&info, &context.stats).await;
                 })
             >
-                <IconUpgradeNode color="green".to_string() />
+                <IconUpgradeNode />
             </button>
         </div>
     }
@@ -630,19 +628,16 @@ fn ButtonRecycle(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
     };
 
     view! {
-        <div class="tooltip tooltip-bottom tooltip-info" data-tip="recycle">
-            <button
-                prop:disabled=move || !is_btn_enabled()
-                class=move || {
-                    if is_btn_enabled() { "btn-node-action" } else { "btn-disabled-node-action" }
-                }
-                on:click=move |_| spawn_local(async move {
-                    NodeAction::Recycle.apply(&info, &context.stats).await;
-                })
-            >
-                <IconRecycle />
-            </button>
-        </div>
+        <button
+            prop:disabled=move || !is_btn_enabled()
+            class="p-2 hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+            title="recycle"
+            on:click=move |_| spawn_local(async move {
+                NodeAction::Recycle.apply(&info, &context.stats).await;
+            })
+        >
+            <IconRecycle />
+        </button>
     }
 }
 
@@ -651,23 +646,15 @@ fn ButtonRemove(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
     let context = expect_context::<ClientGlobalState>();
 
     view! {
-        <div class="tooltip tooltip-bottom tooltip-info" data-tip="remove">
-            <button
-                prop:disabled=move || context.selecting_nodes.read().0
-                class=move || {
-                    if context.selecting_nodes.read().0 {
-                        "btn-disabled-node-action"
-                    } else {
-                        "btn-node-action"
-                    }
-                }
-                on:click=move |_| spawn_local(async move {
-                    NodeAction::Remove.apply(&info, &context.stats).await;
-                })
-            >
-
-                <IconRemove />
-            </button>
-        </div>
+        <button
+            prop:disabled=move || context.selecting_nodes.read().0
+            class="p-2 hover:bg-rose-500/10 text-rose-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+            title="remove"
+            on:click=move |_| spawn_local(async move {
+                NodeAction::Remove.apply(&info, &context.stats).await;
+            })
+        >
+            <IconRemove />
+        </button>
     }
 }

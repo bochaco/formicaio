@@ -8,7 +8,7 @@ use super::server_api::nodes_instances;
 use super::{
     error_template::{AppError, ErrorTemplate},
     types::{NodeId, NodeInstanceInfo, NodesActionsBatch, NodesSortStrategy, Stats},
-    views::{HomeScreenView, about::AboutView, navbar::NavBar, terminal::TerminalView},
+    views::{HomeScreenView, about::AboutView, terminal::TerminalView},
 };
 
 #[cfg(feature = "ssr")]
@@ -61,9 +61,9 @@ pub struct ClientGlobalState {
     // Node global stats
     pub stats: RwSignal<Stats>,
     // Flag to enable/disable nodes' logs stream
-    pub logs_stream_on_for: RwSignal<Option<NodeId>>,
+    pub logs_stream_on_for: RwSignal<Option<RwSignal<NodeInstanceInfo>>>,
     // Flag to enable/disable nodes' metrics charts update
-    pub metrics_update_on_for: RwSignal<Option<NodeId>>,
+    pub metrics_update_on_for: RwSignal<Option<RwSignal<NodeInstanceInfo>>>,
     // Lastest version of the node binary available
     pub latest_bin_version: RwSignal<Option<String>>,
     // List of alerts to be shown in the UI
@@ -72,6 +72,8 @@ pub struct ClientGlobalState {
     pub scheduled_batches: RwSignal<Vec<RwSignal<NodesActionsBatch>>>,
     // Keep track of nodes being selected and if selection is on/off
     pub selecting_nodes: RwSignal<(bool, HashSet<NodeId>)>,
+    // Keep track of nodes info being expanded and collapsed
+    pub expanded_nodes: RwSignal<HashSet<NodeId>>,
     // How to sort nodes to display them on the list
     pub nodes_sort_strategy: RwSignal<NodesSortStrategy>,
     // Currently selected page of nodes list (0-based index)
@@ -113,7 +115,8 @@ pub fn App() -> impl IntoView {
         alerts: RwSignal::new(vec![]),
         scheduled_batches: RwSignal::new(vec![]),
         selecting_nodes: RwSignal::new((false, HashSet::new())),
-        nodes_sort_strategy: RwSignal::new(NodesSortStrategy::CreationDate(true)),
+        expanded_nodes: RwSignal::new(HashSet::new()),
+        nodes_sort_strategy: RwSignal::new(NodesSortStrategy::default()),
         current_page: RwSignal::new(0usize),
     });
 
@@ -126,10 +129,13 @@ pub fn App() -> impl IntoView {
             <main>
                 <Stylesheet id="leptos" href="/pkg/formicaio.css" />
                 <Script src="https://cdn.jsdelivr.net/npm/flowbite@3.1.2/dist/flowbite.min.js" />
+                <link
+                    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap"
+                    rel="stylesheet"
+                />
 
                 <Title text="Formicaio" />
 
-                <NavBar />
                 <Routes fallback=|| {
                     let mut outside_errors = Errors::default();
                     outside_errors.insert_with_default_key(AppError::NotFound);

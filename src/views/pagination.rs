@@ -44,93 +44,95 @@ pub fn PaginationView() -> impl IntoView {
         indexes
     };
 
+    Effect::new(move |_| {
+        let n = num_pages();
+        if n > 0 && context.current_page.get() >= n {
+            context.current_page.update(|p| *p = n - 1);
+        }
+    });
+
     view! {
-        <div class="flex w-full flex-col">
-            <div class="divider">
-                <Show when=move || { num_pages() > 1 } fallback=move || view! { "" }.into_view()>
-                    <ul class="flex items-center h-5 text-sm">
-                        <li>
-                            <label
-                                class="pagination-item"
-                                on:click=move |_| {
-                                    if context.current_page.get() > 0 {
-                                        context.current_page.update(|p| *p = 0);
-                                    }
-                                }
-                            >
-                                <span class="sr-only">First</span>
-                                <IconFirstPage />
-                            </label>
-                        </li>
+        <Show when=move || 1 < num_pages()>
+            <nav class="flex items-center justify-center gap-2">
+                <PaginationButton
+                    title="First page"
+                    disabled=Signal::derive(move || context.current_page.get() == 0)
+                    on_click=move || context.current_page.update(|p| *p = 0)
+                >
+                    <IconFirstPage />
+                </PaginationButton>
 
-                        <For each=move || pages() key=|i: &usize| *i let:page_index>
-                            <Show
-                                when=move || page_index != context.current_page.get()
-                                fallback=move || {
-                                    view! {
-                                        <li>
-                                            <label
-                                                class="pagination-item"
-                                                on:click=move |_| {
-                                                    if context.current_page.get() > 0 {
-                                                        context.current_page.update(|p| *p -= 1);
-                                                    }
-                                                }
-                                            >
-                                                <span class="sr-only">Previous</span>
-                                                <IconPreviousPage />
-                                            </label>
-                                        </li>
+                <For each=move || pages() key=|i: &usize| *i let:page_index>
+                    <Show
+                        when=move || page_index != context.current_page.get()
+                        fallback=move || {
+                            view! {
+                                <PaginationButton
+                                    title="Previous"
+                                    disabled=Signal::derive(move || context.current_page.get() == 0)
+                                    on_click=move || context.current_page.update(|p| *p -= 1)
+                                >
+                                    <IconPreviousPage />
+                                </PaginationButton>
 
-                                        <li class="px-3">
-                                            {move || format!("page {}/{}", page_index + 1, num_pages())}
-                                        </li>
-                                        <li>
-                                            <label
-                                                class="pagination-item"
-                                                on:click=move |_| {
-                                                    if context.current_page.get() < num_pages() - 1 {
-                                                        context.current_page.update(|p| *p += 1);
-                                                    }
-                                                }
-                                            >
-                                                <span class="sr-only">Next</span>
-                                                <IconNextPage />
-                                            </label>
-                                        </li>
-                                    }
-                                        .into_view()
-                                }
-                            >
-                                <li>
-                                    <label
-                                        class="pagination-item"
-                                        on:click=move |_| {
-                                            context.current_page.update(|p| *p = page_index)
-                                        }
-                                    >
-                                        {page_index + 1}
-                                    </label>
-                                </li>
-                            </Show>
-                        </For>
+                                <span class="px-3 py-1.5 text-slate-500">
+                                    {move || format!("page {}/{}", page_index + 1, num_pages())}
+                                </span>
 
-                        <li>
-                            <label
-                                class="pagination-item"
-                                on:click=move |_| {
-                                    if context.current_page.get() < num_pages() - 1 {
-                                        context.current_page.update(|p| *p = num_pages() - 1)
-                                    }
-                                }
-                            >
-                                <span class="sr-only">Last</span>
-                                <IconLastPage />
-                            </label>
-                        </li>
-                    </ul>
-                </Show>
-            </div>
-        </div>
+                                <PaginationButton
+                                    title="Next"
+                                    disabled=Signal::derive(move || {
+                                        context.current_page.get() >= num_pages() - 1
+                                    })
+                                    on_click=move || context.current_page.update(|p| *p += 1)
+                                >
+                                    <IconNextPage />
+                                </PaginationButton>
+                            }
+                                .into_view()
+                        }
+                    >
+                        <PaginationButton
+                            title=""
+                            on_click=move || context.current_page.update(|p| *p = page_index)
+                        >
+                            {page_index + 1}
+                        </PaginationButton>
+                    </Show>
+                </For>
+
+                <PaginationButton
+                    title="Last page"
+                    disabled=Signal::derive(move || context.current_page.get() >= num_pages() - 1)
+                    on_click=move || context.current_page.update(|p| *p = num_pages() - 1)
+                >
+                    <IconLastPage />
+                </PaginationButton>
+            </nav>
+        </Show>
+    }
+}
+
+#[component]
+fn PaginationButton(
+    title: &'static str,
+    on_click: impl Fn() -> () + 'static,
+    #[prop(default = Signal::stored(false))] disabled: Signal<bool>,
+    children: Children,
+) -> impl IntoView {
+    view! {
+        <button
+            on:click=move |_| on_click()
+            disabled=disabled
+            title=title
+            class=move || {
+                format!(
+                    "flex items-center justify-center h-9 min-w-[36px] px-2 rounded-lg text-sm font-bold transition-colors bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white {}",
+                    if disabled.get() { "opacity-50 cursor-not-allowed" } else { "" },
+                )
+            }
+        >
+            {children()}
+        </button>
     }
 }
