@@ -55,16 +55,6 @@ jobs:
           build-args: |
             BUILD_ARGS=--features native
 
-      - name: Build for amd64 (LCD disabled) and cache it
-        uses: docker/build-push-action@v6
-        with:
-          platforms: linux/amd64
-          load: true
-          cache-from: type=registry,ref=bochaco/formicaio-gh:buildcache-native-lcd-disabled-v${{ needs.extract_version.outputs.version }}-amd64
-          cache-to: type=registry,ref=bochaco/formicaio-gh:buildcache-native-lcd-disabled-v${{ needs.extract_version.outputs.version }}-amd64
-          build-args: |
-            BUILD_ARGS=--features native,lcd-disabled
-
       - name: Build for arm64 and cache it
         uses: docker/build-push-action@v6
         with:
@@ -74,16 +64,6 @@ jobs:
           cache-to: type=registry,ref=bochaco/formicaio-gh:buildcache-native-v${{ needs.extract_version.outputs.version }}-arm64
           build-args: |
             BUILD_ARGS=--features native
-
-      - name: Build for arm64 (LCD disabled) and cache it
-        uses: docker/build-push-action@v6
-        with:
-          platforms: linux/arm64
-          load: true
-          cache-from: type=registry,ref=bochaco/formicaio-gh:buildcache-native-lcd-disabled-v${{ needs.extract_version.outputs.version }}-arm64
-          cache-to: type=registry,ref=bochaco/formicaio-gh:buildcache-native-lcd-disabled-v${{ needs.extract_version.outputs.version }}-arm64
-          build-args: |
-            BUILD_ARGS=--features native,lcd-disabled
 
       - name: Build multiplatform from cache and push
         uses: docker/build-push-action@v6
@@ -96,19 +76,6 @@ jobs:
           tags: ${{ vars.DOCKERHUB_USERNAME }}/formicaio:${{ needs.extract_version.outputs.version }}-native
           build-args: |
             BUILD_ARGS=--features native
-          output: type=image
-
-      - name: Build multiplatform (LCD disabled) from cache and push
-        uses: docker/build-push-action@v6
-        with:
-          platforms: linux/amd64,linux/arm64
-          push: true
-          cache-from: |
-            type=registry,ref=bochaco/formicaio-gh:buildcache-native-lcd-disabled-v${{ needs.extract_version.outputs.version }}-arm64
-            type=registry,ref=bochaco/formicaio-gh:buildcache-native-lcd-disabled-v${{ needs.extract_version.outputs.version }}-amd64
-          tags: ${{ vars.DOCKERHUB_USERNAME }}/formicaio:${{ needs.extract_version.outputs.version }}-native-lcd-disabled
-          build-args: |
-            BUILD_ARGS=--features native,lcd-disabled
           output: type=image
 
       - name: Build multiplatform from cache and push as 'latest'
