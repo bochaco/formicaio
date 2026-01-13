@@ -51,7 +51,6 @@ With Formicaio, you can easily run and manage nodes using either a graphical use
 - **Sort nodes** by different criteria (creation date, status, connected peers, etc.)
 
 <img src="img/screenshot_05.png" width="400" height="212" />
-<img src="img/screenshot_03.png" width="400" height="212" />
 <img src="img/screenshot_06.png" width="400" height="212" />
 
 ### 📊 Real-time Monitoring & Statistics
@@ -66,7 +65,9 @@ The Formicaio backend actively monitors your nodes, providing real-time status u
 - **Shunned peers** tracking
 - **Estimated total nodes** in the network
 
+<img src="img/screenshot_01_b.png" width="400" height="212" />
 <img src="img/screenshot_01.png" width="400" height="212" />
+<img src="img/screenshot_03.png" width="400" height="212" />
 
 ### ⚙️ Customizable Settings
 
@@ -80,7 +81,9 @@ A comprehensive settings panel allows you to customize monitoring tasks and node
 - **ERC20 token contract configuration** (address and RPC URL)
 - **LCD display configuration** for external monitoring
 
-<img src="img/screenshot_04.png" width="300" height="367" />
+<img src="img/screenshot_04.png" width="400" height="212" />
+<img src="img/screenshot_04_b.png" width="400" height="212" />
+<img src="img/screenshot_04_c.png" width="400" height="212" />
 
 ### 🌐 Network Connectivity Options
 
