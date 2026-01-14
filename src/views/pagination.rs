@@ -79,7 +79,7 @@ pub fn PaginationView() -> impl IntoView {
                                 </PaginationButton>
 
                                 <span class="px-3 py-1.5 text-slate-500">
-                                    {move || format!("page {}/{}", page_index + 1, num_pages())}
+                                    {move || format!("Page {}/{}", page_index + 1, num_pages())}
                                 </span>
 
                                 <PaginationButton

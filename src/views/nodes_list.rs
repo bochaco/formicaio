@@ -2,8 +2,8 @@ use super::{
     actions_batch::NodesActionsBatchesView,
     chart::ChartSeriesData,
     icons::{
-        IconChevronDown, IconCollapse, IconExpand, IconRecycle, IconRemove, IconStartNode,
-        IconStopNode,
+        IconChevronDown, IconCollapse, IconExpand, IconLayoutList, IconLayoutTile, IconRecycle,
+        IconRemove, IconStartNode, IconStopNode,
     },
     node_actions::{BatchActionModal, NodeAction},
     node_instance::NodeInstanceView,
@@ -50,38 +50,87 @@ pub fn NodesListView(
                 modal_apply_action
             />
 
-            // Nodes Grid
+            // Nodes Grid/List
             <div class="p-4 lg:p-8">
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <Show when=move || !context.scheduled_batches.read().is_empty()>
-                        <NodesActionsBatchesView />
-                    </Show>
+                <Show
+                    when=move || context.tile_mode.get()
+                    fallback=move || {
+                        view! {
+                            <div class="space-y-2">
+                                // List Header
+                                <div class="hidden md:grid grid-cols-15 gap-4 items-center px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-800 bg-slate-900 rounded-t-lg">
+                                    <div class="col-span-1"></div>
+                                    <div class="col-span-2 flex items-center gap-4">Node ID</div>
+                                    <div class="col-span-5">Status</div>
+                                    <div class="col-span-1 text-center">CPU</div>
+                                    <div class="col-span-2 text-center">Memory</div>
+                                    <div class="col-span-1 text-center">Records</div>
+                                    <div class="col-span-1 text-center">Peers</div>
+                                    <div class="col-span-2 text-center"></div>
+                                </div>
 
-                    <For
-                        each=move || sorted_nodes.get()
-                        key=|(node_id, _)| node_id.clone()
-                        let:child
-                    >
-                        <Show
-                            when=move || !child.1.read().status.is_creating()
-                            fallback=move || { view! { <CreatingNodeInstanceView /> }.into_view() }
-                        >
-                            <NodeInstanceView
-                                info=child.1
-                                set_logs
-                                set_render_chart
-                                set_chart_data
-                            />
+                                <Show when=move || !context.scheduled_batches.read().is_empty()>
+                                    <NodesActionsBatchesView />
+                                </Show>
+
+                                // List Body
+                                <For
+                                    each=move || sorted_nodes.get()
+                                    key=|(node_id, _)| node_id.clone()
+                                    let:child
+                                >
+                                    <Show
+                                        when=move || !child.1.read().status.is_creating()
+                                        fallback=move || {
+                                            view! { <CreatingNodeInstanceView /> }.into_view()
+                                        }
+                                    >
+                                        <NodeInstanceView
+                                            info=child.1
+                                            set_logs
+                                            set_render_chart
+                                            set_chart_data
+                                        />
+                                    </Show>
+                                </For>
+
+                            </div>
+                        }
+                    }
+                >
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <Show when=move || !context.scheduled_batches.read().is_empty()>
+                            <NodesActionsBatchesView />
                         </Show>
-                    </For>
 
-                    <Show when=move || {
-                        modal_apply_action.read().is_some() && *context.is_online.read()
-                    }>
-                        <BatchActionModal action=modal_apply_action />
-                    </Show>
+                        <For
+                            each=move || sorted_nodes.get()
+                            key=|(node_id, _)| node_id.clone()
+                            let:child
+                        >
+                            <Show
+                                when=move || !child.1.read().status.is_creating()
+                                fallback=move || {
+                                    view! { <CreatingNodeInstanceView /> }.into_view()
+                                }
+                            >
+                                <NodeInstanceView
+                                    info=child.1
+                                    set_logs
+                                    set_render_chart
+                                    set_chart_data
+                                />
+                            </Show>
+                        </For>
+                    </div>
+                </Show>
 
-                </div>
+                <Show when=move || {
+                    modal_apply_action.read().is_some() && *context.is_online.read()
+                }>
+                    <BatchActionModal action=modal_apply_action />
+                </Show>
+
             </div>
         </div>
     }
@@ -164,7 +213,7 @@ fn NodeListToolbarView(
                             on:click=move |_| is_selection_open.update(|prev| *prev = !*prev)
                             class="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-slate-400 hover:text-white bg-slate-800 border border-slate-700 rounded-lg transition-all"
                         >
-                            Manage Selection
+                            Selection
                             <IconChevronDown is_down=Signal::derive(move || {
                                 is_selection_open.get()
                             }) />
@@ -290,27 +339,93 @@ fn NodeListToolbarView(
 
                 <PaginationView />
 
-                <SortStrategyView />
+                <div class="flex items-center gap-2">
+                    <ListModeToggler />
+                    <div class="h-4 w-px bg-slate-700" />
+                    <SortStrategyView />
+                </div>
             </div>
         </div>
     }
 }
 
 #[component]
-fn CreatingNodeInstanceView() -> impl IntoView {
+fn ListModeToggler() -> impl IntoView {
+    let context = expect_context::<ClientGlobalState>();
+
     view! {
-        <div class="max-w-sm m-2 p-4 bg-white border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700">
-            <div class="flex flex-col gap-4">
-                <div class="skeleton h-16 w-full"></div>
-                <div class="skeleton h-4 w-28"></div>
-                <div class="skeleton h-4 w-56"></div>
-                <div class="skeleton h-4 w-28"></div>
-                <div class="skeleton h-4 w-20"></div>
-                <div class="skeleton h-4 w-28"></div>
-                <div class="skeleton h-4 w-40"></div>
-                <div class="skeleton h-4 w-40"></div>
-                <div class="skeleton h-4 w-56"></div>
-            </div>
+        <div class="flex items-center bg-slate-800 border border-slate-700 rounded p-0.5">
+            <button
+                on:click=move |_| context.tile_mode.set(true)
+                class=move || {
+                    format!(
+                        "p-1 rounded-md transition-all duration-200 {}",
+                        if context.tile_mode.get() {
+                            "bg-indigo-600 text-white shadow-lg shadow-indigo-500/20"
+                        } else {
+                            "text-slate-400 hover:text-white"
+                        },
+                    )
+                }
+                title="Tile View"
+            >
+                <IconLayoutTile />
+            </button>
+            <button
+                on:click=move |_| context.tile_mode.set(false)
+                class=move || {
+                    format!(
+                        "p-1 rounded-md transition-all duration-200 {}",
+                        if !context.tile_mode.get() {
+                            "bg-indigo-600 text-white shadow-lg shadow-indigo-500/20"
+                        } else {
+                            "text-slate-400 hover:text-white"
+                        },
+                    )
+                }
+                title="List View"
+            >
+                <IconLayoutList />
+            </button>
         </div>
+        <div class="h-4 w-px bg-slate-700" />
+    }
+}
+
+#[component]
+fn CreatingNodeInstanceView() -> impl IntoView {
+    let context = expect_context::<ClientGlobalState>();
+
+    view! {
+        <Show
+            when=move || context.tile_mode.get()
+            fallback=move || {
+                view! {
+                    <div class="bg-slate-900/70 border-2 border-dashed border-slate-800 rounded-2xl transition-all duration-300 animate-pulse">
+                        <div class="grid grid-cols-1 md:grid-cols-12 gap-x-4 gap-y-2 items-center p-4 md:px-6">
+                            <div class="md:col-span-12 flex items-center gap-4">
+                                <span class="capitalize font-bold text-slate-500 flex items-center gap-2">
+                                    "Creating node... "
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+        >
+            <div class="max-w-sm m-2 p-4 border border-gray-200 rounded-lg shadow dark:border-gray-700">
+                <div class="flex flex-col gap-4">
+                    <div class="skeleton h-16 w-full"></div>
+                    <div class="skeleton h-4 w-28"></div>
+                    <div class="skeleton h-4 w-56"></div>
+                    <div class="skeleton h-4 w-28"></div>
+                    <div class="skeleton h-4 w-20"></div>
+                    <div class="skeleton h-4 w-28"></div>
+                    <div class="skeleton h-4 w-40"></div>
+                    <div class="skeleton h-4 w-40"></div>
+                    <div class="skeleton h-4 w-56"></div>
+                </div>
+            </div>
+        </Show>
     }
 }

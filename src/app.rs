@@ -58,6 +58,8 @@ pub struct ClientGlobalState {
     pub is_online: RwSignal<bool>,
     // List of nodes instances and their info/state
     pub nodes: RwSignal<(bool, HashMap<NodeId, RwSignal<NodeInstanceInfo>>)>,
+    // Layout for the list of nodes
+    pub tile_mode: RwSignal<bool>,
     // Node global stats
     pub stats: RwSignal<Stats>,
     // Flag to enable/disable nodes' logs stream
@@ -110,6 +112,7 @@ pub fn App() -> impl IntoView {
     provide_context(ClientGlobalState {
         is_online: RwSignal::new(true),
         nodes: RwSignal::new((false, HashMap::default())),
+        tile_mode: RwSignal::new(true),
         stats: RwSignal::new(Stats::default()),
         logs_stream_on_for: RwSignal::new(None),
         metrics_update_on_for: RwSignal::new(None),
@@ -159,9 +162,24 @@ fn spawn_nodes_list_polling() {
     spawn_local(async {
         let context = expect_context::<ClientGlobalState>();
         loop {
-            let current_settings = get_settings().await.unwrap_or_default();
-            let node_list_page_size = current_settings.node_list_page_size as usize;
-            context.app_settings.update(|s| if s != &current_settings { *s = current_settings });
+            let app_settings = get_settings().await.unwrap_or_default();
+            let node_list_page_size = app_settings.node_list_page_size as usize;
+
+            context.app_settings.update(|s| {
+                // update node list mode only if it was changed on the backend
+                context.tile_mode.update(|m| {
+                    let updated_tile_mode = app_settings.node_list_mode == 0;
+                    let context_tile_mode = s.node_list_mode == 0;
+                    if updated_tile_mode != context_tile_mode && m != &updated_tile_mode {
+                        *m = updated_tile_mode;
+                    }
+                });
+
+                // update app settings in context only if there were changes
+                if s != &app_settings {
+                    *s = app_settings;
+                }
+            });
 
             let delay_millis = match nodes_instances(None).await {
                 Err(err) => {

@@ -196,7 +196,7 @@ fn SettingsForm(form: RwSignal<FormContent>, active_tab: RwSignal<u8>) -> impl I
         <span hidden=move || active_tab.read() != SETTINGS_TAB_INTERFACE>
             <SettingsCard
                 icon=view! { <IconLayoutDashboard /> }.into_any()
-                title="Interface"
+                title="GUI Preferences"
                 description="Choose preferred configurations for GUI."
             >
                 <SettingRow
@@ -369,7 +369,7 @@ pub fn SettingsView() -> impl IntoView {
                         />
                         <SideNavLink
                             icon=view! { <IconLayoutDashboard /> }.into_any()
-                            label="Interface"
+                            label="GUI Preferences"
                             active_tab
                             tab_index=SETTINGS_TAB_INTERFACE
                         />

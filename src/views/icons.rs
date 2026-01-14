@@ -254,7 +254,7 @@ pub fn IconChevronDown(is_down: Signal<bool>) -> impl IntoView {
         <svg
             class=move || {
                 format!(
-                    "w-5 h-5 transition-transform duration-200 {}",
+                    "w-5 h-5 text-gray-800 dark:text-white transition-transform duration-200 {}",
                     if is_down.get() { "rotate-180" } else { "" },
                 )
             }
@@ -267,7 +267,7 @@ pub fn IconChevronDown(is_down: Signal<bool>) -> impl IntoView {
                 stroke="currentColor"
                 stroke-linecap="round"
                 stroke-linejoin="round"
-                stroke-width="0.7"
+                stroke-width="1"
                 d="m19 9-7 7-7-7"
             />
         </svg>
@@ -829,6 +829,47 @@ pub fn IconPeers(
             <circle cx="16" cy="4" r="1.5" fill="currentColor"></circle>
             <circle cx="14" cy="20" r="1.5" fill="currentColor"></circle>
             <circle cx="5" cy="13" r="1.0" fill="currentColor"></circle>
+        </svg>
+    }
+}
+
+#[component]
+pub fn IconLayoutTile() -> impl IntoView {
+    view! {
+        <svg
+            class="w-5 h-5 text-gray-800 dark:text-white"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true"
+            fill="none"
+            viewBox="0 0 24 24"
+        >
+            <path
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9.143 4H4.857A.857.857 0 0 0 4 4.857v4.286c0 .473.384.857.857.857h4.286A.857.857 0 0 0 10 9.143V4.857A.857.857 0 0 0 9.143 4Zm10 0h-4.286a.857.857 0 0 0-.857.857v4.286c0 .473.384.857.857.857h4.286A.857.857 0 0 0 20 9.143V4.857A.857.857 0 0 0 19.143 4Zm-10 10H4.857a.857.857 0 0 0-.857.857v4.286c0 .473.384.857.857.857h4.286a.857.857 0 0 0 .857-.857v-4.286A.857.857 0 0 0 9.143 14Zm10 0h-4.286a.857.857 0 0 0-.857.857v4.286c0 .473.384.857.857.857h4.286a.857.857 0 0 0 .857-.857v-4.286a.857.857 0 0 0-.857-.857Z"
+            />
+        </svg>
+    }
+}
+
+#[component]
+pub fn IconLayoutList() -> impl IntoView {
+    view! {
+        <svg
+            class="w-6 h-6 text-gray-800 dark:text-white"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true"
+            fill="none"
+            viewBox="0 0 24 24"
+        >
+            <path
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-width="2"
+                d="M9 8h10M9 12h10M9 16h10M4.99 8H5m-.02 4h.01m0 4H5"
+            />
         </svg>
     }
 }
