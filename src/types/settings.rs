@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
 /// Application settings values.
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct AppSettings {
     pub nodes_auto_upgrade: bool,
     pub nodes_auto_upgrade_delay: Duration,

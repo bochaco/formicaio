@@ -161,7 +161,7 @@ fn spawn_nodes_list_polling() {
         loop {
             let current_settings = get_settings().await.unwrap_or_default();
             let node_list_page_size = current_settings.node_list_page_size as usize;
-            context.app_settings.update(|s| *s = current_settings);
+            context.app_settings.update(|s| if s != &current_settings { *s = current_settings });
 
             let delay_millis = match nodes_instances(None).await {
                 Err(err) => {
