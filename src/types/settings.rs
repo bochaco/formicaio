@@ -14,6 +14,8 @@ pub struct AppSettings {
     pub lcd_display_enabled: bool,
     pub lcd_device: String,
     pub lcd_addr: String,
+    pub node_list_page_size: u64,
+    pub node_list_mode: u64,
 }
 
 impl Default for AppSettings {
@@ -39,6 +41,10 @@ impl Default for AppSettings {
             lcd_device: "1".to_string(),
             // I2C backpack address 0x27, another common addr is: 0x3f. Check it out with 'sudo ic2detect -y <bus-number>'.
             lcd_addr: "0x27".to_string(),
+            // The number of nodes to display per page in the list and tile views.
+            node_list_page_size: 30u64,
+            // The default layout for the Nodes list page. (0 == Tile, 1 == List)
+            node_list_mode: 0u64,
         }
     }
 }

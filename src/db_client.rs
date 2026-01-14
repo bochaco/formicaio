@@ -51,6 +51,8 @@ struct CachedSettings {
     lcd_display_enabled: bool,
     lcd_device: String,
     lcd_addr: String,
+    node_list_page_size: u64,
+    node_list_mode: u64,
 }
 
 // Struct stored on the DB caching nodes metadata.
@@ -639,6 +641,8 @@ impl DbClient {
                 lcd_display_enabled: s.lcd_display_enabled,
                 lcd_device: s.lcd_device.clone(),
                 lcd_addr: s.lcd_addr.clone(),
+                node_list_page_size: s.node_list_page_size,
+                node_list_mode: s.node_list_mode,
             },
             Ok(None) => {
                 logging::log!("No settings found in DB, we'll be using defaults.");
@@ -667,7 +671,9 @@ impl DbClient {
             token_contract_address = ?, \
             lcd_display_enabled = ?, \
             lcd_device = ?, \
-            lcd_addr = ?",
+            lcd_addr = ?, \
+            node_list_page_size = ?, \
+            node_list_mode = ?",
         )
         .bind(settings.nodes_auto_upgrade)
         .bind(settings.nodes_auto_upgrade_delay.as_secs() as i64)
@@ -679,6 +685,8 @@ impl DbClient {
         .bind(settings.lcd_display_enabled)
         .bind(settings.lcd_device.clone())
         .bind(settings.lcd_addr.clone())
+        .bind(settings.node_list_page_size as i64)
+        .bind(settings.node_list_mode as i64)
         .execute(&*db_lock)
         .await
         {

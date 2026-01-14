@@ -5,7 +5,7 @@ use crate::{
 
 use super::{
     helpers::show_alert_msg,
-    icons::{IconCheck, IconLcdSettings, IconSave, IconServer, IconWallet},
+    icons::{IconCheck, IconLayoutDashboard, IconLcdSettings, IconSave, IconServer, IconWallet},
 };
 
 use alloy_primitives::Address;
@@ -14,6 +14,12 @@ use leptos::{logging, prelude::*};
 use std::time::Duration;
 use url::Url;
 use wasm_bindgen_futures::spawn_local;
+
+// Index used to keep track of currently active settings tab
+const SETTINGS_TAB_NODE_MGMT: u8 = 0;
+const SETTINGS_TAB_INTERFACE: u8 = 1;
+const SETTINGS_TAB_REWARDS: u8 = 2;
+const SETTINGS_TAB_LCD_DEVICE: u8 = 3;
 
 struct FormContent {
     saved_settings: RwSignal<AppSettings>,
@@ -27,6 +33,8 @@ struct FormContent {
     lcd_enabled: RwSignal<bool>,
     lcd_device: RwSignal<Result<String, (String, String)>>,
     lcd_addr: RwSignal<Result<String, (String, String)>>,
+    node_list_page_size: RwSignal<Result<u64, (String, String)>>,
+    node_list_mode: RwSignal<u64>,
 }
 
 impl FormContent {
@@ -47,6 +55,8 @@ impl FormContent {
             lcd_enabled: RwSignal::new(settings.lcd_display_enabled),
             lcd_device: RwSignal::new(Ok(settings.lcd_device.clone())),
             lcd_addr: RwSignal::new(Ok(settings.lcd_addr.clone())),
+            node_list_page_size: RwSignal::new(Ok(settings.node_list_page_size)),
+            node_list_mode: RwSignal::new(settings.node_list_mode),
         }
     }
 
@@ -67,6 +77,8 @@ impl FormContent {
             || self.lcd_enabled.get() != saved_settings.lcd_display_enabled
             || self.lcd_device.get() != Ok(saved_settings.lcd_device.clone())
             || self.lcd_addr.get() != Ok(saved_settings.lcd_addr.clone())
+            || self.node_list_page_size.get() != Ok(saved_settings.node_list_page_size)
+            || self.node_list_mode.get() != saved_settings.node_list_mode
     }
 
     pub fn get_valid_changes(&self) -> Option<AppSettings> {
@@ -79,8 +91,9 @@ impl FormContent {
             self.token_contract_address.get(),
             self.lcd_device.get(),
             self.lcd_addr.get(),
+            self.node_list_page_size.get(),
         );
-        if let (Ok(v1), Ok(v2), Ok(v3), Ok(v4), Ok(v5), Ok(v6), Ok(v7), Ok(v8)) = values {
+        if let (Ok(v1), Ok(v2), Ok(v3), Ok(v4), Ok(v5), Ok(v6), Ok(v7), Ok(v8), Ok(v9)) = values {
             Some(AppSettings {
                 nodes_auto_upgrade: self.auto_upgrade.get(),
                 nodes_auto_upgrade_delay: Duration::from_secs(v1),
@@ -92,6 +105,8 @@ impl FormContent {
                 lcd_display_enabled: self.lcd_enabled.get(),
                 lcd_device: v7,
                 lcd_addr: v8,
+                node_list_page_size: v9,
+                node_list_mode: self.node_list_mode.get(),
             })
         } else {
             None
@@ -116,13 +131,16 @@ impl FormContent {
         self.lcd_enabled.set(saved_settings.lcd_display_enabled);
         self.lcd_device.set(Ok(saved_settings.lcd_device.clone()));
         self.lcd_addr.set(Ok(saved_settings.lcd_addr.clone()));
+        self.node_list_page_size
+            .set(Ok(saved_settings.node_list_page_size));
+        self.node_list_mode.set(saved_settings.node_list_mode);
     }
 }
 
 #[component]
 fn SettingsForm(form: RwSignal<FormContent>, active_tab: RwSignal<u8>) -> impl IntoView {
     view! {
-        <span hidden=move || active_tab.read() != 0>
+        <span hidden=move || active_tab.read() != SETTINGS_TAB_NODE_MGMT>
             <SettingsCard
                 icon=view! { <IconServer /> }.into_any()
                 title="Nodes Management"
@@ -175,7 +193,37 @@ fn SettingsForm(form: RwSignal<FormContent>, active_tab: RwSignal<u8>) -> impl I
                 </SettingRow>
             </SettingsCard>
         </span>
-        <span hidden=move || active_tab.read() != 1>
+        <span hidden=move || active_tab.read() != SETTINGS_TAB_INTERFACE>
+            <SettingsCard
+                icon=view! { <IconLayoutDashboard /> }.into_any()
+                title="Interface"
+                description="Choose preferred configurations for GUI."
+            >
+                <SettingRow
+                    label="Default Node List View"
+                    description="Choose the default layout for the Nodes list page."
+                >
+                    <SegmentedControl
+                        signal=form.read().node_list_mode
+                        options=vec!["Tile View".to_string(), "List View".to_string()]
+                    />
+                </SettingRow>
+                <SettingRow
+                    label="Nodes per Page"
+                    description="The number of nodes to display per page in the list and tile views."
+                    error=Signal::derive(move || {
+                        form.read().node_list_page_size.read().clone().err()
+                    })
+                >
+                    <NumberInput
+                        name="nodeListPageSize"
+                        signal=form.read_untracked().node_list_page_size
+                        min=10
+                    />
+                </SettingRow>
+            </SettingsCard>
+        </span>
+        <span hidden=move || active_tab.read() != SETTINGS_TAB_REWARDS>
             <SettingsCard
                 icon=view! { <IconWallet /> }.into_any()
                 title="Rewards"
@@ -226,8 +274,7 @@ fn SettingsForm(form: RwSignal<FormContent>, active_tab: RwSignal<u8>) -> impl I
                 </SettingRow>
             </SettingsCard>
         </span>
-
-        <span hidden=move || active_tab.read() != 2>
+        <span hidden=move || active_tab.read() != SETTINGS_TAB_LCD_DEVICE>
             <SettingsCard
                 icon=IconLcdSettings.into_any()
                 title="LCD Device Setup"
@@ -318,20 +365,26 @@ pub fn SettingsView() -> impl IntoView {
                             icon=view! { <IconServer /> }.into_any()
                             label="Node Management"
                             active_tab
-                            tab_index=0
+                            tab_index=SETTINGS_TAB_NODE_MGMT
+                        />
+                        <SideNavLink
+                            icon=view! { <IconLayoutDashboard /> }.into_any()
+                            label="Interface"
+                            active_tab
+                            tab_index=SETTINGS_TAB_INTERFACE
                         />
                         <SideNavLink
                             icon=view! { <IconWallet /> }.into_any()
                             label="Rewards"
                             active_tab
-                            tab_index=1
+                            tab_index=SETTINGS_TAB_REWARDS
                         />
                         <Show when=move || !lcd_disabled>
                             <SideNavLink
                                 icon=IconLcdSettings.into_any()
                                 label="LCD Device Setup"
                                 active_tab
-                                tab_index=2
+                                tab_index=SETTINGS_TAB_LCD_DEVICE
                             />
                         </Show>
                     </nav>
@@ -561,5 +614,38 @@ fn ToggleSwitch(name: &'static str, checked: RwSignal<bool>) -> impl IntoView {
                 <div class="w-11 h-6 bg-slate-700 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
             </div>
         </label>
+    }
+}
+
+#[component]
+fn SegmentedControl(signal: RwSignal<u64>, options: Vec<String>) -> impl IntoView {
+    view! {
+        <div class="flex items-center bg-slate-800 border border-slate-700 rounded-lg p-1 w-full md:w-auto">
+            {options
+                .into_iter()
+                .enumerate()
+                .map(|(index, opt)| {
+                    view! {
+                        <button
+                            prop:key=opt
+                            type="button"
+                            on:click=move |_| signal.set(index as u64)
+                            class=move || {
+                                format!(
+                                    "flex-1 px-4 py-1.5 rounded-md text-sm font-bold transition-all duration-200 {}",
+                                    if signal.get() == index as u64 {
+                                        "bg-indigo-600 text-white shadow-md"
+                                    } else {
+                                        "text-slate-400 hover:bg-slate-700"
+                                    },
+                                )
+                            }
+                        >
+                            {opt.clone()}
+                        </button>
+                    }
+                })
+                .collect_view()}
+        </div>
     }
 }
