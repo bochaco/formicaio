@@ -1,10 +1,12 @@
+use crate::types::AppSettings;
+
 #[cfg(feature = "ssr")]
 pub use super::app_context::AppContext;
 
 #[cfg(feature = "ssr")]
 use super::node_mgr::NodeManager;
 #[cfg(feature = "hydrate")]
-use super::server_api::nodes_instances;
+use super::server_api::{get_settings, nodes_instances};
 use super::{
     error_template::{AppError, ErrorTemplate},
     types::{NodeId, NodeInstanceInfo, NodesActionsBatch, NodesSortStrategy, Stats},
@@ -36,8 +38,6 @@ extern "C" {
 pub const METRICS_MAX_SIZE_PER_NODE: usize = 5_000;
 // How often we poll the backend to retrieve an up to date list of node instances.
 pub const NODES_LIST_POLLING_FREQ_MILLIS: u64 = 5_500;
-// Size of nodes list pages
-pub const PAGE_SIZE: usize = 100;
 
 /// Global server-side state shared across the application, available only when running with SSR (server-side rendering).
 #[cfg(feature = "ssr")]
@@ -78,6 +78,8 @@ pub struct ClientGlobalState {
     pub nodes_sort_strategy: RwSignal<NodesSortStrategy>,
     // Currently selected page of nodes list (0-based index)
     pub current_page: RwSignal<usize>,
+    // Current values of the app settings
+    pub app_settings: RwSignal<AppSettings>,
 }
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
@@ -118,6 +120,7 @@ pub fn App() -> impl IntoView {
         expanded_nodes: RwSignal::new(HashSet::new()),
         nodes_sort_strategy: RwSignal::new(NodesSortStrategy::default()),
         current_page: RwSignal::new(0usize),
+        app_settings: RwSignal::new(AppSettings::default()),
     });
 
     // spawn poller task only on client side
@@ -156,6 +159,10 @@ fn spawn_nodes_list_polling() {
     spawn_local(async {
         let context = expect_context::<ClientGlobalState>();
         loop {
+            let current_settings = get_settings().await.unwrap_or_default();
+            let node_list_page_size = current_settings.node_list_page_size as usize;
+            context.app_settings.update(|s| *s = current_settings);
+
             let delay_millis = match nodes_instances(None).await {
                 Err(err) => {
                     context.is_online.set(false);
@@ -231,7 +238,7 @@ fn spawn_nodes_list_polling() {
                     }
 
                     // the larger the number of nodes, the longer the delay
-                    (count / PAGE_SIZE) as u64 * 1_000
+                    (count / node_list_page_size) as u64 * 1_000
                 }
             };
 

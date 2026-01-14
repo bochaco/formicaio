@@ -1,12 +1,15 @@
 use super::icons::{IconFirstPage, IconLastPage, IconNextPage, IconPreviousPage};
-use crate::app::{ClientGlobalState, PAGE_SIZE};
+use crate::app::ClientGlobalState;
 
 use leptos::prelude::*;
 
 #[component]
 pub fn PaginationView() -> impl IntoView {
     let context = expect_context::<ClientGlobalState>();
-    let num_pages = move || context.nodes.read().1.len().div_ceil(PAGE_SIZE);
+    let num_pages = move || {
+        let page_size = context.app_settings.read().node_list_page_size as usize;
+        context.nodes.read().1.len().div_ceil(page_size)
+    };
     let pages = move || {
         let total_pages = num_pages();
         if total_pages <= 1 {

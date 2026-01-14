@@ -10,10 +10,7 @@ use super::{
     pagination::PaginationView,
     sort_nodes::SortStrategyView,
 };
-use crate::{
-    app::{ClientGlobalState, PAGE_SIZE},
-    views::icons::IconUpgradeNode,
-};
+use crate::{app::ClientGlobalState, views::icons::IconUpgradeNode};
 
 use leptos::prelude::*;
 
@@ -33,11 +30,12 @@ pub fn NodesListView(
             .read()
             .sort_view_items(&mut sorted);
 
-        let offset = PAGE_SIZE * context.current_page.get();
+        let page_size = context.app_settings.read().node_list_page_size as usize;
+        let offset = page_size * context.current_page.get();
         sorted
             .into_iter()
             .skip(offset)
-            .take(PAGE_SIZE)
+            .take(page_size)
             .collect::<Vec<_>>()
     });
 
