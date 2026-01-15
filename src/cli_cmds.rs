@@ -27,6 +27,8 @@ use std::{
 };
 use structopt::StructOpt;
 
+const GB_CONVERTION: f64 = 1_073_741_824.0;
+
 #[derive(StructOpt, Debug)]
 #[structopt(name = "formicaio", about = "CLI interface for Formicaio application.")]
 pub struct CliCmds {
@@ -774,20 +776,35 @@ impl CliCmdResponse {
                 tables.push(table);
             }
             CliCmdResponse::Stats(stats) => {
+                let used = if stats.total_disk_space > stats.available_disk_space {
+                    stats.total_disk_space - stats.available_disk_space
+                } else {
+                    0
+                };
+                let percentage = if stats.total_disk_space > 0 {
+                    (used as f64 * 100.0) / stats.total_disk_space as f64
+                } else {
+                    0f64
+                };
+                let total_gb = stats.total_disk_space as f64 / GB_CONVERTION;
+                let used_gb = used as f64 / GB_CONVERTION;
+
                 let mut table = Table::new();
                 table.set_titles(row![
                     "Total balance",
                     "Connected peers",
                     "Active nodes",
                     "Stored records",
-                    "Estimated network size"
+                    "Estimated network size",
+                    "Disk usage"
                 ]);
                 table.add_row(row![
                     truncated_balance_str(stats.total_balance),
                     stats.connected_peers,
                     format!("{}/{}", stats.active_nodes, stats.total_nodes),
                     stats.stored_records,
-                    stats.estimated_net_size
+                    stats.estimated_net_size,
+                    format!("{used_gb:.2} GB ({percentage:.2}%) / {total_gb:.2} GB")
                 ]);
                 tables.push(table);
             }
