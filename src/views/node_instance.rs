@@ -40,9 +40,9 @@ pub(super) fn NodeInstanceView(
                 .1
                 .contains(&info.read_untracked().node_id)
     };
-    let node_card_clicked = move || {
+    let node_card_clicked = move |always: bool| {
         let (is_selecting, _) = *context.selecting_nodes.read_untracked();
-        if is_selecting && !info.read_untracked().is_status_locked {
+        if (always || is_selecting) && !info.read_untracked().is_status_locked {
             let node_id = &info.read_untracked().node_id;
             context.selecting_nodes.update(|(is_selecting, selected)| {
                 if selected.contains(node_id) {
@@ -109,7 +109,7 @@ pub(super) fn NodeInstanceView(
             fallback=move || {
                 view! {
                     <div
-                        on:click=move |_| node_card_clicked()
+                        on:click=move |_| node_card_clicked(!is_transitioning())
                         prop:id=info.read_untracked().short_node_id()
                         class=move || {
                             format!(
@@ -130,10 +130,8 @@ pub(super) fn NodeInstanceView(
                     >
                         <div class="grid grid-cols-1 md:grid-cols-15 gap-x-4 gap-y-2 items-center md:px-6 cursor-pointer">
                             <div class="md:col-span-1 flex items-center gap-4">
-                                <Show
-                                    when=move || is_transitioning()
-                                    fallback=move || view! { <NodeSelection info /> }
-                                >
+                                <NodeSelection info />
+                                <Show when=move || is_transitioning()>
                                     <div class="w-5 h-5 border-2 border-slate-500 rounded-full animate-spin border-t-transparent" />
                                 </Show>
                             </div>
@@ -251,7 +249,7 @@ pub(super) fn NodeInstanceView(
             }
         >
             <div
-                on:click=move |_| node_card_clicked()
+                on:click=move |_| node_card_clicked(false)
                 prop:id=info.read_untracked().short_node_id()
                 class=move || {
                     format!(

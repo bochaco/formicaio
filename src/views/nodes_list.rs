@@ -12,7 +12,7 @@ use super::{
 };
 use crate::{app::ClientGlobalState, views::icons::IconUpgradeNode};
 
-use leptos::prelude::*;
+use leptos::{prelude::*, task::spawn_local};
 
 #[component]
 pub fn NodesListView(
@@ -204,6 +204,26 @@ fn NodeListToolbarView(
         is_selection_open.set(false);
     };
 
+    let apply_action_on_selected = move |action: NodeAction| {
+        context.selecting_nodes.update(|(enabled, selected)| {
+            if selected.len() == 1 {
+                if let Some(info) = selected
+                    .iter()
+                    .next()
+                    .and_then(|id| context.nodes.read().1.get(id).cloned())
+                {
+                    selected.clear();
+                    *enabled = false;
+                    spawn_local(async move {
+                        action.apply(&info, &context.stats).await;
+                    });
+                }
+            } else if selected.len() > 1 {
+                modal_apply_action.set(Some(action));
+            }
+        });
+    };
+
     view! {
         <div class="sticky top-0 z-20 bg-slate-950/80 backdrop-blur-md border-b border-slate-800 px-4 lg:px-8">
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-3">
@@ -299,35 +319,35 @@ fn NodeListToolbarView(
                                 {move || num_selected_nodes()} " selected"
                             </span>
                             <button
-                                on:click=move |_| modal_apply_action.set(Some(NodeAction::Upgrade))
+                                on:click=move |_| apply_action_on_selected(NodeAction::Upgrade)
                                 class="p-1.5 hover:bg-cyan-500/10 text-cyan-500 rounded-lg transition-colors"
                                 title="Upgrade Selected"
                             >
                                 <IconUpgradeNode />
                             </button>
                             <button
-                                on:click=move |_| modal_apply_action.set(Some(NodeAction::Recycle))
+                                on:click=move |_| apply_action_on_selected(NodeAction::Recycle)
                                 class="p-1.5 hover:bg-cyan-500/10 text-cyan-500 rounded-lg transition-colors"
                                 title="Recycle Selected"
                             >
                                 <IconRecycle />
                             </button>
                             <button
-                                on:click=move |_| modal_apply_action.set(Some(NodeAction::Start))
+                                on:click=move |_| apply_action_on_selected(NodeAction::Start)
                                 class="p-1.5 hover:bg-emerald-500/10 text-emerald-500 rounded-lg transition-colors"
                                 title="Start Selected"
                             >
                                 <IconStartNode />
                             </button>
                             <button
-                                on:click=move |_| modal_apply_action.set(Some(NodeAction::Stop))
+                                on:click=move |_| apply_action_on_selected(NodeAction::Stop)
                                 class="p-1.5 hover:bg-rose-500/10 text-rose-700 rounded-lg transition-colors"
                                 title="Stop Selected"
                             >
                                 <IconStopNode />
                             </button>
                             <button
-                                on:click=move |_| modal_apply_action.set(Some(NodeAction::Remove))
+                                on:click=move |_| apply_action_on_selected(NodeAction::Remove)
                                 class="p-1.5 hover:bg-rose-500/10 text-rose-700 rounded-lg transition-colors"
                                 title="Remove Selected"
                             >
