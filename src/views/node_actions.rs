@@ -229,8 +229,9 @@ pub fn BatchActionModal(action: RwSignal<Option<NodeAction>>) -> impl IntoView {
                         <span class=format!(
                             "font-bold uppercase {}",
                             details().colors.icon_text,
-                        )>{details().verb}</span> " "
-                        {context.selecting_nodes.read_untracked().1.len()} " selected node(s)."
+                        )>
+                            {details().verb}" "{context.selecting_nodes.read_untracked().1.len()}
+                        </span> " selected node(s)."
                     </p>
 
                     <div class="space-y-3 pt-4">

@@ -137,7 +137,7 @@ pub(super) fn NodeInstanceView(
                             </div>
                             <div class="md:col-span-2 flex items-center gap-4">
                                 <div class="font-mono text-sm text-white">
-                                    {info.read_untracked().node_id.to_string()}
+                                    {info.read_untracked().short_node_id().to_string()}
                                 </div>
                             </div>
                             <div class="md:col-span-5 flex items-center justify-between md:justify-start gap-4">

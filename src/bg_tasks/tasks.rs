@@ -177,7 +177,10 @@ pub async fn update_nodes_info(
     let mut shunned_count = 0;
     let mut bin_version = HashSet::<String>::new();
 
+    let mut base_paths = HashSet::new();
+
     for mut node_info in nodes.into_iter() {
+        base_paths.insert(node_manager.get_node_data_dir(&node_info));
         if node_info.status.is_active() {
             num_active_nodes += 1;
 
@@ -259,6 +262,8 @@ pub async fn update_nodes_info(
 
     update_lcd_stats(lcd_stats, &updated_vals).await;
 
+    let (total_space, available_space) = node_manager.get_disks_usage(base_paths).await;
+
     let mut guard = app_ctx.stats.write().await;
     guard.total_nodes = num_nodes;
     guard.active_nodes = num_active_nodes;
@@ -268,6 +273,8 @@ pub async fn update_nodes_info(
     guard.estimated_net_size = estimated_net_size;
     guard.stored_records = records;
     guard.relevant_records = relevant_records;
+    guard.total_disk_space = total_space;
+    guard.available_disk_space = available_space;
 }
 
 // Prune metrics records from the cache DB to always keep the number of records within a limit.

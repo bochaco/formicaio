@@ -15,7 +15,12 @@ use chrono::Utc;
 use futures_util::Stream;
 use leptos::logging;
 use semver::Version;
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+    sync::Arc,
+    time::Duration,
+};
 use thiserror::Error;
 use tokio::sync::RwLock;
 
@@ -333,5 +338,18 @@ impl NodeManager {
             .get_container_logs_stream(node_id)
             .await?;
         Ok(stream)
+    }
+
+    // Get node data dir based on node-mgr root dir and node custom data dir if set
+    pub fn get_node_data_dir(&self, _node_info: &NodeInstanceInfo) -> PathBuf {
+        // TODO !!!
+        PathBuf::new()
+    }
+
+    // Get the total and free space of only the mount points where nodes are storing data,
+    // i.e. ignore all other mount points which are not being used by nodes to store data.
+    pub async fn get_disks_usage(&self, _base_paths: HashSet<PathBuf>) -> (u64, u64) {
+        // TODO !!!
+        (0, 0)
     }
 }

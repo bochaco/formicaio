@@ -22,6 +22,10 @@ pub struct Stats {
     pub stored_records: usize,
     /// Total number of relevant records stored across all nodes
     pub relevant_records: usize,
+    /// Total disk size/space in bytes
+    pub total_disk_space: u64,
+    /// Available/free disk size/space in bytes
+    pub available_disk_space: u64,
 }
 
 /// Node stats formatted for UmbrelOS widgets.

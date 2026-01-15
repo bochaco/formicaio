@@ -388,8 +388,8 @@ impl NativeNodes {
         }
     }
 
-    // Helper to get node data dir based on node-mgr root dir and node custom data dir if set
-    fn get_node_data_dir(&self, node_info: &NodeInstanceInfo) -> PathBuf {
+    // Get node data dir based on node-mgr root dir and node custom data dir if set
+    pub fn get_node_data_dir(&self, node_info: &NodeInstanceInfo) -> PathBuf {
         let node_id_str = node_info.node_id.to_string();
         if let Some(custom_path) = &node_info.data_dir_path {
             if custom_path.display().to_string().is_empty() {

@@ -19,7 +19,8 @@ use chrono::{DateTime, Utc};
 use futures_util::Stream;
 use leptos::logging;
 use semver::Version;
-use std::{path::PathBuf, sync::Arc, time::Duration};
+use std::{collections::HashSet, path::PathBuf, sync::Arc, time::Duration};
+use sysinfo::{DiskRefreshKind, Disks};
 use thiserror::Error;
 use tokio::sync::RwLock;
 
@@ -45,6 +46,7 @@ pub enum NodeManagerError {
 pub struct NodeManager {
     app_ctx: AppContext,
     native_nodes: NativeNodes,
+    disks: Arc<RwLock<Disks>>,
 }
 
 impl NodeManager {
@@ -59,6 +61,7 @@ impl NodeManager {
         let node_manager = Self {
             app_ctx,
             native_nodes,
+            disks: Arc::new(RwLock::new(Disks::new())),
         };
 
         // let's make sure we have node binary installed before continuing
@@ -438,6 +441,32 @@ impl NodeManager {
 
         let stream = self.native_nodes.get_node_logs_stream(&node_info).await?;
         Ok(stream)
+    }
+
+    // Get node data dir based on node-mgr root dir and node custom data dir if set
+    pub fn get_node_data_dir(&self, node_info: &NodeInstanceInfo) -> PathBuf {
+        self.native_nodes.get_node_data_dir(node_info)
+    }
+
+    // Get the total and free space of only the mount points where nodes are storing data,
+    // i.e. ignore all other mount points which are not being used by nodes to store data.
+    pub async fn get_disks_usage(&self, base_paths: HashSet<PathBuf>) -> (u64, u64) {
+        let mut disks = self.disks.write().await;
+
+        disks.refresh_specifics(true, DiskRefreshKind::nothing().with_storage());
+        let mut total_space = 0;
+        let mut available_space = 0;
+        for disk in disks.list().iter().filter(|d| {
+            base_paths
+                .iter()
+                .find(|p| p.starts_with(d.mount_point()))
+                .is_some()
+        }) {
+            total_space += disk.total_space();
+            available_space += disk.available_space();
+        }
+
+        (total_space, available_space)
     }
 }
 
