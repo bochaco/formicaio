@@ -180,7 +180,7 @@ pub async fn update_nodes_info(
     let mut base_paths = HashSet::new();
 
     for mut node_info in nodes.into_iter() {
-        base_paths.insert(node_manager.get_node_data_dir(&node_info));
+        base_paths.insert(node_manager.get_node_data_dir(&node_info).await);
         if node_info.status.is_active() {
             num_active_nodes += 1;
 

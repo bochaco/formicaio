@@ -21,6 +21,7 @@ use std::{
     sync::Arc,
     time::Duration,
 };
+use sysinfo::Disks;
 use thiserror::Error;
 use tokio::sync::RwLock;
 
@@ -38,6 +39,7 @@ pub enum NodeManagerError {
 pub struct NodeManager {
     app_ctx: AppContext,
     docker_client: DockerClient,
+    disks: Arc<RwLock<Disks>>,
 }
 
 impl NodeManager {
@@ -45,6 +47,7 @@ impl NodeManager {
         Ok(Self {
             app_ctx,
             docker_client: DockerClient::new().await?,
+            disks: Arc::new(RwLock::new(Disks::new())),
         })
     }
 
@@ -341,15 +344,17 @@ impl NodeManager {
     }
 
     // Get node data dir based on node-mgr root dir and node custom data dir if set
-    pub fn get_node_data_dir(&self, _node_info: &NodeInstanceInfo) -> PathBuf {
-        // TODO !!!
-        PathBuf::new()
+    pub async fn get_node_data_dir(&self, node_info: &NodeInstanceInfo) -> PathBuf {
+        self.docker_client
+            .get_storage_mount_point(&node_info.node_id)
+            .await
+            .unwrap_or_default()
     }
 
     // Get the total and free space of only the mount points where nodes are storing data,
     // i.e. ignore all other mount points which are not being used by nodes to store data.
-    pub async fn get_disks_usage(&self, _base_paths: HashSet<PathBuf>) -> (u64, u64) {
-        // TODO !!!
-        (0, 0)
+    pub async fn get_disks_usage(&self, base_paths: HashSet<PathBuf>) -> (u64, u64) {
+        let mut disks = self.disks.write().await;
+        super::get_disks_usage(&mut disks, base_paths).await
     }
 }

@@ -20,7 +20,7 @@ use futures_util::Stream;
 use leptos::logging;
 use semver::Version;
 use std::{collections::HashSet, path::PathBuf, sync::Arc, time::Duration};
-use sysinfo::{DiskRefreshKind, Disks};
+use sysinfo::Disks;
 use thiserror::Error;
 use tokio::sync::RwLock;
 
@@ -444,7 +444,7 @@ impl NodeManager {
     }
 
     // Get node data dir based on node-mgr root dir and node custom data dir if set
-    pub fn get_node_data_dir(&self, node_info: &NodeInstanceInfo) -> PathBuf {
+    pub async fn get_node_data_dir(&self, node_info: &NodeInstanceInfo) -> PathBuf {
         self.native_nodes.get_node_data_dir(node_info)
     }
 
@@ -452,21 +452,7 @@ impl NodeManager {
     // i.e. ignore all other mount points which are not being used by nodes to store data.
     pub async fn get_disks_usage(&self, base_paths: HashSet<PathBuf>) -> (u64, u64) {
         let mut disks = self.disks.write().await;
-
-        disks.refresh_specifics(true, DiskRefreshKind::nothing().with_storage());
-        let mut total_space = 0;
-        let mut available_space = 0;
-        for disk in disks.list().iter().filter(|d| {
-            base_paths
-                .iter()
-                .find(|p| p.starts_with(d.mount_point()))
-                .is_some()
-        }) {
-            total_space += disk.total_space();
-            available_space += disk.available_space();
-        }
-
-        (total_space, available_space)
+        super::get_disks_usage(&mut disks, base_paths).await
     }
 }
 

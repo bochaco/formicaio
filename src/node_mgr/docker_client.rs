@@ -521,6 +521,20 @@ impl DockerClient {
         Ok((version, peer_id, ips))
     }
 
+    // Get host storage path for the container
+    pub async fn get_storage_mount_point(&self, id: &NodeId) -> Result<PathBuf, DockerClientError> {
+        let url = format!("{DOCKER_CONTAINERS_API}/{id}/json");
+        let all_str = true.to_string();
+        let query = &[("all", all_str.as_str())];
+        let resp_bytes = self.send_request(ReqMethod::Get, &url, query).await?;
+        let container_info: ContainerInfo = serde_json::from_slice(&resp_bytes)?;
+        if let Some(p) = container_info.GraphDriver.Data.get("MergedDir") {
+            Ok(PathBuf::from(p))
+        } else {
+            Err(DockerClientError::CointainerNotFound(id.clone()))
+        }
+    }
+
     // Clears the node's PeerId within the containver and restarts it
     pub async fn regenerate_peer_id_in_container(
         &self,
