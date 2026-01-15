@@ -54,6 +54,7 @@ fn ActionBatchViewNew(batch_info: RwSignal<NodesActionsBatch>) -> impl IntoView 
                     "Batch " {move || batch_info.read().status.to_string()} ":"
                 </h4>
                 <button
+                    title="Cancel batch"
                     class="p-1 text-slate-500 hover:text-white transition-colors"
                     on:click=move |_| spawn_local({
                         context
@@ -107,7 +108,7 @@ fn ActionBatchViewNew(batch_info: RwSignal<NodesActionsBatch>) -> impl IntoView 
                 </div>
                 <div class="flex justify-between items-center mt-1">
                     <span class="text-xs font-bold text-white">{move || progress()}%</span>
-                    <span class="text-xs text-slate-500 font-medium">
+                    <span class="text-xs text-white font-medium">
                         "Time remaining: "
                         {move || {
                             if time_remaining().0 > 0 {
