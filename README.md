@@ -49,8 +49,11 @@ With Formicaio, you can easily run and manage nodes using either a graphical use
 - **View individual node logs** in real-time
 - **Monitor memory and CPU usage** with detailed charts
 - **Sort nodes** by different criteria (creation date, status, connected peers, etc.)
+- **Alternate between tile and list layouts** in the nodes page.
+- **Terminal** to query and action on nodes through a CLI.
 
 <img src="img/screenshot_05.png" width="400" height="212" />
+<img src="img/screenshot_05_b.png" width="400" height="212" />
 <img src="img/screenshot_06.png" width="400" height="212" />
 
 ### 📊 Real-time Monitoring & Statistics
@@ -64,6 +67,7 @@ The Formicaio backend actively monitors your nodes, providing real-time status u
 - **Peers in routing table** (k-buckets)
 - **Shunned peers** tracking
 - **Estimated total nodes** in the network
+- **Disk usage**
 
 <img src="img/screenshot_01_b.png" width="400" height="212" />
 <img src="img/screenshot_01.png" width="400" height="212" />
@@ -74,6 +78,7 @@ The Formicaio backend actively monitors your nodes, providing real-time status u
 A comprehensive settings panel allows you to customize monitoring tasks and node management:
 
 - **Auto-upgrade nodes** when new binary versions are available
+- **Nodes page default layout** between tile and list modes, and page size
 - **Configurable delays** for node upgrades
 - **Version check frequency** for the node binary
 - **Token balance query frequency**
@@ -84,6 +89,7 @@ A comprehensive settings panel allows you to customize monitoring tasks and node
 <img src="img/screenshot_04.png" width="400" height="212" />
 <img src="img/screenshot_04_b.png" width="400" height="212" />
 <img src="img/screenshot_04_c.png" width="400" height="212" />
+<img src="img/screenshot_04_d.png" width="400" height="212" />
 
 ### 🌐 Network Connectivity Options
 
