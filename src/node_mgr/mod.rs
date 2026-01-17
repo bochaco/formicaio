@@ -23,6 +23,9 @@ pub const UPGRADE_NODE_BIN_TIMEOUT_SECS: u64 = 8 * 60; // 8 mins
 // Get the total and free space of only the mount points where nodes are storing data,
 // i.e. ignore all other mount points which are not being used by nodes to store data.
 async fn get_disks_usage(disks: &mut Disks, base_paths: HashSet<PathBuf>) -> (u64, u64) {
+    const GB_CONVERTION: f64 = 1_073_741_824.0;
+    base_paths.iter().for_each(|p| println!(">> {p:?}"));
+
     disks.refresh_specifics(true, DiskRefreshKind::nothing().with_storage());
     let indexed_disks = disks
         .list()
@@ -42,11 +45,23 @@ async fn get_disks_usage(disks: &mut Disks, base_paths: HashSet<PathBuf>) -> (u6
         } else {
             base_path
         };
+        println!(">> PATH: {canonical_path:?}");
 
         for (index, disk) in indexed_disks.iter() {
+            println!(
+                ">> {:?} {} ({:.2}) {} ({:.2}): {:?}",
+                disk.name(),
+                disk.total_space(),
+                disk.total_space() as f64 / GB_CONVERTION,
+                disk.available_space(),
+                disk.available_space() as f64 / GB_CONVERTION,
+                disk.mount_point()
+            );
+
             let mount_point = disk.mount_point();
             if canonical_path.starts_with(mount_point) {
                 let match_len = mount_point.as_os_str().len();
+                println!("## POTENTIAL: {match_len} {mount_point:?}");
                 if best_match.is_none_or(|(_, len, _)| match_len > len) {
                     best_match = Some((disk, match_len, *index));
                 }
@@ -54,12 +69,22 @@ async fn get_disks_usage(disks: &mut Disks, base_paths: HashSet<PathBuf>) -> (u6
         }
 
         if let Some((disk, _, index)) = best_match {
+            println!(">> TOTAL {:.2}", disk.total_space() as f64 / GB_CONVERTION);
             if disks_matched.insert(index) {
                 total_space += disk.total_space();
                 available_space += disk.available_space();
+                println!(">> TOTAL ADDED {:.2}", total_space as f64 / GB_CONVERTION);
             }
+        } else {
+            println!(">> Could not determine disk space for the given path.");
         };
     }
+
+    println!(
+        ">> {:.2} {:.2}",
+        total_space as f64 / GB_CONVERTION,
+        available_space as f64 / GB_CONVERTION
+    );
 
     (total_space, available_space)
 }
