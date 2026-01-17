@@ -113,7 +113,7 @@ impl NativeNodes {
     // Create directory to hold node's data and cloned node binary
     pub async fn new_node(&self, node_info: &NodeInstanceInfo) -> Result<(), NativeNodesError> {
         let node_bin_path = self.root_dir.join(NODE_BIN_NAME);
-        let new_node_data_dir = self.get_node_data_dir(node_info);
+        let new_node_data_dir = self.get_node_data_dir(node_info, true);
 
         create_dir_all(&new_node_data_dir).await?;
 
@@ -160,7 +160,7 @@ impl NativeNodes {
                     "rewards address".to_string(),
                 ))?;
 
-        let node_data_dir = self.get_node_data_dir(node_info);
+        let node_data_dir = self.get_node_data_dir(node_info, true);
         let node_bin_path = node_data_dir.join(NODE_BIN_NAME);
         let bootstrap_cache_dir = self.root_dir.join(DEFAULT_BOOTSTRAP_CACHE_FOLDER);
         let log_output_dir = node_data_dir.join(DEFAULT_LOGS_FOLDER);
@@ -382,29 +382,34 @@ impl NativeNodes {
 
     // Remove node's data dir
     pub async fn remove_node_dir(&self, node_info: &NodeInstanceInfo) {
-        let node_data_dir = self.get_node_data_dir(node_info);
+        let node_data_dir = self.get_node_data_dir(node_info, true);
         if let Err(err) = remove_dir_all(&node_data_dir).await {
             logging::warn!("Failed to remove node's dir {node_data_dir:?}: {err:?}");
         }
     }
 
     // Get node data dir based on node-mgr root dir and node custom data dir if set
-    pub fn get_node_data_dir(&self, node_info: &NodeInstanceInfo) -> PathBuf {
-        let node_id_str = node_info.node_id.to_string();
-        if let Some(custom_path) = &node_info.data_dir_path {
+    pub fn get_node_data_dir(
+        &self,
+        node_info: &NodeInstanceInfo,
+        include_node_id: bool,
+    ) -> PathBuf {
+        let data_dir = if let Some(custom_path) = &node_info.data_dir_path {
             if custom_path.display().to_string().is_empty() {
-                self.root_dir
-                    .join(DEFAULT_NODE_DATA_FOLDER)
-                    .join(node_id_str)
+                self.root_dir.join(DEFAULT_NODE_DATA_FOLDER)
             } else if custom_path.is_absolute() {
-                custom_path.join(node_id_str)
+                custom_path.to_path_buf()
             } else {
-                self.root_dir.join(custom_path).join(node_id_str)
+                self.root_dir.join(custom_path)
             }
         } else {
-            self.root_dir
-                .join(DEFAULT_NODE_DATA_FOLDER)
-                .join(node_id_str)
+            self.root_dir.join(DEFAULT_NODE_DATA_FOLDER)
+        };
+
+        if include_node_id {
+            data_dir.join(node_info.node_id.to_string())
+        } else {
+            data_dir
         }
     }
 
@@ -465,7 +470,7 @@ impl NativeNodes {
         node_info: Option<&NodeInstanceInfo>,
     ) -> Result<Version, NativeNodesError> {
         let node_bin_path = if let Some(info) = node_info {
-            let node_data_dir = self.get_node_data_dir(info);
+            let node_data_dir = self.get_node_data_dir(info, true);
             node_data_dir.join(NODE_BIN_NAME)
         } else {
             self.root_dir.join(NODE_BIN_NAME)
@@ -500,7 +505,7 @@ impl NativeNodes {
         &self,
         node_info: &NodeInstanceInfo,
     ) -> Result<String, NativeNodesError> {
-        let node_data_dir = self.get_node_data_dir(node_info);
+        let node_data_dir = self.get_node_data_dir(node_info, true);
         let sk_file_path = node_data_dir.join("secret-key");
         let mut file = File::open(sk_file_path).await?;
         let mut key_str = Vec::new();
@@ -598,7 +603,7 @@ impl NativeNodes {
         );
 
         // we remove 'secret-key' file so the node will re-generate it when restarted.
-        let node_data_dir = self.get_node_data_dir(node_info);
+        let node_data_dir = self.get_node_data_dir(node_info, true);
         let file_path = node_data_dir.join("secret-key");
         remove_file(file_path).await?;
 
@@ -624,7 +629,7 @@ impl NativeNodes {
             node_info.node_id
         );
 
-        let node_data_dir = self.get_node_data_dir(node_info);
+        let node_data_dir = self.get_node_data_dir(node_info, true);
         let log_file_path = node_data_dir.join(DEFAULT_LOGS_FOLDER).join("antnode.log");
 
         let mut file = File::open(log_file_path).await?;

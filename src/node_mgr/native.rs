@@ -445,7 +445,7 @@ impl NodeManager {
 
     // Get node data dir based on node-mgr root dir and node custom data dir if set
     pub async fn get_node_data_dir(&self, node_info: &NodeInstanceInfo) -> PathBuf {
-        self.native_nodes.get_node_data_dir(node_info)
+        self.native_nodes.get_node_data_dir(node_info, false)
     }
 
     // Get the total and free space of only the mount points where nodes are storing data,
