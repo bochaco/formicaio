@@ -28,6 +28,7 @@ use tokio::{
     sync::RwLock,
     time::sleep,
 };
+use walkdir::WalkDir;
 
 // Name of the node binary used to launch new nodes processes
 #[cfg(windows)]
@@ -388,12 +389,8 @@ impl NativeNodes {
         }
     }
 
-    // Get node data dir based on node-mgr root dir and node custom data dir if set
-    pub fn get_node_data_dir(
-        &self,
-        node_info: &NodeInstanceInfo,
-        include_node_id: bool,
-    ) -> PathBuf {
+    // Helper to get node data dir based on node-mgr root dir and node custom data dir if set
+    fn get_node_data_dir(&self, node_info: &NodeInstanceInfo, include_node_id: bool) -> PathBuf {
         let data_dir = if let Some(custom_path) = &node_info.data_dir_path {
             if custom_path.display().to_string().is_empty() {
                 self.root_dir.join(DEFAULT_NODE_DATA_FOLDER)
@@ -411,6 +408,26 @@ impl NativeNodes {
         } else {
             data_dir
         }
+    }
+
+    // Get disk used by node in bytes, plus its base data dir
+    pub fn get_used_disk_space(&self, node_info: &NodeInstanceInfo) -> (u64, PathBuf) {
+        let mut total_size = 0u64;
+        let base_data_dir = self.get_node_data_dir(node_info, false);
+        let node_data_dir = base_data_dir.join(node_info.node_id.to_string());
+
+        for entry in WalkDir::new(&node_data_dir)
+            .into_iter()
+            .filter_map(|e| e.ok())
+        {
+            if let Ok(meta) = entry.metadata() {
+                if meta.is_file() {
+                    total_size += meta.len();
+                }
+            }
+        }
+
+        (total_size, base_data_dir)
     }
 
     // Retrieve version of the node binary and its peer id

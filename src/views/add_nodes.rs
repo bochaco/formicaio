@@ -23,7 +23,7 @@ pub fn AddNodesForm(is_open: RwSignal<bool>) -> impl IntoView {
     let active_tab = RwSignal::new(0);
 
     view! {
-        <div class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+        <div class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm animate-in fade-in duration-300">
             <div class="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
                 <div class="p-6 border-b border-slate-800 flex items-center justify-between">
                     <h3 class="text-xl font-bold">Add nodes</h3>

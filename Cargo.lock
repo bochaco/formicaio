@@ -2182,6 +2182,7 @@ dependencies = [
  "tower",
  "tower-http",
  "url",
+ "walkdir",
  "wasm-bindgen",
  "wasm-bindgen-futures",
 ]

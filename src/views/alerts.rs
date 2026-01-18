@@ -88,7 +88,7 @@ pub fn OfflineMsg() -> impl IntoView {
     let context = expect_context::<ClientGlobalState>();
     view! {
         <Show when=move || !context.is_online.get()>
-            <div class="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-500">
+            <div class="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm animate-in fade-in duration-500">
                 <div class="bg-slate-900 border border-rose-500/30 w-full max-w-md rounded-2xl overflow-hidden shadow-2xl shadow-rose-500/10 flex flex-col items-center text-center p-8 gap-4">
                     <div class="w-16 h-16 rounded-full bg-rose-500/10 border-4 border-rose-500/20 flex items-center justify-center text-rose-500">
                         <IconOffline />

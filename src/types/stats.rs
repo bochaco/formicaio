@@ -26,6 +26,8 @@ pub struct Stats {
     pub total_disk_space: u64,
     /// Available/free disk size/space in bytes
     pub available_disk_space: u64,
+    /// Total disk size/space in bytes used by all nodes
+    pub used_disk_space: u64,
 }
 
 /// Node stats formatted for UmbrelOS widgets.

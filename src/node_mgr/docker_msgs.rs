@@ -28,13 +28,6 @@ pub struct Container {
     pub NetworkSettings: Networks,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[allow(non_snake_case)]
-pub struct ContainerInfo {
-    pub Id: NodeId,
-    pub GraphDriver: GraphDriverData,
-}
-
 // some helper methods to extract values from it
 impl Container {
     pub fn port(&self) -> Option<u16> {
@@ -132,13 +125,6 @@ impl From<&ContainerState> for NodeStatus {
             }
         }
     }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[allow(non_snake_case)]
-pub struct GraphDriverData {
-    pub Name: String,
-    pub Data: HashMap<String, String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

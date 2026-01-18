@@ -19,8 +19,8 @@ use chrono::{DateTime, Utc};
 use futures_util::Stream;
 use leptos::logging;
 use semver::Version;
-use std::{collections::HashSet, path::PathBuf, sync::Arc, time::Duration};
-use sysinfo::Disks;
+use std::{path::PathBuf, sync::Arc, time::Duration};
+use sysinfo::{DiskRefreshKind, Disks};
 use thiserror::Error;
 use tokio::sync::RwLock;
 
@@ -443,16 +443,34 @@ impl NodeManager {
         Ok(stream)
     }
 
-    // Get node data dir based on node-mgr root dir and node custom data dir if set
-    pub async fn get_node_data_dir(&self, node_info: &NodeInstanceInfo) -> PathBuf {
-        self.native_nodes.get_node_data_dir(node_info, false)
+    // Get disk used by node in bytes, plus its base data dir
+    pub async fn get_used_disk_space(&self, node_info: &NodeInstanceInfo) -> (u64, PathBuf) {
+        self.native_nodes.get_used_disk_space(node_info)
     }
 
-    // Get the total and free space of only the mount points where nodes are storing data,
-    // i.e. ignore all other mount points which are not being used by nodes to store data.
-    pub async fn get_disks_usage(&self, base_paths: HashSet<PathBuf>) -> (u64, u64) {
+    // Get current system disks usage
+    pub async fn get_disks_usage(
+        &self,
+        _node_id: &NodeId,
+    ) -> Result<Vec<(u64, u64, PathBuf)>, NodeManagerError> {
         let mut disks = self.disks.write().await;
-        super::get_disks_usage(&mut disks, base_paths).await
+
+        disks.refresh_specifics(true, DiskRefreshKind::nothing().with_storage());
+        Ok(disks
+            .list()
+            .iter()
+            .filter_map(|d| {
+                if d.total_space() > 0 {
+                    Some((
+                        d.total_space(),
+                        d.available_space(),
+                        d.mount_point().to_path_buf(),
+                    ))
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>())
     }
 }
 

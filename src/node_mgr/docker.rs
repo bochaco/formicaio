@@ -15,13 +15,7 @@ use chrono::Utc;
 use futures_util::Stream;
 use leptos::logging;
 use semver::Version;
-use std::{
-    collections::{HashMap, HashSet},
-    path::PathBuf,
-    sync::Arc,
-    time::Duration,
-};
-use sysinfo::Disks;
+use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
 use thiserror::Error;
 use tokio::sync::RwLock;
 
@@ -39,7 +33,6 @@ pub enum NodeManagerError {
 pub struct NodeManager {
     app_ctx: AppContext,
     docker_client: DockerClient,
-    disks: Arc<RwLock<Disks>>,
 }
 
 impl NodeManager {
@@ -47,7 +40,6 @@ impl NodeManager {
         Ok(Self {
             app_ctx,
             docker_client: DockerClient::new().await?,
-            disks: Arc::new(RwLock::new(Disks::new())),
         })
     }
 
@@ -343,18 +335,29 @@ impl NodeManager {
         Ok(stream)
     }
 
-    // Get node data dir based on node-mgr root dir and node custom data dir if set
-    pub async fn get_node_data_dir(&self, node_info: &NodeInstanceInfo) -> PathBuf {
-        self.docker_client
-            .get_storage_mount_point(&node_info.node_id)
+    // Get disk used by node in bytes, plus its base data dir
+    pub async fn get_used_disk_space(&self, node_info: &NodeInstanceInfo) -> (u64, PathBuf) {
+        let used_space = self
+            .docker_client
+            .get_used_disk_space(&node_info.node_id)
             .await
-            .unwrap_or_default()
+            .unwrap_or_default();
+        // The path returned here should match with the one pass in
+        // the formica.Dockerfile to the binary node with the --root-dir arg.
+        (used_space, PathBuf::from("/app/node_data"))
     }
 
-    // Get the total and free space of only the mount points where nodes are storing data,
-    // i.e. ignore all other mount points which are not being used by nodes to store data.
-    pub async fn get_disks_usage(&self, base_paths: HashSet<PathBuf>) -> (u64, u64) {
-        let mut disks = self.disks.write().await;
-        super::get_disks_usage(&mut disks, base_paths).await
+    // Get disk usage from container in bytes
+    pub async fn get_disks_usage(
+        &self,
+        node_id: &NodeId,
+    ) -> Result<Vec<(u64, u64, PathBuf)>, NodeManagerError> {
+        Ok(self
+            .docker_client
+            .get_disks_usage(node_id)
+            .await?
+            .into_iter()
+            .filter(|(total_space, _, _)| *total_space > 0)
+            .collect::<Vec<_>>())
     }
 }

@@ -178,9 +178,19 @@ pub async fn update_nodes_info(
     let mut bin_version = HashSet::<String>::new();
 
     let mut base_paths = HashSet::new();
+    let mut used_disk_space = 0u64;
+    let mut disks_usage = None;
 
     for mut node_info in nodes.into_iter() {
-        base_paths.insert(node_manager.get_node_data_dir(&node_info).await);
+        if disks_usage.is_none() {
+            if let Ok(d) = node_manager.get_disks_usage(&node_info.node_id).await {
+                disks_usage = Some(d);
+            }
+        }
+        let (used_bytes, path) = node_manager.get_used_disk_space(&node_info).await;
+        used_disk_space += used_bytes;
+        base_paths.insert(path);
+
         if node_info.status.is_active() {
             num_active_nodes += 1;
 
@@ -262,7 +272,10 @@ pub async fn update_nodes_info(
 
     update_lcd_stats(lcd_stats, &updated_vals).await;
 
-    let (total_space, available_space) = node_manager.get_disks_usage(base_paths).await;
+    let (total_space, available_space) = match disks_usage {
+        Some(d) => crate::node_mgr::get_total_and_free_disk_space(d, base_paths),
+        None => (0, 0),
+    };
 
     let mut guard = app_ctx.stats.write().await;
     guard.total_nodes = num_nodes;
@@ -274,6 +287,7 @@ pub async fn update_nodes_info(
     guard.stored_records = records;
     guard.relevant_records = relevant_records;
     guard.total_disk_space = total_space;
+    guard.used_disk_space = used_disk_space;
     guard.available_disk_space = available_space;
 }
 

@@ -836,7 +836,7 @@ pub fn IconPeers(
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
-            stroke-width="2.2"
+            stroke-width="1.5"
             stroke-linecap="round"
             stroke-linejoin="round"
         >
@@ -845,10 +845,10 @@ pub fn IconPeers(
             <line x1="12" y1="12" x2="14" y2="20"></line>
             <line x1="12" y1="12" x2="5" y2="14"></line>
 
-            <circle cx="12" cy="12" r="2.0" fill="currentColor"></circle>
-            <circle cx="7" cy="6" r="1.5" fill="currentColor"></circle>
-            <circle cx="17" cy="4" r="1.5" fill="currentColor"></circle>
-            <circle cx="14" cy="20" r="1.5" fill="currentColor"></circle>
+            <circle cx="12" cy="12" r="1.5" fill="currentColor"></circle>
+            <circle cx="7" cy="6" r="1" fill="currentColor"></circle>
+            <circle cx="17" cy="4" r="1" fill="currentColor"></circle>
+            <circle cx="14" cy="20" r="1" fill="currentColor"></circle>
             <circle cx="5" cy="14" r="1.0" fill="currentColor"></circle>
         </svg>
     }

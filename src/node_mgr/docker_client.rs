@@ -18,6 +18,7 @@ use serde::Serialize;
 use std::{
     collections::HashMap,
     env,
+    io::{BufRead, Cursor},
     path::{Path, PathBuf},
     time::Duration,
 };
@@ -77,6 +78,8 @@ pub enum DockerClientError {
     SerdeJson(#[from] serde_json::Error),
     #[error(transparent)]
     Http(#[from] http::Error),
+    #[error(transparent)]
+    CannotParseIntValue(#[from] std::num::ParseIntError),
 }
 
 // Type of request supported by internal helpers herein.
@@ -521,18 +524,44 @@ impl DockerClient {
         Ok((version, peer_id, ips))
     }
 
-    // Get host storage path for the container
-    pub async fn get_storage_mount_point(&self, id: &NodeId) -> Result<PathBuf, DockerClientError> {
-        let url = format!("{DOCKER_CONTAINERS_API}/{id}/json");
-        let all_str = true.to_string();
-        let query = &[("all", all_str.as_str())];
-        let resp_bytes = self.send_request(ReqMethod::Get, &url, query).await?;
-        let container_info: ContainerInfo = serde_json::from_slice(&resp_bytes)?;
-        if let Some(p) = container_info.GraphDriver.Data.get("MergedDir") {
-            Ok(PathBuf::from(p))
-        } else {
-            Err(DockerClientError::CointainerNotFound(id.clone()))
+    // Get disk used by node in bytes
+    pub async fn get_used_disk_space(&self, id: &NodeId) -> Result<u64, DockerClientError> {
+        let cmd = format!("du -sb /app/node_data | awk '{{print $1}}'");
+        let (_, resp_str) = self.exec_in_container(id, cmd, "").await?;
+        let bytes = resp_str
+            .replace(['\n', '\r'], "")
+            .parse::<u64>()
+            .unwrap_or_default();
+        Ok(bytes)
+    }
+
+    // Get disk usage from container in bytes
+    pub async fn get_disks_usage(
+        &self,
+        id: &NodeId,
+    ) -> Result<Vec<(u64, u64, PathBuf)>, DockerClientError> {
+        let cmd = "df -B 1 | tail -n +2 | awk '{{print $2, $4, $6}}'".to_string();
+        let (_, resp_str) = self.exec_in_container(id, cmd, "").await?;
+        let reader = Cursor::new(resp_str).lines();
+        let mut usage = vec![];
+        for line in reader {
+            match line {
+                Ok(content) => {
+                    let parts: Vec<String> =
+                        content.split_whitespace().map(|s| s.to_string()).collect();
+                    if parts.len() == 3 {
+                        usage.push((
+                            parts[0].parse::<u64>()?,
+                            parts[1].parse::<u64>()?,
+                            PathBuf::from(parts[2].clone()),
+                        ));
+                    }
+                }
+                Err(_) => {}
+            }
         }
+
+        Ok(usage)
     }
 
     // Clears the node's PeerId within the containver and restarts it
@@ -595,7 +624,9 @@ impl DockerClient {
             .send_request(ReqMethod::post(&exec_cmd)?, &url, &[])
             .await?;
         let exec_result: ContainerCreateExecSuccess = serde_json::from_slice(&resp_bytes)?;
-        logging::log!("Command to {cmd_desc} created successfully: {exec_result:#?}");
+        if !cmd_desc.is_empty() {
+            logging::log!("Command to {cmd_desc} created successfully: {exec_result:#?}");
+        }
         let exec_id = exec_result.Id;
         // let's now start the exec cmd created
         let url = format!("{DOCKER_EXEC_API}/{exec_id}/start");
