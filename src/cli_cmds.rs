@@ -27,6 +27,7 @@ use std::{
 };
 use structopt::StructOpt;
 
+const MB_CONVERTION: f64 = 1_048_576.0;
 const GB_CONVERTION: f64 = 1_073_741_824.0;
 
 #[derive(StructOpt, Debug)]
@@ -776,17 +777,6 @@ impl CliCmdResponse {
                 tables.push(table);
             }
             CliCmdResponse::Stats(stats) => {
-                let used = stats
-                    .total_disk_space
-                    .saturating_sub(stats.available_disk_space);
-                let percentage = if stats.total_disk_space > 0 {
-                    (used as f64 * 100.0) / stats.total_disk_space as f64
-                } else {
-                    0f64
-                };
-                let total_gb = stats.total_disk_space as f64 / GB_CONVERTION;
-                let used_gb = used as f64 / GB_CONVERTION;
-
                 let mut table = Table::new();
                 table.set_titles(row![
                     "Total balance",
@@ -794,15 +784,22 @@ impl CliCmdResponse {
                     "Active nodes",
                     "Stored records",
                     "Estimated network size",
-                    "Disk usage"
+                    "Nodes disk usage"
                 ]);
+
+                let used_disk_space = if stats.used_disk_space as f64 > GB_CONVERTION {
+                    format!("{:.2} GB", stats.used_disk_space as f64 / GB_CONVERTION)
+                } else {
+                    format!("{:.2} MB", stats.used_disk_space as f64 / MB_CONVERTION)
+                };
+
                 table.add_row(row![
                     truncated_balance_str(stats.total_balance),
                     stats.connected_peers,
                     format!("{}/{}", stats.active_nodes, stats.total_nodes),
                     stats.stored_records,
                     stats.estimated_net_size,
-                    format!("{used_gb:.2} GB ({percentage:.2}%) / {total_gb:.2} GB")
+                    used_disk_space
                 ]);
                 tables.push(table);
             }
