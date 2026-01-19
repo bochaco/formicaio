@@ -52,8 +52,8 @@ With Formicaio, you can easily run and manage nodes using either a graphical use
 - **Alternate between tile and list layouts** in the nodes page.
 - **Terminal** to query and action on nodes through a CLI.
 
-<img src="img/screenshot_05.png" width="400" height="212" />
-<img src="img/screenshot_05_b.png" width="400" height="212" />
+<img src="img/screenshot_01.png" width="400" height="212" />
+<img src="img/screenshot_01_c.png" width="400" height="212" />
 <img src="img/screenshot_06.png" width="400" height="212" />
 
 ### 📊 Real-time Monitoring & Statistics
@@ -69,8 +69,8 @@ The Formicaio backend actively monitors your nodes, providing real-time status u
 - **Estimated total nodes** in the network
 - **Disk usage**
 
-<img src="img/screenshot_01_b.png" width="400" height="212" />
-<img src="img/screenshot_01.png" width="400" height="212" />
+<img src="img/screenshot_05.png" width="400" height="212" />
+<img src="img/screenshot_05_b.png" width="400" height="212" />
 <img src="img/screenshot_03.png" width="400" height="212" />
 
 ### ⚙️ Customizable Settings
