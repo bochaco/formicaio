@@ -8,6 +8,7 @@ pub struct AppSettings {
     pub nodes_auto_upgrade_delay: Duration,
     pub node_bin_version_polling_freq: Duration,
     pub nodes_metrics_polling_freq: Duration,
+    pub disks_usage_check_freq: Duration,
     pub rewards_balances_retrieval_freq: Duration,
     pub l2_network_rpc_url: String,
     pub token_contract_address: String,
@@ -29,6 +30,8 @@ impl Default for AppSettings {
             node_bin_version_polling_freq: Duration::from_secs(60 * 60 * 6),
             // How often to fetch metrics and node info from active/running nodes
             nodes_metrics_polling_freq: Duration::from_secs(5),
+            // How often to check nodes disks usage
+            disks_usage_check_freq: Duration::from_secs(60),
             // Retrieve balances every 15 mins.
             rewards_balances_retrieval_freq: Duration::from_secs(60 * 15),
             // Arbitrum One network.

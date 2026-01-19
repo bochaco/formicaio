@@ -420,10 +420,10 @@ impl NativeNodes {
             .into_iter()
             .filter_map(|e| e.ok())
         {
-            if let Ok(meta) = entry.metadata() {
-                if meta.is_file() {
-                    total_size += meta.len();
-                }
+            if let Ok(meta) = entry.metadata()
+                && meta.is_file()
+            {
+                total_size += meta.len();
             }
         }
 

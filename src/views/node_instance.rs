@@ -701,7 +701,7 @@ fn ButtonStopStart(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
     view! {
         <button
             title=tip
-            prop:disabled=move || is_btn_disabled()
+            prop:disabled=is_btn_disabled
             class=move || {
                 format!(
                     "p-2 {} rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent",

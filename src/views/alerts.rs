@@ -62,10 +62,7 @@ pub fn AlertMsg() -> impl IntoView {
 }
 
 #[component]
-fn NotificationToast(
-    notification: Notification,
-    on_click: impl Fn() -> () + 'static,
-) -> impl IntoView {
+fn NotificationToast(notification: Notification, on_click: impl Fn() + 'static) -> impl IntoView {
     view! {
         <div class=format!(
             "w-full max-w-sm rounded-2xl p-4 border flex items-start gap-4 shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-top-4 duration-300 {}",

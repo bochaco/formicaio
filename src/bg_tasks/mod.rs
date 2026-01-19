@@ -22,7 +22,10 @@ use alloy::sol;
 use lcd::display_stats_on_lcd;
 use leptos::logging;
 use std::{collections::HashMap, sync::Arc};
-use tasks::{balance_checker_task, check_node_bin_version, prune_metrics, update_nodes_info};
+use tasks::{
+    balance_checker_task, check_node_bin_version, prune_metrics, update_disks_usage,
+    update_nodes_info,
+};
 use tasks_ctx::TasksContext;
 use tokio::{
     select,
@@ -184,6 +187,19 @@ pub fn spawn_bg_tasks(app_ctx: AppContext, node_manager: NodeManager, settings: 
                     // reset interval to start next period from this instant,
                     // regardless how long the above polling task lasted.
                     ctx.nodes_metrics_polling.reset_after(ctx.nodes_metrics_polling.period());
+                }
+                _ = ctx.disks_usage_check.tick() => {
+                    // we don't spawn a task for this one just in case it's taking
+                    // too long to complete and we may start overwhelming the backend
+                    // with multiple overlapping tasks being launched.
+                    update_disks_usage(
+                        &node_manager,
+                        app_ctx.clone(),
+                        &lcd_stats
+                    ).await;
+                    // reset interval to start next period from this instant,
+                    // regardless how long the above polling task lasted.
+                    ctx.disks_usage_check.reset_after(ctx.disks_usage_check.period());
                 }
             }
         }

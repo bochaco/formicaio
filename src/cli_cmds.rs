@@ -776,11 +776,9 @@ impl CliCmdResponse {
                 tables.push(table);
             }
             CliCmdResponse::Stats(stats) => {
-                let used = if stats.total_disk_space > stats.available_disk_space {
-                    stats.total_disk_space - stats.available_disk_space
-                } else {
-                    0
-                };
+                let used = stats
+                    .total_disk_space
+                    .saturating_sub(stats.available_disk_space);
                 let percentage = if stats.total_disk_space > 0 {
                     (used as f64 * 100.0) / stats.total_disk_space as f64
                 } else {

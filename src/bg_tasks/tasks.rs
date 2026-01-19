@@ -21,6 +21,7 @@ use leptos::logging;
 use semver::Version;
 use std::{
     collections::{HashMap, HashSet},
+    path::PathBuf,
     sync::Arc,
 };
 use tokio::{
@@ -39,6 +40,7 @@ const LCD_LABEL_ACTIVE_NODES: &str = "Active nodes:";
 const LCD_LABEL_STORED_RECORDS: &str = "Stored records:";
 const LCD_LABEL_BIN_VERSION: &str = "Binary version:";
 const LCD_LABEL_BALANCE: &str = "Total balance:";
+const LCD_LABEL_NODES_DISK_USAGE: &str = "Disk usage:";
 
 // Check latest version of node binary and upgrade nodes
 // automatically if auto-upgrade was enabled by the user.
@@ -177,20 +179,7 @@ pub async fn update_nodes_info(
     let mut shunned_count = 0;
     let mut bin_version = HashSet::<String>::new();
 
-    let mut base_paths = HashSet::new();
-    let mut used_disk_space = 0u64;
-    let mut disks_usage = None;
-
     for mut node_info in nodes.into_iter() {
-        if disks_usage.is_none() {
-            if let Ok(d) = node_manager.get_disks_usage(&node_info.node_id).await {
-                disks_usage = Some(d);
-            }
-        }
-        let (used_bytes, path) = node_manager.get_used_disk_space(&node_info).await;
-        used_disk_space += used_bytes;
-        base_paths.insert(path);
-
         if node_info.status.is_active() {
             num_active_nodes += 1;
 
@@ -272,11 +261,6 @@ pub async fn update_nodes_info(
 
     update_lcd_stats(lcd_stats, &updated_vals).await;
 
-    let (total_space, available_space) = match disks_usage {
-        Some(d) => crate::node_mgr::get_total_and_free_disk_space(d, base_paths),
-        None => (0, 0),
-    };
-
     let mut guard = app_ctx.stats.write().await;
     guard.total_nodes = num_nodes;
     guard.active_nodes = num_active_nodes;
@@ -286,6 +270,53 @@ pub async fn update_nodes_info(
     guard.estimated_net_size = estimated_net_size;
     guard.stored_records = records;
     guard.relevant_records = relevant_records;
+}
+
+// Check current nodes disks usage
+pub async fn update_disks_usage(
+    node_manager: &NodeManager,
+    app_ctx: AppContext,
+    lcd_stats: &Arc<RwLock<HashMap<String, String>>>,
+) {
+    let ts = Utc::now();
+    let nodes = app_ctx.db_client.get_nodes_list().await;
+
+    let num_nodes = nodes.len();
+    if num_nodes > 0 {
+        logging::log!("[{ts}] Checking nodes disk usage for {num_nodes} node/s ...");
+    }
+
+    let mut base_paths = HashSet::new();
+    let mut used_disk_space = 0u64;
+    let mut disks_usage = None;
+
+    for (node_id, node_info) in nodes.iter() {
+        if disks_usage.is_none()
+            && let Ok(d) = node_manager.get_disks_usage(node_id).await
+        {
+            disks_usage = Some(d);
+        }
+
+        let (used_bytes, path) = node_manager.get_used_disk_space(node_info).await;
+        used_disk_space += used_bytes;
+        base_paths.insert(path);
+
+        // store up to date values onto local DB cache
+        //update_node_metadata(&node_info, &app_ctx.db_client, &app_ctx.node_status_locked).await;
+    }
+
+    let updated_vals = vec![(
+        LCD_LABEL_NODES_DISK_USAGE,
+        format!("{:.2} GB", used_disk_space as f64 / 1_073_741_824.0),
+    )];
+    update_lcd_stats(lcd_stats, &updated_vals).await;
+
+    let (total_space, available_space) = match disks_usage {
+        Some(d) => get_total_and_free_disk_space(d, base_paths),
+        None => (0, 0),
+    };
+
+    let mut guard = app_ctx.stats.write().await;
     guard.total_disk_space = total_space;
     guard.used_disk_space = used_disk_space;
     guard.available_disk_space = available_space;
@@ -527,4 +558,42 @@ async fn remove_lcd_stats(lcd_stats: &Arc<RwLock<HashMap<String, String>>>, labe
     labels.iter().for_each(|label| {
         let _ = s.remove(*label);
     });
+}
+
+// Get the total and free space of only the mount points matching any
+// of the given base paths, i.e. ignore all other mount points.
+fn get_total_and_free_disk_space(
+    indexed_disks: Vec<(u64, u64, PathBuf)>,
+    base_paths: HashSet<PathBuf>,
+) -> (u64, u64) {
+    let mut total_space = 0;
+    let mut available_space = 0;
+    let mut disks_matched = std::collections::HashSet::<usize>::new();
+
+    for base_path in base_paths.into_iter() {
+        let mut best_match: Option<(u64, u64, usize, usize)> = None;
+        let canonical_path = if let Ok(p) = base_path.canonicalize() {
+            p
+        } else {
+            base_path
+        };
+
+        for (index, (total, available, mount_point)) in indexed_disks.iter().enumerate() {
+            if canonical_path.starts_with(mount_point) {
+                let match_len = mount_point.as_os_str().len();
+                if best_match.is_none_or(|(_, _, len, _)| match_len > len) {
+                    best_match = Some((*total, *available, match_len, index));
+                }
+            }
+        }
+
+        if let Some((total, available, _, index)) = best_match
+            && disks_matched.insert(index)
+        {
+            total_space += total;
+            available_space += available;
+        };
+    }
+
+    (total_space, available_space)
 }

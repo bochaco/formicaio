@@ -45,6 +45,7 @@ struct CachedSettings {
     nodes_auto_upgrade_delay_secs: u64,
     node_bin_version_polling_freq_secs: u64,
     nodes_metrics_polling_freq_secs: u64,
+    disks_usage_check_freq: u64,
     rewards_balances_retrieval_freq_secs: u64,
     l2_network_rpc_url: String,
     token_contract_address: String,
@@ -633,6 +634,7 @@ impl DbClient {
                     s.node_bin_version_polling_freq_secs,
                 ),
                 nodes_metrics_polling_freq: Duration::from_secs(s.nodes_metrics_polling_freq_secs),
+                disks_usage_check_freq: Duration::from_secs(s.disks_usage_check_freq),
                 rewards_balances_retrieval_freq: Duration::from_secs(
                     s.rewards_balances_retrieval_freq_secs,
                 ),
@@ -666,6 +668,7 @@ impl DbClient {
             nodes_auto_upgrade_delay_secs = ?, \
             node_bin_version_polling_freq_secs = ?, \
             nodes_metrics_polling_freq_secs = ?, \
+            disks_usage_check_freq = ?, \
             rewards_balances_retrieval_freq_secs = ?, \
             l2_network_rpc_url = ?, \
             token_contract_address = ?, \
@@ -679,6 +682,7 @@ impl DbClient {
         .bind(settings.nodes_auto_upgrade_delay.as_secs() as i64)
         .bind(settings.node_bin_version_polling_freq.as_secs() as i64)
         .bind(settings.nodes_metrics_polling_freq.as_secs() as i64)
+        .bind(settings.disks_usage_check_freq.as_secs() as i64)
         .bind(settings.rewards_balances_retrieval_freq.as_secs() as i64)
         .bind(settings.l2_network_rpc_url.clone())
         .bind(settings.token_contract_address.clone())

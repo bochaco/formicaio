@@ -119,7 +119,7 @@ pub fn PaginationView() -> impl IntoView {
 #[component]
 fn PaginationButton(
     title: &'static str,
-    on_click: impl Fn() -> () + 'static,
+    on_click: impl Fn() + 'static,
     #[prop(default = Signal::stored(false))] disabled: Signal<bool>,
     children: Children,
 ) -> impl IntoView {

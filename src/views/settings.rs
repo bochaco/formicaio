@@ -28,6 +28,7 @@ struct FormContent {
     bin_version_polling_freq: RwSignal<Result<u64, (String, String)>>,
     balances_retrieval_freq: RwSignal<Result<u64, (String, String)>>,
     metrics_polling_freq: RwSignal<Result<u64, (String, String)>>,
+    disks_usage_check_freq: RwSignal<Result<u64, (String, String)>>,
     l2_network_rpc_url: RwSignal<Result<String, (String, String)>>,
     token_contract_address: RwSignal<Result<String, (String, String)>>,
     lcd_enabled: RwSignal<bool>,
@@ -50,6 +51,7 @@ impl FormContent {
                 .rewards_balances_retrieval_freq
                 .as_secs())),
             metrics_polling_freq: RwSignal::new(Ok(settings.nodes_metrics_polling_freq.as_secs())),
+            disks_usage_check_freq: RwSignal::new(Ok(settings.disks_usage_check_freq.as_secs())),
             l2_network_rpc_url: RwSignal::new(Ok(settings.l2_network_rpc_url.clone())),
             token_contract_address: RwSignal::new(Ok(settings.token_contract_address.clone())),
             lcd_enabled: RwSignal::new(settings.lcd_display_enabled),
@@ -71,6 +73,8 @@ impl FormContent {
                 != Ok(saved_settings.rewards_balances_retrieval_freq.as_secs())
             || self.metrics_polling_freq.get()
                 != Ok(saved_settings.nodes_metrics_polling_freq.as_secs())
+            || self.disks_usage_check_freq.get()
+                != Ok(saved_settings.disks_usage_check_freq.as_secs())
             || self.l2_network_rpc_url.get() != Ok(saved_settings.l2_network_rpc_url.clone())
             || self.token_contract_address.get()
                 != Ok(saved_settings.token_contract_address.clone())
@@ -87,25 +91,29 @@ impl FormContent {
             self.bin_version_polling_freq.get(),
             self.balances_retrieval_freq.get(),
             self.metrics_polling_freq.get(),
+            self.disks_usage_check_freq.get(),
             self.l2_network_rpc_url.get(),
             self.token_contract_address.get(),
             self.lcd_device.get(),
             self.lcd_addr.get(),
             self.node_list_page_size.get(),
         );
-        if let (Ok(v1), Ok(v2), Ok(v3), Ok(v4), Ok(v5), Ok(v6), Ok(v7), Ok(v8), Ok(v9)) = values {
+        if let (Ok(v1), Ok(v2), Ok(v3), Ok(v4), Ok(v5), Ok(v6), Ok(v7), Ok(v8), Ok(v9), Ok(v10)) =
+            values
+        {
             Some(AppSettings {
                 nodes_auto_upgrade: self.auto_upgrade.get(),
                 nodes_auto_upgrade_delay: Duration::from_secs(v1),
                 node_bin_version_polling_freq: Duration::from_secs(v2),
                 rewards_balances_retrieval_freq: Duration::from_secs(v3),
                 nodes_metrics_polling_freq: Duration::from_secs(v4),
-                l2_network_rpc_url: v5,
-                token_contract_address: v6,
+                disks_usage_check_freq: Duration::from_secs(v5),
+                l2_network_rpc_url: v6,
+                token_contract_address: v7,
                 lcd_display_enabled: self.lcd_enabled.get(),
-                lcd_device: v7,
-                lcd_addr: v8,
-                node_list_page_size: v9,
+                lcd_device: v8,
+                lcd_addr: v9,
+                node_list_page_size: v10,
                 node_list_mode: self.node_list_mode.get(),
             })
         } else {
@@ -124,6 +132,8 @@ impl FormContent {
             .set(Ok(saved_settings.rewards_balances_retrieval_freq.as_secs()));
         self.metrics_polling_freq
             .set(Ok(saved_settings.nodes_metrics_polling_freq.as_secs()));
+        self.disks_usage_check_freq
+            .set(Ok(saved_settings.disks_usage_check_freq.as_secs()));
         self.l2_network_rpc_url
             .set(Ok(saved_settings.l2_network_rpc_url.clone()));
         self.token_contract_address
@@ -189,6 +199,19 @@ fn SettingsForm(form: RwSignal<FormContent>, active_tab: RwSignal<u8>) -> impl I
                         name="metricsFreq"
                         signal=form.read_untracked().metrics_polling_freq
                         min=5
+                    />
+                </SettingRow>
+                <SettingRow
+                    label="Disks Usage Check Frequency"
+                    description="How often (in seconds) to check the nodes disk usage."
+                    error=Signal::derive(move || {
+                        form.read().disks_usage_check_freq.read().clone().err()
+                    })
+                >
+                    <NumberInput
+                        name="metricsFreq"
+                        signal=form.read_untracked().disks_usage_check_freq
+                        min=10
                     />
                 </SettingRow>
             </SettingsCard>

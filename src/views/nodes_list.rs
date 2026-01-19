@@ -300,8 +300,8 @@ fn NodeListToolbarView(
                                             .nodes
                                             .read()
                                             .1
-                                            .iter()
-                                            .map(|(id, _)| id.clone())
+                                            .keys()
+                                            .cloned()
                                             .collect();
                                     });
                             }

@@ -32,10 +32,9 @@ pub fn SortStrategyView() -> impl IntoView {
                 class="appearance-none bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-400 py-1.5 pl-3 pr-8 rounded-lg cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 prop:value=context.nodes_sort_strategy.read_untracked().as_arg_str()
                 on:change=move |e| {
-                    NodesSortStrategy::from_arg_str(&event_target_value(&e))
-                        .map(|s| {
-                            context.nodes_sort_strategy.set(s);
-                        });
+                    if let Some(s) = NodesSortStrategy::from_arg_str(&event_target_value(&e)) {
+                        context.nodes_sort_strategy.set(s);
+                    }
                 }
             >
                 {NodeSortField::fields()

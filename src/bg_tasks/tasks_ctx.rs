@@ -12,6 +12,7 @@ pub struct TasksContext {
     pub balances_retrieval: Interval,
     pub metrics_pruning: Interval,
     pub nodes_metrics_polling: Interval,
+    pub disks_usage_check: Interval,
     pub app_settings: AppSettings,
 }
 
@@ -25,6 +26,7 @@ impl TasksContext {
             balances_retrieval,
             metrics_pruning: interval(METRICS_PRUNING_FREQ),
             nodes_metrics_polling: interval(settings.nodes_metrics_polling_freq),
+            disks_usage_check: interval(settings.disks_usage_check_freq),
             app_settings: settings,
         }
     }
@@ -54,6 +56,7 @@ impl TasksContext {
             &mut self.nodes_metrics_polling,
             settings.nodes_metrics_polling_freq,
         );
+        update_interval(&mut self.disks_usage_check, settings.disks_usage_check_freq);
         self.app_settings = settings;
     }
 }
