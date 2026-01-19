@@ -4,7 +4,7 @@ use crate::{
         AppSettings, BatchOnMatch, BatchType, NodeFilter, NodeId, NodeInstanceInfo, NodeOpts,
         NodeSortField, NodeStatusFilter, NodesActionsBatch, NodesSortStrategy, Stats,
     },
-    views::truncated_balance_str,
+    views::{format_disk_usage, truncated_balance_str},
 };
 
 #[cfg(feature = "ssr")]
@@ -26,9 +26,6 @@ use std::{
     path::PathBuf,
 };
 use structopt::StructOpt;
-
-const MB_CONVERTION: f64 = 1_048_576.0;
-const GB_CONVERTION: f64 = 1_073_741_824.0;
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "formicaio", about = "CLI interface for Formicaio application.")]
@@ -699,6 +696,10 @@ impl CliCmdResponse {
                             "Relevant Records",
                             value_or_dash(info.relevant_records)
                         ]);
+                        table.add_row(row![
+                            "Disk usage",
+                            value_or_dash(info.disk_usage.map(format_disk_usage))
+                        ]);
                         table.add_row(row!["Connected peers", value_or_dash(info.connected_peers)]);
                         table.add_row(row!["Shunned by", value_or_dash(info.shunned_count)]);
                         table.add_row(row!["kBuckets peers", value_or_dash(info.kbuckets_peers)]);
@@ -739,6 +740,7 @@ impl CliCmdResponse {
                         "Memory used",
                         "CPU",
                         "Records",
+                        "Disk usage",
                         "Conn. peers",
                         "Status"
                     ]);
@@ -748,6 +750,7 @@ impl CliCmdResponse {
                             value_or_dash(info.mem_used.map(|v| format!("{v:.2} MB"))),
                             value_or_dash(info.cpu_usage.map(|v| format!("{v:.2}%"))),
                             value_or_dash(info.records),
+                            value_or_dash(info.disk_usage.map(format_disk_usage)),
                             value_or_dash(info.connected_peers),
                             format_node_status(info)
                         ]);
@@ -787,19 +790,13 @@ impl CliCmdResponse {
                     "Nodes disk usage"
                 ]);
 
-                let used_disk_space = if stats.used_disk_space as f64 > GB_CONVERTION {
-                    format!("{:.2} GB", stats.used_disk_space as f64 / GB_CONVERTION)
-                } else {
-                    format!("{:.2} MB", stats.used_disk_space as f64 / MB_CONVERTION)
-                };
-
                 table.add_row(row![
                     truncated_balance_str(stats.total_balance),
                     stats.connected_peers,
                     format!("{}/{}", stats.active_nodes, stats.total_nodes),
                     stats.stored_records,
                     stats.estimated_net_size,
-                    used_disk_space
+                    format_disk_usage(stats.used_disk_space)
                 ]);
                 tables.push(table);
             }
@@ -848,6 +845,10 @@ impl CliCmdResponse {
                 table.add_row(row![
                     "Nodes metrics polling freq.",
                     format!("{:?}", settings.nodes_metrics_polling_freq)
+                ]);
+                table.add_row(row![
+                    "Disk usage check freq.",
+                    format!("{:?}", settings.disks_usage_check_freq)
                 ]);
                 table.add_row(row![
                     "Rewards balances retrieval freq.",

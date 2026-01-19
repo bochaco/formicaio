@@ -301,8 +301,11 @@ pub async fn update_disks_usage(
         used_disk_space += used_bytes;
         base_paths.insert(path);
 
-        // store up to date values onto local DB cache
-        //update_node_metadata(&node_info, &app_ctx.db_client, &app_ctx.node_status_locked).await;
+        // store up to date disk usage value onto local DB cache
+        app_ctx
+            .db_client
+            .update_disk_usage(node_id, used_bytes)
+            .await;
     }
 
     let updated_vals = vec![(

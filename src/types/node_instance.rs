@@ -90,6 +90,8 @@ pub struct NodeInstanceInfo {
     pub mem_used: Option<f64>,
     /// CPU usage percentage for the node (if active)
     pub cpu_usage: Option<f64>,
+    /// Node disk usage in bytes
+    pub disk_usage: Option<u64>,
     /// Number of peers currently connected to the node
     pub connected_peers: Option<usize>,
     /// Number of peers in the node's k-buckets
@@ -181,6 +183,7 @@ impl NodeInstanceInfo {
         self.is_status_unknown = true;
         self.mem_used = None;
         self.cpu_usage = None;
+        self.disk_usage = None;
         self.records = Some(0);
         self.relevant_records = None;
         self.connected_peers = Some(0);
@@ -260,6 +263,7 @@ mod tests {
         assert!(info.is_status_unknown);
         assert_eq!(info.mem_used, None);
         assert_eq!(info.cpu_usage, None);
+        assert_eq!(info.disk_usage, None);
         assert_eq!(info.records, Some(0));
         assert_eq!(info.connected_peers, Some(0));
         assert_eq!(info.kbuckets_peers, Some(0));

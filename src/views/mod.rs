@@ -37,6 +37,18 @@ use crate::app::ClientGlobalState;
 use leptos::prelude::*;
 use std::fmt;
 
+const MB_CONVERTION: f64 = 1_048_576.0;
+const GB_CONVERTION: f64 = 1_073_741_824.0;
+
+pub fn format_disk_usage(v: u64) -> String {
+    let val = v as f64;
+    if val > GB_CONVERTION {
+        format!("{:.2} GB", val / GB_CONVERTION)
+    } else {
+        format!("{:.2} MB", val / MB_CONVERTION)
+    }
+}
+
 #[derive(PartialEq, Clone, Copy, Debug)]
 enum ViewType {
     Dashboard,

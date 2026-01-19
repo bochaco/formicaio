@@ -1,5 +1,6 @@
 use super::{
     chart::{ChartSeriesData, node_metrics_update},
+    format_disk_usage,
     helpers::{node_logs_stream, show_alert_msg, truncated_balance_str},
     icons::{
         IconChevronDown, IconRecycle, IconRemove, IconShowChart, IconShowLogs, IconStartNode,
@@ -128,7 +129,7 @@ pub(super) fn NodeInstanceView(
                             )
                         }
                     >
-                        <div class="grid grid-cols-1 md:grid-cols-15 gap-x-4 gap-y-2 items-center md:px-6 cursor-pointer">
+                        <div class="grid grid-cols-1 md:grid-cols-17 gap-x-4 gap-y-2 items-center md:px-6 cursor-pointer">
                             <div class="md:col-span-1 flex items-center gap-4">
                                 <NodeSelection info />
                                 <Show when=move || is_transitioning()>
@@ -185,6 +186,14 @@ pub(super) fn NodeInstanceView(
                                 </span>
                                 <span class="font-mono text-white">
                                     {move || value_or_dash(info.read().records)}
+                                </span>
+                            </div>
+                            <div class="md:col-span-2 flex items-center justify-between md:justify-center gap-4">
+                                <span class="md:hidden text-xs font-bold text-slate-500 uppercase w-20">
+                                    Disk Usage
+                                </span>
+                                <span class="font-mono text-white">
+                                    {move || value_or_dash(info.read().disk_usage.map(format_disk_usage))}
                                 </span>
                             </div>
                             <div class="md:col-span-1 flex items-center justify-between md:justify-center gap-4">
@@ -328,7 +337,9 @@ pub(super) fn NodeInstanceView(
                     <DetailItemView label="Records">
                         {move || value_or_dash(info.read().records)}
                     </DetailItemView>
-
+                    <DetailItemView label="Disk Usage">
+                        {move || value_or_dash(info.read().disk_usage.map(format_disk_usage))}
+                    </DetailItemView>
                     <DetailItemView
                         label="Connected Peers"
                         children_class=Signal::derive(move || {

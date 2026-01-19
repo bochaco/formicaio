@@ -16,6 +16,7 @@ pub enum NodeSortField {
     NumConnPeers,
     Mem,
     Cpu,
+    DiskUsage,
 }
 
 impl fmt::Display for NodeSortField {
@@ -31,6 +32,7 @@ impl fmt::Display for NodeSortField {
             NodeSortField::NumConnPeers => "Connected peers",
             NodeSortField::Mem => "Mem used",
             NodeSortField::Cpu => "CPU usage",
+            NodeSortField::DiskUsage => "Disk usage",
         };
         write!(f, "{label}")
     }
@@ -49,6 +51,7 @@ impl NodeSortField {
             Self::NumConnPeers,
             Self::Mem,
             Self::Cpu,
+            Self::DiskUsage,
         ]
     }
 }
@@ -99,6 +102,8 @@ impl NodesSortStrategy {
             Self::new(NodeSortField::Mem, false),
             Self::new(NodeSortField::Cpu, true),
             Self::new(NodeSortField::Cpu, false),
+            Self::new(NodeSortField::DiskUsage, true),
+            Self::new(NodeSortField::DiskUsage, false),
         ]
     }
 
@@ -124,6 +129,8 @@ impl NodesSortStrategy {
             "mem-desc" => Self::new(NodeSortField::Mem, true),
             "cpu" => Self::new(NodeSortField::Cpu, false),
             "cpu-desc" => Self::new(NodeSortField::Cpu, true),
+            "disk-usage" => Self::new(NodeSortField::DiskUsage, false),
+            "disk-usage-desc" => Self::new(NodeSortField::DiskUsage, true),
             _ => return None,
         };
         Some(strategy)
@@ -151,6 +158,8 @@ impl NodesSortStrategy {
             (NodeSortField::Mem, true) => "mem-desc",
             (NodeSortField::Cpu, false) => "cpu",
             (NodeSortField::Cpu, true) => "cpu-desc",
+            (NodeSortField::DiskUsage, false) => "disk-usage",
+            (NodeSortField::DiskUsage, true) => "disk-usage-desc",
         }
     }
 
@@ -167,6 +176,10 @@ impl NodesSortStrategy {
             (None, Some(_)) => Ordering::Less,
             (None, None) => Ordering::Equal,
         }
+    }
+
+    fn cmp_opts_u64(a: Option<u64>, b: Option<u64>) -> Ordering {
+        Self::cmp_opts(a.map(|v| v as f64), b.map(|v| v as f64))
     }
 
     pub fn cmp(&self, a: &NodeInstanceInfo, b: &NodeInstanceInfo) -> Ordering {
@@ -191,6 +204,8 @@ impl NodesSortStrategy {
             (NodeSortField::Mem, true) => Self::cmp_opts(b.mem_used, a.mem_used),
             (NodeSortField::Cpu, false) => Self::cmp_opts(a.cpu_usage, b.cpu_usage),
             (NodeSortField::Cpu, true) => Self::cmp_opts(b.cpu_usage, a.cpu_usage),
+            (NodeSortField::DiskUsage, false) => Self::cmp_opts_u64(a.disk_usage, b.disk_usage),
+            (NodeSortField::DiskUsage, true) => Self::cmp_opts_u64(b.disk_usage, a.disk_usage),
         }
     }
 

@@ -82,6 +82,7 @@ struct CachedNodeMetadata {
     kbuckets_peers: String,
     ips: String,
     data_dir_path: String,
+    disk_usage: u64,
 }
 
 impl CachedNodeMetadata {
@@ -150,6 +151,9 @@ impl CachedNodeMetadata {
         }
         if !self.data_dir_path.is_empty() {
             info.data_dir_path = Some(PathBuf::from(&self.data_dir_path));
+        }
+        if self.disk_usage > 0 {
+            info.disk_usage = Some(self.disk_usage);
         }
     }
 }
@@ -485,6 +489,12 @@ impl DbClient {
                 logging::error!("[ERROR] Database error while updating node record fields: {err}")
             }
         }
+    }
+
+    // Convenient method to update node disk usage
+    pub async fn update_disk_usage(&self, node_id: &NodeId, disk_usage: u64) {
+        self.update_node_metadata_fields(node_id, &[("disk_usage", &disk_usage.to_string())])
+            .await
     }
 
     // Convenient method to update node status field

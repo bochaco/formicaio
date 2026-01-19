@@ -1,6 +1,7 @@
 use crate::app::ClientGlobalState;
 
 use super::{
+    GB_CONVERTION, format_disk_usage,
     helpers::truncated_balance_str,
     icons::{IconActivity, IconDisk, IconFile, IconPeers, IconServer, IconWallet},
 };
@@ -10,9 +11,6 @@ use leptos::prelude::*;
 
 // Number of nodes to display as the top most connected nodes
 const NUMBER_OF_TOP_NODES: usize = 10;
-
-const MB_CONVERTION: f64 = 1_048_576.0;
-const GB_CONVERTION: f64 = 1_073_741_824.0;
 
 #[component]
 pub fn AggregatedStatsView() -> impl IntoView {
@@ -204,14 +202,7 @@ fn DiskUsageCard(
 
     let total_gb = move || total.get() as f64 / GB_CONVERTION;
     let free_gb = move || available.get() as f64 / GB_CONVERTION;
-    let used = move || {
-        let u = node_used.get() as f64;
-        if u > GB_CONVERTION {
-            format!("{:.2} GB", u / GB_CONVERTION)
-        } else {
-            format!("{:.2} MB", u / MB_CONVERTION)
-        }
-    };
+    let used = move || format_disk_usage(node_used.get());
 
     let colors = move || {
         let percentage = percentage();
