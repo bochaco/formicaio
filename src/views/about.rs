@@ -48,7 +48,7 @@ pub fn AboutView() -> impl IntoView {
                 <InfoCard
                     icon=IconBook.into_any()
                     title="Documentation"
-                    description="Dive deeper into the features, architecture, and API usage by visiting our comprehensive documentation."
+                    description="Dive deeper into the features, deployment and installation options, and CLI usage by checking out our documentation."
                     link_text="Read the Docs"
                     link_href="https://github.com/bochaco/formicaio/blob/main/README.md"
                 />
