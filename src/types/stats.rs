@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 pub struct Stats {
     /// Total balance across all nodes
     pub total_balance: U256,
+    /// Balances of the addresses assigned to nodes for rewards
+    pub balances: Vec<(String, U256)>,
     /// Total number of node instances
     pub total_nodes: usize,
     /// Number of currently active nodes

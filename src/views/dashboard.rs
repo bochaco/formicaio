@@ -1,19 +1,21 @@
-use crate::app::ClientGlobalState;
+use crate::{app::ClientGlobalState, types::shortened_address};
 
 use super::{
     GB_CONVERTION, format_disk_usage,
     helpers::truncated_balance_str,
-    icons::{IconActivity, IconDisk, IconFile, IconPeers, IconServer, IconWallet},
+    icons::{
+        IconActivity, IconArrowUpRight, IconDisk, IconFile, IconPeers, IconServer, IconWallet,
+    },
 };
 
-use alloy_primitives::utils::format_units;
+use alloy_primitives::{U256, utils::format_units};
 use leptos::prelude::*;
 
 // Number of nodes to display as the top most connected nodes
 const NUMBER_OF_TOP_NODES: usize = 10;
 
 #[component]
-pub fn AggregatedStatsView() -> impl IntoView {
+pub fn DashboardView() -> impl IntoView {
     let context = expect_context::<ClientGlobalState>();
 
     let sorted_nodes = Memo::new(move |_| {
@@ -45,16 +47,21 @@ pub fn AggregatedStatsView() -> impl IntoView {
                     })
                     icon=view! { <IconServer class="text-indigo-400 w-8 h-8" /> }.into_any()
                 />
-                <StatCard
-                    title="Current Total Balance"
-                    value=Signal::derive(move || truncated_balance_str(
+                <BalanceCard
+                    total=Signal::derive(move || truncated_balance_str(
                         context.stats.read().total_balance,
                     ))
                     sub_value=Signal::derive(move || {
                         format_units(context.stats.read().total_balance, "ether")
                             .unwrap_or_default()
                     })
-                    icon=view! { <IconWallet class="text-emerald-400 w-8 h-8" /> }.into_any()
+                    base_url=Signal::derive(move || {
+                        format!(
+                            "https://arbiscan.io/token/{}",
+                            context.app_settings.read().token_contract_address,
+                        )
+                    })
+                    balances=Signal::derive(move || context.stats.read().balances.clone())
                 />
                 <StatCard
                     title="Estimated Network Size"
@@ -266,6 +273,70 @@ fn DiskUsageCard(
                     </div>
                 </Show>
             </div>
+        </div>
+    }
+}
+
+#[component]
+fn BalanceCard(
+    total: Signal<String>,
+    sub_value: Signal<String>,
+    base_url: Signal<String>,
+    balances: Signal<Vec<(String, U256)>>,
+) -> impl IntoView {
+    view! {
+        <div class="relative group">
+            <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl hover:border-emerald-500/50 transition-all duration-300 group-hover:border-emerald-500/50 shadow-lg flex flex-col justify-between min-h-[140px]">
+                <div>
+                    <div class="flex items-center gap-4 mb-4">
+                        <div class="p-2.5 bg-slate-800 rounded-xl group-hover:scale-110 transition-transform duration-300">
+                            <IconWallet class="text-emerald-400 w-8 h-8" />
+                        </div>
+                        <div class="text-slate-400 text-xs font-bold uppercase tracking-wider">
+                            Current Total Balance
+                        </div>
+                    </div>
+                    <div class="text-3xl font-bold tracking-tight text-white">
+                        {move || total.get()}
+                    </div>
+                </div>
+                <div class="text-slate-400 text-sm mt-1 font-medium">{move || sub_value.get()}</div>
+            </div>
+
+            <Show when=move || !balances.read().is_empty()>
+                <div class="absolute top-full left-0 w-full pt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none group-hover:pointer-events-auto z-10">
+                    <div class="bg-slate-950 border border-slate-700 rounded-2xl p-4 shadow-2xl max-h-60 overflow-y-auto no-scrollbar">
+                        <div class="flex justify-between items-center mb-2 px-1 border-b border-slate-800 pb-2">
+                            <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                                "Address"
+                            </h4>
+                            <h4 class="text-xs pr-6 font-bold text-slate-400 uppercase tracking-wider">
+                                "Balance"
+                            </h4>
+                        </div>
+                        <ul class="space-y-2">
+                            <For each=move || balances.get() key=|(addr, _)| addr.clone() let:child>
+                                <li prop:key=child.0 class="text-xs font-mono">
+                                    <a
+                                        href=format!("{}?a={}", base_url.read(), child.0)
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        class="flex items-center justify-between text-slate-400 hover:text-white group/link p-1 rounded-md hover:bg-slate-800/50"
+                                    >
+                                        <span>{shortened_address(&child.0)}</span>
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-emerald-400 font-sans font-bold">
+                                                {truncated_balance_str(child.1)}
+                                            </span>
+                                            <IconArrowUpRight class="h-4 w-4 opacity-0 group-hover/link:opacity-100 transition-opacity" />
+                                        </div>
+                                    </a>
+                                </li>
+                            </For>
+                        </ul>
+                    </div>
+                </div>
+            </Show>
         </div>
     }
 }

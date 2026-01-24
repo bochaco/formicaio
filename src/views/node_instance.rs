@@ -193,7 +193,9 @@ pub(super) fn NodeInstanceView(
                                     Disk Usage
                                 </span>
                                 <span class="font-mono text-white">
-                                    {move || value_or_dash(info.read().disk_usage.map(format_disk_usage))}
+                                    {move || value_or_dash(
+                                        info.read().disk_usage.map(format_disk_usage),
+                                    )}
                                 </span>
                             </div>
                             <div class="md:col-span-1 flex items-center justify-between md:justify-center gap-4">

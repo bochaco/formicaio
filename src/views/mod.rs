@@ -3,6 +3,7 @@ mod actions_batch;
 mod add_nodes;
 mod alerts;
 mod chart;
+mod dashboard;
 mod form_inputs;
 mod helpers;
 mod icons;
@@ -14,7 +15,6 @@ mod pagination;
 mod settings;
 mod sidebar;
 mod sort_nodes;
-mod stats;
 pub mod terminal;
 
 pub use helpers::truncated_balance_str;
@@ -24,12 +24,12 @@ use self::{
     add_nodes::AddNodesForm,
     alerts::{AlertMsg, OfflineMsg},
     chart::MetricsViewerModal,
+    dashboard::DashboardView,
     icons::{IconAddNode, IconHamburguer},
     logs_viewer::LogViewerModal,
     nodes_list::NodesListView,
     settings::SettingsView,
     sidebar::Sidebar,
-    stats::AggregatedStatsView,
     terminal::TerminalView,
 };
 use crate::app::ClientGlobalState;
@@ -132,7 +132,7 @@ pub fn HomeScreenView() -> impl IntoView {
                 // View Content
                 <div class="flex-1 overflow-y-auto p-1 lg:p-2 no-scrollbar">
                     {move || match active_view.get() {
-                        ViewType::Dashboard => view! { <AggregatedStatsView /> }.into_any(),
+                        ViewType::Dashboard => view! { <DashboardView /> }.into_any(),
                         ViewType::Nodes => {
                             view! { <NodesListView set_logs set_render_chart set_chart_data /> }
                                 .into_any()

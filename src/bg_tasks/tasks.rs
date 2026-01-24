@@ -425,6 +425,10 @@ pub async fn balance_checker_task(
                     let total_balance: U256 = updated_balances.values().map(|(b, _)| b).sum();
                     update_balance_lcd_stats(&lcd_stats, total_balance).await;
                     app_ctx.stats.write().await.total_balance = total_balance;
+                    app_ctx.stats.write().await.balances = updated_balances
+                        .iter()
+                        .map(|(addr, (balance, _))| (addr.to_string(), *balance))
+                        .collect();
                 }
             }
             Ok(BgTasksCmds::DeleteBalanceFor(node_info)) => {
@@ -442,6 +446,10 @@ pub async fn balance_checker_task(
                     let total_balance: U256 = updated_balances.values().map(|(b, _)| b).sum();
                     update_balance_lcd_stats(&lcd_stats, total_balance).await;
                     app_ctx.stats.write().await.total_balance = total_balance;
+                    app_ctx.stats.write().await.balances = updated_balances
+                        .iter()
+                        .map(|(addr, (balance, _))| (addr.to_string(), *balance))
+                        .collect();
                 }
             }
             Ok(BgTasksCmds::CheckAllBalances) => {
@@ -472,6 +480,10 @@ pub async fn balance_checker_task(
                     }
                 }
                 app_ctx.stats.write().await.total_balance = total_balance;
+                app_ctx.stats.write().await.balances = updated_balances
+                    .iter()
+                    .map(|(addr, (balance, _))| (addr.to_string(), *balance))
+                    .collect();
             }
             Err(_) => {}
         }

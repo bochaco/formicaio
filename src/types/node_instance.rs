@@ -16,6 +16,15 @@ const REWARDS_ADDR_PREFIX_SUFFIX_LEN: usize = 8;
 // PID of a node when running as a OS native process
 pub type NodePid = u32;
 
+/// Helper function to format an address in shortened form
+pub fn shortened_address(addr: &String) -> String {
+    format!(
+        "0x{}...{}",
+        &addr[..REWARDS_ADDR_PREFIX_SUFFIX_LEN],
+        &addr[addr.len() - REWARDS_ADDR_PREFIX_SUFFIX_LEN..]
+    )
+}
+
 #[derive(Clone, Default, Debug, Deserialize, PartialEq, Serialize)]
 pub enum ReachabilityCheckStatus {
     #[default]
@@ -157,13 +166,7 @@ impl NodeInstanceInfo {
     }
 
     pub fn short_rewards_addr(&self) -> Option<String> {
-        self.rewards_addr.as_ref().map(|addr| {
-            format!(
-                "0x{}...{}",
-                &addr[..REWARDS_ADDR_PREFIX_SUFFIX_LEN],
-                &addr[addr.len() - REWARDS_ADDR_PREFIX_SUFFIX_LEN..]
-            )
-        })
+        self.rewards_addr.as_ref().map(shortened_address)
     }
 
     pub fn set_status_active(&mut self) {
