@@ -214,6 +214,12 @@ impl NodesSortStrategy {
     }
 
     pub fn sort_view_items(&self, items: &mut [(NodeId, RwSignal<NodeInstanceInfo>)]) {
-        items.sort_by(|a, b| self.cmp(&a.1.read(), &b.1.read()));
+        items.sort_by(
+            |a, b| match (a.1.try_read_untracked(), b.1.try_read_untracked()) {
+                (Some(a), Some(b)) => self.cmp(&a, &b),
+                (Some(_), None) => Ordering::Greater,
+                _ => Ordering::Less,
+            },
+        )
     }
 }

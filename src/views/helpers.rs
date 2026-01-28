@@ -1,10 +1,10 @@
 use crate::{
-    app::ClientGlobalState,
+    app::{ActionTriggered, ClientGlobalState},
     server_api::{
         create_node_instance, delete_node_instance, nodes_actions_batch_create,
         start_node_logs_stream,
     },
-    types::{BatchType, NodeId, NodeInstanceInfo, NodeOpts, NodesActionsBatch},
+    types::{BatchType, NodeId, NodeOpts},
 };
 
 use alloy_primitives::U256;
@@ -51,50 +51,30 @@ pub async fn add_node_instances(
 ) -> Result<(), ServerFnError> {
     let context = expect_context::<ClientGlobalState>();
 
-    // random node_id and temporary
-    let tmp_node_id = NodeId::random();
-    let tmp_node = NodeInstanceInfo {
-        node_id: tmp_node_id.clone(),
-        created: u64::MAX, // just so it's shown first as the newest in the UI
-        ..Default::default()
-    };
-    context.nodes.update(|items| {
-        items.1.insert(tmp_node_id.clone(), RwSignal::new(tmp_node));
-    });
-
-    let res = if count > 1 {
+    if count > 1 {
+        context
+            .is_action_triggered
+            .set(ActionTriggered::BatchCreatingNodes);
         let batch_type = BatchType::Create { node_opts, count };
-        match nodes_actions_batch_create(batch_type.clone(), interval_secs).await {
-            Ok(batch_id) => {
-                let batch_info = NodesActionsBatch::new(batch_id, batch_type, interval_secs);
-                context
-                    .scheduled_batches
-                    .update(|batches| batches.push(RwSignal::new(batch_info)));
-                Ok(())
+        match nodes_actions_batch_create(batch_type, interval_secs).await {
+            Ok(_batch_id) => Ok(()),
+            Err(err) => {
+                context.is_action_triggered.set(ActionTriggered::None);
+                Err(err)
             }
-            Err(err) => Err(err),
         }
     } else {
+        context
+            .is_action_triggered
+            .set(ActionTriggered::CreatingNode);
         match create_node_instance(node_opts).await {
-            Ok(node_info) => {
-                context.nodes.update(|items| {
-                    if !items.1.contains_key(&node_info.node_id) {
-                        items
-                            .1
-                            .insert(node_info.node_id.clone(), RwSignal::new(node_info));
-                    }
-                });
-                Ok(())
+            Ok(_node_info) => Ok(()),
+            Err(err) => {
+                context.is_action_triggered.set(ActionTriggered::None);
+                Err(err)
             }
-            Err(err) => Err(err),
         }
-    };
-
-    context.nodes.update(|items| {
-        items.1.remove(&tmp_node_id);
-    });
-
-    res
+    }
 }
 
 // Removes a node instance with given id and updates given signal

@@ -227,7 +227,7 @@ fn SettingsForm(form: RwSignal<FormContent>, active_tab: RwSignal<u8>) -> impl I
                     description="Choose the default layout for the Nodes list page."
                 >
                     <SegmentedControl
-                        signal=form.read().node_list_mode
+                        signal=form.read_untracked().node_list_mode
                         options=vec!["Tile View".to_string(), "List View".to_string()]
                     />
                 </SettingRow>

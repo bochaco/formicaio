@@ -10,7 +10,10 @@ use super::{
     pagination::PaginationView,
     sort_nodes::SortStrategyView,
 };
-use crate::{app::ClientGlobalState, views::icons::IconUpgradeNode};
+use crate::{
+    app::{ActionTriggered, ClientGlobalState},
+    views::icons::IconUpgradeNode,
+};
 
 use leptos::{prelude::*, task::spawn_local};
 
@@ -74,25 +77,20 @@ pub fn NodesListView(
                                     <NodesActionsBatchesView />
                                 </Show>
 
+                                <ActionTriggeredView />
+
                                 // List Body
                                 <For
                                     each=move || sorted_nodes.get()
                                     key=|(node_id, _)| node_id.clone()
                                     let:child
                                 >
-                                    <Show
-                                        when=move || !child.1.read().status.is_creating()
-                                        fallback=move || {
-                                            view! { <CreatingNodeInstanceView /> }.into_view()
-                                        }
-                                    >
-                                        <NodeInstanceView
-                                            info=child.1
-                                            set_logs
-                                            set_render_chart
-                                            set_chart_data
-                                        />
-                                    </Show>
+                                    <NodeInstanceView
+                                        info=child.1
+                                        set_logs
+                                        set_render_chart
+                                        set_chart_data
+                                    />
                                 </For>
 
                             </div>
@@ -104,24 +102,19 @@ pub fn NodesListView(
                             <NodesActionsBatchesView />
                         </Show>
 
+                        <ActionTriggeredView />
+
                         <For
                             each=move || sorted_nodes.get()
                             key=|(node_id, _)| node_id.clone()
                             let:child
                         >
-                            <Show
-                                when=move || !child.1.read().status.is_creating()
-                                fallback=move || {
-                                    view! { <CreatingNodeInstanceView /> }.into_view()
-                                }
-                            >
-                                <NodeInstanceView
-                                    info=child.1
-                                    set_logs
-                                    set_render_chart
-                                    set_chart_data
-                                />
-                            </Show>
+                            <NodeInstanceView
+                                info=child.1
+                                set_logs
+                                set_render_chart
+                                set_chart_data
+                            />
                         </For>
                     </div>
                 </Show>
@@ -414,39 +407,48 @@ fn ListModeToggler() -> impl IntoView {
 }
 
 #[component]
-fn CreatingNodeInstanceView() -> impl IntoView {
+fn ActionTriggeredView() -> impl IntoView {
     let context = expect_context::<ClientGlobalState>();
+    let action_triggered = move || context.is_action_triggered.get();
 
     view! {
-        <Show
-            when=move || context.tile_mode.get()
-            fallback=move || {
-                view! {
-                    <div class="bg-slate-900/70 border-2 border-dashed border-slate-800 rounded-2xl transition-all duration-300 animate-pulse">
-                        <div class="grid grid-cols-1 md:grid-cols-12 gap-x-4 gap-y-2 items-center p-4 md:px-6">
-                            <div class="md:col-span-12 flex items-center gap-4">
-                                <span class="capitalize font-bold text-slate-500 flex items-center gap-2">
-                                    "Creating node... "
-                                </span>
+        <Show when=move || { !matches!(action_triggered(), ActionTriggered::None) }>
+            <Show
+                when=move || context.tile_mode.get()
+                fallback=move || {
+                    view! {
+                        <div class="bg-slate-900/70 border-2 border-dashed border-slate-800 rounded-2xl transition-all duration-300 animate-pulse">
+                            <div class="grid grid-cols-1 md:grid-cols-12 gap-x-4 gap-y-2 items-center p-4 md:px-6">
+                                <div class="md:col-span-12 flex items-center gap-4">
+                                    <span class="capitalize font-bold text-slate-500 flex items-center gap-2">
+                                        {move || match action_triggered() {
+                                            ActionTriggered::CreatingNode => "Creating node... ",
+                                            ActionTriggered::BatchCreatingNodes => {
+                                                "Scheduling node creation batch..."
+                                            }
+                                            _ => "",
+                                        }}
+                                    </span>
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    }
                 }
-            }
-        >
-            <div class="max-w-sm m-2 p-4 border border-gray-200 rounded-lg shadow dark:border-gray-700">
-                <div class="flex flex-col gap-4">
-                    <div class="skeleton h-16 w-full"></div>
-                    <div class="skeleton h-4 w-28"></div>
-                    <div class="skeleton h-4 w-56"></div>
-                    <div class="skeleton h-4 w-28"></div>
-                    <div class="skeleton h-4 w-20"></div>
-                    <div class="skeleton h-4 w-28"></div>
-                    <div class="skeleton h-4 w-40"></div>
-                    <div class="skeleton h-4 w-40"></div>
-                    <div class="skeleton h-4 w-56"></div>
+            >
+                <div class="max-w-sm m-2 p-4 border border-gray-200 rounded-lg shadow dark:border-gray-700">
+                    <div class="flex flex-col gap-4">
+                        <div class="skeleton h-16 w-full"></div>
+                        <div class="skeleton h-4 w-28"></div>
+                        <div class="skeleton h-4 w-46"></div>
+                        <div class="skeleton h-4 w-28"></div>
+                        <div class="skeleton h-4 w-20"></div>
+                        <div class="skeleton h-4 w-28"></div>
+                        <div class="skeleton h-4 w-40"></div>
+                        <div class="skeleton h-4 w-40"></div>
+                        <div class="skeleton h-4 w-46"></div>
+                    </div>
                 </div>
-            </div>
+            </Show>
         </Show>
     }
 }

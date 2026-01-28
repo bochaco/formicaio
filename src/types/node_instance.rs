@@ -18,8 +18,8 @@ pub type NodePid = u32;
 
 /// Helper function to format an address in shortened form
 pub fn shortened_address(addr: &String) -> String {
-    let str = if addr.starts_with("0x") {
-        &addr[2..]
+    let str = if let Some(stripped) = addr.strip_prefix("0x") {
+        stripped
     } else {
         addr
     };

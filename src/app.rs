@@ -51,6 +51,13 @@ pub struct ServerGlobalState {
     pub app_ctx: AppContext,
 }
 
+#[derive(Clone, Debug)]
+pub enum ActionTriggered {
+    None,
+    CreatingNode,
+    BatchCreatingNodes,
+}
+
 // Struct to use client side as a global context/state
 #[derive(Clone, Copy, Debug)]
 pub struct ClientGlobalState {
@@ -58,6 +65,8 @@ pub struct ClientGlobalState {
     pub is_online: RwSignal<bool>,
     // List of nodes instances and their info/state
     pub nodes: RwSignal<(bool, HashMap<NodeId, RwSignal<NodeInstanceInfo>>)>,
+    // Indicates whether there is a pending action whose status will be confirmed when synced with backend
+    pub is_action_triggered: RwSignal<ActionTriggered>,
     // Layout for the list of nodes
     pub tile_mode: RwSignal<bool>,
     // Node global stats
@@ -112,6 +121,7 @@ pub fn App() -> impl IntoView {
     provide_context(ClientGlobalState {
         is_online: RwSignal::new(true),
         nodes: RwSignal::new((false, HashMap::default())),
+        is_action_triggered: RwSignal::new(ActionTriggered::None),
         tile_mode: RwSignal::new(true),
         stats: RwSignal::new(Stats::default()),
         logs_stream_on_for: RwSignal::new(None),
@@ -221,13 +231,12 @@ fn spawn_nodes_list_polling() {
                         );
                     });
 
+                    context.is_action_triggered.set(ActionTriggered::None);
+
                     // first let's get rid of those removed remotely
                     context.nodes.update(|(loaded, cx_nodes)| {
                         *loaded = true;
-                        cx_nodes.retain(|id, node_info| {
-                            node_info.read_untracked().status.is_creating()
-                                || info.nodes.contains_key(id)
-                        })
+                        cx_nodes.retain(|id, _| info.nodes.contains_key(id))
                     });
                     // let's now update those with new values
                     context.nodes.with_untracked(|(_, cx_nodes)| {

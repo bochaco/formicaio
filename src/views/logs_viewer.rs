@@ -41,12 +41,14 @@ pub fn LogViewerModal(logs: ReadSignal<Vec<String>>) -> impl IntoView {
                         <h3 class="text-sm font-bold">
                             "Live logs of node: "
                             <span class="text-indigo-400 font-mono">
-                                {move || context
-                                    .logs_stream_on_for
-                                    .read()
-                                    .as_ref()
-                                    .map(|nid| nid.read().short_node_id())
-                                    .unwrap_or("".to_string())}
+                                {move || {
+                                    context
+                                        .logs_stream_on_for
+                                        .read()
+                                        .as_ref()
+                                        .map(|nid| nid.read().short_node_id())
+                                        .unwrap_or("".to_string())
+                                }}
                             </span>
                         </h3>
                     </div>

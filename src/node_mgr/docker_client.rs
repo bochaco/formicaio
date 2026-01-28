@@ -526,7 +526,7 @@ impl DockerClient {
 
     // Get disk used by node in bytes
     pub async fn get_used_disk_space(&self, id: &NodeId) -> Result<u64, DockerClientError> {
-        let cmd = format!("du -sb /app/node_data | awk '{{print $1}}'");
+        let cmd = "du -sb /app/node_data | awk '{{print $1}}'".to_string();
         let (_, resp_str) = self.exec_in_container(id, cmd, "").await?;
         let bytes = resp_str
             .replace(['\n', '\r'], "")
@@ -545,19 +545,16 @@ impl DockerClient {
         let reader = Cursor::new(resp_str).lines();
         let mut usage = vec![];
         for line in reader {
-            match line {
-                Ok(content) => {
-                    let parts: Vec<String> =
-                        content.split_whitespace().map(|s| s.to_string()).collect();
-                    if parts.len() == 3 {
-                        usage.push((
-                            parts[0].parse::<u64>()?,
-                            parts[1].parse::<u64>()?,
-                            PathBuf::from(parts[2].clone()),
-                        ));
-                    }
+            if let Ok(content) = line {
+                let parts: Vec<String> =
+                    content.split_whitespace().map(|s| s.to_string()).collect();
+                if parts.len() == 3 {
+                    usage.push((
+                        parts[0].parse::<u64>()?,
+                        parts[1].parse::<u64>()?,
+                        PathBuf::from(parts[2].clone()),
+                    ));
                 }
-                Err(_) => {}
             }
         }
 
