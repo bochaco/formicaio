@@ -2,7 +2,7 @@ name: Docker images which run native nodes
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "chore-upgrade-deps" ]
 
 jobs:
   extract_version:
@@ -74,19 +74,6 @@ jobs:
             type=registry,ref=bochaco/formicaio-gh:buildcache-native-v${{ needs.extract_version.outputs.version }}-arm64
             type=registry,ref=bochaco/formicaio-gh:buildcache-native-v${{ needs.extract_version.outputs.version }}-amd64
           tags: ${{ vars.DOCKERHUB_USERNAME }}/formicaio:${{ needs.extract_version.outputs.version }}-native
-          build-args: |
-            BUILD_ARGS=--features native
-          output: type=image
-
-      - name: Build multiplatform from cache and push as 'latest'
-        uses: docker/build-push-action@v6
-        with:
-          platforms: linux/amd64,linux/arm64
-          push: true
-          cache-from: |
-            type=registry,ref=bochaco/formicaio-gh:buildcache-native-v${{ needs.extract_version.outputs.version }}-arm64
-            type=registry,ref=bochaco/formicaio-gh:buildcache-native-v${{ needs.extract_version.outputs.version }}-amd64
-          tags: ${{ vars.DOCKERHUB_USERNAME }}/formicaio:latest-native
           build-args: |
             BUILD_ARGS=--features native
           output: type=image

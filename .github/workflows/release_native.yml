@@ -2,7 +2,7 @@ name: build and package release native mode binaries
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "chore-upgrade-deps" ]
   pull_request:
     branches: [ "main" ]
 
