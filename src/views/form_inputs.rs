@@ -166,7 +166,7 @@ pub fn CheckboxInput(
     #[prop(default = "right-0")] help_align: &'static str,
 ) -> impl IntoView {
     view! {
-        <label class="flex items-center gap-3 cursor-pointer">
+        <label class="flex items-center gap-1 cursor-pointer">
             <input
                 type="checkbox"
                 checked=move || signal.get()
