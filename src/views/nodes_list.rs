@@ -410,6 +410,11 @@ fn ListModeToggler() -> impl IntoView {
 fn ActionTriggeredView() -> impl IntoView {
     let context = expect_context::<ClientGlobalState>();
     let action_triggered = move || context.is_action_triggered.get();
+    let msg = move || match action_triggered() {
+        ActionTriggered::CreatingNode => "Creating node... ",
+        ActionTriggered::BatchCreatingNodes => "Scheduling node creation batch...",
+        _ => "",
+    };
 
     view! {
         <Show when=move || { !matches!(action_triggered(), ActionTriggered::None) }>
@@ -421,13 +426,7 @@ fn ActionTriggeredView() -> impl IntoView {
                             <div class="grid grid-cols-1 md:grid-cols-12 gap-x-4 gap-y-2 items-center p-4 md:px-6">
                                 <div class="md:col-span-12 flex items-center gap-4">
                                     <span class="capitalize font-bold text-slate-500 flex items-center gap-2">
-                                        {move || match action_triggered() {
-                                            ActionTriggered::CreatingNode => "Creating node... ",
-                                            ActionTriggered::BatchCreatingNodes => {
-                                                "Scheduling node creation batch..."
-                                            }
-                                            _ => "",
-                                        }}
+                                        {move || msg()}
                                     </span>
                                 </div>
                             </div>
@@ -437,7 +436,7 @@ fn ActionTriggeredView() -> impl IntoView {
             >
                 <div class="max-w-sm m-2 p-4 border border-gray-200 rounded-lg shadow dark:border-gray-700">
                     <div class="flex flex-col gap-4">
-                        <div class="skeleton h-16 w-full"></div>
+                        <div class="skeleton h-16 w-full p-3 text-slate-500">{move || msg()}</div>
                         <div class="skeleton h-4 w-28"></div>
                         <div class="skeleton h-4 w-46"></div>
                         <div class="skeleton h-4 w-28"></div>
