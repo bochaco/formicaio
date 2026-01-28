@@ -4,13 +4,14 @@ use crate::{app_context::AppContext, node_mgr::NodeManager};
 use async_trait::async_trait;
 use leptos::logging;
 use rust_mcp_sdk::{
-    McpServer,
+    McpServer, ToMcpServerHandler,
     event_store::InMemoryEventStore,
+    mcp_icon,
     mcp_server::{HyperServerOptions, ServerHandler, hyper_server},
     schema::{
-        CallToolRequest, CallToolResult, Implementation, InitializeResult, LATEST_PROTOCOL_VERSION,
-        ListToolsRequest, ListToolsResult, RpcError, ServerCapabilities, ServerCapabilitiesTools,
-        schema_utils::CallToolError,
+        CallToolRequestParams, CallToolResult, Implementation, InitializeResult,
+        LATEST_PROTOCOL_VERSION, ListToolsResult, PaginatedRequestParams, RpcError,
+        ServerCapabilities, ServerCapabilitiesTools, schema_utils::CallToolError,
     },
 };
 use std::{net::SocketAddr, sync::Arc, time::Duration};
@@ -25,7 +26,7 @@ impl ServerHandler for McpServerHandler {
     // Handle ListToolsRequest, return list of available tools as ListToolsResult
     async fn handle_list_tools_request(
         &self,
-        _request: ListToolsRequest,
+        _params: Option<PaginatedRequestParams>,
         _runtime: Arc<dyn McpServer>,
     ) -> std::result::Result<ListToolsResult, RpcError> {
         Ok(ListToolsResult {
@@ -38,12 +39,12 @@ impl ServerHandler for McpServerHandler {
     /// Handles incoming CallToolRequest and processes it using the appropriate tool.
     async fn handle_call_tool_request(
         &self,
-        request: CallToolRequest,
+        params: CallToolRequestParams,
         _runtime: Arc<dyn McpServer>,
     ) -> std::result::Result<CallToolResult, CallToolError> {
         // Attempt to convert request parameters into FormicaioTools enum
         let tool_params: FormicaioTools =
-            FormicaioTools::try_from(request.params).map_err(CallToolError::new)?;
+            FormicaioTools::try_from(params).map_err(CallToolError::new)?;
 
         // Match the tool variant and execute its corresponding logic
         match tool_params {
@@ -70,6 +71,14 @@ pub fn start_mcp_server(addr: SocketAddr, app_ctx: AppContext, node_manager: Nod
             name: "Formicaio MCP Server SSE".to_string(),
             version: "0.1.0".to_string(),
             title: Some("Formicaio MCP Server SSE".to_string()),
+            description: Some("Formicaio MCP Server SSE".into()),
+            icons: vec![mcp_icon!(
+                src = "https://raw.githubusercontent.com/bochaco/formicaio/refs/heads/main/public/formicaio.svg",
+                mime_type = "image/svg",
+                sizes = ["128x128"],
+                theme = "dark"
+            )],
+            website_url: Some("https://github.com/bochaco/formicaio".into()),
         },
         capabilities: ServerCapabilities {
             // indicates that server support mcp tools
@@ -90,7 +99,7 @@ pub fn start_mcp_server(addr: SocketAddr, app_ctx: AppContext, node_manager: Nod
     // instantiate HyperServer, providing `server_details`, `handler` and HyperServerOptions
     let server = hyper_server::create_server(
         server_details,
-        handler,
+        handler.to_mcp_server_handler(),
         HyperServerOptions {
             host: addr.ip().to_string(),
             port: addr.port(),
