@@ -4,7 +4,7 @@ use leptos::prelude::*;
 pub fn IconTerminal() -> impl IntoView {
     view! {
         <svg
-            class="w-6 h-6 text-gray-800 dark:text-white"
+            class="w-6 h-6"
             aria-hidden="true"
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
@@ -25,7 +25,7 @@ pub fn IconTerminal() -> impl IntoView {
 pub fn IconDashboard() -> impl IntoView {
     view! {
         <svg
-            class="w-6 h-6 text-gray-800 dark:text-white"
+            class="w-6 h-6"
             aria-hidden="true"
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
@@ -45,7 +45,7 @@ pub fn IconDashboard() -> impl IntoView {
 pub fn IconNodes() -> impl IntoView {
     view! {
         <svg
-            class="w-6 h-6 text-gray-800 dark:text-white"
+            class="w-6 h-6"
             aria-hidden="true"
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
@@ -413,7 +413,7 @@ pub fn IconSettings() -> impl IntoView {
                 stroke="currentColor"
                 stroke-linecap="round"
                 stroke-linejoin="round"
-                stroke-width="2"
+                stroke-width="1"
                 d="M21 13v-2a1 1 0 0 0-1-1h-.757l-.707-1.707.535-.536a1 1 0 0 0 0-1.414l-1.414-1.414a1 1 0 0 0-1.414 0l-.536.535L14 4.757V4a1 1 0 0 0-1-1h-2a1 1 0 0 0-1 1v.757l-1.707.707-.536-.535a1 1 0 0 0-1.414 0L4.929 6.343a1 1 0 0 0 0 1.414l.536.536L4.757 10H4a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h.757l.707 1.707-.535.536a1 1 0 0 0 0 1.414l1.414 1.414a1 1 0 0 0 1.414 0l.536-.535 1.707.707V20a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-.757l1.707-.708.536.536a1 1 0 0 0 1.414 0l1.414-1.414a1 1 0 0 0 0-1.414l-.535-.536.707-1.707H20a1 1 0 0 0 1-1Z"
             />
             <path
@@ -536,7 +536,7 @@ pub fn IconSort() -> impl IntoView {
 pub fn IconGralSettings() -> impl IntoView {
     view! {
         <svg
-            class="w-6 h-6 text-gray-800 dark:text-white"
+            class="w-6 h-6"
             aria-hidden="true"
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
@@ -556,7 +556,7 @@ pub fn IconGralSettings() -> impl IntoView {
 pub fn IconLayoutDashboard() -> impl IntoView {
     view! {
         <svg
-            class="w-6 h-6 text-gray-800 dark:text-white"
+            class="w-6 h-6"
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 24 24"
             fill="none"
@@ -577,7 +577,7 @@ pub fn IconLayoutDashboard() -> impl IntoView {
 pub fn IconLcdSettings() -> impl IntoView {
     view! {
         <svg
-            class="w-6 h-6 text-gray-800 dark:text-white"
+            class="w-6 h-6"
             aria-hidden="true"
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 24 24"
@@ -636,9 +636,7 @@ pub fn IconCheck() -> impl IntoView {
 }
 
 #[component]
-pub fn IconServer(
-    #[prop(default = "w-6 h-6 text-gray-800 dark:text-white")] class: &'static str,
-) -> impl IntoView {
+pub fn IconServer(#[prop(default = "w-6 h-6")] class: &'static str) -> impl IntoView {
     view! {
         <svg
             class=class.to_string()
@@ -659,9 +657,7 @@ pub fn IconServer(
 }
 
 #[component]
-pub fn IconWallet(
-    #[prop(default = "w-6 h-6 text-gray-800 dark:text-white")] class: &'static str,
-) -> impl IntoView {
+pub fn IconWallet(#[prop(default = "w-6 h-6")] class: &'static str) -> impl IntoView {
     view! {
         <svg
             class=class.to_string()
@@ -727,7 +723,7 @@ pub fn IconFile(
 pub fn IconAbout() -> impl IntoView {
     view! {
         <svg
-            class="w-6 h-6 text-gray-800 dark:text-white"
+            class="w-6 h-6"
             aria-hidden="true"
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
