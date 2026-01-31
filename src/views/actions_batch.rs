@@ -22,7 +22,14 @@ pub(super) fn NodesActionsBatchesView() -> impl IntoView {
 fn ActionBatchViewNew(batch_info: RwSignal<NodesActionsBatch>) -> impl IntoView {
     let context = expect_context::<ClientGlobalState>();
     let batch_id = batch_info.get_untracked().id;
-    let batch_type = batch_info.get_untracked().batch_type;
+    let (batch_type, action_duration) = {
+        let batch_type = batch_info.get_untracked().batch_type;
+        let action_duration = match &batch_type {
+            BatchType::Start { .. } => 2,
+            _ => 0,
+        };
+        (batch_type, action_duration)
+    };
     let (count, auto_start) = if let BatchType::Create { count, node_opts } = &batch_type {
         (*count, node_opts.auto_start)
     } else {
@@ -38,7 +45,7 @@ fn ActionBatchViewNew(batch_info: RwSignal<NodesActionsBatch>) -> impl IntoView 
     let time_remaining = move || {
         if count > 0 {
             let remaining = (count - batch_info.read().complete) as u64
-                * batch_info.get_untracked().interval_secs;
+                * (batch_info.get_untracked().interval_secs + action_duration);
             let minutes = remaining / 60;
             let seconds = remaining % 60;
             (minutes, seconds)

@@ -528,6 +528,26 @@ impl DbClient {
             .await
     }
 
+    // Explicit method to update node PID, PeerId, and binary version, so the caller is aware the PID
+    // will be changed, otherwise it could cause problems if updated from the incorrect flow.
+    pub async fn update_node_with_new_pid(
+        &self,
+        node_id: &NodeId,
+        pid: NodePid,
+        bin_version: String,
+        peer_id: String,
+    ) {
+        self.update_node_metadata_fields(
+            node_id,
+            &[
+                ("pid", &pid.to_string()),
+                ("bin_version", &bin_version),
+                ("peer_id", &peer_id),
+            ],
+        )
+        .await
+    }
+
     // Retrieve node metrics from local cache DB
     pub async fn get_node_metrics(&self, node_id: NodeId, since: Option<i64>) -> Metrics {
         let db_lock = self.db.lock().await;

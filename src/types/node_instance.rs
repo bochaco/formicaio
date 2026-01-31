@@ -163,7 +163,7 @@ impl NodeInstanceInfo {
     pub fn short_peer_id(&self) -> Option<String> {
         self.peer_id.as_ref().map(|id| {
             if id.len() <= PEER_ID_PREFIX_SUFFIX_LEN * 2 {
-                return id.clone();
+                id.clone()
             } else {
                 format!(
                     "{}. . .{}",

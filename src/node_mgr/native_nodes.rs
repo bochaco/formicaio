@@ -13,14 +13,14 @@ use libp2p_identity::{Keypair, PeerId};
 use local_ip_address::list_afinet_netifas;
 use semver::Version;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, hash_map::Entry},
     env,
     path::{Path, PathBuf},
     process::{Child, Command, ExitStatus, Output, Stdio},
     sync::Arc,
     time::Duration,
 };
-use sysinfo::{ProcessRefreshKind, ProcessStatus, ProcessesToUpdate, System};
+use sysinfo::{Pid, ProcessRefreshKind, ProcessStatus, ProcessesToUpdate, System, UpdateKind};
 use thiserror::Error;
 use tokio::{
     fs::{File, create_dir_all, metadata, remove_dir_all, remove_file},
@@ -67,12 +67,27 @@ pub enum NativeNodesError {
     NodeBinVersionError(#[from] semver::Error),
 }
 
+#[derive(Debug)]
+enum NodeProcess {
+    Spawned(Child),
+    ProcessFound(Pid),
+}
+
+impl NodeProcess {
+    fn pid(&self) -> u32 {
+        match self {
+            NodeProcess::Spawned(child) => child.id(),
+            NodeProcess::ProcessFound(pid) => pid.as_u32(),
+        }
+    }
+}
+
 // Execution and management of nodes as native OS processes
 #[derive(Clone, Debug)]
 pub struct NativeNodes {
     root_dir: PathBuf,
     system: Arc<RwLock<System>>,
-    nodes: Arc<RwLock<HashMap<NodeId, Child>>>,
+    nodes: Arc<RwLock<HashMap<NodeId, NodeProcess>>>,
     node_status_locked: ImmutableNodeStatus,
 }
 
@@ -229,7 +244,10 @@ impl NativeNodes {
             Ok(child) => {
                 let pid = child.id();
                 logging::log!("Node process for {node_id} spawned with PID: {pid}");
-                self.nodes.write().await.insert(node_id.clone(), child);
+                self.nodes
+                    .write()
+                    .await
+                    .insert(node_id.clone(), NodeProcess::Spawned(child));
                 node_info.pid = Some(pid);
                 // let's delay it for a moment so it generates the peer id
                 sleep(Duration::from_secs(2)).await;
@@ -259,16 +277,20 @@ impl NativeNodes {
     pub async fn get_nodes_list(
         &self,
         mut nodes_info: HashMap<NodeId, NodeInstanceInfo>,
-    ) -> Result<Vec<NodeInstanceInfo>, NativeNodesError> {
+    ) -> Result<(Vec<NodeInstanceInfo>, Vec<(NodeId, u32, String, String)>), NativeNodesError> {
         // first update processes information of our `System` struct
-        let mut sys = self.system.write().await;
-        sys.refresh_processes_specifics(
-            ProcessesToUpdate::All,
-            true,
-            ProcessRefreshKind::nothing(),
-        );
+        let sys = {
+            let mut sys = self.system.write().await;
+            sys.refresh_processes_specifics(
+                ProcessesToUpdate::All,
+                true,
+                ProcessRefreshKind::nothing().with_exe(UpdateKind::OnlyIfNotSet),
+            );
+            sys
+        };
 
         let mut nodes_list = vec![];
+        let mut new_pids = vec![];
 
         for process in sys
             .processes_by_exact_name(NODE_BIN_NAME.as_ref())
@@ -276,7 +298,7 @@ impl NativeNodes {
             .filter(|p| p.thread_kind().is_none())
         {
             let pid = process.pid().as_u32();
-            let info = nodes_info.iter().find_map(|(_, n)| {
+            let mut info = nodes_info.iter().find_map(|(_, n)| {
                 if n.pid == Some(pid) {
                     Some(n.clone())
                 } else {
@@ -284,13 +306,23 @@ impl NativeNodes {
                 }
             });
 
-            // TODO: what if there are active PIDs not found in DB...
-            // ...populate them in DB so the user can see/delete them...?
-            // ...killing them is not an option as we could have just lost track of it...?
+            if info.is_none()
+                && let Some(exec_path) = process.exe()
+            {
+                // There is an active PID not found in our DB/list,
+                // let's try to match it using its execution path
+                info = self
+                    .start_tracking_found_process(
+                        exec_path,
+                        process.pid(),
+                        &nodes_info,
+                        &mut new_pids,
+                    )
+                    .await;
+            }
 
             if let Some(mut node_info) = info {
                 nodes_info.remove(&node_info.node_id);
-
                 if process.status() != ProcessStatus::Zombie {
                     node_info.set_status_active();
                     nodes_list.push(node_info);
@@ -313,7 +345,7 @@ impl NativeNodes {
                     .read()
                     .await
                     .iter()
-                    .find(|(_, c)| c.id() == pid)
+                    .find(|(_, c)| c.pid() == pid)
                     .map(|(id, _)| id.clone());
                 let reason = if let Some(node_id) = id {
                     let status = if let Some(exit_status) = self.kill_node(&node_id).await {
@@ -344,41 +376,154 @@ impl NativeNodes {
             nodes_list.push(node_info);
         }
 
-        Ok(nodes_list)
+        Ok((nodes_list, new_pids))
     }
 
     // Kill node's process
     pub async fn kill_node(&self, node_id: &NodeId) -> Option<ExitStatus> {
-        let mut child = match self.nodes.write().await.remove(node_id) {
-            Some(child) => child,
+        let process = self.nodes.write().await.remove(node_id);
+        match process {
+            Some(node_process) => self.kill_node_process(node_id, node_process).await,
             None => {
                 logging::error!(
                     "[ERROR] Failed to kill node process: Node {node_id} not found in managed processes"
                 );
-                return None;
-            }
-        };
-
-        if let Err(err) = child.kill() {
-            logging::warn!("[WARN] Failed to kill process for node {node_id}: {err:?}");
-        } else {
-            logging::log!("Successfully terminated node process {node_id}");
-        }
-
-        match child.wait_with_output() {
-            Ok(output) if output.status.success() || output.status.code().is_none() => {
-                Some(output.status)
-            }
-            Ok(output) => {
-                let status = output.status;
-                logging::warn!("Killed process for node {node_id}: {status}");
-                Some(status)
-            }
-            Err(err) => {
-                logging::warn!("Error when checking killed process for node {node_id}: {err:?}");
                 None
             }
         }
+    }
+
+    // Helper to kill node's process, either spawned or found
+    async fn kill_node_process(
+        &self,
+        node_id: &NodeId,
+        node_process: NodeProcess,
+    ) -> Option<ExitStatus> {
+        match node_process {
+            NodeProcess::Spawned(mut child) => {
+                if let Err(err) = child.kill() {
+                    logging::warn!("[WARN] Failed to kill process for node {node_id}: {err:?}");
+                } else {
+                    logging::log!("Successfully terminated node process {node_id}");
+                }
+
+                match child.wait_with_output() {
+                    Ok(output) if output.status.success() || output.status.code().is_none() => {
+                        Some(output.status)
+                    }
+                    Ok(output) => {
+                        let status = output.status;
+                        logging::warn!("Killed process for node {node_id}: {status}");
+                        Some(status)
+                    }
+                    Err(err) => {
+                        logging::warn!(
+                            "Error when checking killed process for node {node_id}: {err:?}"
+                        );
+                        None
+                    }
+                }
+            }
+            NodeProcess::ProcessFound(pid) => {
+                let sys = self.system.read().await;
+                if let Some(process) = sys.process(pid) {
+                    match process.kill_and_wait() {
+                        Err(err) => {
+                            logging::warn!(
+                                "[WARN] Failed to kill process for node {node_id}: {err:?}"
+                            );
+                            None
+                        }
+                        Ok(status) => {
+                            logging::log!("Successfully terminated node process {node_id}");
+                            if let Some(s) = status {
+                                logging::warn!("Killed process for node {node_id}: {s}");
+                                Some(s)
+                            } else {
+                                logging::warn!("Killed process for node {node_id}");
+                                None
+                            }
+                        }
+                    }
+                } else {
+                    logging::warn!(
+                        "[WARN] Failed to kill node process: Process with PID {pid} not found"
+                    );
+                    None
+                }
+            }
+        }
+    }
+
+    // Helper which tries to match a found process with no known node info
+    async fn start_tracking_found_process(
+        &self,
+        exec_path: &Path,
+        pid: Pid,
+        nodes_info: &HashMap<NodeId, NodeInstanceInfo>,
+        new_pids: &mut Vec<(NodeId, u32, String, String)>,
+    ) -> Option<NodeInstanceInfo> {
+        for (node_id, node_info) in nodes_info.iter() {
+            let node_path = self.get_node_data_dir(node_info, true).join(NODE_BIN_NAME);
+            if exec_path == node_path {
+                let (bin_version, peer_id) = if let Ok((bin_version, peer_id, _)) =
+                    self.get_node_version_and_peer_id(node_info).await
+                {
+                    (bin_version, peer_id)
+                } else {
+                    (node_info.bin_version.clone(), node_info.peer_id.clone())
+                };
+
+                // we will consider it only if the pid is different than the one we had for same node_id,
+                // it could be that it was just added to the list in a concurrent operation
+                let new_pid = pid.as_u32();
+                match self.nodes.write().await.entry(node_id.clone()) {
+                    Entry::Occupied(mut e) => {
+                        let old_pid = e.get().pid();
+                        if old_pid == new_pid {
+                            // it must have been that it was just added in a
+                            // concurrent operation, ...let's just ignore this process then
+                            return None;
+                        } else {
+                            let old_node_process = e.insert(NodeProcess::ProcessFound(pid));
+                            let status = if let Some(exit_status) =
+                                self.kill_node_process(node_id, old_node_process).await
+                            {
+                                exit_status.to_string()
+                            } else {
+                                "none".to_string()
+                            };
+                            logging::log!(
+                                "Process with PID {old_pid} which restarted itself (node id: {node_id}) exited with status: {status}",
+                            );
+                        }
+                    }
+                    Entry::Vacant(e) => {
+                        e.insert(NodeProcess::ProcessFound(pid));
+                    }
+                }
+
+                logging::log!("Node {node_id} has a new PID {pid} after restarting itself");
+
+                new_pids.push((
+                    node_id.clone(),
+                    new_pid,
+                    bin_version.clone().unwrap_or_default(),
+                    peer_id.clone().unwrap_or_default(),
+                ));
+
+                let updated_info = NodeInstanceInfo {
+                    pid: Some(new_pid),
+                    bin_version,
+                    peer_id,
+                    ..node_info.clone()
+                };
+
+                return Some(updated_info);
+            }
+        }
+
+        None
     }
 
     // Remove node's data dir

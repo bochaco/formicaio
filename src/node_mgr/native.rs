@@ -400,7 +400,15 @@ impl NodeManager {
     // Obtain a non-filtered list of existing nodes.
     pub async fn get_nodes_list(&self) -> Result<Vec<NodeInstanceInfo>, NodeManagerError> {
         let nodes_in_db = self.app_ctx.db_client.get_nodes_list().await;
-        let nodes = self.native_nodes.get_nodes_list(nodes_in_db).await?;
+        let (nodes, updated_pids) = self.native_nodes.get_nodes_list(nodes_in_db).await?;
+
+        for (node_id, pid, bin_version, peer_id) in updated_pids {
+            self.app_ctx
+                .db_client
+                .update_node_with_new_pid(&node_id, pid, bin_version, peer_id)
+                .await;
+        }
+
         Ok(nodes)
     }
 
