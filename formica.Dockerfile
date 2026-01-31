@@ -38,17 +38,29 @@ ENV REACHABILITY_CHECK_ARG=''
 ENV NODE_LOGS_ARG='--log-output-dest /app/node_data/logs'
 
 # Run the node
-CMD ["sh", "-c", \
-      "if [ -e '/app/node_data/secret-key-recycle' ]; then rm -f /app/node_data/secret-key*; fi \
-      && /app/antnode \
-      ${UPNP_ARG} \
-      ${REACHABILITY_CHECK_ARG} \
-      ${IP_ARG} \
-      --port ${NODE_PORT} \
-      --metrics-server-port ${METRICS_PORT} \
-      --root-dir /app/node_data \
-      ${NODE_LOGS_ARG} \
-      --bootstrap-cache-dir /app/node_data \
-      ${REWARDS_ADDR_ARG} \
-      evm-arbitrum-one" \
-    ]
+CMD ["sh", "-c", "while true; \
+  do \
+  CURRENT_VERSION=$(/app/antnode --version); \
+  if [ -e '/app/node_data/secret-key-recycle' ]; then rm -f /app/node_data/secret-key*; fi \
+  && /app/antnode \
+  --stop-on-upgrade \
+  ${UPNP_ARG} \
+  ${REACHABILITY_CHECK_ARG} \
+  ${IP_ARG} \
+  --port ${NODE_PORT} \
+  --metrics-server-port ${METRICS_PORT} \
+  --root-dir /app/node_data \
+  ${NODE_LOGS_ARG} \
+  --bootstrap-cache-dir /app/node_data \
+  ${REWARDS_ADDR_ARG} \
+  evm-arbitrum-one; \
+  EXIT_CODE=$?; \
+  NEW_VERSION=$(/app/antnode --version); \
+  if [ \"${NEW_VERSION}\" != \"${CURRENT_VERSION}\" ]; then \
+    echo \"Version changed from ${CURRENT_VERSION} to ${NEW_VERSION}, restarting...\"; \
+  else \
+    echo \"Version is the same ${NEW_VERSION}, not restarting.\"; \
+    exit ${EXIT_CODE}; \
+  fi; \
+  done" \
+]

@@ -4,6 +4,7 @@ use super::docker_msgs::*;
 
 use axum::body::Body;
 use bytes::Bytes;
+use chrono::Utc;
 use futures_util::{Stream, StreamExt, pin_mut};
 use http_body_util::BodyExt;
 use hyper::{
@@ -20,10 +21,11 @@ use std::{
     env,
     io::{BufRead, Cursor},
     path::{Path, PathBuf},
+    sync::Arc,
     time::Duration,
 };
 use thiserror::Error;
-use tokio::{net::UnixStream, time::timeout};
+use tokio::{net::UnixStream, sync::RwLock, time::timeout};
 use url::form_urlencoded;
 
 // Label's key to set to each container created, so we can then use as
@@ -61,6 +63,9 @@ const NODE_CONTAINER_IMAGE_TAG: &str = "NODE_CONTAINER_IMAGE_TAG";
 
 // Number of seconds before timing out an attempt to upgrade the node binary.
 pub const UPGRADE_NODE_BIN_TIMEOUT_SECS: u64 = 8 * 60; // 8 mins
+
+// The maximum frequency to check the node binary version within a container.
+const BIN_VERSION_CHECK_MAX_FREQ_SECS: u64 = 5 * 60; // 5 mins
 
 #[derive(Debug, Error)]
 pub enum DockerClientError {
@@ -183,6 +188,7 @@ pub struct DockerClient {
     socket_path: PathBuf,
     node_image_name: String,
     node_image_tag: String,
+    last_check_ts: Arc<RwLock<u64>>,
 }
 
 impl DockerClient {
@@ -208,6 +214,7 @@ impl DockerClient {
             socket_path,
             node_image_tag,
             node_image_name,
+            last_check_ts: Arc::new(RwLock::new(0)),
         })
     }
 
@@ -247,7 +254,23 @@ impl DockerClient {
         ];
         let resp_bytes = self.send_request(ReqMethod::Get, &url, query).await?;
         let containers: Vec<Container> = serde_json::from_slice(&resp_bytes)?;
-        let nodes = containers.into_iter().map(|c| c.into()).collect();
+        let mut nodes: Vec<NodeInstanceInfo> = containers.into_iter().map(|c| c.into()).collect();
+
+        let now = Utc::now().timestamp() as u64;
+        if *self.last_check_ts.read().await + BIN_VERSION_CHECK_MAX_FREQ_SECS < now {
+            *self.last_check_ts.write().await = now;
+            for node in nodes.iter_mut() {
+                // let's try to retrieve binary version
+                if let Ok((version, peer_id, _)) = self
+                    .get_node_version_and_peer_id(&node.node_id, false)
+                    .await
+                {
+                    node.bin_version = version;
+                    node.peer_id = peer_id;
+                }
+            }
+        }
+
         Ok(nodes)
     }
 
@@ -275,14 +298,6 @@ impl DockerClient {
         logging::log!(
             "Sending Docker request to UPDATE the restart policy of a container: {url} ..."
         );
-        let container_update_req = ContainerUpdate {
-            RestartPolicy: Some(RestartPolicy {
-                Name: "on-failure".to_string(),
-                MaximumRetryCount: Some(5),
-            }),
-        };
-        self.send_request(ReqMethod::post(&container_update_req)?, &url, &[])
-            .await?;
 
         // let's try to retrieve new version
         self.get_node_version_and_peer_id(id, get_ips).await
@@ -441,7 +456,7 @@ impl DockerClient {
         logging::log!("[UPGRADE] Sending Docker request to upgrade node within container {id}");
 
         let cmd = "./antup node -n -p /app".to_string();
-        let exec_cmd = self.exec_in_container(id, cmd, "upgrade node binary");
+        let exec_cmd = self.exec_in_container(id, cmd, Some("upgrade node binary"));
         let timeout_duration = Duration::from_secs(UPGRADE_NODE_BIN_TIMEOUT_SECS);
         match timeout(timeout_duration, exec_cmd).await {
             Err(_) => logging::log!(
@@ -480,24 +495,22 @@ impl DockerClient {
     }
 
     // Retrieve version of the node binary and its peer id
-    pub async fn get_node_version_and_peer_id(
+    async fn get_node_version_and_peer_id(
         &self,
         id: &NodeId,
         get_ips: bool,
     ) -> Result<(Option<String>, Option<String>, Option<String>), DockerClientError> {
         let cmd = "/app/antnode --version | grep -oE 'Autonomi Node v[0-9]+\\.[0-9]+\\.[0-9]+.*$'"
             .to_string();
-        let (_, resp_str) = self
-            .exec_in_container(id, cmd, "get node bin version")
-            .await?;
+        let (_, resp_str) = self.exec_in_container(id, cmd, None).await?;
 
         let version = resp_str
             .strip_prefix("Autonomi Node v")
             .map(|v| v.replace(['\n', '\r'], ""));
-        logging::log!("Node binary version in container {id}: {version:?}");
+        //logging::log!("Node binary version in container {id}: {version:?}");
 
         let cmd = "cat node_data/secret-key | od -A n -t x1 | tr -d ' \n'".to_string();
-        let (_, resp_str) = self.exec_in_container(id, cmd, "get node peer id").await?;
+        let (_, resp_str) = self.exec_in_container(id, cmd, None).await?;
 
         let peer_id = if let Ok(keypair) =
             libp2p_identity::Keypair::ed25519_from_bytes(hex::decode(resp_str).unwrap_or_default())
@@ -506,16 +519,16 @@ impl DockerClient {
         } else {
             None
         };
-        logging::log!("Node peer ID in container {id}: {peer_id:?}");
+        //logging::log!("Node peer ID in container {id}: {peer_id:?}");
 
         let ips = if get_ips {
             let cmd = "ip -4 addr show | awk '/inet / {print $2}' | cut -d/ -f1 | paste -sd ' '"
                 .to_string();
             let (_, ips) = self
-                .exec_in_container(id, cmd, "get node network IPs")
+                .exec_in_container(id, cmd, Some("get node network IPs"))
                 .await?;
             let ips = ips.trim().replace(' ', ", ");
-            logging::log!("Node IP addresses in container {id}: {ips}");
+            //logging::log!("Node IP addresses in container {id}: {ips}");
             Some(ips)
         } else {
             None
@@ -527,7 +540,7 @@ impl DockerClient {
     // Get disk used by node in bytes
     pub async fn get_used_disk_space(&self, id: &NodeId) -> Result<u64, DockerClientError> {
         let cmd = "du -sb /app/node_data | awk '{{print $1}}'".to_string();
-        let (_, resp_str) = self.exec_in_container(id, cmd, "").await?;
+        let (_, resp_str) = self.exec_in_container(id, cmd, None).await?;
         let bytes = resp_str
             .replace(['\n', '\r'], "")
             .parse::<u64>()
@@ -541,7 +554,7 @@ impl DockerClient {
         id: &NodeId,
     ) -> Result<Vec<(u64, u64, PathBuf)>, DockerClientError> {
         let cmd = "df -B 1 | tail -n +2 | awk '{{print $2, $4, $6}}'".to_string();
-        let (_, resp_str) = self.exec_in_container(id, cmd, "").await?;
+        let (_, resp_str) = self.exec_in_container(id, cmd, None).await?;
         let reader = Cursor::new(resp_str).lines();
         let mut usage = vec![];
         for line in reader {
@@ -607,7 +620,7 @@ impl DockerClient {
         &self,
         id: &NodeId,
         cmd: String,
-        cmd_desc: &str,
+        log_msg: Option<&str>,
     ) -> Result<(String, String), DockerClientError> {
         let url = format!("{DOCKER_CONTAINERS_API}/{id}/exec");
         let exec_cmd = ContainerExec {
@@ -621,8 +634,8 @@ impl DockerClient {
             .send_request(ReqMethod::post(&exec_cmd)?, &url, &[])
             .await?;
         let exec_result: ContainerCreateExecSuccess = serde_json::from_slice(&resp_bytes)?;
-        if !cmd_desc.is_empty() {
-            logging::log!("Command to {cmd_desc} created successfully: {exec_result:#?}");
+        if let Some(msg) = log_msg {
+            logging::log!("Command to {msg} created successfully: {exec_result:#?}");
         }
         let exec_id = exec_result.Id;
         // let's now start the exec cmd created
