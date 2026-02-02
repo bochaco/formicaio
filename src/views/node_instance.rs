@@ -55,21 +55,7 @@ pub(super) fn NodeInstanceView(
             });
         }
     };
-
     let is_transitioning = move || info.read().status.is_transitioning();
-    let is_locked = move || info.read().is_status_locked;
-    let is_warn_node_status = move || {
-        info.read().is_status_unknown
-            || matches!(
-                info.read().status,
-                NodeStatus::Inactive(
-                    InactiveReason::Unknown
-                        | InactiveReason::Exited(_)
-                        | InactiveReason::StartFailed(_)
-                )
-            )
-    };
-
     let is_expanded = move || {
         context
             .expanded_nodes
@@ -102,6 +88,37 @@ pub(super) fn NodeInstanceView(
         }
 
         false
+    };
+    let status_color = move || {
+        if info.read().is_status_unknown {
+            "text-rose-400"
+        } else {
+            match info.get().status {
+                NodeStatus::Creating => "text-yellow-400",
+                NodeStatus::Active => "text-emerald-400",
+                NodeStatus::Restarting | NodeStatus::Stopping => "text-amber-400",
+                NodeStatus::Removing => "text-red-400",
+                NodeStatus::Inactive(InactiveReason::Created | InactiveReason::Stopped) => {
+                    "text-slate-500"
+                }
+                NodeStatus::Inactive(
+                    InactiveReason::StartFailed(_)
+                    | InactiveReason::Exited(_)
+                    | InactiveReason::Unknown,
+                ) => "text-rose-400",
+                NodeStatus::Upgrading | NodeStatus::Recycling => "text-cyan-400",
+            }
+        }
+    };
+    let status_summary = move || {
+        let summary = info.get().status_summary();
+        if is_transitioning() {
+            format!("{summary} ...")
+        } else if info.get().status_info.is_empty() {
+            summary
+        } else {
+            format!("{summary}, {}", info.read().status_info)
+        }
     };
 
     view! {
@@ -145,20 +162,7 @@ pub(super) fn NodeInstanceView(
                                 <span class="md:hidden text-xs font-bold text-slate-500 uppercase w-20">
                                     Status
                                 </span>
-                                <span class=move || {
-                                    info.read().status.status_color()
-                                }>
-                                    {move || info.read().status_summary()}
-                                    {move || {
-                                        if is_transitioning() {
-                                            " ...".to_string()
-                                        } else if info.get().status_info.is_empty() {
-                                            "".to_string()
-                                        } else {
-                                            format!(", {}", info.read().status_info)
-                                        }
-                                    }}
-                                </span>
+                                <span class=status_color>{move || status_summary()}</span>
                             </div>
                             <div class="md:col-span-1 flex items-center justify-between md:justify-center gap-4">
                                 <span class="md:hidden text-xs font-bold text-slate-500 uppercase w-20">
@@ -306,26 +310,9 @@ pub(super) fn NodeInstanceView(
                     <DetailItemView
                         label="Status"
                         full_width=true
-                        children_class=Signal::derive(move || info.read().status.status_color())
+                        children_class=Signal::derive(status_color)
                     >
-                        <span class=move || {
-                            if is_locked() {
-                                "node-info-item-highlight"
-                            } else if is_warn_node_status() {
-                                "node-info-item-warn"
-                            } else {
-                                ""
-                            }
-                        }>{move || info.get().status_summary()}</span>
-                        {move || {
-                            if is_transitioning() {
-                                " ...".to_string()
-                            } else if info.get().status_info.is_empty() {
-                                "".to_string()
-                            } else {
-                                format!(", {}", info.read().status_info)
-                            }
-                        }}
+                        {move || status_summary()}
                     </DetailItemView>
                     <DetailItemView label="Node ID" full_width=true>
                         {info.read_untracked().short_node_id()}
