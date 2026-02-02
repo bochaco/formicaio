@@ -113,7 +113,7 @@ fn AddNodeTabs(is_open: RwSignal<bool>, active_tab: RwSignal<u8>) -> impl IntoVi
                             help_msg="The time to wait between creating each node in a batch."
                         />
                     </div>
-                    <div class="flex items-center justify-between pt-2 gap-3">
+                    <div class="flex items-center justify-between pt-2">
                         <CheckboxInput
                             signal=auto_start
                             id="auto_start"
@@ -126,12 +126,6 @@ fn AddNodeTabs(is_open: RwSignal<bool>, active_tab: RwSignal<u8>) -> impl IntoVi
                             id="upnp"
                             label="Try UPnP"
                             help_msg="Try to use UPnP to open a port in the home router and allow incoming connections. If your router does not support UPnP, your node/s may struggle to connect to any peers. In this situation, create new node/s with UPnP disabled."
-                        />
-                        <CheckboxInput
-                            signal=reachability_check
-                            id="reachability_check"
-                            label="Reachability check"
-                            help_msg="Reachability check is performed to verify that the node is externally reachable before starting."
                         />
                     </div>
                 </div>
