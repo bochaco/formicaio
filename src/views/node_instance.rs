@@ -146,7 +146,7 @@ pub(super) fn NodeInstanceView(
                             )
                         }
                     >
-                        <div class="grid grid-cols-1 md:grid-cols-17 gap-x-4 gap-y-2 items-center md:px-6 cursor-pointer">
+                        <div class="grid grid-cols-1 md:grid-cols-18 gap-x-4 gap-y-2 items-center md:px-6 cursor-pointer">
                             <div class="md:col-span-1 flex items-center gap-4">
                                 <NodeSelection info />
                                 <Show when=move || is_transitioning()>
@@ -215,11 +215,14 @@ pub(super) fn NodeInstanceView(
                                 }>{move || value_or_dash(info.read().connected_peers)}</span>
                             </div>
                             <div
-                                class="md:col-span-2 flex flex-wrap items-center justify-center gap-1 text-slate-400"
+                                class="md:col-span-3 flex flex-wrap items-center justify-center gap-1 text-slate-400"
                                 on:click=move |e| e.stop_propagation()
                             >
                                 <NodeLogs info set_logs />
                                 <NodeChartShow info set_render_chart set_chart_data />
+                                <Show when=move || info.read().upgradeable()>
+                                    <ButtonUpgrade info />
+                                </Show>
                                 <button
                                     on:click=move |_| {
                                         if is_expanded() {
@@ -748,7 +751,7 @@ fn ButtonUpgrade(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
     };
 
     view! {
-        <div class="tooltip tooltip-bottom tooltip-info" data-tip=tip>
+        <div class="relative group flex items-center">
             <button
                 type="button"
                 prop:disabled=is_btn_disabled
@@ -759,6 +762,9 @@ fn ButtonUpgrade(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
             >
                 <IconUpgradeNode />
             </button>
+            <div class="absolute bottom-full mb-2 right-0 max-w-xs w-max bg-cyan-950 border-cyan-700 text-cyan-200 text-xs px-2 py-1 rounded-md border border-slate-700 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-lg">
+                {move || tip()}
+            </div>
         </div>
     }
 }

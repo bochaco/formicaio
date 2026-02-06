@@ -61,7 +61,7 @@ pub fn NodesListView(
                         view! {
                             <div class="space-y-2">
                                 // List Header
-                                <div class="hidden md:grid grid-cols-17 gap-4 items-center px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-800 bg-slate-900 rounded-t-lg">
+                                <div class="hidden md:grid grid-cols-18 gap-4 items-center px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-800 bg-slate-900 rounded-t-lg">
                                     <div class="col-span-1"></div>
                                     <div class="col-span-2 flex items-center gap-4">Node ID</div>
                                     <div class="col-span-5">Status</div>
@@ -70,7 +70,7 @@ pub fn NodesListView(
                                     <div class="col-span-1 text-center">Records</div>
                                     <div class="col-span-2 text-center">Disk Usage</div>
                                     <div class="col-span-1 text-center">Peers</div>
-                                    <div class="col-span-2 text-center"></div>
+                                    <div class="col-span-3 text-center">Actions</div>
                                 </div>
 
                                 <Show when=move || !context.scheduled_batches.read().is_empty()>
