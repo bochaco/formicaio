@@ -254,7 +254,7 @@ pub fn IconChevronDown(is_down: Signal<bool>) -> impl IntoView {
         <svg
             class=move || {
                 format!(
-                    "w-5 h-5 text-gray-800 dark:text-white transition-transform duration-200 {}",
+                    "w-5 h-5 transition-transform duration-200 {}",
                     if is_down.get() { "rotate-180" } else { "" },
                 )
             }
@@ -361,7 +361,7 @@ pub fn IconHamburguer() -> impl IntoView {
 pub fn IconPrompt() -> impl IntoView {
     view! {
         <svg
-            class="w-6 h-6 text-gray-800 dark:text-white"
+            class="w-6 h-6"
             aria-hidden="true"
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
@@ -515,7 +515,7 @@ pub fn IconLastPage() -> impl IntoView {
 pub fn IconSort() -> impl IntoView {
     view! {
         <svg
-            class="w-4 h-4 text-gray-800 dark:text-white"
+            class="w-4 h-4"
             aria-hidden="true"
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
@@ -598,7 +598,7 @@ pub fn IconLcdSettings() -> impl IntoView {
 pub fn IconSave() -> impl IntoView {
     view! {
         <svg
-            class="w-6 h-6 text-gray-800 dark:text-white"
+            class="w-6 h-6"
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 24 24"
             fill="none"
@@ -618,7 +618,7 @@ pub fn IconSave() -> impl IntoView {
 pub fn IconCheck() -> impl IntoView {
     view! {
         <svg
-            class="w-6 h-6 text-gray-800 dark:text-white"
+            class="w-6 h-6"
             aria-hidden="true"
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
@@ -676,9 +676,7 @@ pub fn IconWallet(#[prop(default = "w-6 h-6")] class: &'static str) -> impl Into
 }
 
 #[component]
-pub fn IconDisk(
-    #[prop(default = "w-6 h-6 text-gray-800 dark:text-white")] class: &'static str,
-) -> impl IntoView {
+pub fn IconDisk(#[prop(default = "w-6 h-6")] class: &'static str) -> impl IntoView {
     view! {
         <svg
             class=class.to_string()
@@ -698,9 +696,7 @@ pub fn IconDisk(
 }
 
 #[component]
-pub fn IconFile(
-    #[prop(default = "w-6 h-6 text-gray-800 dark:text-white")] class: &'static str,
-) -> impl IntoView {
+pub fn IconFile(#[prop(default = "w-6 h-6")] class: &'static str) -> impl IntoView {
     view! {
         <svg
             class=class.to_string()
@@ -744,7 +740,7 @@ pub fn IconAbout() -> impl IntoView {
 pub fn IconGithub() -> impl IntoView {
     view! {
         <svg
-            class="w-6 h-6 text-gray-800 dark:text-white"
+            class="w-6 h-6"
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 24 24"
             fill="none"
@@ -763,7 +759,7 @@ pub fn IconGithub() -> impl IntoView {
 pub fn IconBook() -> impl IntoView {
     view! {
         <svg
-            class="w-6 h-6 text-gray-800 dark:text-white"
+            class="w-6 h-6"
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 24 24"
             fill="none"
@@ -781,7 +777,7 @@ pub fn IconBook() -> impl IntoView {
 pub fn IconOffline() -> impl IntoView {
     view! {
         <svg
-            class="w-6 h-6 text-gray-800 dark:text-white"
+            class="w-6 h-6"
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 24 24"
             fill="none"
@@ -802,9 +798,7 @@ pub fn IconOffline() -> impl IntoView {
 }
 
 #[component]
-pub fn IconActivity(
-    #[prop(default = "w-6 h-6 text-gray-800 dark:text-white")] class: &'static str,
-) -> impl IntoView {
+pub fn IconActivity(#[prop(default = "w-6 h-6")] class: &'static str) -> impl IntoView {
     view! {
         <svg
             class=class.to_string()
@@ -822,9 +816,7 @@ pub fn IconActivity(
 }
 
 #[component]
-pub fn IconPeers(
-    #[prop(default = "w-6 h-6 text-gray-800 dark:text-white")] class: &'static str,
-) -> impl IntoView {
+pub fn IconPeers(#[prop(default = "w-6 h-6")] class: &'static str) -> impl IntoView {
     view! {
         <svg
             class=class.to_string()
@@ -854,7 +846,7 @@ pub fn IconPeers(
 pub fn IconLayoutTile() -> impl IntoView {
     view! {
         <svg
-            class="w-5 h-5 text-gray-800 dark:text-white"
+            class="w-5 h-5"
             xmlns="http://www.w3.org/2000/svg"
             aria-hidden="true"
             fill="none"
@@ -875,7 +867,7 @@ pub fn IconLayoutTile() -> impl IntoView {
 pub fn IconLayoutList() -> impl IntoView {
     view! {
         <svg
-            class="w-6 h-6 text-gray-800 dark:text-white"
+            class="w-6 h-6"
             xmlns="http://www.w3.org/2000/svg"
             aria-hidden="true"
             fill="none"
@@ -892,9 +884,7 @@ pub fn IconLayoutList() -> impl IntoView {
 }
 
 #[component]
-pub fn IconArrowUpRight(
-    #[prop(default = "w-5 h-5 text-gray-800 dark:text-white")] class: &'static str,
-) -> impl IntoView {
+pub fn IconArrowUpRight(#[prop(default = "w-5 h-5")] class: &'static str) -> impl IntoView {
     view! {
         <svg
             class=class.to_string()

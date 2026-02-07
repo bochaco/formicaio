@@ -109,7 +109,7 @@ pub fn DashboardView() -> impl IntoView {
                                 <th class="px-6 py-4 font-semibold">Status</th>
                                 <th class="px-6 py-4 text-center font-semibold">Stored Records</th>
                                 <th class="px-6 py-4 text-center font-semibold">
-                                    Observed Network Size
+                                    Estimated Network Size
                                 </th>
                                 <th class="px-6 py-4 font-semibold text-center">Peers</th>
                             </tr>
