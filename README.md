@@ -170,6 +170,8 @@ To upgrade Formicaio:
    ```
 4. **Run** the new binary from the same folder
 
+> **Note on Upgrading Without Stopping Nodes**: If you want to upgrade Formicaio without stopping any currently active running nodes, you must **kill the Formicaio process** (e.g., using `kill -9 <process-id>` or `killall formicaio`, or use tools like [btop](https://github.com/aristocratos/btop)) rather than stopping it gracefully with `Ctrl+C` before extracting the new version. This ensures that the node processes continue running uninterrupted while you upgrade the Formicaio binary.
+
 #### Important Notes
 
 - **Data Storage**: All Formicaio and node data are stored in the execution directory. Deleting this folder removes all associated data.
