@@ -95,6 +95,7 @@ impl NativeNodes {
     pub async fn new(
         node_status_locked: ImmutableNodeStatus,
         data_dir_path: Option<PathBuf>,
+        initial_pids: impl Iterator<Item = (NodeId, u32)>,
     ) -> Result<Self, NativeNodesError> {
         if !sysinfo::IS_SUPPORTED_SYSTEM {
             panic!(
@@ -116,12 +117,14 @@ impl NativeNodes {
         create_dir_all(&root_dir).await?;
 
         let system = Arc::new(RwLock::new(System::new()));
-        let nodes = Arc::new(RwLock::new(HashMap::default()));
+        let nodes = initial_pids
+            .map(|(node_id, pid)| (node_id, NodeProcess::ProcessFound(Pid::from_u32(pid))))
+            .collect();
 
         Ok(Self {
             root_dir,
             system,
-            nodes,
+            nodes: Arc::new(RwLock::new(nodes)),
             node_status_locked,
         })
     }
@@ -322,7 +325,8 @@ impl NativeNodes {
             }
 
             if let Some(mut node_info) = info {
-                nodes_info.remove(&node_info.node_id);
+                let node_id = &node_info.node_id;
+                nodes_info.remove(node_id);
                 if process.status() != ProcessStatus::Zombie {
                     node_info.set_status_active();
                     nodes_list.push(node_info);
@@ -330,11 +334,7 @@ impl NativeNodes {
                 }
 
                 // we won't try to kill a zombie if its status is locked
-                if self
-                    .node_status_locked
-                    .is_still_locked(&node_info.node_id)
-                    .await
-                {
+                if self.node_status_locked.is_still_locked(node_id).await {
                     nodes_list.push(node_info);
                     continue;
                 }

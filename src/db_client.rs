@@ -523,9 +523,16 @@ impl DbClient {
 
     // Explicit method to update node PID so the caller is aware the PID
     // will be changed, otherwise it could cause problems if updated from the incorrect flow.
-    pub async fn update_node_pid(&self, node_id: &NodeId, pid: NodePid) {
-        self.update_node_metadata_fields(node_id, &[("pid", &pid.to_string())])
-            .await
+    pub async fn update_node_pid(&self, node_id: &NodeId, pid: Option<NodePid>) {
+        self.update_node_metadata_fields(
+            node_id,
+            &[(
+                "pid",
+                &pid.map(|p| p.to_string())
+                    .unwrap_or_else(|| "0".to_string()),
+            )],
+        )
+        .await
     }
 
     // Explicit method to update node PID, PeerId, and binary version, so the caller is aware the PID

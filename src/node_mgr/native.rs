@@ -19,7 +19,7 @@ use chrono::{DateTime, Utc};
 use futures_util::Stream;
 use leptos::logging;
 use semver::Version;
-use std::{path::PathBuf, sync::Arc, time::Duration};
+use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
 use sysinfo::{DiskRefreshKind, Disks};
 use thiserror::Error;
 use tokio::sync::RwLock;
@@ -56,8 +56,20 @@ impl NodeManager {
         no_auto_start: bool,
         node_start_interval: Option<u64>,
     ) -> Result<Self, NodeManagerError> {
-        let native_nodes =
-            NativeNodes::new(app_ctx.node_status_locked.clone(), data_dir_path).await?;
+        let nodes_in_db = app_ctx.db_client.get_nodes_list().await;
+        let previously_active_nodes = nodes_in_db
+            .iter()
+            .filter(|(_, info)| info.status.is_active())
+            .map(|(node_id, info)| (node_id.clone(), info.is_status_locked))
+            .collect::<Vec<_>>();
+        let native_nodes = NativeNodes::new(
+            app_ctx.node_status_locked.clone(),
+            data_dir_path,
+            nodes_in_db
+                .iter()
+                .filter_map(|(node_id, node_info)| node_info.pid.map(|pid| (node_id.clone(), pid))),
+        )
+        .await?;
         let node_manager = Self {
             app_ctx,
             native_nodes,
@@ -76,11 +88,16 @@ impl NodeManager {
             }
         }
 
-        // let's create a batch to start nodes which were Active
-        let nodes_in_db = node_manager.app_ctx.db_client.get_nodes_list().await;
+        // to update pids and versions in db for nodes which were active before restart
+        let nodes_list = node_manager.update_nodes_status(nodes_in_db).await?;
+
+        // let's create a batch to start nodes which were Active and were found inactive now
         let mut active_nodes = vec![];
-        for (node_id, node_info) in nodes_in_db {
-            if node_info.status.is_active() {
+        for (node_id, is_status_locked) in previously_active_nodes {
+            if nodes_list
+                .iter()
+                .any(|n| n.node_id == node_id && n.status.is_inactive())
+            {
                 // let's set it to inactive otherwise it won't be started
                 node_manager
                     .app_ctx
@@ -88,7 +105,7 @@ impl NodeManager {
                     .update_node_status(&node_id, &NodeStatus::Inactive(InactiveReason::Stopped))
                     .await;
                 active_nodes.push(node_id);
-            } else if node_info.is_status_locked {
+            } else if is_status_locked {
                 node_manager
                     .app_ctx
                     .db_client
@@ -218,10 +235,16 @@ impl NodeManager {
 
         node_info.status = match &res {
             Ok(pid) => {
-                self.app_ctx.db_client.update_node_pid(&node_id, *pid).await;
+                self.app_ctx
+                    .db_client
+                    .update_node_pid(&node_id, Some(*pid))
+                    .await;
                 NodeStatus::Active
             }
-            Err(err) => NodeStatus::Inactive(InactiveReason::StartFailed(err.to_string())),
+            Err(err) => {
+                self.app_ctx.db_client.update_node_pid(&node_id, None).await;
+                NodeStatus::Inactive(InactiveReason::StartFailed(err.to_string()))
+            }
         };
 
         node_info.set_status_changed_now();
@@ -270,7 +293,7 @@ impl NodeManager {
             .db_client
             .update_node_metadata(&node_info, true)
             .await;
-
+        self.app_ctx.db_client.update_node_pid(&node_id, None).await;
         self.app_ctx.node_status_locked.remove(&node_id).await;
 
         Ok(())
@@ -340,10 +363,16 @@ impl NodeManager {
                     "Node binary upgraded to v{} in node {node_id}, new PID: {pid}.",
                     node_info.bin_version.as_deref().unwrap_or("[unknown]")
                 );
-                self.app_ctx.db_client.update_node_pid(node_id, *pid).await;
+                self.app_ctx
+                    .db_client
+                    .update_node_pid(node_id, Some(*pid))
+                    .await;
                 NodeStatus::Active
             }
-            Err(err) => NodeStatus::Inactive(InactiveReason::StartFailed(err.to_string())),
+            Err(err) => {
+                self.app_ctx.db_client.update_node_pid(node_id, None).await;
+                NodeStatus::Inactive(InactiveReason::StartFailed(err.to_string()))
+            }
         };
 
         node_info.set_status_changed_now();
@@ -380,10 +409,16 @@ impl NodeManager {
 
         node_info.status = match &res {
             Ok(pid) => {
-                self.app_ctx.db_client.update_node_pid(&node_id, *pid).await;
+                self.app_ctx
+                    .db_client
+                    .update_node_pid(&node_id, Some(*pid))
+                    .await;
                 NodeStatus::Active
             }
-            Err(err) => NodeStatus::Inactive(InactiveReason::StartFailed(err.to_string())),
+            Err(err) => {
+                self.app_ctx.db_client.update_node_pid(&node_id, None).await;
+                NodeStatus::Inactive(InactiveReason::StartFailed(err.to_string()))
+            }
         };
 
         node_info.set_status_changed_now();
@@ -400,7 +435,16 @@ impl NodeManager {
     // Obtain a non-filtered list of existing nodes.
     pub async fn get_nodes_list(&self) -> Result<Vec<NodeInstanceInfo>, NodeManagerError> {
         let nodes_in_db = self.app_ctx.db_client.get_nodes_list().await;
-        let (nodes, updated_pids) = self.native_nodes.get_nodes_list(nodes_in_db).await?;
+        self.update_nodes_status(nodes_in_db).await
+    }
+
+    // Private helper to retrieve an up to date list of nodes by checking its
+    // native nodes processes and updating their PIDs in the database if needed.
+    async fn update_nodes_status(
+        &self,
+        nodes: HashMap<NodeId, NodeInstanceInfo>,
+    ) -> Result<Vec<NodeInstanceInfo>, NodeManagerError> {
+        let (nodes, updated_pids) = self.native_nodes.get_nodes_list(nodes).await?;
 
         for (node_id, pid, bin_version, peer_id) in updated_pids {
             self.app_ctx
