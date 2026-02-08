@@ -1,4 +1,4 @@
-use super::icons::{IconBot, IconCode, IconCpu, IconShare, IconShield, IconZap};
+use super::icons::{IconBot, IconCode, IconCpu, IconShare, IconShield, IconTerminal, IconZap};
 use crate::{app::ClientGlobalState, server_api::get_mcp_info};
 
 use leptos::prelude::*;
@@ -116,6 +116,7 @@ pub fn McpView() -> impl IntoView {
                             />
                         </div>
                     </Suspense>
+
                 </div>
 
                 // Workflow Showcase
@@ -150,6 +151,48 @@ pub fn McpView() -> impl IntoView {
                         />
                     </div>
 
+                </div>
+            </div>
+
+            // Activation Instructions Card
+            <div class="bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-xl">
+                <h3 class="text-lg font-bold mb-6 flex items-center gap-3">
+                    <IconTerminal class="w-7 h-7 text-cyan-400" />
+                    How to Activate
+                </h3>
+                <div class="space-y-6 text-slate-300">
+                    <p>
+                        "You can easily enable the MCP Server by using the "
+                        <code class="font-mono bg-slate-800 text-indigo-400 px-1.5 py-0.5 rounded-md">
+                            "--mcp"
+                        </code>
+                        " flag when running Formicaio with the standalone executable. The following command will launch the MCP Server on its default address:"
+                    </p>
+
+                    <div>
+                        <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                            Linux / macOS
+                        </label>
+                        <pre class="bg-slate-950 border border-slate-800 rounded-lg p-4 mt-2 font-mono text-sm text-slate-200 overflow-x-auto">
+                            <code>"./formicaio start --mcp"</code>
+                        </pre>
+                    </div>
+
+                    <div>
+                        <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                            Windows
+                        </label>
+                        <pre class="bg-slate-950 border border-slate-800 rounded-lg p-4 mt-2 font-mono text-sm text-slate-200 overflow-x-auto">
+                            <code>"formicaio.exe start --mcp"</code>
+                        </pre>
+                    </div>
+
+                    <p>
+                        "If you wish to specify a different IP address and port for the MCP server, you can do so by using the "
+                        <code class="font-mono bg-slate-800 text-indigo-400 px-1.5 py-0.5 rounded-md">
+                            "--mcp-addr <IP>:<port>"
+                        </code>" argument."
+                    </p>
                 </div>
             </div>
         </div>

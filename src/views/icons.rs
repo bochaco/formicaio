@@ -1,10 +1,10 @@
 use leptos::prelude::*;
 
 #[component]
-pub fn IconTerminal() -> impl IntoView {
+pub fn IconTerminal(#[prop(default = "w-6 h-6")] class: &'static str) -> impl IntoView {
     view! {
         <svg
-            class="w-6 h-6"
+            class=class.to_string()
             aria-hidden="true"
             xmlns="http://www.w3.org/2000/svg"
             fill="none"

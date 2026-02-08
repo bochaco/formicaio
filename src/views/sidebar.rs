@@ -11,7 +11,11 @@ pub fn Sidebar(active_view: RwSignal<ViewType>, is_open: RwSignal<bool>) -> impl
     let nav_items = [
         (ViewType::Dashboard, "Dashboard", IconDashboard.into_any()),
         (ViewType::Nodes, "Nodes", IconNodes.into_any()),
-        (ViewType::Terminal, "Terminal", IconTerminal.into_any()),
+        (
+            ViewType::Terminal,
+            "Terminal",
+            view! { <IconTerminal /> }.into_any(),
+        ),
         (ViewType::Mcp, "AI", view! { <IconBot /> }.into_any()),
         (ViewType::Settings, "Settings", IconSettings.into_any()),
         (ViewType::About, "About", IconAbout.into_any()),
