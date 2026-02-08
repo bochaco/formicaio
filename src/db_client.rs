@@ -515,6 +515,23 @@ impl DbClient {
             .await
     }
 
+    // Convenient method to unlock all nodes status,
+    // so all nodes are unlocked regardless of their previous status.
+    pub async fn unlock_all_node_status(&self) {
+        let db_lock = self.db.lock().await;
+        match sqlx::query("UPDATE nodes SET is_status_locked = 0")
+            .execute(&*db_lock)
+            .await
+        {
+            Ok(_) => {}
+            Err(err) => {
+                logging::error!(
+                    "[ERROR] Database update error while unlocking all node statuses: {err}"
+                )
+            }
+        }
+    }
+
     // Convenient method to update node balance field
     pub async fn update_node_balance(&self, node_id: &NodeId, balance: &str) {
         self.update_node_metadata_fields(node_id, &[("balance", balance)])

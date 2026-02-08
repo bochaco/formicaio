@@ -57,11 +57,13 @@ impl NodeManager {
         node_start_interval: Option<u64>,
     ) -> Result<Self, NodeManagerError> {
         let nodes_in_db = app_ctx.db_client.get_nodes_list().await;
+        app_ctx.db_client.unlock_all_node_status().await;
         let previously_active_nodes = nodes_in_db
             .iter()
             .filter(|(_, info)| info.status.is_active())
-            .map(|(node_id, info)| (node_id.clone(), info.is_status_locked))
+            .map(|(node_id, _)| node_id.clone())
             .collect::<Vec<_>>();
+
         let native_nodes = NativeNodes::new(
             app_ctx.node_status_locked.clone(),
             data_dir_path,
@@ -93,7 +95,7 @@ impl NodeManager {
 
         // let's create a batch to start nodes which were Active and were found inactive now
         let mut active_nodes = vec![];
-        for (node_id, is_status_locked) in previously_active_nodes {
+        for node_id in previously_active_nodes {
             if nodes_list
                 .iter()
                 .any(|n| n.node_id == node_id && n.status.is_inactive())
@@ -105,12 +107,6 @@ impl NodeManager {
                     .update_node_status(&node_id, &NodeStatus::Inactive(InactiveReason::Stopped))
                     .await;
                 active_nodes.push(node_id);
-            } else if is_status_locked {
-                node_manager
-                    .app_ctx
-                    .db_client
-                    .unlock_node_status(&node_id)
-                    .await;
             }
         }
 
