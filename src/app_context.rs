@@ -26,6 +26,8 @@ pub struct AppContext {
     pub node_action_batches: NodeActionsBatches,
     /// Global statistics of all the node instances, shared and mutable across threads.
     pub stats: Arc<RwLock<Stats>>,
+    /// This is used to determine if the MCP server is active and can be interacted with.
+    pub mcp_status: Arc<RwLock<Option<String>>>,
 }
 
 impl AppContext {
@@ -41,6 +43,7 @@ impl AppContext {
             bg_tasks_cmds_tx,
             node_action_batches: Arc::new(RwLock::new((broadcast::channel(3).0, Vec::new()))),
             stats: Arc::new(RwLock::new(Stats::default())),
+            mcp_status: Arc::new(RwLock::new(None)),
         }
     }
 }

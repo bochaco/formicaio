@@ -209,6 +209,14 @@ pub async fn update_settings(settings: super::types::AppSettings) -> Result<(), 
     Ok(())
 }
 
+/// Retrieve the MCP server info (e.g., endpoint) if active
+#[server(name = GetMcpInfo, prefix = "/api", endpoint = "/mcp/info")]
+pub async fn get_mcp_info() -> Result<Option<String>, ServerFnError> {
+    let context = expect_context::<ServerGlobalState>();
+    let mcp_info = context.app_ctx.mcp_status.read().await.clone();
+    Ok(mcp_info)
+}
+
 /// Return list of running and scheduled nodes actions batches
 #[server(name = ListNodesActionsBatches, prefix = "/api", endpoint = "/batch/list")]
 pub async fn nodes_actions_batches() -> Result<Vec<NodesActionsBatch>, ServerFnError> {

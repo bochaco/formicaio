@@ -92,7 +92,7 @@ pub fn start_mcp_server(addr: SocketAddr, app_ctx: AppContext, node_manager: Nod
 
     // instantiate our custom handler for handling MCP messages
     let handler = McpServerHandler {
-        app_ctx,
+        app_ctx: app_ctx.clone(),
         node_manager,
     };
 
@@ -111,16 +111,21 @@ pub fn start_mcp_server(addr: SocketAddr, app_ctx: AppContext, node_manager: Nod
     );
 
     // Start the server
-    tokio::spawn(async {
-        logging::log!(
-            "{}",
-            server
-                .server_info(None)
-                .await
-                .unwrap_or_else(|err| err.to_string())
-        );
+    tokio::spawn(async move {
+        let server_info = server
+            .server_info(None)
+            .await
+            .unwrap_or_else(|err| err.to_string());
+        logging::log!("{server_info}");
+        if let Some(info) = server_info.find("http://") {
+            *app_ctx.mcp_status.write().await = Some(server_info[info..].to_string());
+        } else {
+            *app_ctx.mcp_status.write().await = Some("unknown".to_string());
+        }
+
         if let Err(err) = server.start().await {
             logging::error!("Failed to start MCP server: {err:?}");
+            *app_ctx.mcp_status.write().await = None;
         }
     });
 }

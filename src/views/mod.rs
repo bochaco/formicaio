@@ -8,6 +8,7 @@ mod form_inputs;
 mod helpers;
 mod icons;
 mod logs_viewer;
+mod mcp_view;
 mod node_actions;
 mod node_instance;
 mod nodes_list;
@@ -27,6 +28,7 @@ use self::{
     dashboard::DashboardView,
     icons::{IconAddNode, IconHamburguer},
     logs_viewer::LogViewerModal,
+    mcp_view::McpView,
     nodes_list::NodesListView,
     settings::SettingsView,
     sidebar::Sidebar,
@@ -54,6 +56,7 @@ enum ViewType {
     Dashboard,
     Nodes,
     Terminal,
+    Mcp,
     Settings,
     About,
 }
@@ -64,6 +67,7 @@ impl fmt::Display for ViewType {
             ViewType::Dashboard => "Dashboard",
             ViewType::Nodes => "Nodes",
             ViewType::Terminal => "Terminal",
+            ViewType::Mcp => "AI",
             ViewType::Settings => "Settings",
             ViewType::About => "About",
         };
@@ -140,6 +144,7 @@ pub fn HomeScreenView() -> impl IntoView {
                         ViewType::Terminal => view! { <TerminalView /> }.into_any(),
                         ViewType::Settings => view! { <SettingsView /> }.into_any(),
                         ViewType::About => view! { <AboutView /> }.into_any(),
+                        ViewType::Mcp => view! { <McpView /> }.into_any(),
                     }}
                 </div>
             </main>
