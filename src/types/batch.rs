@@ -14,6 +14,8 @@ pub enum BatchStatus {
     Scheduled,
     /// The batch is currently being processed.
     InProgress,
+    /// The batch failed to complete successfully, with a message describing the failure.
+    Failed(String),
 }
 
 impl fmt::Display for BatchStatus {
@@ -21,7 +23,14 @@ impl fmt::Display for BatchStatus {
         match self {
             BatchStatus::Scheduled => write!(f, "Scheduled"),
             BatchStatus::InProgress => write!(f, "In progress"),
+            BatchStatus::Failed(msg) => write!(f, "Failed: {msg}"),
         }
+    }
+}
+
+impl BatchStatus {
+    pub fn is_failed(&self) -> bool {
+        matches!(self, Self::Failed(_))
     }
 }
 

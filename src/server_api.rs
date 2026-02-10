@@ -284,16 +284,15 @@ pub async fn cancel_batch(batch_id: u16) -> Result<(), ServerFnError> {
     logging::log!("Cancelling node action batch {batch_id} ...");
 
     let mut guard = context.app_ctx.node_action_batches.write().await;
-    guard.0.send(batch_id)?;
-
     if let Some(index) = guard.1.iter().position(|b| b.id == batch_id) {
-        let batch = guard.1.remove(index);
-        for node_id in batch.batch_type.ids().iter() {
-            context.app_ctx.node_status_locked.remove(node_id).await;
-            context.app_ctx.db_client.unlock_node_status(node_id).await;
+        if guard.1[index].status.is_failed() {
+            // failed batch — just remove it (dismiss)
+            guard.1.remove(index);
+        } else {
+            // still running/scheduled — signal the runner to cancel
+            guard.0.send(batch_id)?;
         }
     }
-
     Ok(())
 }
 
