@@ -117,11 +117,7 @@ async fn run_batches(app_ctx: AppContext, node_manager: NodeManager) {
                             node_opts_clone.port += i;
                             node_opts_clone.metrics_port += i;
                             let res = node_manager.create_node_instance(node_opts_clone).await;
-                            update_batch_status(&res, &app_ctx, batch_info.id).await;
-                            if res.is_err() {
-                                unlock_batched_nodes(&app_ctx, &batch_info.batch_type).await;
-                                break;
-                            }
+                            update_batch_status(&res, &app_ctx, &batch_info, i.into(), count.into()).await;
                             i += 1;
                             if i == count {
                                 break;
@@ -158,11 +154,7 @@ async fn run_batches(app_ctx: AppContext, node_manager: NodeManager) {
                                 BatchType::Remove(_) => node_manager.delete_node_instance(node_id).await,
                                 BatchType::Create {..} => Ok(())
                             };
-                            update_batch_status(&res, &app_ctx, batch_info.id).await;
-                            if res.is_err() {
-                                unlock_batched_nodes(&app_ctx, &batch_info.batch_type).await;
-                                break;
-                            }
+                            update_batch_status(&res, &app_ctx, &batch_info, i, count).await;
                             i += 1;
                             if i == count {
                                 break;
@@ -193,8 +185,11 @@ async fn unlock_batched_nodes(app_ctx: &AppContext, batch_type: &BatchType) {
 async fn update_batch_status<R, E: std::fmt::Display>(
     res: &Result<R, E>,
     app_ctx: &AppContext,
-    batch_id: u16,
+    batch_info: &NodesActionsBatch,
+    action_index: usize,
+    total_actions: usize,
 ) {
+    let batch_id = batch_info.id;
     if let Some(ref mut b) = app_ctx
         .node_action_batches
         .write()
@@ -208,9 +203,20 @@ async fn update_batch_status<R, E: std::fmt::Display>(
                 logging::error!(
                     "[ERROR] Node action failed on node instance as part of batch {batch_id}: {err}"
                 );
-                b.status = BatchStatus::Failed(err.to_string());
+                if let BatchStatus::InProgressWithFailures(count, _) = &b.status {
+                    b.status = BatchStatus::InProgressWithFailures(count + 1, err.to_string());
+                } else {
+                    b.status = BatchStatus::InProgressWithFailures(1, err.to_string());
+                }
             }
             Ok(_) => b.complete += 1,
+        }
+
+        if action_index + 1 == total_actions
+            && let BatchStatus::InProgressWithFailures(_, err) = &b.status
+        {
+            unlock_batched_nodes(app_ctx, &batch_info.batch_type).await;
+            b.status = BatchStatus::Failed(err.clone());
         }
     }
 }

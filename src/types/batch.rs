@@ -14,7 +14,10 @@ pub enum BatchStatus {
     Scheduled,
     /// The batch is currently being processed.
     InProgress,
-    /// The batch failed to complete successfully, with a message describing the failure.
+    /// The batch is currently being processed, but some actions have failed.
+    /// Contains the count of failed actions and the last error encountered.
+    InProgressWithFailures(u16, String),
+    /// The batch has completed with failures. Contains the last error encountered.
     Failed(String),
 }
 
@@ -23,13 +26,19 @@ impl fmt::Display for BatchStatus {
         match self {
             BatchStatus::Scheduled => write!(f, "Scheduled"),
             BatchStatus::InProgress => write!(f, "In progress"),
-            BatchStatus::Failed(msg) => write!(f, "Failed: {msg}"),
+            BatchStatus::InProgressWithFailures(count, msg) => {
+                write!(f, "In progress with {count} failures, last error: {msg}")
+            }
+            BatchStatus::Failed(msg) => write!(f, "Failed, last error: {msg}"),
         }
     }
 }
 
 impl BatchStatus {
     pub fn is_failed(&self) -> bool {
+        matches!(self, Self::Failed(_) | Self::InProgressWithFailures(_, _))
+    }
+    pub fn is_finished(&self) -> bool {
         matches!(self, Self::Failed(_))
     }
 }
@@ -46,7 +55,7 @@ pub struct NodesActionsBatch {
     pub batch_type: BatchType,
     /// Interval in seconds between each action in the batch.
     pub interval_secs: u64,
-    /// Number of actions completed in the batch.
+    /// Number of actions completed successfully in the batch.
     pub complete: u16,
 }
 

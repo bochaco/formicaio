@@ -30,28 +30,27 @@ fn ActionBatchViewNew(batch_info: RwSignal<NodesActionsBatch>) -> impl IntoView 
         };
         (batch_type, action_duration)
     };
-    let is_failed = Memo::new(move |_| {
-        if let BatchStatus::Failed(reason) = &batch_info.read().status {
-            Some(reason.clone())
-        } else {
-            None
-        }
-    });
     let (count, auto_start) = if let BatchType::Create { count, node_opts } = &batch_type {
         (*count, node_opts.auto_start)
     } else {
         (batch_type.ids().len() as u16, false)
     };
+    let finished = move || match &batch_info.read().status {
+        BatchStatus::Scheduled => 0,
+        BatchStatus::InProgress => batch_info.read().complete,
+        BatchStatus::InProgressWithFailures(c, _) => *c + batch_info.read().complete,
+        BatchStatus::Failed(_) => count,
+    };
     let progress = move || {
         if count > 0 {
-            (batch_info.read().complete * 100) / count
+            (finished() * 100) / count
         } else {
             0
         }
     };
     let time_remaining = move || {
         if count > 0 {
-            let remaining = (count - batch_info.read().complete) as u64
+            let remaining = (count - finished()) as u64
                 * (batch_info.get_untracked().interval_secs + action_duration);
             let minutes = remaining / 60;
             let seconds = remaining % 60;
@@ -60,6 +59,19 @@ fn ActionBatchViewNew(batch_info: RwSignal<NodesActionsBatch>) -> impl IntoView 
             (0, 0)
         }
     };
+    let is_failed = Memo::new(move |_| match &batch_info.read().status {
+        BatchStatus::Failed(reason) => Some((
+            reason.clone(),
+            count - batch_info.read().complete,
+            "Batch failed".to_string(),
+        )),
+        BatchStatus::InProgressWithFailures(c, reason) => Some((
+            reason.clone(),
+            *c,
+            "Batch in progress with failures".to_string(),
+        )),
+        _ => None,
+    });
 
     view! {
         <div class=move || {
@@ -75,8 +87,8 @@ fn ActionBatchViewNew(batch_info: RwSignal<NodesActionsBatch>) -> impl IntoView 
             <div class="flex items-start justify-between">
                 <h4 class="text-base font-bold text-white">
                     {move || {
-                        if is_failed.read().is_some() {
-                            "Batch Failed".to_string()
+                        if let Some((_, _, failure_status)) = is_failed.get() {
+                            failure_status
                         } else {
                             batch_info.read().status.to_string()
                         }
@@ -109,11 +121,18 @@ fn ActionBatchViewNew(batch_info: RwSignal<NodesActionsBatch>) -> impl IntoView 
             <Show when=move || is_failed.read().is_some()>
                 <div class="bg-rose-500/10 border border-rose-500/20 rounded-xl p-4 animate-in zoom-in-95">
                     <span class="text-[10px] font-bold text-rose-400 uppercase tracking-widest block mb-2">
-                        Failure
+                        Last Error
                     </span>
                     <p class="text-sm text-rose-100 font-mono leading-relaxed">
-                        {move || is_failed.get()}
+                        {move || {
+                            is_failed.get().map(|(reason, _, _)| reason.clone()).unwrap_or_default()
+                        }}
                     </p>
+                    <div class="mt-3 text-xs text-rose-300 flex items-center gap-2">
+                        <span class="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                        {move || is_failed.get().map(|(_, count, _)| count).unwrap_or_default()}
+                        " failures."
+                    </div>
                 </div>
             </Show>
 
@@ -139,7 +158,7 @@ fn ActionBatchViewNew(batch_info: RwSignal<NodesActionsBatch>) -> impl IntoView 
                 <div class="flex justify-between items-center mb-1">
                     <span class="text-xs font-semibold text-slate-400">Nodes actions batch</span>
                     <span class="text-xs font-bold text-indigo-400">
-                        {move || batch_info.read().complete} " / " {count}
+                        {move || finished()} " / " {count}
                     </span>
                 </div>
                 <div class="w-full bg-slate-800 rounded-full h-2.5">
@@ -150,7 +169,7 @@ fn ActionBatchViewNew(batch_info: RwSignal<NodesActionsBatch>) -> impl IntoView 
                 </div>
                 <div class="flex justify-between items-center mt-1">
                     <span class="text-xs font-bold text-white">{move || progress()}%</span>
-                    <Show when=move || is_failed.read().is_none()>
+                    <Show when=move || !batch_info.read().status.is_finished()>
                         <span class="text-xs text-white font-medium">
                             "Time remaining: "
                             {move || {
