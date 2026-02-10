@@ -58,10 +58,10 @@ pub fn OfflineMsg() -> impl IntoView {
                     </h3>
                     <p class="text-slate-400">
                         "Try refreshing this page by pressing "
-                        <kbd class="px-2 py-1.5 text-xs font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded-lg dark:bg-gray-600 dark:text-gray-100 dark:border-gray-500">
+                        <kbd class="px-2 py-1.5 text-xs font-semibold border rounded-lg bg-gray-600 text-gray-100 border-gray-500">
                             "Ctrl"
                         </kbd>" + "
-                        <kbd class="px-2 py-1.5 text-xs font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded-lg dark:bg-gray-600 dark:text-gray-100 dark:border-gray-500">
+                        <kbd class="px-2 py-1.5 text-xs font-semibold border rounded-lg bg-gray-600 text-gray-100 border-gray-500">
                             "F5"
                         </kbd>
                         ". If the issue persists, check to ensure that the backend server is operational."
