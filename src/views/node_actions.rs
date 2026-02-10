@@ -8,7 +8,7 @@ use crate::{
 };
 
 use super::{
-    helpers::{remove_node_instance, show_alert_msg},
+    helpers::{remove_node_instance, show_error_alert_msg},
     icons::*,
 };
 
@@ -111,7 +111,7 @@ impl NodeAction {
                 info.read_untracked().short_node_id()
             );
             logging::log!("{msg}");
-            show_alert_msg(msg);
+            show_error_alert_msg(msg);
             info.update(|node| node.status = previous_status);
         }
     }
@@ -335,7 +335,7 @@ fn apply_on_selected(action: NodeAction, interval: u64, context: ClientGlobalSta
             Err(err) => {
                 let msg = format!("Failed to schedule batch of {action:?}: {err:?}");
                 logging::error!("{msg}");
-                show_alert_msg(msg);
+                show_error_alert_msg(msg);
             }
         }
     });

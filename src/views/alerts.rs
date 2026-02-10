@@ -1,81 +1,44 @@
-use super::icons::{IconAlertMsgError, IconCancel, IconCheck, IconOffline};
+use super::icons::{IconCancel, IconOffline};
 use crate::app::ClientGlobalState;
 
 use leptos::prelude::*;
 
-#[allow(dead_code)]
-pub enum Notification {
-    Success(String),
-    Error(String),
-    Info(String),
-}
-
-impl Notification {
-    fn message(&self) -> String {
-        match &self {
-            Self::Success(s) | Self::Error(s) | Self::Info(s) => s.clone(),
-        }
-    }
-
-    fn color(&self) -> String {
-        match &self {
-            Self::Success(_) => "text-emerald-500".to_string(),
-            Self::Error(_) => "text-rose-500".to_string(),
-            Self::Info(_) => "text-cyan-500".to_string(),
-        }
-    }
-
-    fn icon_color(&self) -> String {
-        match &self {
-            Self::Success(_) => "border-emerald-500/30 bg-slate-900/80".to_string(),
-            Self::Error(_) => "border-rose-500/30 bg-slate-900/80".to_string(),
-            Self::Info(_) => "border-cyan-500/30 bg-slate-900/80".to_string(),
-        }
-    }
-
-    fn icon(&self) -> AnyView {
-        match &self {
-            Self::Success(_) => view! { <IconCheck /> }.into_any(),
-            Self::Error(_) => view! { <IconAlertMsgError /> }.into_any(),
-            Self::Info(_) => view! { <IconCheck /> }.into_any(),
-        }
-    }
-}
-
 #[component]
 pub fn AlertMsg() -> impl IntoView {
     let context = expect_context::<ClientGlobalState>();
+    let alerts = Memo::new(move |_| {
+        context
+            .alerts
+            .get()
+            .into_iter()
+            .filter(|notif| !notif.shown)
+            .collect::<Vec<_>>()
+    });
 
     view! {
         <div class="fixed top-20 right-4 z-[200] space-y-3 w-full max-w-sm">
-            <For each=move || context.alerts.get() key=|(id, _)| *id let:child>
-                <NotificationToast
-                    notification=Notification::Error(child.1)
-                    prop:key=child.0
-                    on_click=move || {
-                        context.alerts.update(|msgs| msgs.retain(|(id, _)| *id != child.0))
-                    }
-                />
+            <For each=move || alerts.get() key=|notif| notif.id let:child>
+                <div
+                    prop:key=child.id
+                    class=format!(
+                        "w-full max-w-sm rounded-2xl p-4 border flex items-start gap-4 shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-top-4 duration-300 {}",
+                        child.color(),
+                    )
+                >
+                    <div class=format!("mt-0.5 {}", child.icon_color())>{child.icon()}</div>
+                    <div class="flex-1 text-sm text-slate-200 font-medium">
+                        {child.message.clone()}
+                    </div>
+                    <button
+                        on:click=move |_| {
+                            context.alerts.update(|msgs| msgs.retain(|n| n.id != child.id))
+                        }
+                        class="p-1 -m-1 text-slate-500 hover:text-white transition-colors rounded-full"
+                    >
+                        <IconCancel />
+                    </button>
+                </div>
             </For>
-        </div>
-    }
-}
-
-#[component]
-fn NotificationToast(notification: Notification, on_click: impl Fn() + 'static) -> impl IntoView {
-    view! {
-        <div class=format!(
-            "w-full max-w-sm rounded-2xl p-4 border flex items-start gap-4 shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-top-4 duration-300 {}",
-            notification.color(),
-        )>
-            <div class=format!("mt-0.5 {}", notification.icon_color())>{notification.icon()}</div>
-            <div class="flex-1 text-sm text-slate-200 font-medium">{notification.message()}</div>
-            <button
-                on:click=move |_| on_click()
-                class="p-1 -m-1 text-slate-500 hover:text-white transition-colors rounded-full"
-            >
-                <IconCancel />
-            </button>
         </div>
     }
 }

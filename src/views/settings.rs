@@ -4,7 +4,7 @@ use crate::{
 };
 
 use super::{
-    helpers::show_alert_msg,
+    helpers::show_error_alert_msg,
     icons::{IconCheck, IconLayoutDashboard, IconLcdSettings, IconSave, IconServer, IconWallet},
 };
 
@@ -362,7 +362,7 @@ pub fn SettingsView() -> impl IntoView {
             if let Err(err) = update_settings(settings_clone.clone()).await {
                 let msg = format!("Failed to update settings: {err:?}");
                 logging::log!("{msg}");
-                show_alert_msg(msg);
+                show_error_alert_msg(msg);
             } else {
                 is_saved.set(true);
                 form_content.update(|f| f.saved_settings.set(settings_clone));

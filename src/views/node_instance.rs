@@ -1,7 +1,7 @@
 use super::{
     chart::{ChartSeriesData, node_metrics_update},
     format_disk_usage,
-    helpers::{node_logs_stream, show_alert_msg, truncated_balance_str},
+    helpers::{node_logs_stream, show_error_alert_msg, truncated_balance_str},
     icons::{
         IconChevronDown, IconRecycle, IconRemove, IconShowChart, IconShowLogs, IconStartNode,
         IconStopNode, IconUpgradeNode,
@@ -622,7 +622,7 @@ fn NodeLogs(info: RwSignal<NodeInstanceInfo>, set_logs: WriteSignal<Vec<String>>
             if let Err(err) = node_logs_stream(id.clone(), set_logs).await {
                 let msg = format!("Failed to start logs stream for node {id}: {err:?}");
                 logging::log!("{msg}");
-                show_alert_msg(msg);
+                show_error_alert_msg(msg);
             }
         }
     });
@@ -665,7 +665,7 @@ fn NodeChartShow(
             if let Err(err) = node_metrics_update(id.clone(), set_chart_data).await {
                 let msg = format!("Failed to start updating metrics chart for node {id}: {err:?}");
                 logging::log!("{msg}");
-                show_alert_msg(msg);
+                show_error_alert_msg(msg);
             }
         });
     };

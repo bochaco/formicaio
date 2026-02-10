@@ -10,7 +10,7 @@ use super::server_api::{get_settings, nodes_instances};
 use super::{
     error_template::{AppError, ErrorTemplate},
     types::{NodeId, NodeInstanceInfo, NodesActionsBatch, NodesSortStrategy, Stats},
-    views::{HomeScreenView, about::AboutView, terminal::TerminalView},
+    views::{HomeScreenView, Notification, about::AboutView, terminal::TerminalView},
 };
 
 #[cfg(feature = "ssr")]
@@ -78,7 +78,7 @@ pub struct ClientGlobalState {
     // Lastest version of the node binary available
     pub latest_bin_version: RwSignal<Option<String>>,
     // List of alerts to be shown in the UI
-    pub alerts: RwSignal<Vec<(u64, String)>>,
+    pub alerts: RwSignal<Vec<Notification>>,
     // Information about node instances batch currently in progress
     pub scheduled_batches: RwSignal<Vec<RwSignal<NodesActionsBatch>>>,
     // Keep track of nodes being selected and if selection is on/off

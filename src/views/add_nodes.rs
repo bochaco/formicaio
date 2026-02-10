@@ -4,7 +4,7 @@ use super::{
     form_inputs::{
         CheckboxInput, IpAddrInput, NumberInput, PortNumberInput, RewardsAddrInput, TextInput,
     },
-    helpers::{add_node_instances, show_alert_msg},
+    helpers::{add_node_instances, show_error_alert_msg},
     icons::IconCancel,
 };
 
@@ -72,7 +72,7 @@ fn AddNodeTabs(is_open: RwSignal<bool>, active_tab: RwSignal<u8>) -> impl IntoVi
             if let Err(err) = add_node_instances(node_opts, count, interval).await {
                 let msg = format!("Failed to create node/s: {err}");
                 logging::error!("{msg}");
-                show_alert_msg(msg);
+                show_error_alert_msg(msg);
             }
         }
     });

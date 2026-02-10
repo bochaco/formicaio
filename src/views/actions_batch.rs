@@ -1,4 +1,4 @@
-use super::{helpers::show_alert_msg, icons::IconCancel};
+use super::{helpers::show_error_alert_msg, icons::IconCancel};
 use crate::{
     app::ClientGlobalState,
     server_api::cancel_batch,
@@ -73,7 +73,7 @@ fn ActionBatchViewNew(batch_info: RwSignal<NodesActionsBatch>) -> impl IntoView 
                             if let Err(err) = cancel_batch(batch_id).await {
                                 let msg = format!("Failed to cancel node action batch: {err:?}");
                                 logging::log!("{msg}");
-                                show_alert_msg(msg);
+                                show_error_alert_msg(msg);
                             }
                         }
                     })

@@ -1,3 +1,4 @@
+use super::notifications::Notification;
 use crate::{
     app::{ActionTriggered, ClientGlobalState},
     server_api::{
@@ -10,7 +11,6 @@ use crate::{
 use alloy_primitives::U256;
 use gloo_timers::future::TimeoutFuture;
 use leptos::{logging, prelude::*, task::spawn_local};
-use rand::Rng;
 
 // Duration of each alert message shows in the UI
 const ALERT_MSG_DURATION_MILLIS: u32 = 9_000;
@@ -27,19 +27,20 @@ pub fn truncated_balance_str(v: U256) -> String {
     }
 }
 
-// Shows an alert message in the UI (currently as an error).
-// TODO: allow to provide the type of alert, i.e. info, warning, etc.
-pub fn show_alert_msg(msg: String) {
+// Shows an error alert message in the UI.
+pub fn show_error_alert_msg(msg: String) {
+    let notif = Notification::new_error(msg.clone());
     let context = expect_context::<ClientGlobalState>();
     spawn_local(async move {
-        let mut rng = rand::rng();
-        let random_id = rng.random::<u64>();
-        logging::log!("Alert msg. displayed: {msg}");
-        context.alerts.update(|msgs| msgs.push((random_id, msg)));
+        logging::log!("Alert msg. displayed: {}", notif.message);
+        let notif_id = notif.id;
+        context.alerts.update(|msgs| msgs.push(notif));
         TimeoutFuture::new(ALERT_MSG_DURATION_MILLIS).await;
-        context
-            .alerts
-            .update(|msgs| msgs.retain(|(id, _)| *id != random_id));
+        context.alerts.update(|msgs| {
+            if let Some(notif) = msgs.iter_mut().find(|notif| notif.id == notif_id) {
+                notif.shown = true;
+            }
+        });
     });
 }
 

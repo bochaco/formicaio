@@ -12,6 +12,7 @@ mod mcp_view;
 mod node_actions;
 mod node_instance;
 mod nodes_list;
+mod notifications;
 mod pagination;
 mod settings;
 mod sidebar;
@@ -19,6 +20,7 @@ mod sort_nodes;
 pub mod terminal;
 
 pub use helpers::truncated_balance_str;
+pub use notifications::{Notification, NotificationsView};
 
 use self::{
     about::AboutView,
@@ -26,7 +28,7 @@ use self::{
     alerts::{AlertMsg, OfflineMsg},
     chart::MetricsViewerModal,
     dashboard::DashboardView,
-    icons::{IconAddNode, IconHamburguer},
+    icons::{IconAddNode, IconBell, IconHamburguer},
     logs_viewer::LogViewerModal,
     mcp_view::McpView,
     nodes_list::NodesListView,
@@ -81,6 +83,7 @@ pub fn HomeScreenView() -> impl IntoView {
 
     let active_view = RwSignal::new(ViewType::Dashboard);
     let sidebar_open = RwSignal::new(false);
+    let notifications_open = RwSignal::new(false);
     let add_nodes_modal_open = RwSignal::new(false);
     // this signal keeps the reactive list of log entries
     let (logs, set_logs) = signal(Vec::new());
@@ -123,6 +126,28 @@ pub fn HomeScreenView() -> impl IntoView {
                     </div>
 
                     <div class="flex items-center gap-2 md:gap-4">
+                        <div class="relative">
+                            <button
+                                on:click=move |_| notifications_open.update(|v| *v = !*v)
+                                class=move || {
+                                    format!(
+                                        "p-2 transition-all rounded-lg hover:bg-slate-800 {}",
+                                        if notifications_open.get() {
+                                            "bg-slate-800 text-white"
+                                        } else {
+                                            "text-slate-400 hover:text-white"
+                                        },
+                                    )
+                                }
+                            >
+                                <IconBell />
+                                <Show when=move || !context.alerts.read().is_empty()>
+                                    <span class="absolute top-2 right-2 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-slate-900 animate-pulse"></span>
+                                </Show>
+                            </button>
+                            <NotificationsView is_open=notifications_open />
+                        </div>
+
                         <button
                             on:click=move |_| add_nodes_modal_open.set(true)
                             class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 transition-colors text-white px-4 py-1.5 rounded-lg font-medium text-sm shadow-lg shadow-indigo-500/20"
