@@ -66,7 +66,7 @@ pub async fn prepare_node_action_batch(
     let len = {
         let batches = &mut app_ctx.node_action_batches.write().await.1;
         batches.push(batch_info);
-        batches.len()
+        batches.iter().filter(|b| !b.status.is_failed()).count()
     };
 
     // spawn a task if there was no other tasks already batched
@@ -81,15 +81,21 @@ async fn run_batches(app_ctx: AppContext, node_manager: NodeManager) {
     let mut cancel_rx = app_ctx.node_action_batches.read().await.0.subscribe();
 
     loop {
-        let batch_info =
-            if let Some(next_batch) = app_ctx.node_action_batches.write().await.1.first_mut() {
-                let mut batch = next_batch.clone();
-                batch.status = BatchStatus::InProgress;
-                *next_batch = batch.clone();
-                batch
-            } else {
-                return;
-            };
+        let batch_info = if let Some(next_batch) = app_ctx
+            .node_action_batches
+            .write()
+            .await
+            .1
+            .iter_mut()
+            .find(|b| !b.status.is_failed())
+        {
+            let mut batch = next_batch.clone();
+            batch.status = BatchStatus::InProgress;
+            *next_batch = batch.clone();
+            batch
+        } else {
+            return;
+        };
 
         match batch_info.batch_type {
             BatchType::Create {
@@ -102,6 +108,7 @@ async fn run_batches(app_ctx: AppContext, node_manager: NodeManager) {
                     select! {
                         batch_id = cancel_rx.recv() => {
                             if matches!(batch_id, Ok(id) if id == batch_info.id) {
+                                unlock_batched_nodes(&app_ctx, &batch_info.batch_type).await;
                                 break;
                             }
                         },
@@ -109,20 +116,13 @@ async fn run_batches(app_ctx: AppContext, node_manager: NodeManager) {
                             let mut node_opts_clone = node_opts.clone();
                             node_opts_clone.port += i;
                             node_opts_clone.metrics_port += i;
-                            i += 1;
-                            match node_manager.create_node_instance(node_opts_clone).await {
-                                Err(err) => logging::error!(
-                                    "[ERROR] Failed to create node instance {i}/{count} as part of a batch: {err}"
-                                ),
-                                Ok(_) => if let Some(ref mut b) = app_ctx
-                                    .node_action_batches.write().await.1
-                                    .iter_mut()
-                                    .find(|batch| batch.id == batch_info.id)
-                                {
-                                    b.complete += 1;
-                                }
+                            let res = node_manager.create_node_instance(node_opts_clone).await;
+                            update_batch_status(&res, &app_ctx, batch_info.id).await;
+                            if res.is_err() {
+                                unlock_batched_nodes(&app_ctx, &batch_info.batch_type).await;
+                                break;
                             }
-
+                            i += 1;
                             if i == count {
                                 break;
                             }
@@ -142,6 +142,7 @@ async fn run_batches(app_ctx: AppContext, node_manager: NodeManager) {
                     select! {
                         batch_id = cancel_rx.recv() => {
                             if matches!(batch_id, Ok(id) if id == batch_info.id) {
+                                unlock_batched_nodes(&app_ctx, &batch_info.batch_type).await;
                                 break;
                             }
                         },
@@ -157,20 +158,11 @@ async fn run_batches(app_ctx: AppContext, node_manager: NodeManager) {
                                 BatchType::Remove(_) => node_manager.delete_node_instance(node_id).await,
                                 BatchType::Create {..} => Ok(())
                             };
-
-                            match res {
-                                Err(err) => logging::log!(
-                                    "Node action failed on node instance {}/{count} as part of a batch: {err}", i+1
-                                ),
-                                Ok(()) => if let Some(ref mut b) = app_ctx
-                                    .node_action_batches.write().await.1
-                                    .iter_mut()
-                                    .find(|batch| batch.id == batch_info.id)
-                                {
-                                    b.complete += 1;
-                                }
+                            update_batch_status(&res, &app_ctx, batch_info.id).await;
+                            if res.is_err() {
+                                unlock_batched_nodes(&app_ctx, &batch_info.batch_type).await;
+                                break;
                             }
-
                             i += 1;
                             if i == count {
                                 break;
@@ -186,6 +178,39 @@ async fn run_batches(app_ctx: AppContext, node_manager: NodeManager) {
             .write()
             .await
             .1
-            .retain(|batch| batch.id != batch_info.id);
+            .retain(|batch| batch.id != batch_info.id || batch.status.is_failed());
+    }
+}
+
+async fn unlock_batched_nodes(app_ctx: &AppContext, batch_type: &BatchType) {
+    for node_id in batch_type.ids().iter() {
+        app_ctx.node_status_locked.remove(node_id).await;
+        app_ctx.db_client.unlock_node_status(node_id).await;
+    }
+}
+
+// Helper to update the batch status after each node action completion
+async fn update_batch_status<R, E: std::fmt::Display>(
+    res: &Result<R, E>,
+    app_ctx: &AppContext,
+    batch_id: u16,
+) {
+    if let Some(ref mut b) = app_ctx
+        .node_action_batches
+        .write()
+        .await
+        .1
+        .iter_mut()
+        .find(|batch| batch.id == batch_id)
+    {
+        match res {
+            Err(err) => {
+                logging::error!(
+                    "[ERROR] Node action failed on node instance as part of batch {batch_id}: {err}"
+                );
+                b.status = BatchStatus::Failed(err.to_string());
+            }
+            Ok(_) => b.complete += 1,
+        }
     }
 }

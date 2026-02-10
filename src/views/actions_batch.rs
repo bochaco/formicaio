@@ -2,7 +2,7 @@ use super::{helpers::show_error_alert_msg, icons::IconCancel};
 use crate::{
     app::ClientGlobalState,
     server_api::cancel_batch,
-    types::{BatchType, NodesActionsBatch},
+    types::{BatchStatus, BatchType, NodesActionsBatch},
 };
 
 use leptos::{logging, prelude::*, task::spawn_local};
@@ -30,6 +30,13 @@ fn ActionBatchViewNew(batch_info: RwSignal<NodesActionsBatch>) -> impl IntoView 
         };
         (batch_type, action_duration)
     };
+    let is_failed = Memo::new(move |_| {
+        if let BatchStatus::Failed(reason) = &batch_info.read().status {
+            Some(reason.clone())
+        } else {
+            None
+        }
+    });
     let (count, auto_start) = if let BatchType::Create { count, node_opts } = &batch_type {
         (*count, node_opts.auto_start)
     } else {
@@ -55,13 +62,30 @@ fn ActionBatchViewNew(batch_info: RwSignal<NodesActionsBatch>) -> impl IntoView 
     };
 
     view! {
-        <div class="bg-slate-900/70 border border-indigo-500/30 rounded-2xl p-4 transition-all duration-300 shadow-2xl shadow-indigo-500/10 backdrop-blur-sm flex flex-col gap-4 animate-in fade-in">
+        <div class=move || {
+            format!(
+                "border-2 rounded-2xl p-5 transition-all duration-500 shadow-2xl backdrop-blur-md flex flex-col gap-4 animate-in fade-in slide-in-from-top-4 {}",
+                if is_failed.read().is_some() {
+                    "bg-rose-950/40 border-rose-500/50 shadow-rose-500/10"
+                } else {
+                    "bg-slate-900/70 border-indigo-500/30 shadow-indigo-500/10"
+                },
+            )
+        }>
             <div class="flex items-start justify-between">
                 <h4 class="text-base font-bold text-white">
-                    "Batch " {move || batch_info.read().status.to_string()} ":"
+                    {move || {
+                        if is_failed.read().is_some() {
+                            "Batch Failed".to_string()
+                        } else {
+                            batch_info.read().status.to_string()
+                        }
+                    }} ":"
                 </h4>
                 <button
-                    title="Cancel batch"
+                    title=move || {
+                        if is_failed.read().is_none() { "Cancel batch" } else { "Dismiss" }
+                    }
                     class="p-1 text-slate-500 hover:text-white transition-colors"
                     on:click=move |_| spawn_local({
                         context
@@ -81,6 +105,17 @@ fn ActionBatchViewNew(batch_info: RwSignal<NodesActionsBatch>) -> impl IntoView 
                     <IconCancel />
                 </button>
             </div>
+
+            <Show when=move || is_failed.read().is_some()>
+                <div class="bg-rose-500/10 border border-rose-500/20 rounded-xl p-4 animate-in zoom-in-95">
+                    <span class="text-[10px] font-bold text-rose-400 uppercase tracking-widest block mb-2">
+                        Failure
+                    </span>
+                    <p class="text-sm text-rose-100 font-mono leading-relaxed">
+                        {move || is_failed.get()}
+                    </p>
+                </div>
+            </Show>
 
             <ul class="text-sm text-slate-300 list-disc list-inside space-y-1.5 pl-1">
                 <li>
@@ -115,16 +150,18 @@ fn ActionBatchViewNew(batch_info: RwSignal<NodesActionsBatch>) -> impl IntoView 
                 </div>
                 <div class="flex justify-between items-center mt-1">
                     <span class="text-xs font-bold text-white">{move || progress()}%</span>
-                    <span class="text-xs text-white font-medium">
-                        "Time remaining: "
-                        {move || {
-                            if time_remaining().0 > 0 {
-                                format!("{}m {}s", time_remaining().0, time_remaining().1)
-                            } else {
-                                format!("{}s", time_remaining().1)
-                            }
-                        }}
-                    </span>
+                    <Show when=move || is_failed.read().is_none()>
+                        <span class="text-xs text-white font-medium">
+                            "Time remaining: "
+                            {move || {
+                                if time_remaining().0 > 0 {
+                                    format!("{}m {}s", time_remaining().0, time_remaining().1)
+                                } else {
+                                    format!("{}s", time_remaining().1)
+                                }
+                            }}
+                        </span>
+                    </Show>
                 </div>
             </div>
         </div>
