@@ -288,12 +288,15 @@ pub fn IconUpgradeNode(
 }
 
 #[component]
-pub fn IconChevronDown(is_down: Signal<bool>) -> impl IntoView {
+pub fn IconChevronDown(
+    is_down: Signal<bool>,
+    #[prop(default = "w-5 h-5")] class: &'static str,
+) -> impl IntoView {
     view! {
         <svg
             class=move || {
                 format!(
-                    "w-5 h-5 transition-transform duration-200 {}",
+                    "{class} transition-transform duration-200 {}",
                     if is_down.get() { "rotate-180" } else { "" },
                 )
             }
@@ -1064,6 +1067,25 @@ pub fn IconCode(#[prop(default = "w-5 h-5")] class: &'static str) -> impl IntoVi
         >
             <polyline points="16 18 22 12 16 6" />
             <polyline points="8 6 2 12 8 18" />
+        </svg>
+    }
+}
+
+#[component]
+pub fn IconTrendingUp(#[prop(default = "w-5 h-5")] class: &'static str) -> impl IntoView {
+    view! {
+        <svg
+            class=class.to_string()
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
+            <polyline points="16 7 22 7 22 13" />
         </svg>
     }
 }

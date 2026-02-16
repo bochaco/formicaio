@@ -2,13 +2,13 @@ use crate::{
     app::{AppContext, METRICS_MAX_SIZE_PER_NODE},
     db_client::DbClient,
     node_mgr::NodeManager,
-    types::{AppSettings, BatchType, NodeInstanceInfo, NodeStatus},
+    types::{AppSettings, BatchType, EarningsStats, NodeInstanceInfo, NodeStatus},
     views::truncated_balance_str,
 };
 
 use super::{
-    BgTasksCmds, ImmutableNodeStatus, TokenContract, metrics_client::NodeMetricsClient,
-    prepare_node_action_batch,
+    ArbitrumClient, BgTasksCmds, ImmutableNodeStatus, TokenContract, earnings::calc_earnings_stats,
+    metrics_client::NodeMetricsClient, prepare_node_action_batch,
 };
 
 use alloy::{
@@ -402,6 +402,7 @@ pub async fn balance_checker_task(
     let mut prev_url = settings.l2_network_rpc_url;
 
     loop {
+        let mut perform_earnings_stats_update = false;
         match bg_tasks_cmds_rx.recv().await {
             Ok(BgTasksCmds::ApplySettings(s)) => {
                 if prev_addr != s.token_contract_address || prev_url != s.l2_network_rpc_url {
@@ -429,6 +430,7 @@ pub async fn balance_checker_task(
                         .iter()
                         .map(|(addr, (balance, _))| (addr.to_string(), *balance))
                         .collect();
+                    perform_earnings_stats_update = true;
                 }
             }
             Ok(BgTasksCmds::DeleteBalanceFor(node_info)) => {
@@ -450,6 +452,7 @@ pub async fn balance_checker_task(
                         .iter()
                         .map(|(addr, (balance, _))| (addr.to_string(), *balance))
                         .collect();
+                    perform_earnings_stats_update = true;
                 }
             }
             Ok(BgTasksCmds::CheckAllBalances) => {
@@ -484,8 +487,25 @@ pub async fn balance_checker_task(
                     .iter()
                     .map(|(addr, (balance, _))| (addr.to_string(), *balance))
                     .collect();
+                perform_earnings_stats_update = true;
             }
             Err(_) => {}
+        }
+
+        if perform_earnings_stats_update {
+            if updated_balances.is_empty() {
+                app_ctx.stats.write().await.earnings.clear();
+            } else {
+                let days_to_track = 100;
+                update_earnings_stats(
+                    &app_ctx,
+                    &prev_url,
+                    &prev_addr,
+                    &updated_balances,
+                    days_to_track,
+                )
+                .await;
+            }
         }
     }
 }
@@ -611,4 +631,74 @@ fn get_total_and_free_disk_space(
     }
 
     (total_space, available_space)
+}
+
+// Fetch incoming payment data from Arbitrum L2 for rewards addresses.
+async fn update_earnings_stats(
+    app_ctx: &AppContext,
+    arbitrum_rpc: &str,
+    contract_address: &str,
+    updated_balances: &HashMap<Address, (U256, u64)>,
+    days_to_track: u64,
+) {
+    // Create the Arbitrum client with the provided configuration
+    let client = match ArbitrumClient::new(
+        arbitrum_rpc,
+        contract_address,
+        updated_balances.keys(),
+        days_to_track,
+    ) {
+        Ok(client) => client,
+        Err(e) => {
+            logging::error!("[ERROR] Failed to create Arbitrum client: {e}");
+            return;
+        }
+    };
+
+    // Fetch payments from Arbitrum
+    match client.fetch_incoming_payments().await {
+        Ok(payments) => {
+            let mut rewards_payments = vec![];
+            for address_payments in payments {
+                let payments = address_payments
+                    .payments
+                    .iter()
+                    .map(|p| (p.timestamp.timestamp(), p.amount))
+                    .collect();
+                rewards_payments.push((address_payments.address.clone(), payments));
+            }
+
+            logging::log!(
+                "Successfully updated earnings stats for {} addresses.",
+                rewards_payments.len()
+            );
+            let earnings = earnings_stats(rewards_payments).await;
+            app_ctx.stats.write().await.earnings = earnings;
+        }
+        Err(err) => {
+            app_ctx.stats.write().await.earnings.clear();
+            logging::error!("[ERROR] Failed to fetch rewards payments: {err}");
+        }
+    }
+}
+
+// Calculate detailed earnings statistics for a specific rewards address
+async fn earnings_stats(payments: Vec<(String, Vec<(i64, U256)>)>) -> Vec<(String, EarningsStats)> {
+    let now = Utc::now().timestamp();
+    let mut aggregated_payments = vec![];
+    let mut stats = payments
+        .iter()
+        .map(|(addr, p)| {
+            aggregated_payments.extend(p);
+            let earnings = calc_earnings_stats(now, p);
+            (addr.clone(), earnings)
+        })
+        .collect::<Vec<_>>();
+
+    stats.push((
+        "".to_string(),
+        calc_earnings_stats(now, &aggregated_payments),
+    ));
+
+    stats
 }

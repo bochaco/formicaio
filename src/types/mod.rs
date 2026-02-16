@@ -16,7 +16,7 @@ pub use node_instance::{NodeInstanceInfo, NodePid, ReachabilityCheckStatus, shor
 pub use node_status::{InactiveReason, NodeStatus};
 pub use settings::AppSettings;
 pub use sort_nodes::{NodeSortField, NodesSortStrategy};
-pub use stats::{Stats, WidgetFourStats, WidgetStat};
+pub use stats::{EarningsStats, PeriodStats, Stats, WidgetFourStats, WidgetStat};
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

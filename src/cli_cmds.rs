@@ -250,7 +250,7 @@ pub enum SettingsSubcommands {
 pub enum CliCmdResponse {
     Nodes(Vec<NodeInstanceInfo>, bool),
     NodeCreated(Box<NodeInstanceInfo>),
-    Stats(Stats),
+    Stats(Box<Stats>),
     Batches(Vec<NodesActionsBatch>),
     Settings(AppSettings),
     BatchCreated(u16),
@@ -420,7 +420,7 @@ impl CliCommands {
                 }
                 CliCmdResponse::Success
             }
-            CliCommands::Stats => CliCmdResponse::Stats(fetch_stats().await?),
+            CliCommands::Stats => CliCmdResponse::Stats(Box::new(fetch_stats().await?)),
             CliCommands::Batches(BatchesSubcommands::Ls) => {
                 CliCmdResponse::Batches(nodes_actions_batches().await?)
             }
@@ -614,7 +614,7 @@ impl CliCommands {
             }
             CliCommands::Stats => send_req(&format!("{api_url}/stats"), None)
                 .await
-                .map(|res: Stats| CliCmdResponse::Stats(res)),
+                .map(|res: Stats| CliCmdResponse::Stats(Box::new(res))),
             CliCommands::Batches(BatchesSubcommands::Ls) => {
                 send_req(&format!("{api_url}/batch/list"), None)
                     .await

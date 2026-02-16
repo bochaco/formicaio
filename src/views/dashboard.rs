@@ -1,7 +1,9 @@
 use crate::{app::ClientGlobalState, types::shortened_address};
 
 use super::{
-    GB_CONVERTION, format_disk_usage,
+    GB_CONVERTION,
+    earnings::RewardsEarningsCard,
+    format_disk_usage,
     helpers::truncated_balance_str,
     icons::{
         IconActivity, IconArrowUpRight, IconDisk, IconFile, IconPeers, IconServer, IconWallet,
@@ -92,6 +94,11 @@ pub fn DashboardView() -> impl IntoView {
                     total=Signal::derive(move || context.stats.read().total_disk_space)
                 />
 
+            </div>
+
+            // Analytics Card - Comprehensive Rewards Breakdown
+            <div class="grid grid-cols-1 gap-6">
+                <RewardsEarningsCard />
             </div>
 
             // Current Nodes Activity

@@ -8,6 +8,8 @@ pub struct Stats {
     pub total_balance: U256,
     /// Balances of the addresses assigned to nodes for rewards
     pub balances: Vec<(String, U256)>,
+    /// Earnings analytics for rewards addresses
+    pub earnings: Vec<(String, EarningsStats)>,
     /// Total number of node instances
     pub total_nodes: usize,
     /// Number of currently active nodes
@@ -47,4 +49,67 @@ pub struct WidgetStat {
     pub title: String,
     pub text: String,
     pub subtext: String,
+}
+
+/// Detailed statistics for a single earnings period
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PeriodStats {
+    /// Period label (e.g., "24 Hours", "72 Hours")
+    pub label: String,
+    /// Period length in hours
+    pub length_hours: u32,
+    /// Total earnings in this period
+    pub total_earned: U256,
+    /// Percentage change from previous period (None if previous was 0)
+    pub change_percent: Option<f64>,
+    /// Absolute change from previous period
+    pub change_amount: f64,
+    /// Number of payments in this period
+    pub num_payments: usize,
+    /// Average payment amount
+    pub average_payment: U256,
+    /// Median payment amount
+    pub median_payment: U256,
+    /// Largest payment amount
+    pub largest_payment: U256,
+}
+
+/// Aggregated earnings statistics for all periods
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EarningsStats {
+    pub period_1: PeriodStats,
+    pub period_2: PeriodStats,
+    pub period_3: PeriodStats,
+    pub period_4: PeriodStats,
+}
+
+impl Default for EarningsStats {
+    fn default() -> Self {
+        Self {
+            // Statistics for the last 48 hours
+            period_1: PeriodStats {
+                label: "Last 48 Hours".to_string(),
+                length_hours: 48,
+                ..PeriodStats::default()
+            },
+            // Statistics for the last week
+            period_2: PeriodStats {
+                label: "Last Week".to_string(),
+                length_hours: 168,
+                ..PeriodStats::default()
+            },
+            // Statistics for the last month
+            period_3: PeriodStats {
+                label: "Last Month".to_string(),
+                length_hours: 720,
+                ..PeriodStats::default()
+            },
+            // Statistics for the last 3 months
+            period_4: PeriodStats {
+                label: "Last 3 Months".to_string(),
+                length_hours: 2160,
+                ..PeriodStats::default()
+            },
+        }
+    }
 }

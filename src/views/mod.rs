@@ -4,6 +4,7 @@ mod add_nodes;
 mod alerts;
 mod chart;
 mod dashboard;
+mod earnings;
 mod form_inputs;
 mod helpers;
 mod icons;
@@ -36,6 +37,7 @@ use self::{
     sidebar::Sidebar,
     terminal::TerminalView,
 };
+
 use crate::app::ClientGlobalState;
 
 use leptos::prelude::*;

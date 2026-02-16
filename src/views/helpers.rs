@@ -137,3 +137,69 @@ pub async fn node_logs_stream(
     logging::log!("Node logs stream ended for node {node_id}.");
     Ok(())
 }
+
+pub fn human_readable_percent(pct: f64) -> String {
+    if pct == 0.0 {
+        return "0%".into();
+    }
+    let neg = pct.is_sign_negative();
+    let v = pct.abs();
+
+    // full-word suffixes from thousand up to septillion (10^24)
+    let units = [
+        (1e24_f64, "septillion"),
+        (1e21_f64, "sextillion"),
+        (1e18_f64, "quintillion"),
+        (1e15_f64, "quadrillion"),
+        (1e12_f64, "trillion"),
+        (1e9_f64, "billion"),
+        (1e6_f64, "million"),
+        (1e3_f64, "thousand"),
+    ];
+
+    // For normal percentages (<1000%) use fixed sensible decimals and trim trailing zeros
+    if v < 1000.0 {
+        let mut s = if v >= 100.0 {
+            format!("{:.0}", v.round())
+        } else if v >= 10.0 {
+            format!("{:.1}", (v * 10.0).round() / 10.0)
+        } else {
+            format!("{:.2}", (v * 100.0).round() / 100.0)
+        };
+        while s.contains('.') && (s.ends_with('0') || s.ends_with('.')) {
+            s.pop();
+        }
+        return if neg {
+            format!("-{s}%")
+        } else {
+            format!("+{s}%")
+        };
+    }
+
+    // For very large percentages use full-word suffixes then percent sign
+    for &(threshold, suffix) in &units {
+        if v >= threshold {
+            let scaled = v / threshold;
+            let formatted = if scaled >= 100.0 {
+                format!("{scaled:.0}")
+            } else if scaled >= 10.0 {
+                format!("{:.1}", (scaled * 10.0).round() / 10.0)
+            } else {
+                format!("{:.2}", (scaled * 100.0).round() / 100.0)
+            };
+            let out = if neg {
+                format!("-{formatted} {suffix}%")
+            } else {
+                format!("+{formatted} {suffix}%")
+            };
+            return out;
+        }
+    }
+
+    // fallback (shouldn't reach)
+    if neg {
+        format!("-{v}%")
+    } else {
+        format!("+{v}%")
+    }
+}
