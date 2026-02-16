@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use std::borrow::Cow;
 use thiserror::Error;
+use url::Url;
 
 /// Error types for Arbitrum client operations
 #[derive(Debug, Error)]
@@ -36,26 +37,16 @@ pub struct AddressPayments {
 /// Individual payment record from blockchain
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PaymentRecord {
-    /// Transaction hash
-    pub tx_hash: String,
-    /// Block number
-    pub block_number: u64,
     /// Timestamp of the block
     pub timestamp: DateTime<Utc>,
-    /// Source address sending the payment
-    pub from: String,
-    /// Receiving rewards address
-    pub to: String,
     /// Amount received in wei
     pub amount: U256,
-    /// Token address (native ETH if all zeros, otherwise ERC20 token)
-    pub token_address: Option<String>,
 }
 
 /// Client for querying payment data from Arbitrum L2
 pub struct ArbitrumClient {
     /// RPC endpoint URL
-    endpoint: String,
+    endpoint: Url,
     /// Contract address to query transactions from
     contract_address: Address,
     /// Rewards addresses to monitor (transaction destinations)
@@ -75,6 +66,7 @@ impl ArbitrumClient {
     ///
     /// # Errors
     /// Returns `ArbitrumClientError::InvalidAddress` if contract address is malformed
+    /// Returns `ArbitrumClientError::ConfigError` if RPC URL is invalid
     pub fn new<'a>(
         endpoint: &str,
         contract_address: &str,
@@ -86,7 +78,9 @@ impl ArbitrumClient {
             .map_err(|_| ArbitrumClientError::InvalidAddress(contract_address.to_string()))?;
 
         Ok(Self {
-            endpoint: endpoint.to_string(),
+            endpoint: endpoint.parse().map_err(|_| {
+                ArbitrumClientError::ConfigError("Invalid RPC endpoint".to_string())
+            })?,
             contract_address: contract_addr,
             rewards_addresses: rewards_addresses.cloned().collect(),
             days_to_track,
@@ -100,13 +94,9 @@ impl ArbitrumClient {
     pub async fn fetch_incoming_payments(
         &self,
     ) -> Result<Vec<AddressPayments>, ArbitrumClientError> {
-        let provider =
-            ProviderBuilder::new().connect_http(self.endpoint.parse().map_err(|_| {
-                ArbitrumClientError::ConfigError("Invalid RPC endpoint".to_string())
-            })?);
+        let provider = ProviderBuilder::new().connect_http(self.endpoint.clone());
 
         let mut all_payments = Vec::new();
-
         for address in &self.rewards_addresses {
             logging::log!("Fetching payments info for address: {address}",);
             match self.fetch_payments_for_address(&provider, *address).await {
@@ -176,12 +166,6 @@ impl ArbitrumClient {
         let mut payment_records = Vec::new();
         for log in logs {
             // Parse fields from raw JSON log
-            let tx_hash = log
-                .get("transactionHash")
-                .and_then(|v| v.as_str())
-                .unwrap_or_default()
-                .to_string();
-
             let block_hex = log
                 .get("blockNumber")
                 .and_then(|v| v.as_str())
@@ -212,13 +196,6 @@ impl ArbitrumClient {
                 .single()
                 .ok_or_else(|| ArbitrumClientError::ParseError("Invalid timestamp".into()))?;
 
-            let from = log
-                .get("address")
-                .and_then(|v| v.as_str())
-                .unwrap_or_default()
-                .to_string();
-            let to = format!("{:?}", address);
-
             // For ERC-20 transfers, the amount is in the log data as a hex-encoded 256-bit integer
             let data_str = log.get("data").and_then(|v| v.as_str()).unwrap_or_default();
             let amount = if data_str == "0x" || data_str.is_empty() {
@@ -228,15 +205,7 @@ impl ArbitrumClient {
                 let hex_without_prefix = data_str.trim_start_matches("0x");
                 U256::from_str_radix(hex_without_prefix, 16).unwrap_or_default()
             };
-            payment_records.push(PaymentRecord {
-                tx_hash,
-                block_number,
-                timestamp,
-                from,
-                to,
-                amount,
-                token_address: Some(address.to_string()),
-            });
+            payment_records.push(PaymentRecord { timestamp, amount });
         }
 
         Ok(payment_records)

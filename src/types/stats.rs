@@ -60,6 +60,8 @@ pub struct PeriodStats {
     pub length_hours: u32,
     /// Total earnings in this period
     pub total_earned: U256,
+    /// Total earnings in previous period
+    pub total_earned_prev: U256,
     /// Percentage change from previous period (None if previous was 0)
     pub change_percent: Option<f64>,
     /// Absolute change from previous period

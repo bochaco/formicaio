@@ -1,7 +1,9 @@
+use super::arbitrum_client::PaymentRecord;
 use crate::types::EarningsStats;
+
 use alloy_primitives::U256;
 
-pub fn calc_earnings_stats(now: i64, payments: &[(i64, U256)]) -> EarningsStats {
+pub fn calc_earnings_stats(now: i64, payments: &[PaymentRecord]) -> EarningsStats {
     let earnings_stats = EarningsStats::default();
     let mut periods = vec![
         (
@@ -32,6 +34,7 @@ pub fn calc_earnings_stats(now: i64, payments: &[(i64, U256)]) -> EarningsStats 
             period_stats.total_earned += *amt;
         }
         period_stats.num_payments = amts.len();
+        period_stats.total_earned_prev = amts_prev.iter().sum();
         if period_stats.num_payments > 0 {
             period_stats.average_payment = period_stats
                 .total_earned
@@ -47,7 +50,7 @@ pub fn calc_earnings_stats(now: i64, payments: &[(i64, U256)]) -> EarningsStats 
             }
         };
         let (change_percent, change_amount) =
-            calc_change(period_stats.total_earned, amts_prev.iter().sum());
+            calc_change(period_stats.total_earned, period_stats.total_earned_prev);
         period_stats.change_percent = change_percent;
         period_stats.change_amount = change_amount;
     }
@@ -60,11 +63,15 @@ pub fn calc_earnings_stats(now: i64, payments: &[(i64, U256)]) -> EarningsStats 
     }
 }
 
-fn payments_in_window(payments: &[(i64, U256)], start: i64, end: i64) -> Vec<U256> {
+fn payments_in_window(payments: &[PaymentRecord], start: i64, end: i64) -> Vec<U256> {
     let mut sorted = payments
         .iter()
-        .filter(|(ts, amt)| *ts > start && *ts <= end && *amt > U256::ZERO)
-        .map(|(_, amt)| *amt)
+        .filter(|p| {
+            p.timestamp.timestamp() > start
+                && p.timestamp.timestamp() <= end
+                && p.amount > U256::ZERO
+        })
+        .map(|p| p.amount)
         .collect::<Vec<U256>>();
     sorted.sort();
     sorted
@@ -72,9 +79,10 @@ fn payments_in_window(payments: &[(i64, U256)], start: i64, end: i64) -> Vec<U25
 
 fn calc_change(current: U256, previous: U256) -> (Option<f64>, f64) {
     let prev = f64::from(previous);
-    let amt = f64::from(current) - prev;
+    let cur = f64::from(current);
+    let amt = cur - prev;
     if prev > 0.0 {
-        let pct = (amt / prev) * 100.0;
+        let pct = (amt * 100.0) / prev;
         (Some(pct), amt)
     } else {
         (None, amt)

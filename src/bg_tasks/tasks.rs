@@ -7,8 +7,11 @@ use crate::{
 };
 
 use super::{
-    ArbitrumClient, BgTasksCmds, ImmutableNodeStatus, TokenContract, earnings::calc_earnings_stats,
-    metrics_client::NodeMetricsClient, prepare_node_action_batch,
+    BgTasksCmds, ImmutableNodeStatus, TokenContract,
+    arbitrum_client::{AddressPayments, ArbitrumClient},
+    earnings::calc_earnings_stats,
+    metrics_client::NodeMetricsClient,
+    prepare_node_action_batch,
 };
 
 use alloy::{
@@ -658,21 +661,11 @@ async fn update_earnings_stats(
     // Fetch payments from Arbitrum
     match client.fetch_incoming_payments().await {
         Ok(payments) => {
-            let mut rewards_payments = vec![];
-            for address_payments in payments {
-                let payments = address_payments
-                    .payments
-                    .iter()
-                    .map(|p| (p.timestamp.timestamp(), p.amount))
-                    .collect();
-                rewards_payments.push((address_payments.address.clone(), payments));
-            }
-
             logging::log!(
                 "Successfully updated earnings stats for {} addresses.",
-                rewards_payments.len()
+                payments.len()
             );
-            let earnings = earnings_stats(rewards_payments).await;
+            let earnings = earnings_stats(payments).await;
             app_ctx.stats.write().await.earnings = earnings;
         }
         Err(err) => {
@@ -683,15 +676,15 @@ async fn update_earnings_stats(
 }
 
 // Calculate detailed earnings statistics for a specific rewards address
-async fn earnings_stats(payments: Vec<(String, Vec<(i64, U256)>)>) -> Vec<(String, EarningsStats)> {
+async fn earnings_stats(payments: Vec<AddressPayments>) -> Vec<(String, EarningsStats)> {
     let now = Utc::now().timestamp();
     let mut aggregated_payments = vec![];
     let mut stats = payments
-        .iter()
-        .map(|(addr, p)| {
-            aggregated_payments.extend(p);
-            let earnings = calc_earnings_stats(now, p);
-            (addr.clone(), earnings)
+        .into_iter()
+        .map(|p| {
+            let earnings = calc_earnings_stats(now, &p.payments);
+            aggregated_payments.extend(p.payments);
+            (p.address.clone(), earnings)
         })
         .collect::<Vec<_>>();
 

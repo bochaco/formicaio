@@ -142,7 +142,7 @@ fn PeriodStatCard(stats: PeriodStats) -> impl IntoView {
 
             <div class="space-y-4 flex-1">
                 <div class="flex flex-col gap-1 group/row">
-                    <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                    <span class="text-[11px] font-bold text-slate-500 uppercase tracking-widest">
                         Accumulated Rewards
                     </span>
                     <span class=move || {
@@ -150,13 +150,22 @@ fn PeriodStatCard(stats: PeriodStats) -> impl IntoView {
                             "text-2xl font-bold tracking-tight transition-colors {}",
                             if is_positive() { "text-white" } else { "text-slate-200" },
                         )
-                    }>{truncated_balance_str(U256::from(stats.total_earned))}</span>
+                    }>{move || truncated_balance_str(U256::from(stats.total_earned))}</span>
                 </div>
 
                 <div class="flex flex-col gap-2 pb-4 border-b border-slate-800/60 group/row text-center sm:text-left">
-                    <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                        Variance from Last Period
-                    </span>
+                    <div class="flex justify-between items-center">
+                        <span class="text-[11px] font-bold text-slate-500 uppercase tracking-widest">
+                            Variance
+                        </span>
+                        <span class="text-[11px] font-bold text-slate-500/80 uppercase tracking-widest">
+                            Prev:
+                            <span class="text-slate-300 font-mono">
+                                {move || truncated_balance_str(stats.total_earned_prev)}
+                            </span>
+                        </span>
+                    </div>
+
                     <div class=move || {
                         format!(
                             "inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold border transition-all duration-300 w-full {}",
@@ -193,27 +202,29 @@ fn PeriodStatCard(stats: PeriodStats) -> impl IntoView {
                 <div class="space-y-3.5 pt-2">
                     <div class="flex justify-between items-center">
                         <span class="text-sm font-medium text-slate-400">Payments:</span>
-                        <span class="text-sm font-bold text-slate-200">{stats.num_payments}</span>
+                        <span class="text-sm font-bold text-slate-200">
+                            {move || stats.num_payments}
+                        </span>
                     </div>
 
                     <div class="flex justify-between items-center">
                         <span class="text-sm font-medium text-slate-400">Average amount:</span>
                         <span class="text-sm font-bold text-slate-200">
-                            {truncated_balance_str(U256::from(stats.average_payment))}
+                            {move || truncated_balance_str(U256::from(stats.average_payment))}
                         </span>
                     </div>
 
                     <div class="flex justify-between items-center">
                         <span class="text-sm font-medium text-slate-400">Median amount:</span>
                         <span class="text-sm font-bold text-slate-200">
-                            {truncated_balance_str(U256::from(stats.median_payment))}
+                            {move || truncated_balance_str(U256::from(stats.median_payment))}
                         </span>
                     </div>
 
                     <div class="flex justify-between items-center pt-1 mt-1">
                         <span class="text-sm font-medium text-slate-400">Largest amount:</span>
                         <span class="text-sm font-bold text-emerald-400 bg-emerald-500/5 px-2 py-0.5 rounded border border-emerald-500/10">
-                            {truncated_balance_str(U256::from(stats.largest_payment))}
+                            {move || truncated_balance_str(U256::from(stats.largest_payment))}
                         </span>
                     </div>
                 </div>

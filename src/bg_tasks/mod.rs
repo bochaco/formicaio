@@ -15,7 +15,6 @@ use super::{
     types::{AppSettings, NodeId, NodeInstanceInfo, NodesActionsBatch},
 };
 
-pub use arbitrum_client::{ArbitrumClient, ArbitrumClientError};
 pub use batches::{ActionsBatchError, prepare_node_action_batch};
 pub use mcp::start_mcp_server;
 pub use metrics_client::NodesMetrics;
