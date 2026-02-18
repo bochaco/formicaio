@@ -2,16 +2,13 @@ use crate::{
     app::{AppContext, METRICS_MAX_SIZE_PER_NODE},
     db_client::DbClient,
     node_mgr::NodeManager,
-    types::{AppSettings, BatchType, EarningsStats, NodeInstanceInfo, NodeStatus},
+    types::{AppSettings, BatchType, NodeInstanceInfo, NodeStatus},
     views::truncated_balance_str,
 };
 
 use super::{
-    BgTasksCmds, ImmutableNodeStatus, TokenContract,
-    arbitrum_client::{AddressPayments, ArbitrumClient},
-    earnings::calc_earnings_stats,
-    metrics_client::NodeMetricsClient,
-    prepare_node_action_batch,
+    BgTasksCmds, ImmutableNodeStatus, TokenContract, arbitrum_client::ArbitrumClient,
+    earnings::calc_earnings_stats, metrics_client::NodeMetricsClient, prepare_node_action_batch,
 };
 
 use alloy::{
@@ -401,19 +398,27 @@ pub async fn balance_checker_task(
         &settings.l2_network_rpc_url,
     );
 
-    let mut prev_addr = settings.token_contract_address;
-    let mut prev_url = settings.l2_network_rpc_url;
+    let mut current_addr = settings.token_contract_address;
+    let mut current_url = settings.l2_network_rpc_url;
 
     loop {
         let mut perform_earnings_stats_update = false;
         match bg_tasks_cmds_rx.recv().await {
             Ok(BgTasksCmds::ApplySettings(s)) => {
-                if prev_addr != s.token_contract_address || prev_url != s.l2_network_rpc_url {
+                if current_addr != s.token_contract_address || current_url != s.l2_network_rpc_url {
                     token_contract =
                         update_token_contract(&s.token_contract_address, &s.l2_network_rpc_url);
-                    prev_addr = s.token_contract_address;
-                    prev_url = s.l2_network_rpc_url;
+                    current_addr = s.token_contract_address;
+                    current_url = s.l2_network_rpc_url;
                     let _ = app_ctx.bg_tasks_cmds_tx.send(BgTasksCmds::CheckAllBalances);
+                }
+            }
+            Ok(BgTasksCmds::PruneEarningsHistory) => {
+                logging::log!("Removing old earnings history records from DB ...");
+                if let Err(err) =
+                    ArbitrumClient::prune_history(&current_url, &app_ctx.db_client).await
+                {
+                    logging::error!("[ERROR] Failed to prune old earnings history records: {err}");
                 }
             }
             Ok(BgTasksCmds::CheckBalanceFor(node_info)) => {
@@ -497,17 +502,13 @@ pub async fn balance_checker_task(
 
         if perform_earnings_stats_update {
             if updated_balances.is_empty() {
-                app_ctx.stats.write().await.earnings.clear();
+                let mut guard = app_ctx.stats.write().await;
+                guard.earnings.clear();
+                guard.earnings_syncing = false;
             } else {
-                let days_to_track = 100;
-                update_earnings_stats(
-                    &app_ctx,
-                    &prev_url,
-                    &prev_addr,
-                    &updated_balances,
-                    days_to_track,
-                )
-                .await;
+                app_ctx.stats.write().await.earnings_syncing = true;
+                update_earnings_stats(&app_ctx, &current_url, &current_addr, &updated_balances)
+                    .await;
             }
         }
     }
@@ -642,14 +643,13 @@ async fn update_earnings_stats(
     arbitrum_rpc: &str,
     contract_address: &str,
     updated_balances: &HashMap<Address, (U256, u64)>,
-    days_to_track: u64,
 ) {
     // Create the Arbitrum client with the provided configuration
     let client = match ArbitrumClient::new(
         arbitrum_rpc,
         contract_address,
         updated_balances.keys(),
-        days_to_track,
+        app_ctx.db_client.clone(),
     ) {
         Ok(client) => client,
         Err(e) => {
@@ -660,38 +660,36 @@ async fn update_earnings_stats(
 
     // Fetch payments from Arbitrum
     match client.fetch_incoming_payments().await {
-        Ok(payments) => {
+        Ok((payments, fully_synced)) => {
             logging::log!(
-                "Successfully updated earnings stats for {} addresses.",
+                "Successfully updated earnings stats for {} addresses (fully synced: {fully_synced}).",
                 payments.len()
             );
-            let earnings = earnings_stats(payments).await;
-            app_ctx.stats.write().await.earnings = earnings;
+            let now = Utc::now().timestamp();
+            let mut aggregated_payments = vec![];
+            let mut earnings = payments
+                .into_iter()
+                .map(|p| {
+                    let earnings = calc_earnings_stats(now, &p.payments);
+                    aggregated_payments.extend(p.payments);
+                    (p.address.clone(), earnings)
+                })
+                .collect::<Vec<_>>();
+
+            earnings.push((
+                "".to_string(),
+                calc_earnings_stats(now, &aggregated_payments),
+            ));
+
+            let mut guard = app_ctx.stats.write().await;
+            guard.earnings = earnings;
+            guard.earnings_syncing = !fully_synced;
         }
         Err(err) => {
-            app_ctx.stats.write().await.earnings.clear();
+            let mut guard = app_ctx.stats.write().await;
+            guard.earnings.clear();
+            guard.earnings_syncing = false;
             logging::error!("[ERROR] Failed to fetch rewards payments: {err}");
         }
     }
-}
-
-// Calculate detailed earnings statistics for a specific rewards address
-async fn earnings_stats(payments: Vec<AddressPayments>) -> Vec<(String, EarningsStats)> {
-    let now = Utc::now().timestamp();
-    let mut aggregated_payments = vec![];
-    let mut stats = payments
-        .into_iter()
-        .map(|p| {
-            let earnings = calc_earnings_stats(now, &p.payments);
-            aggregated_payments.extend(p.payments);
-            (p.address.clone(), earnings)
-        })
-        .collect::<Vec<_>>();
-
-    stats.push((
-        "".to_string(),
-        calc_earnings_stats(now, &aggregated_payments),
-    ));
-
-    stats
 }

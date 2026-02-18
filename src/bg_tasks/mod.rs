@@ -15,6 +15,7 @@ use super::{
     types::{AppSettings, NodeId, NodeInstanceInfo, NodesActionsBatch},
 };
 
+pub(crate) use arbitrum_client::PaymentRecord;
 pub use batches::{ActionsBatchError, prepare_node_action_batch};
 pub use mcp::start_mcp_server;
 pub use metrics_client::NodesMetrics;
@@ -53,6 +54,7 @@ pub enum BgTasksCmds {
     CheckBalanceFor(NodeInstanceInfo),
     DeleteBalanceFor(NodeInstanceInfo),
     CheckAllBalances,
+    PruneEarningsHistory,
 }
 
 // List of nodes which status is temporarily immutable/locked.
@@ -169,6 +171,7 @@ pub fn spawn_bg_tasks(app_ctx: AppContext, node_manager: NodeManager, settings: 
                     let _ = app_ctx.bg_tasks_cmds_tx.send(BgTasksCmds::CheckAllBalances);
                 },
                 _ = ctx.metrics_pruning.tick() => {
+                    let _ = app_ctx.bg_tasks_cmds_tx.send(BgTasksCmds::PruneEarningsHistory);
                     tokio::spawn(prune_metrics(
                         node_manager.clone(),
                         app_ctx.db_client.clone()

@@ -10,6 +10,9 @@ pub struct Stats {
     pub balances: Vec<(String, U256)>,
     /// Earnings analytics for rewards addresses
     pub earnings: Vec<(String, EarningsStats)>,
+    /// Whether earnings history is still being fetched from the chain (not fully synced yet)
+    #[serde(default)]
+    pub earnings_syncing: bool,
     /// Total number of node instances
     pub total_nodes: usize,
     /// Number of currently active nodes

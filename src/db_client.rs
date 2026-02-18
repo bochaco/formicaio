@@ -1,8 +1,10 @@
 use super::types::{
     AppSettings, Metrics, NodeId, NodeInstanceInfo, NodeMetric, NodePid, NodeStatus,
 };
+use crate::bg_tasks::PaymentRecord;
 
-use alloy_primitives::U256;
+use alloy_primitives::{Address, U256};
+use chrono::{TimeZone, Utc};
 use leptos::logging;
 use semver::Version;
 use serde::{Deserialize, Serialize};
@@ -13,7 +15,7 @@ use sqlx::{
     sqlite::SqlitePool,
 };
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     env::{self, current_dir},
     path::{Path, PathBuf},
     str::FromStr,
@@ -156,6 +158,15 @@ impl CachedNodeMetadata {
             info.disk_usage = Some(self.disk_usage);
         }
     }
+}
+
+// Struct stored on the DB caching reward payments.
+#[derive(Clone, Debug, Deserialize, FromRow, Serialize)]
+struct CachedEarnings {
+    address: String,
+    amount: String,
+    block_number: i64,
+    timestamp: i64,
 }
 
 // Client to interface with the local Sqlite database
@@ -669,6 +680,101 @@ impl DbClient {
             Ok(res) => logging::log!("Removed {} metrics records", res.rows_affected()),
             Err(err) => {
                 logging::error!("[ERROR] Database delete error while pruning old metrics: {err}")
+            }
+        }
+    }
+
+    // Store earnings (reward payment) for an address with block number and timestamp
+    pub async fn store_earnings(
+        &self,
+        address: &Address,
+        amount: U256,
+        block_number: u64,
+        timestamp: i64,
+    ) {
+        let db_lock = self.db.lock().await;
+        match sqlx::query(
+            "INSERT INTO earnings (address, amount, block_number, timestamp) VALUES (?, ?, ?, ?)",
+        )
+        .bind(address.to_string())
+        .bind(amount.to_string())
+        .bind(block_number as i64)
+        .bind(timestamp)
+        .execute(&*db_lock)
+        .await
+        {
+            Ok(_) => {}
+            Err(err) => {
+                logging::error!("[ERROR] Database insert error while storing earnings: {err}")
+            }
+        }
+    }
+
+    // Retrieve earnings for an address, filtered by minimum block number
+    pub async fn get_earnings(
+        &self,
+        address: &Address,
+        min_block_number: u64,
+    ) -> Result<(HashSet<PaymentRecord>, Option<u64>), DbError> {
+        let db_lock = self.db.lock().await;
+        let res = sqlx::query_as::<_, CachedEarnings>(
+                "SELECT * FROM earnings WHERE address LIKE ? AND block_number >= ? ORDER BY block_number DESC"
+            )
+            .bind(address.to_string())
+            .bind(min_block_number as i64)
+            .fetch_all(&*db_lock)
+            .await;
+
+        // compute cached min/max block numbers
+        let mut max_cached: Option<u64> = None;
+
+        let payments = match res {
+            Err(err) => {
+                logging::error!("[ERROR] Database error while retrieving cached earnings: {err}");
+                HashSet::new()
+            }
+            Ok(earnings) => earnings
+                .into_iter()
+                .filter_map(|e| {
+                    let block_number = e.block_number as u64;
+                    if block_number > 0 {
+                        max_cached = Some(max_cached.map_or(block_number, |m| m.max(block_number)));
+                    }
+
+                    let amount = U256::from_str(&e.amount).unwrap_or(U256::ZERO);
+                    if amount == U256::ZERO {
+                        return None;
+                    }
+                    let timestamp = Utc
+                        .timestamp_opt(e.timestamp, 0)
+                        .single()
+                        .unwrap_or_else(Utc::now);
+
+                    Some(PaymentRecord {
+                        timestamp,
+                        amount,
+                        block_number,
+                    })
+                })
+                .collect(),
+        };
+
+        Ok((payments, max_cached))
+    }
+
+    // Delete earnings for an address older than a specified block number
+    pub async fn delete_old_earnings(&self, max_block_number: u64) {
+        let db_lock = self.db.lock().await;
+        match sqlx::query("DELETE FROM earnings WHERE block_number <= ?")
+            .bind(max_block_number as i64)
+            .execute(&*db_lock)
+            .await
+        {
+            Ok(res) => logging::log!("Removed {} old earnings records", res.rows_affected()),
+            Err(err) => {
+                logging::error!(
+                    "[ERROR] Database delete error while pruning old earnings records: {err}"
+                )
             }
         }
     }

@@ -16,6 +16,21 @@ pub fn RewardsEarningsCard() -> impl IntoView {
     let context = expect_context::<ClientGlobalState>();
     let selected_address = RwSignal::<Option<String>>::new(None);
     let balances = move || context.stats.read().balances.clone();
+    let earnings_syncing = move || context.stats.read().earnings_syncing;
+    Effect::new(move |_| {
+        if let Some(addr) = selected_address.get() {
+            let addr_upper = addr.to_uppercase();
+            if !context
+                .stats
+                .read()
+                .earnings
+                .iter()
+                .any(|(a, _)| a.to_uppercase() == addr_upper)
+            {
+                selected_address.set(None);
+            }
+        }
+    });
 
     // Fetch earnings statistics based on selected address
     let earnings_stats = move || {
@@ -37,7 +52,22 @@ pub fn RewardsEarningsCard() -> impl IntoView {
                         <IconTrendingUp />
                     </div>
                     <div>
-                        <h3 class="text-xl font-bold text-white tracking-tight">Earnings Stats</h3>
+                        <div class="flex items-center gap-3">
+                            <h3 class="text-xl font-bold text-white tracking-tight">
+                                Earnings Stats
+                            </h3>
+                            {move || {
+                                earnings_syncing()
+                                    .then(|| {
+                                        view! {
+                                            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/20 animate-pulse">
+                                                <span class="w-1.5 h-1.5 bg-amber-400 rounded-full"></span>
+                                                "Syncing"
+                                            </span>
+                                        }
+                                    })
+                            }}
+                        </div>
                         <p class="text-xs text-slate-500 font-medium uppercase tracking-widest mt-1">
                             Rewards Performance Analytics
                         </p>
@@ -99,12 +129,8 @@ pub fn RewardsEarningsCard() -> impl IntoView {
                 }
                 None => {
                     view! {
-                        <div class="p-6 text-center text-red-400">
-                            {if context.stats.read().earnings.is_empty() {
-                                "Earnings not retrieved yet..."
-                            } else {
-                                "Earnings not retrieved yet for selected address"
-                            }}
+                        <div class="p-6 text-center text-amber-400">
+                            "Earnings history not fully retrieved yet for all addresses..."
                         </div>
                     }
                         .into_any()
@@ -159,7 +185,7 @@ fn PeriodStatCard(stats: PeriodStats) -> impl IntoView {
                             Variance
                         </span>
                         <span class="text-[11px] font-bold text-slate-500/80 uppercase tracking-widest">
-                            Prev:
+                            "Previous Period:"
                             <span class="text-slate-300 font-mono">
                                 {move || truncated_balance_str(stats.total_earned_prev)}
                             </span>
