@@ -182,10 +182,10 @@ fn PeriodStatCard(stats: PeriodStats) -> impl IntoView {
                 <div class="flex flex-col gap-2 pb-4 border-b border-slate-800/60 group/row text-center sm:text-left">
                     <div class="flex justify-between items-center">
                         <span class="text-[11px] font-bold text-slate-500 uppercase tracking-widest">
-                            Variance
+                            vs Prior
                         </span>
                         <span class="text-[11px] font-bold text-slate-500/80 uppercase tracking-widest">
-                            "Previous Period:"
+                            "Prior: "
                             <span class="text-slate-300 font-mono">
                                 {move || truncated_balance_str(stats.total_earned_prev)}
                             </span>

@@ -19,7 +19,7 @@ use url::Url;
 // to sequence Arbitrum, so the actual number fluctuates. But under normal
 // activity levels, ~288K/day is the standard estimate used in practice.
 const BLOCKS_PER_DAY: u64 = 300_000;
-const GET_LOGS_CHUNK_SIZE: u64 = 20_000;
+const GET_LOGS_CHUNK_SIZE: u64 = 100_000;
 // Number of days of earnings history to track. We need to compare the
 // last 3 months with previous 3 months, i.e. at least 6 months of historic records.
 const NUM_DAYS_TO_TRACK_EARNINGS: u64 = 210;
@@ -207,10 +207,7 @@ impl ArbitrumClient {
                 break;
             }
 
-            logging::log!(
-                "Fetching earnings history from block #{from_block}-#{to_block} \
-                (budget: {remaining_budget} blocks remaining)..."
-            );
+            logging::log!("Fetching earnings history from block #{from_block}-#{to_block} ...");
             // Filter by topic2 (recipient) so the RPC server returns only transfers
             // to our reward addresses, staying well within the 10k-log response limit.
             let filter = Filter::new()
@@ -324,18 +321,26 @@ impl ArbitrumClient {
         provider: &impl Provider,
         cached_per_addr: &mut HashMap<Address, HashSet<PaymentRecord>>,
     ) {
+        // Pre-filter logs to only those relevant to monitored addresses, and collect
+        // unique block numbers so we fetch each block's timestamp only once.
+        struct PendingLog {
+            recipient: Address,
+            block_number: u64,
+            amount: U256,
+        }
+        let mut pending: Vec<PendingLog> = Vec::new();
+        let mut unique_blocks: HashSet<u64> = HashSet::new();
+
         for log in logs {
             // parse recipient from topic[2]
             let recipient_addr = match log.topics().get(2) {
                 Some(topic) => {
-                    // topic is 32 bytes; address is last 20 bytes
                     let b: &[u8] = topic.as_ref();
                     Address::from_slice(&b[12..])
                 }
                 None => continue,
             };
 
-            // only store if recipient is monitored
             if !self.rewards_addresses.contains(&recipient_addr) {
                 continue;
             }
@@ -345,33 +350,53 @@ impl ArbitrumClient {
                 None => continue,
             };
 
-            // get block for timestamp
-            let block = match provider
-                .get_block_by_number(BlockNumberOrTag::Number(block_number))
-                .await
-            {
-                Ok(Some(b)) => b,
-                _ => continue,
-            };
-            let timestamp = match Utc.timestamp_opt(block.header.timestamp as i64, 0).single() {
-                Some(t) => t,
-                None => continue,
-            };
-
-            // amount from data
             let amount = if log.data().data.is_empty() {
                 U256::ZERO
             } else {
                 U256::from_be_slice(&log.data().data)
             };
 
-            // store in db
+            unique_blocks.insert(block_number);
+            pending.push(PendingLog {
+                recipient: recipient_addr,
+                block_number,
+                amount,
+            });
+        }
+
+        // Fetch each unique block once to get its timestamp.
+        let mut block_timestamps: HashMap<u64, DateTime<Utc>> = HashMap::new();
+        for bn in unique_blocks {
+            let block = match provider
+                .get_block_by_number(BlockNumberOrTag::Number(bn))
+                .await
+            {
+                Ok(Some(b)) => b,
+                _ => continue,
+            };
+            if let Some(ts) = Utc.timestamp_opt(block.header.timestamp as i64, 0).single() {
+                block_timestamps.insert(bn, ts);
+            }
+        }
+
+        // Now process each pending log using the cached timestamps.
+        for PendingLog {
+            recipient,
+            block_number,
+            amount,
+        } in pending
+        {
+            let timestamp = match block_timestamps.get(&block_number) {
+                Some(ts) => *ts,
+                None => continue,
+            };
+
             self.db_client
-                .store_earnings(&recipient_addr, amount, block_number, timestamp.timestamp())
+                .store_earnings(&recipient, amount, block_number, timestamp.timestamp())
                 .await;
 
             cached_per_addr
-                .entry(recipient_addr)
+                .entry(recipient)
                 .or_default()
                 .insert(PaymentRecord {
                     timestamp,
