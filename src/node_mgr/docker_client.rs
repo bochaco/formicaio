@@ -85,6 +85,8 @@ pub enum DockerClientError {
     Http(#[from] http::Error),
     #[error(transparent)]
     CannotParseIntValue(#[from] std::num::ParseIntError),
+    #[error("Invalid node id: {0}")]
+    InvalidNodeId(String),
 }
 
 // Type of request supported by internal helpers herein.
@@ -405,9 +407,10 @@ impl DockerClient {
             )
             .await?;
         let container: ContainerCreateExecSuccess = serde_json::from_slice(&resp_bytes)?;
+        let node_id = NodeId::new(&container.Id).map_err(DockerClientError::InvalidNodeId)?;
         logging::log!("Container '{random_name}' created successfully: {container:#?}");
 
-        Ok(NodeId::new(container.Id))
+        Ok(node_id)
     }
 
     // Request the Docker server to return a node container logs stream.

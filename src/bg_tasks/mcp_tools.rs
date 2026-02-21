@@ -1,6 +1,8 @@
 use crate::{
-    app_context::AppContext, node_mgr::NodeManager, server_api::parse_and_validate_addr,
-    types::NodeOpts,
+    app_context::AppContext,
+    node_mgr::NodeManager,
+    server_api::parse_and_validate_addr,
+    types::{NodeId, NodeOpts},
 };
 
 use rust_mcp_sdk::{
@@ -18,6 +20,10 @@ fn serialise_to_tool_response<T: serde::Serialize>(
         Ok(str) => Ok(CallToolResult::text_content(vec![TextContent::from(str)])),
         Err(err) => Err(CallToolError::from_message(err.to_string())),
     }
+}
+
+fn parse_node_id(node_id: &str) -> Result<NodeId, CallToolError> {
+    NodeId::from_str(node_id).map_err(CallToolError::from_message)
 }
 
 #[mcp_tool(
@@ -123,10 +129,8 @@ impl StartNodeInstance {
         &self,
         node_manager: &NodeManager,
     ) -> Result<CallToolResult, CallToolError> {
-        match node_manager
-            .start_node_instance(self.node_id.clone().into())
-            .await
-        {
+        let node_id = parse_node_id(&self.node_id)?;
+        match node_manager.start_node_instance(node_id).await {
             Ok(()) => Ok(CallToolResult::text_content(vec![])),
             Err(err) => Err(CallToolError::from_message(err.to_string())),
         }
@@ -146,10 +150,8 @@ impl StopNodeInstance {
         &self,
         node_manager: &NodeManager,
     ) -> Result<CallToolResult, CallToolError> {
-        match node_manager
-            .stop_node_instance(self.node_id.clone().into())
-            .await
-        {
+        let node_id = parse_node_id(&self.node_id)?;
+        match node_manager.stop_node_instance(node_id).await {
             Ok(()) => Ok(CallToolResult::text_content(vec![])),
             Err(err) => Err(CallToolError::from_message(err.to_string())),
         }
@@ -169,10 +171,8 @@ impl DeleteNodeInstance {
         &self,
         node_manager: &NodeManager,
     ) -> Result<CallToolResult, CallToolError> {
-        match node_manager
-            .delete_node_instance(self.node_id.clone().into())
-            .await
-        {
+        let node_id = parse_node_id(&self.node_id)?;
+        match node_manager.delete_node_instance(node_id).await {
             Ok(()) => Ok(CallToolResult::text_content(vec![])),
             Err(err) => Err(CallToolError::from_message(err.to_string())),
         }
@@ -192,10 +192,8 @@ impl UpgradeNodeInstance {
         &self,
         node_manager: &NodeManager,
     ) -> Result<CallToolResult, CallToolError> {
-        match node_manager
-            .upgrade_node_instance(&self.node_id.clone().into())
-            .await
-        {
+        let node_id = parse_node_id(&self.node_id)?;
+        match node_manager.upgrade_node_instance(&node_id).await {
             Ok(()) => Ok(CallToolResult::text_content(vec![])),
             Err(err) => Err(CallToolError::from_message(err.to_string())),
         }
@@ -215,10 +213,8 @@ impl RecycleNodeInstance {
         &self,
         node_manager: &NodeManager,
     ) -> Result<CallToolResult, CallToolError> {
-        match node_manager
-            .recycle_node_instance(self.node_id.clone().into())
-            .await
-        {
+        let node_id = parse_node_id(&self.node_id)?;
+        match node_manager.recycle_node_instance(node_id).await {
             Ok(()) => Ok(CallToolResult::text_content(vec![])),
             Err(err) => Err(CallToolError::from_message(err.to_string())),
         }

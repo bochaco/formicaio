@@ -92,7 +92,14 @@ impl CachedNodeMetadata {
     // fields with non zero/empty values; zero/empty value means it was unknown when stored.
     fn merge_onto(&self, info: &mut NodeInstanceInfo, get_status: bool) {
         if !self.node_id.is_empty() {
-            info.node_id = NodeId::new(self.node_id.clone());
+            if let Ok(node_id) = NodeId::new(&self.node_id) {
+                info.node_id = node_id;
+            } else {
+                logging::warn!(
+                    "[WARN] Ignoring invalid node_id in cached metadata: {}",
+                    self.node_id
+                );
+            }
         }
         if self.pid > 0 {
             info.pid = Some(self.pid);
@@ -228,7 +235,14 @@ impl DbClient {
                 for node in nodes {
                     let mut node_info = NodeInstanceInfo::default();
                     node.merge_onto(&mut node_info, true);
-                    retrieved_nodes.insert(NodeId::new(node.node_id), node_info);
+                    if let Ok(node_id) = NodeId::new(&node.node_id) {
+                        retrieved_nodes.insert(node_id, node_info);
+                    } else {
+                        logging::warn!(
+                            "[WARN] Skipping node row with invalid node_id: {}",
+                            node.node_id
+                        );
+                    }
                 }
             }
             Err(err) => {
@@ -314,7 +328,7 @@ impl DbClient {
 
                 if &current < version {
                     let id: String = row.get("node_id");
-                    Some(NodeId::new(id))
+                    NodeId::new(&id).ok()
                 } else {
                     None
                 }
