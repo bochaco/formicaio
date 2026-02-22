@@ -277,7 +277,7 @@ pub fn AgentView() -> impl IntoView {
     let quick_actions = [
         "Show node statistics",
         "List all nodes",
-        "Restart all stopped nodes",
+        "Restart all stopped or inactive nodes",
         "Which nodes have the most connected peers?",
         "Summarize my earnings",
     ];
@@ -532,8 +532,7 @@ fn MessageBubble(msg: UiMessage) -> impl IntoView {
                         >
                             <span class="font-mono">
                                 {move || {
-                                    tool_calls
-                                        .with_value(|v| format!("⚙ {} tool call(s)", v.len()))
+                                    tool_calls.with_value(|v| format!("{} tool call(s)", v.len()))
                                 }}
                             </span>
                             <span>{move || if tool_open.get() { "▲" } else { "▼" }}</span>
