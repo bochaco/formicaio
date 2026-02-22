@@ -2,7 +2,7 @@ mod llm_client;
 mod tool_executor;
 
 pub use llm_client::{LlmClient, LlmMessage, OpenAiCompatClient, StreamEvent, ToolDefinition};
-pub use tool_executor::ToolExecutor;
+pub use tool_executor::{ToolExecutor, summarize_result};
 
 use crate::{
     app_context::AppContext,
@@ -564,7 +564,10 @@ async fn run_monitoring_cycle(app_ctx: &AppContext, node_manager: &NodeManager) 
             };
             let result = executor.execute(&fake_call).await;
 
-            logging::log!("[Agent] Autonomous action '{name}': {result}");
+            logging::log!(
+                "[Agent] Autonomous action '{name}': {}",
+                summarize_result(&result)
+            );
             let _ = app_ctx
                 .db_client
                 .insert_agent_event(

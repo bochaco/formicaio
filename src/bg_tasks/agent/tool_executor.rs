@@ -109,7 +109,10 @@ impl ToolExecutor {
             }
         };
 
-        logging::log!("[Agent] Tool '{name}' result: {result}");
+        logging::log!(
+            "[Agent] Tool '{name}' result: {}",
+            summarize_result(&result)
+        );
         result
     }
 
@@ -407,4 +410,20 @@ fn json_error(msg: &str) -> String {
 fn json_status(status: &str) -> String {
     serde_json::to_string(&json!({ "status": status }))
         .unwrap_or_else(|_| "{\"status\":\"unknown\"}".to_string())
+}
+
+/// Returns a one-line summary of a tool result JSON string for logging.
+pub fn summarize_result(result: &str) -> String {
+    match serde_json::from_str::<Value>(result) {
+        Ok(v) => {
+            if let Some(err) = v.get("error").and_then(|e| e.as_str()) {
+                format!("error: {err}")
+            } else if let Some(status) = v.get("status").and_then(|s| s.as_str()) {
+                format!("status: {status}")
+            } else {
+                "ok".to_string()
+            }
+        }
+        Err(_) => result.chars().take(120).collect(),
+    }
 }

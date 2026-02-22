@@ -327,18 +327,31 @@ curl -fsSL https://ollama.com/install.sh | sh
 
 #### 2. Pull a model
 
-The agent needs a model with **tool calling / function calling** support. The following are recommended, ordered from best balance to most lightweight:
+The agent needs a model with **tool calling / function calling** support. Model quality matters here: the agent issues multi-step tool calls (fetching node lists, then acting on individual node IDs) and smaller or less capable models sometimes fail to follow the tool-use protocol reliably, pass placeholder values instead of real node IDs, or stop mid-sequence.
+
+> **Resource trade-off:** Larger, more capable models (like the Qwen3 series) produce more reliable results but consume significantly more RAM and CPU. On a machine that is already running several nodes, a heavier model will compete for resources — responses will take longer to generate and your host's CPU and memory usage will be noticeably higher while the agent is active. If your machine is resource-constrained, start with a lighter model and only move up if you find the results unreliable.
 
 ```bash
-# Recommended — good reasoning, ~2 GB RAM
+# Recommended — strong tool use and reasoning
+# ~5 GB RAM; higher CPU usage during inference
+ollama pull qwen3:8b
+
+# Good alternative — solid tool calling, lower resource usage
+# ~4 GB RAM; moderate CPU usage
+ollama pull qwen2.5:7b
+
+# Lightweight option — ~2 GB RAM, low CPU overhead
+# works well for simple queries; may occasionally struggle
+# with complex multi-step node management actions
 ollama pull llama3.2:3b
 
-# Excellent tool use, similar size
-ollama pull qwen2.5:3b
-
-# Lightest option — ~1 GB RAM, suitable for Raspberry Pi
+# Lightest option — ~1 GB RAM, minimal CPU usage
+# suitable for Raspberry Pi or very constrained machines;
+# basic queries work, but multi-step actions may be unreliable
 ollama pull llama3.2:1b
 ```
+
+> **Why `qwen3:8b`?** In practice, models with stronger reasoning and tool-use training (such as the Qwen3 series) handle the kind of multi-step actions Formicaio requires — e.g. "restart all stopped nodes", "show me the node with the highest record count" — much more reliably than smaller 1–3 B parameter models. The cost is higher RAM and CPU consumption: on a busy node-running machine this can be noticeable, especially during autonomous mode checks. Smaller models like `llama3.2:3b` are a valid choice if resources are constrained, but you may see occasional errors or incomplete actions that require a follow-up prompt.
 
 On some systems Ollama starts automatically after installation. If it is not running, start it manually:
 
@@ -357,8 +370,8 @@ sudo systemctl enable --now ollama
 1. Open Formicaio in your browser (`http://localhost:52100`)
 2. Go to **Settings → AI Agent**
 3. Set **LLM Base URL** to `http://localhost:11434` (already the default)
-4. Set **Model Name** to the model you pulled (e.g. `llama3.2:3b`)
-5. Click **Test Connection** — you should see `Connected — model: llama3.2:3b`
+4. Set **Model Name** to the model you pulled (e.g. `qwen3:8b`)
+5. Click **Test Connection** — you should see `Connected — model: qwen3:8b`
 6. Click **Save Changes**
 
 ### Using the Agent
@@ -441,7 +454,7 @@ All agent settings are available under **Settings → AI Agent**:
 | Setting | Default | Description |
 |---------|---------|-------------|
 | LLM Base URL | `http://localhost:11434` | Base URL of your OpenAI-compatible LLM API |
-| Model Name | `llama3.2:3b` | **Required**. Model to use for chat and autonomous monitoring |
+| Model Name | `qwen3:8b` | **Required**. Model to use for chat and autonomous monitoring |
 | API Key | *(empty)* | Optional — leave empty for Ollama and other keyless backends |
 | Custom System Prompt | *(empty)* | Additional instructions appended to the built-in Formicaio prompt |
 | Max Context Messages | `20` | How many prior messages to include in each LLM request |

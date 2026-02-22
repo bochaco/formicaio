@@ -40,6 +40,7 @@ prettytable = "0.10.0"
 rand = "0.9"
 reqwest = { version = "0.13", default-features = false, features = ["rustls","json","stream"], optional = true }
 rust-mcp-sdk = { version = "0.8.2", optional = true, default-features = false, features = ["server","macros","streamable-http","hyper-server"] }
+async-openai = { version = "0.33", optional = true, default-features = false, features = ["rustls", "chat-completion", "model"] }
 async-trait = { version = "0.1.89", optional = true }
 semver = { version = "1.0", optional = true }
 serde = "1.0"
@@ -66,6 +67,7 @@ hydrate = ["leptos/hydrate"]
 ssr = [
     "dep:ant-releases",
     "dep:alloy",
+    "dep:async-openai",
     "dep:async-stream",
     "dep:async-trait",
     "dep:axum",

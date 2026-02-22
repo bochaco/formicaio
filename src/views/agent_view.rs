@@ -1,16 +1,18 @@
 use super::{
+    ClientGlobalState,
     helpers::show_error_alert_msg,
     icons::{IconBot, IconCancel, IconPrompt},
 };
 use crate::{
     server_api::{
-        clear_chat_history, get_agent_events, get_chat_history, list_chat_sessions,
-        send_chat_message, toggle_autonomous_mode,
+        clear_chat_history, get_agent_events, get_chat_history, get_new_agent_events,
+        list_chat_sessions, send_chat_message, toggle_autonomous_mode,
     },
     types::{AgentEvent, AgentEventType, ChatMessage, ChatRole, StreamChunk},
 };
 
 use chrono::{DateTime, Local, Utc};
+use gloo_timers::future::TimeoutFuture;
 use leptos::{html, logging, prelude::*, task::spawn_local};
 
 // ─── Session ID generation ────────────────────────────────────────────────────
@@ -58,10 +60,13 @@ pub fn AgentView() -> impl IntoView {
     let show_sessions = RwSignal::new(false);
 
     // Autonomous mode state
-    let autonomous_enabled = RwSignal::new(false);
+    let context = expect_context::<ClientGlobalState>();
+    let autonomous_enabled = move || context.app_settings.read().autonomous_enabled;
 
     // Agent events (shown when autonomous mode is active)
     let agent_events: RwSignal<Vec<AgentEvent>> = RwSignal::new(vec![]);
+    // Tracks the timestamp of the most recent event seen, used for polling
+    let last_event_ts = RwSignal::new(0i64);
 
     // Auto-scroll whenever messages or streaming content change
     Effect::new(move |_| {
@@ -252,25 +257,56 @@ pub fn AgentView() -> impl IntoView {
         });
     };
 
-    // ─── Toggle autonomous mode ────────────────────────────────────────────────
+    // Start polling for new events while autonomous mode is active
+    spawn_local(async move {
+        // Fetch the most recent events on enable
+        if let Ok(events) = get_agent_events(20).await {
+            // events are DESC (newest first); track the newest timestamp
+            if let Some(newest) = events.first() {
+                last_event_ts.set(newest.timestamp);
+            }
+            agent_events.set(events);
+        }
 
-    let toggle_autonomous = move |_| {
-        let new_val = !autonomous_enabled.get_untracked();
-        spawn_local(async move {
-            match toggle_autonomous_mode(new_val).await {
-                Ok(_) => {
-                    autonomous_enabled.set(new_val);
-                    if new_val {
-                        // Refresh events
-                        if let Ok(events) = get_agent_events(20).await {
-                            agent_events.set(events);
-                        }
-                    }
+        loop {
+            TimeoutFuture::new(30_000).await;
+            if !context.app_settings.read_untracked().autonomous_enabled {
+                continue;
+            }
+
+            let since = last_event_ts.get_untracked();
+            match get_new_agent_events(since).await {
+                Ok(new_events) if !new_events.is_empty() => {
+                    // new_events are ASC (oldest first); prepend reversed
+                    // so newest remains at the top of the list
+                    let new_ts = new_events.last().map(|e| e.timestamp).unwrap_or(since);
+                    let mut prepend: Vec<AgentEvent> = new_events.into_iter().rev().collect();
+                    agent_events.update(|events| {
+                        prepend.append(events);
+                        *events = prepend;
+                    });
+                    last_event_ts.set(new_ts);
                 }
+                Err(e) => {
+                    logging::warn!("Failed to poll agent events: {e}")
+                }
+                _ => {}
+            }
+        }
+    });
+
+    // ─── Toggle autonomous mode ────────────────────────────────────────────────
+    let toggle_autonomous = Action::new(move |_input: &()| {
+        let new_val = !context.app_settings.read_untracked().autonomous_enabled;
+        async move {
+            match toggle_autonomous_mode(new_val).await {
+                Ok(()) => context
+                    .app_settings
+                    .update(|s| s.autonomous_enabled = new_val),
                 Err(e) => show_error_alert_msg(format!("Failed to toggle autonomous mode: {e}")),
             }
-        });
-    };
+        }
+    });
 
     // ─── Quick actions ────────────────────────────────────────────────────────
 
@@ -355,8 +391,10 @@ pub fn AgentView() -> impl IntoView {
                                 <input
                                     type="checkbox"
                                     class="sr-only peer"
-                                    prop:checked=move || autonomous_enabled.get()
-                                    on:change=toggle_autonomous
+                                    prop:checked=autonomous_enabled
+                                    on:change=move |_| {
+                                        toggle_autonomous.dispatch(());
+                                    }
                                 />
                                 <div class="w-8 h-4 bg-slate-700 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-indigo-600"></div>
                             </div>
@@ -438,7 +476,7 @@ pub fn AgentView() -> impl IntoView {
                 </div>
 
                 // Agent events (shown when autonomous mode is on)
-                <Show when=move || autonomous_enabled.get()>
+                <Show when=move || autonomous_enabled()>
                     <div class="shrink-0 border-t border-slate-800 bg-slate-900/30 p-3 max-h-32 overflow-y-auto no-scrollbar">
                         <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
                             "Autonomous Events"
@@ -454,11 +492,11 @@ pub fn AgentView() -> impl IntoView {
                             }
                         >
                             <For
-                                each=move || agent_events.read().clone().into_iter().enumerate()
-                                key=|(i, _)| *i
+                                each=move || agent_events.read().clone().into_iter()
+                                key=|e| e.timestamp
                                 let:child
                             >
-                                <AgentEventRow event=child.1 />
+                                <AgentEventRow event=child />
                             </For>
                         </Show>
                     </div>
@@ -623,9 +661,9 @@ fn AgentEventRow(event: AgentEvent) -> impl IntoView {
 
     view! {
         <div class=format!("flex gap-2 text-xs {color}")>
-            <span class="shrink-0 font-mono text-slate-600">{ts}</span>
+            <span class="shrink-0 font-mono text-slate-500">{ts}</span>
             <span class="shrink-0">{prefix}</span>
-            <span class="text-slate-400">{event.description}</span>
+            <span class="text-slate-300">{event.description}</span>
         </div>
     }
 }
