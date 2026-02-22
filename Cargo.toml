@@ -38,7 +38,7 @@ local-ip-address = { version = "0.6", optional = true }
 nom-openmetrics = { version = "0.2.0", optional = true }
 prettytable = "0.10.0"
 rand = "0.9"
-reqwest = { version = "0.13", default-features = false, features = ["rustls","json"], optional = true }
+reqwest = { version = "0.13", default-features = false, features = ["rustls","json","stream"], optional = true }
 rust-mcp-sdk = { version = "0.8.2", optional = true, default-features = false, features = ["server","macros","streamable-http","hyper-server"] }
 async-trait = { version = "0.1.89", optional = true }
 semver = { version = "1.0", optional = true }
@@ -49,6 +49,7 @@ sqlx = { version = "0.8", default-features = false, features = ["derive","migrat
 sysinfo = { version = "0.38", default-features = false, features = ["system","disk"], optional = true }
 thiserror = "2"
 tokio = { version = "1", default-features = false, features = ["rt-multi-thread","signal"], optional = true }
+tokio-stream = { version = "0.1", optional = true }
 tower = { version = "0.5", features = ["util"], optional = true }
 tower-http = { version = "0.6", default-features = false, features = ["fs"], optional = true }
 url = "2"
@@ -86,6 +87,7 @@ ssr = [
     "dep:tokio",
     "dep:tower",
     "dep:tower-http",
+    "dep:tokio-stream",
     "dep:walkdir",
     "leptos/ssr",
     "leptos_meta/ssr",

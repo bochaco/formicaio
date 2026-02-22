@@ -1,6 +1,7 @@
 pub mod about;
 mod actions_batch;
 mod add_nodes;
+mod agent_view;
 mod alerts;
 mod chart;
 mod dashboard;
@@ -21,11 +22,14 @@ mod sort_nodes;
 pub mod terminal;
 
 pub use helpers::truncated_balance_str;
+#[cfg(feature = "hydrate")]
+pub use helpers::{show_error_alert_msg, show_warning_alert_msg};
 pub use notifications::{Notification, NotificationsView};
 
 use self::{
     about::AboutView,
     add_nodes::AddNodesForm,
+    agent_view::AgentView,
     alerts::{AlertMsg, OfflineMsg},
     chart::MetricsViewerModal,
     dashboard::DashboardView,
@@ -61,6 +65,7 @@ enum ViewType {
     Nodes,
     Terminal,
     Mcp,
+    Agent,
     Settings,
     About,
 }
@@ -71,7 +76,8 @@ impl fmt::Display for ViewType {
             ViewType::Dashboard => "Dashboard",
             ViewType::Nodes => "Nodes",
             ViewType::Terminal => "Terminal",
-            ViewType::Mcp => "AI",
+            ViewType::Mcp => "MCP Server",
+            ViewType::Agent => "AI Agent",
             ViewType::Settings => "Settings",
             ViewType::About => "About",
         };
@@ -161,7 +167,13 @@ pub fn HomeScreenView() -> impl IntoView {
                 </header>
 
                 // View Content
-                <div class="flex-1 overflow-y-auto p-1 lg:p-2 no-scrollbar">
+                <div class=move || {
+                    if active_view.get() == ViewType::Agent {
+                        "flex-1 overflow-hidden p-0".to_string()
+                    } else {
+                        "flex-1 overflow-y-auto p-1 lg:p-2 no-scrollbar".to_string()
+                    }
+                }>
                     {move || match active_view.get() {
                         ViewType::Dashboard => view! { <DashboardView /> }.into_any(),
                         ViewType::Nodes => {
@@ -172,6 +184,7 @@ pub fn HomeScreenView() -> impl IntoView {
                         ViewType::Settings => view! { <SettingsView /> }.into_any(),
                         ViewType::About => view! { <AboutView /> }.into_any(),
                         ViewType::Mcp => view! { <McpView /> }.into_any(),
+                        ViewType::Agent => view! { <AgentView /> }.into_any(),
                     }}
                 </div>
             </main>

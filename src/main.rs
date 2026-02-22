@@ -82,7 +82,7 @@ async fn start_backend(
     // Let's read currently cached settings to use
     let settings = db_client.get_settings().await;
 
-    let app_ctx = AppContext::new(db_client);
+    let app_ctx = AppContext::new(db_client).await;
 
     #[cfg(not(feature = "native"))]
     let node_manager = NodeManager::new(app_ctx.clone()).await.wrap_err(

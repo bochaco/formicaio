@@ -6,11 +6,17 @@ pub use super::app_context::AppContext;
 #[cfg(feature = "ssr")]
 use super::node_mgr::NodeManager;
 #[cfg(feature = "hydrate")]
-use super::server_api::{get_settings, nodes_instances};
+use super::server_api::{get_new_agent_events, get_settings, nodes_instances};
 use super::{
     error_template::{AppError, ErrorTemplate},
     types::{NodeId, NodeInstanceInfo, NodesActionsBatch, NodesSortStrategy, Stats},
     views::{HomeScreenView, Notification, about::AboutView, terminal::TerminalView},
+};
+
+#[cfg(feature = "hydrate")]
+use super::{
+    types::AgentEventType,
+    views::{show_error_alert_msg, show_warning_alert_msg},
 };
 
 #[cfg(feature = "ssr")]
@@ -36,6 +42,8 @@ extern "C" {
 
 // Maximum number of metrics data points to be kept per node on DB cache.
 pub const METRICS_MAX_SIZE_PER_NODE: usize = 5_000;
+/// Number of days to retain agent events in the DB before pruning.
+pub const AGENT_EVENTS_MAX_AGE_DAYS: u32 = 30;
 // How often we poll the backend to retrieve an up to date list of node instances.
 pub const NODES_LIST_POLLING_FREQ_MILLIS: u64 = 5_500;
 
@@ -136,9 +144,11 @@ pub fn App() -> impl IntoView {
         app_settings: RwSignal::new(AppSettings::default()),
     });
 
-    // spawn poller task only on client side
+    // spawn poller tasks only on client side
     #[cfg(feature = "hydrate")]
     spawn_nodes_list_polling();
+    #[cfg(feature = "hydrate")]
+    spawn_agent_events_polling();
 
     view! {
         <Router>
@@ -275,4 +285,119 @@ fn spawn_nodes_list_polling() {
             sleep(delay).await;
         }
     });
+}
+
+// Spawns a task which polls for new autonomous agent events and pushes them to the alert bell.
+// The first poll is used only to establish the baseline timestamp so that historical events
+// are not replayed as notifications on page load.
+#[cfg(feature = "hydrate")]
+fn spawn_agent_events_polling() {
+    const AGENT_EVENTS_POLL_SECS: u64 = 60;
+
+    spawn_local(async {
+        let mut last_ts: i64 = 0;
+        let mut is_first_poll = true;
+        // Track the last error message shown to suppress repeated identical errors
+        // (e.g. Ollama unreachable across multiple consecutive autonomous cycles).
+        let mut last_error_shown: Option<String> = None;
+
+        loop {
+            sleep(std::time::Duration::from_secs(AGENT_EVENTS_POLL_SECS)).await;
+
+            match get_new_agent_events(last_ts).await {
+                Ok(events) => {
+                    // Advance the watermark regardless
+                    for event in &events {
+                        if event.timestamp > last_ts {
+                            last_ts = event.timestamp;
+                        }
+                    }
+
+                    // Skip notifications on the very first poll — it just syncs the watermark
+                    if !is_first_poll {
+                        for event in events {
+                            let msg =
+                                agent_event_notification(&event.event_type, &event.description);
+                            match &event.event_type {
+                                AgentEventType::AnomalyDetected => {
+                                    last_error_shown = None; // reset dedup on successful actions
+                                    show_warning_alert_msg(msg);
+                                }
+                                AgentEventType::Error => {
+                                    // Suppress consecutive identical errors so a persistent
+                                    // backend outage doesn't spam the bell every 15 seconds.
+                                    if last_error_shown.as_deref() != Some(&msg) {
+                                        last_error_shown = Some(msg.clone());
+                                        show_error_alert_msg(msg);
+                                    }
+                                }
+                                AgentEventType::ActionTaken | AgentEventType::Info => {} // skip — informational only
+                            }
+                        }
+                    }
+
+                    is_first_poll = false;
+                }
+                Err(err) => {
+                    logging::log!("Failed to poll agent events: {err}");
+                }
+            }
+        }
+    });
+}
+
+// Produce a concise, human-readable notification string for an autonomous agent event.
+// ActionTaken descriptions have the format "Called {tool}: {json_result}" which can be
+// very long — we map the tool name to a short label and drop the result payload.
+// All other descriptions are truncated to one line / max 100 chars.
+#[cfg(feature = "hydrate")]
+fn agent_event_notification(event_type: &AgentEventType, description: &str) -> String {
+    match event_type {
+        AgentEventType::ActionTaken => {
+            // "Called start_node_instance: {...}" → "[Agent] Restarted a node"
+            if let Some(rest) = description.strip_prefix("Called ") {
+                let tool = rest.split(':').next().unwrap_or(rest).trim();
+                let label = match tool {
+                    "start_node_instance" => "Restarted a node",
+                    "stop_node_instance" => "Stopped a node",
+                    "recycle_node_instance" => "Recycled a node",
+                    "delete_node_instance" => "Deleted a node",
+                    "create_node_instance" => "Created a new node",
+                    "upgrade_node_instance" => "Upgraded a node",
+                    other => other,
+                };
+                return format!("[Agent] {label}");
+            }
+            truncate_notification("[Agent]", description, 100)
+        }
+        AgentEventType::Error => {
+            // "LLM error during monitoring: <reqwest details>" → "[Agent] Cannot reach LLM"
+            // Strip the verbose prefix and show just the first meaningful line.
+            let core = description
+                .strip_prefix("LLM error during monitoring: ")
+                .unwrap_or(description);
+            // Connection-refused-style errors get a plain summary
+            if core.contains("Connection refused") || core.contains("connection refused") {
+                "[Agent] Cannot reach LLM backend (connection refused)".to_string()
+            } else {
+                truncate_notification("[Agent] Error:", core, 100)
+            }
+        }
+        AgentEventType::AnomalyDetected | AgentEventType::Info => {
+            truncate_notification("[Agent]", description, 100)
+        }
+    }
+}
+
+// Formats a notification string with a prefix, capping at max_chars and adding "…" if truncated.
+// Only the first line of text is used so multi-line LLM summaries stay compact.
+#[cfg(feature = "hydrate")]
+fn truncate_notification(prefix: &str, text: &str, max_chars: usize) -> String {
+    let text = text.trim();
+    let text = text.split('\n').next().unwrap_or(text);
+    if text.len() > max_chars {
+        format!("{prefix} {}…", &text[..max_chars].trim_end())
+    } else {
+        format!("{prefix} {text}")
+    }
 }

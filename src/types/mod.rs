@@ -1,3 +1,4 @@
+mod agent;
 mod batch;
 mod filters;
 pub mod metrics;
@@ -8,6 +9,7 @@ mod settings;
 mod sort_nodes;
 mod stats;
 
+pub use agent::{AgentEvent, AgentEventType, ChatMessage, ChatRole, StreamChunk};
 pub use batch::{BatchOnMatch, BatchStatus, BatchType, NodeOpts, NodesActionsBatch};
 pub use filters::{NodeFilter, NodeStatusFilter};
 pub use metrics::*;

@@ -1,4 +1,4 @@
-use super::icons::{IconBot, IconCode, IconCpu, IconShare, IconShield, IconTerminal, IconZap};
+use super::icons::{IconCode, IconCpu, IconPlug, IconShare, IconShield, IconTerminal, IconZap};
 use crate::{app::ClientGlobalState, server_api::get_mcp_info};
 
 use leptos::prelude::*;
@@ -45,7 +45,7 @@ pub fn McpView() -> impl IntoView {
                             <div class="flex items-center justify-between mb-8">
                                 <div class="flex items-center gap-4">
                                     <div class="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white">
-                                        <IconBot class="w-8 h-8 font-bold" />
+                                        <IconPlug class="w-8 h-8 font-bold" />
                                     </div>
                                     <div>
                                         <h3 class="text-lg font-bold">Server Status</h3>

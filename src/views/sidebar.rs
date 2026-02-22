@@ -1,6 +1,6 @@
 use super::{
     ViewType,
-    icons::{IconAbout, IconBot, IconDashboard, IconNodes, IconSettings, IconTerminal},
+    icons::{IconAbout, IconBot, IconDashboard, IconNodes, IconPlug, IconSettings, IconTerminal},
 };
 
 use leptos::prelude::*;
@@ -8,7 +8,7 @@ use leptos::prelude::*;
 #[component]
 pub fn Sidebar(active_view: RwSignal<ViewType>, is_open: RwSignal<bool>) -> impl IntoView {
     let version = env!("CARGO_PKG_VERSION");
-    let nav_items = [
+    let nav_items = vec![
         (ViewType::Dashboard, "Dashboard", IconDashboard.into_any()),
         (ViewType::Nodes, "Nodes", IconNodes.into_any()),
         (
@@ -16,7 +16,16 @@ pub fn Sidebar(active_view: RwSignal<ViewType>, is_open: RwSignal<bool>) -> impl
             "Terminal",
             view! { <IconTerminal /> }.into_any(),
         ),
-        (ViewType::Mcp, "AI", view! { <IconBot /> }.into_any()),
+        (
+            ViewType::Mcp,
+            "MCP Server",
+            view! { <IconPlug class="w-5 h-5" /> }.into_any(),
+        ),
+        (
+            ViewType::Agent,
+            "AI Agent",
+            view! { <IconBot class="w-5 h-5" /> }.into_any(),
+        ),
         (ViewType::Settings, "Settings", IconSettings.into_any()),
         (ViewType::About, "About", IconAbout.into_any()),
     ];

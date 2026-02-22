@@ -1,11 +1,13 @@
 use crate::{
-    server_api::{get_settings, update_settings},
+    server_api::{get_settings, test_llm_connection, update_settings},
     types::AppSettings,
 };
 
 use super::{
     helpers::show_error_alert_msg,
-    icons::{IconCheck, IconLayoutDashboard, IconLcdSettings, IconSave, IconServer, IconWallet},
+    icons::{
+        IconBot, IconCheck, IconLayoutDashboard, IconLcdSettings, IconSave, IconServer, IconWallet,
+    },
 };
 
 use alloy_primitives::Address;
@@ -20,6 +22,7 @@ const SETTINGS_TAB_NODE_MGMT: u8 = 0;
 const SETTINGS_TAB_INTERFACE: u8 = 1;
 const SETTINGS_TAB_REWARDS: u8 = 2;
 const SETTINGS_TAB_LCD_DEVICE: u8 = 3;
+const SETTINGS_TAB_AGENT: u8 = 4;
 
 struct FormContent {
     saved_settings: RwSignal<AppSettings>,
@@ -36,6 +39,14 @@ struct FormContent {
     lcd_addr: RwSignal<Result<String, (String, String)>>,
     node_list_page_size: RwSignal<Result<u64, (String, String)>>,
     node_list_mode: RwSignal<u64>,
+    llm_base_url: RwSignal<Result<String, (String, String)>>,
+    llm_model: RwSignal<Result<String, (String, String)>>,
+    llm_api_key: RwSignal<String>,
+    system_prompt: RwSignal<String>,
+    max_context_messages: RwSignal<Result<u64, (String, String)>>,
+    autonomous_enabled: RwSignal<bool>,
+    autonomous_check_interval: RwSignal<Result<u64, (String, String)>>,
+    autonomous_max_actions: RwSignal<Result<u64, (String, String)>>,
 }
 
 impl FormContent {
@@ -59,6 +70,14 @@ impl FormContent {
             lcd_addr: RwSignal::new(Ok(settings.lcd_addr.clone())),
             node_list_page_size: RwSignal::new(Ok(settings.node_list_page_size)),
             node_list_mode: RwSignal::new(settings.node_list_mode),
+            llm_base_url: RwSignal::new(Ok(settings.llm_base_url)),
+            llm_model: RwSignal::new(Ok(settings.llm_model)),
+            llm_api_key: RwSignal::new(settings.llm_api_key),
+            system_prompt: RwSignal::new(settings.system_prompt),
+            max_context_messages: RwSignal::new(Ok(settings.max_context_messages)),
+            autonomous_enabled: RwSignal::new(settings.autonomous_enabled),
+            autonomous_check_interval: RwSignal::new(Ok(settings.autonomous_check_interval_secs)),
+            autonomous_max_actions: RwSignal::new(Ok(settings.autonomous_max_actions_per_cycle)),
         }
     }
 
@@ -83,6 +102,16 @@ impl FormContent {
             || self.lcd_addr.get() != Ok(saved_settings.lcd_addr.clone())
             || self.node_list_page_size.get() != Ok(saved_settings.node_list_page_size)
             || self.node_list_mode.get() != saved_settings.node_list_mode
+            || self.llm_base_url.get() != Ok(saved_settings.llm_base_url.clone())
+            || self.llm_model.get() != Ok(saved_settings.llm_model.clone())
+            || self.llm_api_key.get() != saved_settings.llm_api_key
+            || self.system_prompt.get() != saved_settings.system_prompt
+            || self.max_context_messages.get() != Ok(saved_settings.max_context_messages)
+            || self.autonomous_enabled.get() != saved_settings.autonomous_enabled
+            || self.autonomous_check_interval.get()
+                != Ok(saved_settings.autonomous_check_interval_secs)
+            || self.autonomous_max_actions.get()
+                != Ok(saved_settings.autonomous_max_actions_per_cycle)
     }
 
     pub fn get_valid_changes(&self) -> Option<AppSettings> {
@@ -97,9 +126,29 @@ impl FormContent {
             self.lcd_device.get(),
             self.lcd_addr.get(),
             self.node_list_page_size.get(),
+            self.llm_base_url.get(),
+            self.llm_model.get(),
+            self.max_context_messages.get(),
+            self.autonomous_check_interval.get(),
+            self.autonomous_max_actions.get(),
         );
-        if let (Ok(v1), Ok(v2), Ok(v3), Ok(v4), Ok(v5), Ok(v6), Ok(v7), Ok(v8), Ok(v9), Ok(v10)) =
-            values
+        if let (
+            Ok(v1),
+            Ok(v2),
+            Ok(v3),
+            Ok(v4),
+            Ok(v5),
+            Ok(v6),
+            Ok(v7),
+            Ok(v8),
+            Ok(v9),
+            Ok(v10),
+            Ok(v11),
+            Ok(v12),
+            Ok(v13),
+            Ok(v14),
+            Ok(v15),
+        ) = values
         {
             Some(AppSettings {
                 nodes_auto_upgrade: self.auto_upgrade.get(),
@@ -115,6 +164,14 @@ impl FormContent {
                 lcd_addr: v9,
                 node_list_page_size: v10,
                 node_list_mode: self.node_list_mode.get(),
+                llm_base_url: v11,
+                llm_model: v12,
+                llm_api_key: self.llm_api_key.get(),
+                system_prompt: self.system_prompt.get(),
+                max_context_messages: v13,
+                autonomous_enabled: self.autonomous_enabled.get(),
+                autonomous_check_interval_secs: v14,
+                autonomous_max_actions_per_cycle: v15,
             })
         } else {
             None
@@ -144,11 +201,28 @@ impl FormContent {
         self.node_list_page_size
             .set(Ok(saved_settings.node_list_page_size));
         self.node_list_mode.set(saved_settings.node_list_mode);
+        self.llm_base_url
+            .set(Ok(saved_settings.llm_base_url.clone()));
+        self.llm_model.set(Ok(saved_settings.llm_model.clone()));
+        self.llm_api_key.set(saved_settings.llm_api_key.clone());
+        self.system_prompt.set(saved_settings.system_prompt.clone());
+        self.max_context_messages
+            .set(Ok(saved_settings.max_context_messages));
+        self.autonomous_enabled
+            .set(saved_settings.autonomous_enabled);
+        self.autonomous_check_interval
+            .set(Ok(saved_settings.autonomous_check_interval_secs));
+        self.autonomous_max_actions
+            .set(Ok(saved_settings.autonomous_max_actions_per_cycle));
     }
 }
 
 #[component]
 fn SettingsForm(form: RwSignal<FormContent>, active_tab: RwSignal<u8>) -> impl IntoView {
+    // Status message for the "Test Connection" button
+    let test_status = RwSignal::new(Option::<Result<String, String>>::None);
+    let is_testing = RwSignal::new(false);
+
     view! {
         <span hidden=move || active_tab.read() != SETTINGS_TAB_NODE_MGMT>
             <SettingsCard
@@ -297,6 +371,166 @@ fn SettingsForm(form: RwSignal<FormContent>, active_tab: RwSignal<u8>) -> impl I
                 </SettingRow>
             </SettingsCard>
         </span>
+        <span hidden=move || active_tab.read() != SETTINGS_TAB_AGENT>
+            <SettingsCard
+                icon=view! { <IconBot class="w-6 h-6" /> }.into_any()
+                title="AI Agent"
+                description="Configure the local AI agent that can manage your nodes via natural language."
+            >
+                <SettingRow
+                    label="LLM Base URL"
+                    description="Base URL of your OpenAI-compatible LLM API (e.g. Ollama at http://localhost:11434)."
+                    full_width=true
+                    error=Signal::derive(move || form.read().llm_base_url.read().clone().err())
+                >
+                    <TextInputNew
+                        name="llmBaseUrl"
+                        signal=form.read_untracked().llm_base_url
+                        validator=|v| {
+                            v.parse::<url::Url>().map_err(|e| e.to_string()).map(|_| v)
+                        }
+                    />
+                </SettingRow>
+                <SettingRow
+                    label="Model Name"
+                    description="The model to use for chat and autonomous monitoring (e.g. llama3.2:3b, mistral)."
+                    full_width=true
+                    error=Signal::derive(move || form.read().llm_model.read().clone().err())
+                >
+                    <TextInputNew
+                        name="llmModel"
+                        signal=form.read_untracked().llm_model
+                        validator=|v| {
+                            if v.trim().is_empty() {
+                                Err("LLM model is required.".to_string())
+                            } else {
+                                Ok(v)
+                            }
+                        }
+                    />
+                </SettingRow>
+                <SettingRow
+                    label="API Key"
+                    description="Optional API key for authentication. Leave empty if your backend requires no key."
+                    full_width=true
+                    error=Signal::derive(|| None)
+                >
+                    <input
+                        type="password"
+                        class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2 text-sm focus:outline-none font-mono transition-colors focus:ring-1 focus:ring-indigo-500"
+                        prop:value=move || form.read().llm_api_key.get()
+                        on:input=move |ev| form.read().llm_api_key.set(event_target_value(&ev))
+                        placeholder="(optional)"
+                    />
+                </SettingRow>
+                <SettingRow
+                    label="Custom System Prompt"
+                    description="Optional instructions appended to the built-in Formicaio system prompt."
+                    full_width=true
+                    error=Signal::derive(|| None)
+                >
+                    <textarea
+                        rows=3
+                        class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2 text-sm focus:outline-none font-mono transition-colors focus:ring-1 focus:ring-indigo-500 resize-y"
+                        prop:value=move || form.read().system_prompt.get()
+                        on:input=move |ev| form.read().system_prompt.set(event_target_value(&ev))
+                        placeholder="Additional instructions for the agent..."
+                    />
+                </SettingRow>
+                <SettingRow
+                    label="Max Context Messages"
+                    description="How many prior chat messages to include in each LLM request."
+                    error=Signal::derive(move || {
+                        form.read().max_context_messages.read().clone().err()
+                    })
+                >
+                    <NumberInput
+                        name="maxContextMessages"
+                        signal=form.read_untracked().max_context_messages
+                        min=1
+                    />
+                </SettingRow>
+                <SettingRow
+                    label="Autonomous Check Interval (secs)"
+                    description="How often the autonomous agent checks node health in the background."
+                    error=Signal::derive(move || {
+                        form.read().autonomous_check_interval.read().clone().err()
+                    })
+                >
+                    <NumberInput
+                        name="autonomousInterval"
+                        signal=form.read_untracked().autonomous_check_interval
+                        min=10
+                    />
+                </SettingRow>
+                <SettingRow
+                    label="Max Actions per Cycle"
+                    description="Maximum number of tool-based actions the agent may take per monitoring cycle."
+                    error=Signal::derive(move || {
+                        form.read().autonomous_max_actions.read().clone().err()
+                    })
+                >
+                    <NumberInput
+                        name="autonomousMaxActions"
+                        signal=form.read_untracked().autonomous_max_actions
+                        min=1
+                    />
+                </SettingRow>
+            </SettingsCard>
+            // Test Connection + Save row
+            <div class="mt-3 flex items-center gap-4 flex-wrap">
+                <button
+                    type="button"
+                    prop:disabled=move || {
+                        form.read().llm_base_url.read().is_err()
+                            || form.read().llm_model.read().is_err()
+                    }
+                    on:click=move |_| {
+                        if let Ok(base_url) = form.read_untracked().llm_base_url.get()
+                            && let Ok(model) = form.read_untracked().llm_model.get()
+                        {
+                            let api_key = form.read_untracked().llm_api_key.get();
+                            test_status.set(None);
+                            is_testing.set(true);
+                            spawn_local(async move {
+                                let result = test_llm_connection(base_url, model, api_key).await;
+                                test_status.set(Some(result.map_err(|e| e.to_string())));
+                                is_testing.set(false);
+                            });
+                        }
+                    }
+                    class="px-4 py-2 text-sm font-bold bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 rounded-lg transition-colors flex items-center gap-2 disabled:bg-slate-600 disabled:text-slate-400 disabled:opacity-75 disabled:shadow-none disabled:cursor-not-allowed"
+                >
+                    <Show when=move || is_testing.get()>
+                        <span class="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin inline-block" />
+                    </Show>
+                    "Test Connection"
+                </button>
+                <Show when=move || {
+                    test_status.read().is_some()
+                }>
+                    {move || {
+                        match test_status.get() {
+                            Some(Ok(model)) => {
+                                view! {
+                                    <span class="text-sm font-medium text-emerald-400">
+                                        "Connected — model: " {model}
+                                    </span>
+                                }
+                                    .into_any()
+                            }
+                            Some(Err(err)) => {
+                                view! {
+                                    <span class="text-sm font-medium text-rose-400">{err}</span>
+                                }
+                                    .into_any()
+                            }
+                            None => view! { <span /> }.into_any(),
+                        }
+                    }}
+                </Show>
+            </div>
+        </span>
         <span hidden=move || active_tab.read() != SETTINGS_TAB_LCD_DEVICE>
             <SettingsCard
                 icon=IconLcdSettings.into_any()
@@ -401,6 +635,12 @@ pub fn SettingsView() -> impl IntoView {
                             label="Rewards"
                             active_tab
                             tab_index=SETTINGS_TAB_REWARDS
+                        />
+                        <SideNavLink
+                            icon=view! { <IconBot class="w-5 h-5" /> }.into_any()
+                            label="AI Agent"
+                            active_tab
+                            tab_index=SETTINGS_TAB_AGENT
                         />
                         <Show when=move || !lcd_disabled>
                             <SideNavLink

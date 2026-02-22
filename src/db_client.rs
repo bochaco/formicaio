@@ -1,5 +1,6 @@
 use super::types::{
-    AppSettings, Metrics, NodeId, NodeInstanceInfo, NodeMetric, NodePid, NodeStatus,
+    AgentEvent, AgentEventType, AppSettings, Metrics, NodeId, NodeInstanceInfo, NodeMetric,
+    NodePid, NodeStatus,
 };
 use crate::bg_tasks::PaymentRecord;
 
@@ -31,6 +32,8 @@ pub enum DbError {
     SqlxError(#[from] sqlx::Error),
     #[error("Node is part of a running/scheduled batch")]
     NodeIsBatched,
+    #[error("Invalid node id")]
+    InvalidNodeId,
 }
 
 // Sqlite DB filename.
@@ -56,6 +59,15 @@ struct CachedSettings {
     lcd_addr: String,
     node_list_page_size: u64,
     node_list_mode: u64,
+    // AI Agent fields
+    llm_base_url: String,
+    llm_model: String,
+    llm_api_key: String,
+    system_prompt: String,
+    max_context_messages: i64,
+    autonomous_enabled: bool,
+    autonomous_check_interval_secs: i64,
+    autonomous_max_actions_per_cycle: i64,
 }
 
 // Struct stored on the DB caching nodes metadata.
@@ -165,6 +177,15 @@ impl CachedNodeMetadata {
             info.disk_usage = Some(self.disk_usage);
         }
     }
+}
+
+// Struct stored on the DB caching an agent event row.
+#[derive(Clone, Debug, Deserialize, FromRow, Serialize)]
+struct CachedAgentEvent {
+    id: i64,
+    event_type: String,
+    description: String,
+    timestamp: i64,
 }
 
 // Struct stored on the DB caching reward payments.
@@ -621,7 +642,9 @@ impl DbClient {
                     });
                 });
             }
-            Err(err) => logging::error!("[ERROR] Database query error while retrieving node metrics: {err}"),
+            Err(err) => {
+                logging::error!("[ERROR] Database query error while retrieving node metrics: {err}")
+            }
         }
 
         node_metrics
@@ -819,6 +842,14 @@ impl DbClient {
                 lcd_addr: s.lcd_addr.clone(),
                 node_list_page_size: s.node_list_page_size,
                 node_list_mode: s.node_list_mode,
+                llm_base_url: s.llm_base_url,
+                llm_model: s.llm_model,
+                llm_api_key: s.llm_api_key,
+                system_prompt: s.system_prompt,
+                max_context_messages: s.max_context_messages as u64,
+                autonomous_enabled: s.autonomous_enabled,
+                autonomous_check_interval_secs: s.autonomous_check_interval_secs as u64,
+                autonomous_max_actions_per_cycle: s.autonomous_max_actions_per_cycle as u64,
             },
             Ok(None) => {
                 logging::log!("No settings found in DB, we'll be using defaults.");
@@ -850,7 +881,15 @@ impl DbClient {
             lcd_device = ?, \
             lcd_addr = ?, \
             node_list_page_size = ?, \
-            node_list_mode = ?",
+            node_list_mode = ?, \
+            llm_base_url = ?, \
+            llm_model = ?, \
+            llm_api_key = ?, \
+            system_prompt = ?, \
+            max_context_messages = ?, \
+            autonomous_enabled = ?, \
+            autonomous_check_interval_secs = ?, \
+            autonomous_max_actions_per_cycle = ?",
         )
         .bind(settings.nodes_auto_upgrade)
         .bind(settings.nodes_auto_upgrade_delay.as_secs() as i64)
@@ -865,6 +904,14 @@ impl DbClient {
         .bind(settings.lcd_addr.clone())
         .bind(settings.node_list_page_size as i64)
         .bind(settings.node_list_mode as i64)
+        .bind(settings.llm_base_url.clone())
+        .bind(settings.llm_model.clone())
+        .bind(settings.llm_api_key.clone())
+        .bind(settings.system_prompt.clone())
+        .bind(settings.max_context_messages as i64)
+        .bind(settings.autonomous_enabled)
+        .bind(settings.autonomous_check_interval_secs as i64)
+        .bind(settings.autonomous_max_actions_per_cycle as i64)
         .execute(&*db_lock)
         .await
         {
@@ -875,6 +922,109 @@ impl DbClient {
             Err(err) => {
                 logging::error!("[ERROR] Database error while updating settings: {err}");
                 Err(err.into())
+            }
+        }
+    }
+
+    // ─── Agent events ────────────────────────────────────────────────────────────
+
+    pub async fn insert_agent_event(
+        &self,
+        event_type: &AgentEventType,
+        description: &str,
+    ) -> Result<i64, DbError> {
+        let timestamp = chrono::Utc::now().timestamp();
+        let db_lock = self.db.lock().await;
+        let result = sqlx::query(
+            "INSERT INTO agent_events (event_type, description, timestamp) \
+             VALUES (?, ?, ?)",
+        )
+        .bind(event_type.as_str())
+        .bind(description)
+        .bind(timestamp)
+        .execute(&*db_lock)
+        .await
+        .map_err(|e| {
+            logging::error!("[ERROR] Database error while inserting agent event: {e}");
+            DbError::SqlxError(e)
+        })?;
+        Ok(result.last_insert_rowid())
+    }
+
+    pub async fn get_agent_events(&self, limit: u32) -> Vec<AgentEvent> {
+        let db_lock = self.db.lock().await;
+        match sqlx::query_as::<_, CachedAgentEvent>(
+            "SELECT * FROM agent_events ORDER BY timestamp DESC LIMIT ?",
+        )
+        .bind(limit as i64)
+        .fetch_all(&*db_lock)
+        .await
+        {
+            Ok(rows) => rows
+                .into_iter()
+                .filter_map(|r| {
+                    let event_type = r.event_type.parse::<AgentEventType>().ok()?;
+                    Some(AgentEvent {
+                        id: r.id,
+                        event_type,
+                        description: r.description,
+                        timestamp: r.timestamp,
+                    })
+                })
+                .collect(),
+            Err(err) => {
+                logging::error!("[ERROR] Database error while retrieving agent events: {err}");
+                vec![]
+            }
+        }
+    }
+
+    /// Returns agent events with timestamp strictly greater than `since_timestamp`, oldest first.
+    pub async fn get_agent_events_since(&self, since_timestamp: i64) -> Vec<AgentEvent> {
+        let db_lock = self.db.lock().await;
+        match sqlx::query_as::<_, CachedAgentEvent>(
+            "SELECT * FROM agent_events WHERE timestamp > ? ORDER BY timestamp ASC",
+        )
+        .bind(since_timestamp)
+        .fetch_all(&*db_lock)
+        .await
+        {
+            Ok(rows) => rows
+                .into_iter()
+                .filter_map(|r| {
+                    let event_type = r.event_type.parse::<AgentEventType>().ok()?;
+                    Some(AgentEvent {
+                        id: r.id,
+                        event_type,
+                        description: r.description,
+                        timestamp: r.timestamp,
+                    })
+                })
+                .collect(),
+            Err(err) => {
+                logging::error!(
+                    "[ERROR] Database error while retrieving agent events since {since_timestamp}: {err}"
+                );
+                vec![]
+            }
+        }
+    }
+
+    /// Delete agent events older than `max_age_days` days.
+    pub async fn prune_agent_events(&self, max_age_days: u32) {
+        let cutoff = chrono::Utc::now().timestamp() - (max_age_days as i64 * 86_400);
+        let db_lock = self.db.lock().await;
+        match sqlx::query("DELETE FROM agent_events WHERE timestamp < ?")
+            .bind(cutoff)
+            .execute(&*db_lock)
+            .await
+        {
+            Ok(res) => logging::log!(
+                "Removed {} old AI agent events records",
+                res.rows_affected()
+            ),
+            Err(err) => {
+                logging::error!("[ERROR] Database error while pruning agent events: {err}");
             }
         }
     }

@@ -17,6 +17,23 @@ pub struct AppSettings {
     pub lcd_addr: String,
     pub node_list_page_size: u64,
     pub node_list_mode: u64,
+    // ── AI Agent ──────────────────────────────────────────────────────────────
+    /// Base URL of the OpenAI-compatible LLM API (e.g. "http://localhost:11434" for Ollama).
+    pub llm_base_url: String,
+    /// Model name to use (e.g. "llama3.2:3b").
+    pub llm_model: String,
+    /// Optional API key (empty string means no authentication).
+    pub llm_api_key: String,
+    /// Custom system prompt appended to the default Formicaio system prompt.
+    pub system_prompt: String,
+    /// Maximum number of prior messages to include in each LLM request.
+    pub max_context_messages: u64,
+    /// Whether the autonomous monitoring mode is currently enabled.
+    pub autonomous_enabled: bool,
+    /// How often (in seconds) the autonomous agent checks node health.
+    pub autonomous_check_interval_secs: u64,
+    /// Maximum number of tool-based actions the agent may take per monitoring cycle.
+    pub autonomous_max_actions_per_cycle: u64,
 }
 
 impl Default for AppSettings {
@@ -48,6 +65,22 @@ impl Default for AppSettings {
             node_list_page_size: 30u64,
             // The default layout for the Nodes list page. (0 == Tile, 1 == List)
             node_list_mode: 0u64,
+            // Default to a local Ollama instance.
+            llm_base_url: "http://localhost:11434".to_string(),
+            // A small but capable model available in Ollama out of the box.
+            llm_model: "llama3.2:3b".to_string(),
+            // No API key required for local backends.
+            llm_api_key: String::new(),
+            // No extra instructions appended by default.
+            system_prompt: String::new(),
+            // Keep the last 20 messages for context; balances recall vs. token cost.
+            max_context_messages: 20,
+            // Autonomous monitoring is opt-in.
+            autonomous_enabled: false,
+            // Check node health every 60 seconds when autonomous mode is active.
+            autonomous_check_interval_secs: 60,
+            // Allow at most 3 corrective actions per monitoring cycle to avoid runaway behaviour.
+            autonomous_max_actions_per_cycle: 3,
         }
     }
 }

@@ -497,7 +497,7 @@ pub async fn balance_checker_task(
                     .collect();
                 perform_earnings_stats_update = true;
             }
-            Err(_) => {}
+            Err(_) | Ok(BgTasksCmds::AgentAutonomousModeToggled(_)) => {}
         }
 
         if perform_earnings_stats_update {

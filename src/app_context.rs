@@ -1,5 +1,5 @@
 use super::{
-    bg_tasks::{BgTasksCmds, ImmutableNodeStatus, NodeActionsBatches, NodesMetrics},
+    bg_tasks::{AgentContext, BgTasksCmds, ImmutableNodeStatus, NodeActionsBatches, NodesMetrics},
     db_client::DbClient,
     types::Stats,
 };
@@ -28,13 +28,18 @@ pub struct AppContext {
     pub stats: Arc<RwLock<Stats>>,
     /// This is used to determine if the MCP server is active and can be interacted with.
     pub mcp_status: Arc<RwLock<Option<String>>>,
+    /// Shared context for the local AI agent (settings, autonomous mode flag, command channel).
+    pub agent_ctx: AgentContext,
 }
 
 impl AppContext {
     /// Creates a new instance of the application context with the provided database client.
-    pub fn new(db_client: DbClient) -> Self {
+    /// Requires an async context to load agent settings from the database.
+    pub async fn new(db_client: DbClient) -> Self {
         let nodes_metrics = Arc::new(RwLock::new(NodesMetrics::new(db_client.clone())));
         let (bg_tasks_cmds_tx, _rx) = broadcast::channel::<BgTasksCmds>(1_000);
+        let agent_settings = db_client.get_settings().await;
+        let agent_ctx = AgentContext::new(agent_settings);
         Self {
             db_client,
             latest_bin_version: Arc::new(RwLock::new(None)),
@@ -44,6 +49,7 @@ impl AppContext {
             node_action_batches: Arc::new(RwLock::new((broadcast::channel(3).0, Vec::new()))),
             stats: Arc::new(RwLock::new(Stats::default())),
             mcp_status: Arc::new(RwLock::new(None)),
+            agent_ctx,
         }
     }
 }

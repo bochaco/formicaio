@@ -252,7 +252,7 @@ pub enum CliCmdResponse {
     NodeCreated(Box<NodeInstanceInfo>),
     Stats(Box<Stats>),
     Batches(Vec<NodesActionsBatch>),
-    Settings(AppSettings),
+    Settings(Box<AppSettings>),
     BatchCreated(u16),
     Success,
 }
@@ -429,7 +429,7 @@ impl CliCommands {
                 CliCmdResponse::Success
             }
             CliCommands::Settings(SettingsSubcommands::Ls) => {
-                CliCmdResponse::Settings(get_settings().await?)
+                CliCmdResponse::Settings(Box::new(get_settings().await?))
             }
         };
 
@@ -628,7 +628,7 @@ impl CliCommands {
             CliCommands::Settings(SettingsSubcommands::Ls) => {
                 send_req(&format!("{api_url}/settings/get"), None)
                     .await
-                    .map(|settings: AppSettings| CliCmdResponse::Settings(settings))
+                    .map(|settings: AppSettings| CliCmdResponse::Settings(Box::new(settings)))
             }
         }
     }

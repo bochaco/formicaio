@@ -30,6 +30,18 @@ pub fn truncated_balance_str(v: U256) -> String {
 // Shows an error alert message in the UI.
 pub fn show_error_alert_msg(msg: String) {
     let notif = Notification::new_error(msg.clone());
+    show_alert_msg(notif);
+}
+
+// Shows a warning alert message in the UI.
+#[cfg(feature = "hydrate")]
+pub fn show_warning_alert_msg(msg: String) {
+    let notif = Notification::new_warning(msg.clone());
+    show_alert_msg(notif);
+}
+
+// Helper to show an alert message in the UI.
+fn show_alert_msg(notif: Notification) {
     let context = expect_context::<ClientGlobalState>();
     spawn_local(async move {
         logging::log!("Alert msg. displayed: {}", notif.message);

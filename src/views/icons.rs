@@ -968,6 +968,27 @@ pub fn IconBot(#[prop(default = "w-6 h-6")] class: &'static str) -> impl IntoVie
 }
 
 #[component]
+pub fn IconPlug(#[prop(default = "w-6 h-6")] class: &'static str) -> impl IntoView {
+    view! {
+        <svg
+            class=class.to_string()
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <path d="M12 22v-5" />
+            <path d="M9 8V2" />
+            <path d="M15 8V2" />
+            <path d="M18 8H6a2 2 0 0 0-2 2v3a4 4 0 0 0 4 4h8a4 4 0 0 0 4-4v-3a2 2 0 0 0-2-2Z" />
+        </svg>
+    }
+}
+
+#[component]
 pub fn IconShield(#[prop(default = "w-5 h-5")] class: &'static str) -> impl IntoView {
     view! {
         <svg

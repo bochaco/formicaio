@@ -1,20 +1,22 @@
+pub mod agent;
 mod arbitrum_client;
 mod batches;
 mod earnings;
 #[cfg(not(feature = "lcd-disabled"))]
 mod lcd;
 mod mcp;
-mod mcp_tools;
+pub(crate) mod mcp_tools;
 mod metrics_client;
 mod tasks;
 mod tasks_ctx;
 
 use super::{
-    app::AppContext,
+    app::{AGENT_EVENTS_MAX_AGE_DAYS, AppContext},
     node_mgr::NodeManager,
     types::{AppSettings, NodeId, NodeInstanceInfo, NodesActionsBatch},
 };
 
+pub use agent::AgentContext;
 pub(crate) use arbitrum_client::PaymentRecord;
 pub use batches::{ActionsBatchError, prepare_node_action_batch};
 pub use mcp::start_mcp_server;
@@ -55,6 +57,7 @@ pub enum BgTasksCmds {
     DeleteBalanceFor(NodeInstanceInfo),
     CheckAllBalances,
     PruneEarningsHistory,
+    AgentAutonomousModeToggled(bool),
 }
 
 // List of nodes which status is temporarily immutable/locked.
@@ -110,6 +113,12 @@ pub fn spawn_bg_tasks(app_ctx: AppContext, node_manager: NodeManager, settings: 
     logging::log!("Background tasks initialized with settings: {settings:#?}");
     let mut ctx = TasksContext::from(settings);
 
+    // Spawn the autonomous agent monitoring loop
+    tokio::spawn(agent::run_autonomous_loop(
+        app_ctx.clone(),
+        node_manager.clone(),
+    ));
+
     let lcd_stats = Arc::new(RwLock::new(
         [(
             "Formicaio".to_string(),
@@ -141,24 +150,35 @@ pub fn spawn_bg_tasks(app_ctx: AppContext, node_manager: NodeManager, settings: 
         let mut bg_tasks_cmds_rx = app_ctx.bg_tasks_cmds_tx.subscribe();
         loop {
             select! {
-                settings = bg_tasks_cmds_rx.recv() => {
-                    if let Ok(BgTasksCmds::ApplySettings(s)) = settings {
-                        #[cfg(not(feature = "lcd-disabled"))]
-                        if s.lcd_display_enabled && (!ctx.app_settings.lcd_display_enabled
-                            || ctx.app_settings.lcd_device != s.lcd_device
-                            || ctx.app_settings.lcd_addr != s.lcd_addr)
-                        {
-                            logging::log!("Setting up LCD display with new device parameters...");
-                            // TODO: when it fails, send error back to the client,
-                            // perhaps we need websockets for errors like this one.
-                            tokio::spawn(display_stats_on_lcd(
-                                s.clone(),
-                                app_ctx.bg_tasks_cmds_tx.subscribe(),
-                                lcd_stats.clone()
-                            ));
+                cmd = bg_tasks_cmds_rx.recv() => {
+                    match cmd {
+                        Ok(BgTasksCmds::ApplySettings(s)) => {
+                            #[cfg(not(feature = "lcd-disabled"))]
+                            if s.lcd_display_enabled && (!ctx.app_settings.lcd_display_enabled
+                                || ctx.app_settings.lcd_device != s.lcd_device
+                                || ctx.app_settings.lcd_addr != s.lcd_addr)
+                            {
+                                logging::log!("Setting up LCD display with new device parameters...");
+                                // TODO: when it fails, send error back to the client,
+                                // perhaps we need websockets for errors like this one.
+                                tokio::spawn(display_stats_on_lcd(
+                                    s.clone(),
+                                    app_ctx.bg_tasks_cmds_tx.subscribe(),
+                                    lcd_stats.clone()
+                                ));
+                            }
+                            // Notify the agent loop so it can update its interval and in-memory settings.
+                            let _ = app_ctx.agent_ctx.cmds_tx.send(
+                                agent::AgentCmd::SettingsChanged(Box::new(s.clone()))
+                            );
+                            ctx.apply_settings(s);
                         }
-
-                        ctx.apply_settings(s);
+                        Ok(BgTasksCmds::AgentAutonomousModeToggled(enabled)) => {
+                            let _ = app_ctx.agent_ctx.cmds_tx.send(
+                                agent::AgentCmd::AutonomousModeToggled(enabled)
+                            );
+                        }
+                        _ => {}
                     }
                 },
                 _ = ctx.node_bin_version_check.tick() => {
@@ -172,10 +192,17 @@ pub fn spawn_bg_tasks(app_ctx: AppContext, node_manager: NodeManager, settings: 
                 },
                 _ = ctx.metrics_pruning.tick() => {
                     let _ = app_ctx.bg_tasks_cmds_tx.send(BgTasksCmds::PruneEarningsHistory);
+                    let db_client = app_ctx.db_client.clone();
                     tokio::spawn(prune_metrics(
                         node_manager.clone(),
-                        app_ctx.db_client.clone()
+                        db_client.clone()
                     ));
+                    tokio::spawn(async move {
+                        logging::log!(
+                            "Removing AI agent events older than {AGENT_EVENTS_MAX_AGE_DAYS} days from DB..."
+                        );
+                        db_client.prune_agent_events(AGENT_EVENTS_MAX_AGE_DAYS).await;
+                    });
                 },
                 _ = ctx.nodes_metrics_polling.tick() => {
                     let query_bin_version = ctx.app_settings.lcd_display_enabled;

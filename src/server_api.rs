@@ -1,6 +1,6 @@
 use crate::types::{
-    BatchOnMatch, BatchType, NodeFilter, NodeId, NodeInstanceInfo, NodeOpts, NodesActionsBatch,
-    NodesInstancesInfo, Stats, WidgetFourStats,
+    AgentEvent, BatchOnMatch, BatchType, ChatMessage, NodeFilter, NodeId, NodeInstanceInfo,
+    NodeOpts, NodesActionsBatch, NodesInstancesInfo, Stats, WidgetFourStats,
 };
 
 use alloy_primitives::Address;
@@ -14,12 +14,18 @@ use std::{collections::HashMap, str::FromStr};
 mod ssr_imports_and_defs {
     pub use crate::{
         app::ServerGlobalState,
-        bg_tasks::{BgTasksCmds, prepare_node_action_batch},
+        bg_tasks::{
+            BgTasksCmds,
+            agent::{LlmClient, OpenAiCompatClient, process_chat_turn},
+            prepare_node_action_batch,
+        },
         types::WidgetStat,
         views::truncated_balance_str,
     };
+    pub use bytes::Bytes;
     pub use futures_util::StreamExt;
     pub use leptos::logging;
+    pub use tokio_stream::wrappers::ReceiverStream;
 }
 
 #[cfg(feature = "ssr")]
@@ -294,6 +300,115 @@ pub async fn cancel_batch(batch_id: u16) -> Result<(), ServerFnError> {
         }
     }
     Ok(())
+}
+
+// ─── Agent server functions ───────────────────────────────────────────────────
+
+/// Stream an AI agent chat turn. Returns a ByteStream of NDJSON `StreamChunk` objects.
+/// Conversation history is loaded from and saved to the server-side in-memory session store.
+#[server(output = Streaming, name = SendChatMessage, prefix = "/api", endpoint = "/agent/chat")]
+pub async fn send_chat_message(
+    session_id: String,
+    user_message: String,
+) -> Result<ByteStream, ServerFnError> {
+    let context = expect_context::<ServerGlobalState>();
+    let (tx, rx) = tokio::sync::mpsc::channel::<Bytes>(64);
+
+    tokio::spawn(process_chat_turn(
+        user_message,
+        session_id,
+        context.app_ctx.clone(),
+        context.node_manager.clone(),
+        tx,
+    ));
+
+    let stream = ReceiverStream::new(rx).map(Ok::<_, ServerFnError>);
+    Ok(ByteStream::new(stream))
+}
+
+/// Retrieve the conversation history for a session (oldest first).
+#[server(name = GetChatHistory, prefix = "/api", endpoint = "/agent/history")]
+pub async fn get_chat_history(session_id: String) -> Result<Vec<ChatMessage>, ServerFnError> {
+    let context = expect_context::<ServerGlobalState>();
+    Ok(context
+        .app_ctx
+        .agent_ctx
+        .get_chat_history(&session_id)
+        .await)
+}
+
+/// List session IDs with at least one message (most recent first).
+#[server(name = ListChatSessions, prefix = "/api", endpoint = "/agent/sessions")]
+pub async fn list_chat_sessions() -> Result<Vec<String>, ServerFnError> {
+    let context = expect_context::<ServerGlobalState>();
+    Ok(context.app_ctx.agent_ctx.list_chat_sessions().await)
+}
+
+/// Remove one or all sessions from the in-memory store.
+#[server(name = ClearChatHistory, prefix = "/api", endpoint = "/agent/history/clear")]
+pub async fn clear_chat_history(session_id: Option<String>) -> Result<(), ServerFnError> {
+    let context = expect_context::<ServerGlobalState>();
+    context
+        .app_ctx
+        .agent_ctx
+        .clear_chat_history(session_id.as_deref())
+        .await;
+    Ok(())
+}
+
+/// Enable or disable the autonomous monitoring mode.
+#[server(name = ToggleAutonomousMode, prefix = "/api", endpoint = "/agent/autonomous")]
+pub async fn toggle_autonomous_mode(enabled: bool) -> Result<(), ServerFnError> {
+    let context = expect_context::<ServerGlobalState>();
+    *context.app_ctx.agent_ctx.autonomous_enabled.write().await = enabled;
+
+    // Persist to DB
+    let mut settings = context.app_ctx.db_client.get_settings().await;
+    settings.autonomous_enabled = enabled;
+    context.app_ctx.db_client.update_settings(&settings).await?;
+
+    context
+        .app_ctx
+        .bg_tasks_cmds_tx
+        .send(BgTasksCmds::AgentAutonomousModeToggled(enabled))?;
+    Ok(())
+}
+
+/// Retrieve recent autonomous agent events (most recent first).
+#[server(name = GetAgentEvents, prefix = "/api", endpoint = "/agent/events")]
+pub async fn get_agent_events(limit: u32) -> Result<Vec<AgentEvent>, ServerFnError> {
+    let context = expect_context::<ServerGlobalState>();
+    Ok(context.app_ctx.db_client.get_agent_events(limit).await)
+}
+
+/// Retrieve agent events newer than the given Unix timestamp (oldest first).
+/// Used by the frontend to poll for new events and push them to the notification bell.
+#[server(name = GetNewAgentEvents, prefix = "/api", endpoint = "/agent/events/new")]
+pub async fn get_new_agent_events(since_timestamp: i64) -> Result<Vec<AgentEvent>, ServerFnError> {
+    let context = expect_context::<ServerGlobalState>();
+    Ok(context
+        .app_ctx
+        .db_client
+        .get_agent_events_since(since_timestamp)
+        .await)
+}
+
+/// Test connectivity to the configured LLM backend. Returns the first available model name.
+#[server(name = TestLlmConnection, prefix = "/api", endpoint = "/agent/test")]
+pub async fn test_llm_connection(
+    base_url: String,
+    model: String,
+    api_key: String,
+) -> Result<String, ServerFnError> {
+    let client = OpenAiCompatClient::new(&base_url, &model, &api_key);
+    let models = client
+        .list_models()
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))?;
+    Ok(models
+        .into_iter()
+        .next()
+        .unwrap_or_else(|| "connected (no models listed)".to_string()))
 }
 
 // Helper to parse and validate the rewards address
