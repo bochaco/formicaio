@@ -18,6 +18,12 @@
   - [CasaOS](#casaos)
   - [Docker](#docker)
   - [Podman](#podman)
+- [Setting up the AI Agent](#setting-up-the-ai-agent)
+  - [Quick Setup with Ollama](#quick-setup-with-ollama)
+  - [Using the Agent](#using-the-agent)
+  - [Autonomous Mode](#autonomous-mode)
+  - [AI Agent Configuration](#ai-agent-configuration)
+  - [Alternative LLM Backends](#alternative-llm-backends)
 - [LCD Display Support](#lcd-display-support)
 - [Configuration](#configuration)
 - [Disclaimer](#disclaimer)
@@ -33,7 +39,7 @@ The name "Formicaio" is derived from the Italian word for "anthill", symbolizing
 
 ### What is Autonomi?
 
-Autonomi is a decentralized storage and bandwidth sharing network where users can earn ANT tokens by contributing their resources. The network operates on Arbitrum One, providing fast and cost-effective transactions. (https://forum.autonomi.community/t/formicaio)
+Autonomi is a decentralized storage and bandwidth sharing network where users can earn ANT tokens by contributing their resources. The network operates on Arbitrum One, providing fast and cost-effective transactions. See also the [Formicaio forum thread](https://forum.autonomi.community/t/formicaio).
 
 ## Features
 
@@ -116,6 +122,12 @@ total number of nodes to 3; if there are more than 3, remove the extra ones.
 
 <img src="img/formicaio_mcp_with_n8n.gif" alt="Animation showing Formicaio MCP integration with n8n workflow automation" />
 
+### AI Agent
+
+Formicaio includes a built-in AI agent that lets you manage your nodes through natural language. You can ask it to start, stop, recycle, or inspect nodes, get health summaries, or let it monitor your fleet autonomously in the background.
+
+The agent connects to any **OpenAI-compatible LLM backend** running on your machine or local network (Ollama, LM Studio, llama.cpp server, etc.). API key support is optional and depends on your backend.
+
 ## Installation & Deployment
 
 Formicaio can be deployed and executed in several ways to suit your needs:
@@ -155,7 +167,11 @@ If you wish to specify a different IP address and port for the MCP server, you c
 The same binary can be used for CLI commands. To see all available commands:
 
 ```bash
-formicaio --help
+# Linux/macOS
+./formicaio --help
+
+# Windows
+formicaio.exe --help
 ```
 
 #### Upgrading
@@ -293,6 +309,157 @@ podman pod stop formicaio-pod
 # Start services
 podman pod start formicaio-pod
 ```
+
+## Setting up the AI Agent
+
+### Quick Setup with Ollama
+
+[Ollama](https://ollama.com) is the easiest way to run a local LLM. It exposes an OpenAI-compatible API and is the default backend Formicaio expects.
+
+#### 1. Install Ollama
+
+**Linux / macOS:**
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+```
+
+**Windows:** Download the installer from [https://ollama.com/download](https://ollama.com/download)
+
+#### 2. Pull a model
+
+The agent needs a model with **tool calling / function calling** support. The following are recommended, ordered from best balance to most lightweight:
+
+```bash
+# Recommended — good reasoning, ~2 GB RAM
+ollama pull llama3.2:3b
+
+# Excellent tool use, similar size
+ollama pull qwen2.5:3b
+
+# Lightest option — ~1 GB RAM, suitable for Raspberry Pi
+ollama pull llama3.2:1b
+```
+
+On some systems Ollama starts automatically after installation. If it is not running, start it manually:
+
+```bash
+ollama serve
+```
+
+You can verify it is running at `http://localhost:11434`. To have it start automatically on boot (Linux with systemd):
+
+```bash
+sudo systemctl enable --now ollama
+```
+
+#### 3. Configure Formicaio
+
+1. Open Formicaio in your browser (`http://localhost:52100`)
+2. Go to **Settings → AI Agent**
+3. Set **LLM Base URL** to `http://localhost:11434` (already the default)
+4. Set **Model Name** to the model you pulled (e.g. `llama3.2:3b`)
+5. Click **Test Connection** — you should see `Connected — model: llama3.2:3b`
+6. Click **Save Changes**
+
+### Using the Agent
+
+Navigate to the **AI Agent** view from the sidebar. You will see a chat interface where you can type natural language instructions.
+
+**Example prompts:**
+
+```
+How many nodes do I have running?
+Show me the nodes with the lowest number of connected peers.
+Stop node abc123.
+Start all stopped nodes.
+Which node has the most stored records?
+Give me a health summary of my fleet.
+Create a new node on port 12001 with the same settings as my other nodes.
+```
+
+When the agent calls a tool, you will see an expandable **tool call panel** in the chat showing what was sent and what was returned, so you always know exactly what action was taken.
+
+### Autonomous Mode
+
+Autonomous mode turns Formicaio into a self-healing system. Instead of you having to check on your nodes regularly, the AI agent wakes up on a schedule, looks at the health of every node, and takes corrective action on its own — then goes back to sleep until the next check.
+
+**Is it for you?**
+
+- You run several nodes and don't want to babysit them manually
+- Your nodes sometimes go offline overnight or when you are away
+- You want problems fixed automatically without logging in each time
+
+If you only run one or two nodes and check on them often, you probably don't need autonomous mode — the manual chat interface is sufficient.
+
+#### What it actually does
+
+At each check interval the agent:
+
+1. **Fetches a snapshot** of all your nodes and the overall fleet stats
+2. **Evaluates health** — it looks for nodes that are offline or stopped
+3. **Decides whether to act** — if everything looks healthy it does nothing at all and simply waits for the next cycle
+4. **Starts inactive nodes** — by default the autonomous agent can only call `start_node_instance`
+5. **Writes a brief summary** of what it found and what (if anything) it did to the **Agent Events** log
+
+#### How to enable it
+
+1. Open the **AI Agent** view from the sidebar
+2. Toggle **Autonomous Mode** on in the header
+3. The agent starts its first check immediately; subsequent checks follow the configured interval
+
+To disable it, toggle the switch off. Any check currently in progress will complete before the agent stops.
+
+#### How to know what it's doing
+
+You have two ways to see what the autonomous agent is up to:
+
+- **Alert bell (🔔)** — whenever the agent takes an action and detects an anomaly, a notification appears in the top-right alert bell so you know something happened even if you're on a different page
+- **Agent Events panel** — inside the AI Agent view, the events log shows a timestamped history of every check cycle: what was observed and exactly what action was taken (or "no action needed" if everything was healthy)
+
+The events log is stored in the local database, so you can scroll back through days of history to understand what the agent has been doing while you were away.
+
+#### Staying in control
+
+The agent is designed to be conservative by default. A few settings help you stay in control:
+
+- **Max Actions per Cycle** — caps how many nodes the agent can touch in a single check. With the default of 3, even if many nodes are offline the agent won't try to fix them all at once. Start here and raise it only if you are comfortable with the agent's behaviour.
+- **Check Interval** — how often (in seconds) the agent wakes up. 60 seconds is the default. On large fleets with slow machines you may want to increase this to avoid overlap between checks.
+- **Custom System Prompt** (in Settings → AI Agent) — you can append extra instructions to guide the agent's decisions, for example: *"Do not restart a node more than once per hour"* or *"Never delete any nodes"*.
+
+> **Tip:** Run autonomous mode for a day or two with **Max Actions per Cycle** set to 1 or 2. Review the events log to confirm it's making decisions you agree with before raising the limit.
+
+#### What autonomous mode does NOT do
+
+- It does not create, delete, recycle, or upgrade nodes in autonomous mode. By default it can only run read-only checks and start inactive nodes.
+- It only sends data to the configured LLM backend endpoint. If your backend is local, data stays local; if you point it to a remote endpoint, data is sent there.
+- It does not run checks while Formicaio is shut down — if you restart Formicaio, autonomous mode resumes from where it left off
+
+### AI Agent Configuration
+
+All agent settings are available under **Settings → AI Agent**:
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| LLM Base URL | `http://localhost:11434` | Base URL of your OpenAI-compatible LLM API |
+| Model Name | `llama3.2:3b` | **Required**. Model to use for chat and autonomous monitoring |
+| API Key | *(empty)* | Optional — leave empty for Ollama and other keyless backends |
+| Custom System Prompt | *(empty)* | Additional instructions appended to the built-in Formicaio prompt |
+| Max Context Messages | `20` | How many prior messages to include in each LLM request |
+| Autonomous Check Interval | `60` s | How often the autonomous agent checks node health |
+| Max Actions per Cycle | `3` | Maximum tool-based actions per autonomous monitoring cycle |
+
+### Alternative LLM Backends
+
+Any server exposing an OpenAI-compatible `/v1/chat/completions` endpoint works. Set the **LLM Base URL** accordingly:
+
+| Backend | URL | Notes |
+|---------|-----|-------|
+| [Ollama](https://ollama.com) | `http://localhost:11434` | Default, easiest setup |
+| [LM Studio](https://lmstudio.ai) | `http://localhost:1234/v1` | GUI, easy model management |
+| [llama.cpp server](https://github.com/ggml-org/llama.cpp) | `http://localhost:8080` | Minimal footprint, CLI |
+| [Jan](https://jan.ai) | `http://localhost:1337/v1` | Open-source GUI alternative |
+
+> **Note:** The agent does not use the Formicaio MCP server. It calls node management functions directly inside the application process, so no `--mcp` flag or external MCP client is needed.
 
 ## LCD Display Support
 
