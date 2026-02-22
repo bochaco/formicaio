@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-use bytes::Bytes;
 use futures_util::StreamExt;
 use leptos::logging;
 use serde::{Deserialize, Serialize};
@@ -197,17 +196,20 @@ impl LlmClient for OpenAiCompatClient {
             return Err(LlmError::Api(format!("{status}: {msg}")));
         }
 
-        // State for accumulating streamed tool call arguments
-        let byte_stream = response.bytes_stream();
-
-        let stream = byte_stream
-            .flat_map(|chunk_result| {
+        // Parse SSE frames robustly across network chunk boundaries.
+        let stream = response
+            .bytes_stream()
+            .scan(Vec::<u8>::new(), |pending, chunk_result| {
                 let events = match chunk_result {
                     Err(e) => vec![Err(LlmError::Http(e))],
-                    Ok(bytes) => parse_sse_chunk(&bytes),
+                    Ok(bytes) => {
+                        pending.extend_from_slice(&bytes);
+                        parse_sse_frames(pending)
+                    }
                 };
-                futures_util::stream::iter(events)
+                futures_util::future::ready(Some(events))
             })
+            .flat_map(futures_util::stream::iter)
             .boxed();
 
         Ok(stream)
@@ -233,17 +235,61 @@ impl LlmClient for OpenAiCompatClient {
 }
 
 /// Parse one or more SSE data lines from a raw bytes chunk.
-/// Returns a Vec of parsed StreamEvents.
-fn parse_sse_chunk(bytes: &Bytes) -> Vec<Result<StreamEvent, LlmError>> {
-    let text = match std::str::from_utf8(bytes) {
-        Ok(t) => t,
-        Err(_) => return vec![],
-    };
+/// Parses all complete SSE event frames from `pending`, leaving incomplete trailing
+/// bytes in the buffer for the next network chunk.
+fn parse_sse_frames(pending: &mut Vec<u8>) -> Vec<Result<StreamEvent, LlmError>> {
+    let mut all_events = vec![];
 
+    while let Some((frame_end, delim_len)) = find_sse_frame_end(pending) {
+        let frame = pending[..frame_end].to_vec();
+        pending.drain(..frame_end + delim_len);
+
+        let text = match std::str::from_utf8(&frame) {
+            Ok(t) => t,
+            Err(e) => {
+                logging::warn!("[Agent] Failed to decode SSE frame as UTF-8: {e}");
+                continue;
+            }
+        };
+
+        all_events.extend(parse_sse_frame_text(text));
+    }
+
+    all_events
+}
+
+/// Find the end of a complete SSE frame in `pending`.
+/// Returns (frame_end_index, delimiter_len), where delimiter is either "\n\n" or "\r\n\r\n".
+fn find_sse_frame_end(pending: &[u8]) -> Option<(usize, usize)> {
+    if pending.len() < 2 {
+        return None;
+    }
+
+    for i in 0..(pending.len() - 1) {
+        if pending[i] == b'\n' && pending[i + 1] == b'\n' {
+            return Some((i, 2));
+        }
+        if i + 3 < pending.len()
+            && pending[i] == b'\r'
+            && pending[i + 1] == b'\n'
+            && pending[i + 2] == b'\r'
+            && pending[i + 3] == b'\n'
+        {
+            return Some((i, 4));
+        }
+    }
+
+    None
+}
+
+/// Parse one SSE frame text (possibly containing multiple data lines).
+fn parse_sse_frame_text(text: &str) -> Vec<Result<StreamEvent, LlmError>> {
     let mut events = vec![];
-    for line in text.lines() {
-        let data = if let Some(d) = line.strip_prefix("data: ") {
-            d.trim()
+
+    for raw_line in text.lines() {
+        let line = raw_line.trim_end_matches('\r');
+        let data = if let Some(d) = line.strip_prefix("data:") {
+            d.trim_start()
         } else {
             continue;
         };
