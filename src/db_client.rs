@@ -52,6 +52,7 @@ struct CachedSettings {
     nodes_metrics_polling_freq_secs: u64,
     disks_usage_check_freq: u64,
     rewards_balances_retrieval_freq_secs: u64,
+    rewards_monitoring_enabled: bool,
     l2_network_rpc_url: String,
     token_contract_address: String,
     lcd_display_enabled: bool,
@@ -835,6 +836,7 @@ impl DbClient {
                 rewards_balances_retrieval_freq: Duration::from_secs(
                     s.rewards_balances_retrieval_freq_secs,
                 ),
+                rewards_monitoring_enabled: s.rewards_monitoring_enabled,
                 l2_network_rpc_url: s.l2_network_rpc_url.clone(),
                 token_contract_address: s.token_contract_address.clone(),
                 lcd_display_enabled: s.lcd_display_enabled,
@@ -875,6 +877,7 @@ impl DbClient {
             nodes_metrics_polling_freq_secs = ?, \
             disks_usage_check_freq = ?, \
             rewards_balances_retrieval_freq_secs = ?, \
+            rewards_monitoring_enabled = ?, \
             l2_network_rpc_url = ?, \
             token_contract_address = ?, \
             lcd_display_enabled = ?, \
@@ -897,6 +900,7 @@ impl DbClient {
         .bind(settings.nodes_metrics_polling_freq.as_secs() as i64)
         .bind(settings.disks_usage_check_freq.as_secs() as i64)
         .bind(settings.rewards_balances_retrieval_freq.as_secs() as i64)
+        .bind(settings.rewards_monitoring_enabled)
         .bind(settings.l2_network_rpc_url.clone())
         .bind(settings.token_contract_address.clone())
         .bind(settings.lcd_display_enabled)

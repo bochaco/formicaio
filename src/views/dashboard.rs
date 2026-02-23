@@ -19,6 +19,7 @@ const NUMBER_OF_TOP_NODES: usize = 10;
 #[component]
 pub fn DashboardView() -> impl IntoView {
     let context = expect_context::<ClientGlobalState>();
+    let rewards_monitoring_enabled = move || context.app_settings.read().rewards_monitoring_enabled;
 
     let sorted_nodes = Memo::new(move |_| {
         let mut sorted = context
@@ -49,22 +50,35 @@ pub fn DashboardView() -> impl IntoView {
                     })
                     icon=view! { <IconServer class="text-indigo-400 w-8 h-8" /> }.into_any()
                 />
-                <BalanceCard
-                    total=Signal::derive(move || truncated_balance_str(
-                        context.stats.read().total_balance,
-                    ))
-                    sub_value=Signal::derive(move || {
-                        format_units(context.stats.read().total_balance, "ether")
-                            .unwrap_or_default()
-                    })
-                    base_url=Signal::derive(move || {
-                        format!(
-                            "https://arbiscan.io/token/{}",
-                            context.app_settings.read().token_contract_address,
-                        )
-                    })
-                    balances=Signal::derive(move || context.stats.read().balances.clone())
-                />
+                <Show
+                    when=move || rewards_monitoring_enabled()
+                    fallback=move || {
+                        view! {
+                            <RewardsUnavailableCard
+                                title="Rewards Balances"
+                                description="Rewards monitoring is turned off in Settings > Rewards."
+                            />
+                        }
+                            .into_any()
+                    }
+                >
+                    <BalanceCard
+                        total=Signal::derive(move || truncated_balance_str(
+                            context.stats.read().total_balance,
+                        ))
+                        sub_value=Signal::derive(move || {
+                            format_units(context.stats.read().total_balance, "ether")
+                                .unwrap_or_default()
+                        })
+                        base_url=Signal::derive(move || {
+                            format!(
+                                "https://arbiscan.io/token/{}",
+                                context.app_settings.read().token_contract_address,
+                            )
+                        })
+                        balances=Signal::derive(move || context.stats.read().balances.clone())
+                    />
+                </Show>
                 <StatCard
                     title="Estimated Network Size"
                     value=Signal::derive(move || {
@@ -98,7 +112,20 @@ pub fn DashboardView() -> impl IntoView {
 
             // Analytics Card - Comprehensive Rewards Breakdown
             <div class="grid grid-cols-1 gap-6">
-                <RewardsEarningsCard />
+                <Show
+                    when=move || rewards_monitoring_enabled()
+                    fallback=move || {
+                        view! {
+                            <RewardsUnavailableCard
+                                title="Earnings Analytics"
+                                description="Unavailable: rewards monitoring is turned off in Settings > Rewards."
+                            />
+                        }
+                            .into_any()
+                    }
+                >
+                    <RewardsEarningsCard />
+                </Show>
             </div>
 
             // Current Nodes Activity
@@ -169,6 +196,21 @@ pub fn DashboardView() -> impl IntoView {
                     </table>
                 </div>
             </div>
+        </div>
+    }
+}
+
+#[component]
+fn RewardsUnavailableCard(title: &'static str, description: &'static str) -> impl IntoView {
+    view! {
+        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-lg min-h-[140px] flex flex-col justify-between">
+            <div class="flex items-center gap-4 mb-3">
+                <div class="p-2.5 bg-slate-800 rounded-xl">
+                    <IconWallet class="text-slate-500 w-8 h-8" />
+                </div>
+                <div class="text-slate-400 text-xs font-bold uppercase tracking-wider">{title}</div>
+            </div>
+            <div class="text-slate-300 text-sm font-medium">{description}</div>
         </div>
     }
 }

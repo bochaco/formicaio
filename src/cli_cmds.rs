@@ -854,6 +854,10 @@ impl CliCmdResponse {
                     "Rewards balances retrieval freq.",
                     format!("{:?}", settings.rewards_balances_retrieval_freq)
                 ]);
+                table.add_row(row![
+                    "Rewards monitoring enabled",
+                    settings.rewards_monitoring_enabled
+                ]);
                 table.add_row(row!["L2 network RPC URL", settings.l2_network_rpc_url]);
                 table.add_row(row![
                     "Token contract address",

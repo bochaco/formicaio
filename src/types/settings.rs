@@ -10,6 +10,7 @@ pub struct AppSettings {
     pub nodes_metrics_polling_freq: Duration,
     pub disks_usage_check_freq: Duration,
     pub rewards_balances_retrieval_freq: Duration,
+    pub rewards_monitoring_enabled: bool,
     pub l2_network_rpc_url: String,
     pub token_contract_address: String,
     pub lcd_display_enabled: bool,
@@ -51,6 +52,8 @@ impl Default for AppSettings {
             disks_usage_check_freq: Duration::from_secs(60),
             // Retrieve balances every 15 mins.
             rewards_balances_retrieval_freq: Duration::from_secs(60 * 15),
+            // Rewards monitoring is enabled by default.
+            rewards_monitoring_enabled: true,
             // Arbitrum One network.
             l2_network_rpc_url: "https://arb1.arbitrum.io/rpc".to_string(),
             // ANT token contract on Arbitrum One network.

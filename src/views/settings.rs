@@ -30,6 +30,7 @@ struct FormContent {
     auto_upgrade_delay: RwSignal<Result<u64, (String, String)>>,
     bin_version_polling_freq: RwSignal<Result<u64, (String, String)>>,
     balances_retrieval_freq: RwSignal<Result<u64, (String, String)>>,
+    rewards_monitoring_enabled: RwSignal<bool>,
     metrics_polling_freq: RwSignal<Result<u64, (String, String)>>,
     disks_usage_check_freq: RwSignal<Result<u64, (String, String)>>,
     l2_network_rpc_url: RwSignal<Result<String, (String, String)>>,
@@ -61,6 +62,7 @@ impl FormContent {
             balances_retrieval_freq: RwSignal::new(Ok(settings
                 .rewards_balances_retrieval_freq
                 .as_secs())),
+            rewards_monitoring_enabled: RwSignal::new(settings.rewards_monitoring_enabled),
             metrics_polling_freq: RwSignal::new(Ok(settings.nodes_metrics_polling_freq.as_secs())),
             disks_usage_check_freq: RwSignal::new(Ok(settings.disks_usage_check_freq.as_secs())),
             l2_network_rpc_url: RwSignal::new(Ok(settings.l2_network_rpc_url.clone())),
@@ -90,6 +92,7 @@ impl FormContent {
                 != Ok(saved_settings.node_bin_version_polling_freq.as_secs())
             || self.balances_retrieval_freq.get()
                 != Ok(saved_settings.rewards_balances_retrieval_freq.as_secs())
+            || self.rewards_monitoring_enabled.get() != saved_settings.rewards_monitoring_enabled
             || self.metrics_polling_freq.get()
                 != Ok(saved_settings.nodes_metrics_polling_freq.as_secs())
             || self.disks_usage_check_freq.get()
@@ -155,6 +158,7 @@ impl FormContent {
                 nodes_auto_upgrade_delay: Duration::from_secs(v1),
                 node_bin_version_polling_freq: Duration::from_secs(v2),
                 rewards_balances_retrieval_freq: Duration::from_secs(v3),
+                rewards_monitoring_enabled: self.rewards_monitoring_enabled.get(),
                 nodes_metrics_polling_freq: Duration::from_secs(v4),
                 disks_usage_check_freq: Duration::from_secs(v5),
                 l2_network_rpc_url: v6,
@@ -187,6 +191,8 @@ impl FormContent {
             .set(Ok(saved_settings.node_bin_version_polling_freq.as_secs()));
         self.balances_retrieval_freq
             .set(Ok(saved_settings.rewards_balances_retrieval_freq.as_secs()));
+        self.rewards_monitoring_enabled
+            .set(saved_settings.rewards_monitoring_enabled);
         self.metrics_polling_freq
             .set(Ok(saved_settings.nodes_metrics_polling_freq.as_secs()));
         self.disks_usage_check_freq
@@ -326,6 +332,15 @@ fn SettingsForm(form: RwSignal<FormContent>, active_tab: RwSignal<u8>) -> impl I
                 title="Rewards"
                 description="Manage settings related to L2 network connectivity and token rewards."
             >
+                <SettingRow
+                    label="Rewards Monitoring"
+                    description="Enable or disable automatic rewards balance checks and earnings analytics."
+                >
+                    <ToggleSwitch
+                        name="rewardsMonitoringEnabled"
+                        checked=form.read_untracked().rewards_monitoring_enabled
+                    />
+                </SettingRow>
                 <SettingRow
                     label="Token Balance Query Frequency"
                     description="How often (in seconds) to query wallet balances from the L2 network."

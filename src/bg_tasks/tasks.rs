@@ -21,6 +21,7 @@ use leptos::logging;
 use semver::Version;
 use std::{
     collections::{HashMap, HashSet},
+    error::Error as StdError,
     path::PathBuf,
     sync::Arc,
 };
@@ -197,7 +198,13 @@ pub async fn update_nodes_info(
                     }
                     Ok(Err(err)) => {
                         node_info.set_status_to_unknown();
-                        logging::log!("Failed to fetch metrics from node {node_short_id}: {err}");
+                        logging::log!(
+                            "Failed to fetch metrics from node {node_short_id}: {}",
+                            err.source().map_or_else(
+                                || err.to_string().chars().take(200).collect(),
+                                |s| s.to_string()
+                            )
+                        );
                     }
                     Err(_) => {
                         node_info.set_status_to_unknown();
@@ -356,11 +363,17 @@ pub async fn balance_checker_task(
     // cache retrieved rewards balances to not query more than once per address,
     // as well as how many nodes have each address set for rewards.
     let mut updated_balances = HashMap::<Address, (U256, u64)>::new();
+    let mut rewards_monitoring_enabled = settings.rewards_monitoring_enabled;
 
     // Let's trigger a first check now
     let mut bg_tasks_cmds_rx = app_ctx.bg_tasks_cmds_tx.subscribe();
-    if let Err(err) = app_ctx.bg_tasks_cmds_tx.send(BgTasksCmds::CheckAllBalances) {
-        logging::warn!("Initial check for balances couldn't be triggered: {err:?}");
+    if rewards_monitoring_enabled {
+        if let Err(err) = app_ctx.bg_tasks_cmds_tx.send(BgTasksCmds::CheckAllBalances) {
+            logging::warn!("Initial check for balances couldn't be triggered: {err:?}");
+        }
+    } else {
+        clear_rewards_stats(&app_ctx, &lcd_stats, &mut updated_balances).await;
+        logging::log!("Rewards monitoring is disabled in settings. Skipping automatic checks.");
     }
 
     // helper which creates a new contract if the new configured values are valid.
@@ -405,11 +418,21 @@ pub async fn balance_checker_task(
         let mut perform_earnings_stats_update = false;
         match bg_tasks_cmds_rx.recv().await {
             Ok(BgTasksCmds::ApplySettings(s)) => {
+                let mut check_balances = false;
+                if rewards_monitoring_enabled != s.rewards_monitoring_enabled {
+                    rewards_monitoring_enabled = s.rewards_monitoring_enabled;
+                    check_balances = true;
+                }
+
                 if current_addr != s.token_contract_address || current_url != s.l2_network_rpc_url {
                     token_contract =
                         update_token_contract(&s.token_contract_address, &s.l2_network_rpc_url);
                     current_addr = s.token_contract_address;
                     current_url = s.l2_network_rpc_url;
+                    check_balances = true;
+                }
+
+                if check_balances {
                     let _ = app_ctx.bg_tasks_cmds_tx.send(BgTasksCmds::CheckAllBalances);
                 }
             }
@@ -422,7 +445,7 @@ pub async fn balance_checker_task(
                 }
             }
             Ok(BgTasksCmds::CheckBalanceFor(node_info)) => {
-                if let Some(ref token_contract) = token_contract {
+                if rewards_monitoring_enabled && let Some(ref token_contract) = token_contract {
                     retrieve_current_balances(
                         [node_info],
                         token_contract,
@@ -439,10 +462,14 @@ pub async fn balance_checker_task(
                         .map(|(addr, (balance, _))| (addr.to_string(), *balance))
                         .collect();
                     perform_earnings_stats_update = true;
+                } else if !rewards_monitoring_enabled {
+                    clear_rewards_stats(&app_ctx, &lcd_stats, &mut updated_balances).await;
                 }
             }
             Ok(BgTasksCmds::DeleteBalanceFor(node_info)) => {
-                if let Some(Ok(address)) = node_info
+                if !rewards_monitoring_enabled {
+                    clear_rewards_stats(&app_ctx, &lcd_stats, &mut updated_balances).await;
+                } else if let Some(Ok(address)) = node_info
                     .rewards_addr
                     .as_ref()
                     .map(|addr| addr.parse::<Address>())
@@ -464,6 +491,10 @@ pub async fn balance_checker_task(
                 }
             }
             Ok(BgTasksCmds::CheckAllBalances) => {
+                if !rewards_monitoring_enabled {
+                    clear_rewards_stats(&app_ctx, &lcd_stats, &mut updated_balances).await;
+                    continue;
+                }
                 updated_balances.clear();
                 let mut total_balance = U256::from(0u64);
                 if let Some(ref token_contract) = token_contract {
@@ -575,6 +606,20 @@ async fn update_balance_lcd_stats(
 ) {
     let balance = truncated_balance_str(new_balance);
     update_lcd_stats(lcd_stats, &[(LCD_LABEL_BALANCE, balance)]).await
+}
+
+async fn clear_rewards_stats(
+    app_ctx: &AppContext,
+    lcd_stats: &Arc<RwLock<HashMap<String, String>>>,
+    updated_balances: &mut HashMap<Address, (U256, u64)>,
+) {
+    updated_balances.clear();
+    remove_lcd_stats(lcd_stats, &[LCD_LABEL_BALANCE]).await;
+    let mut guard = app_ctx.stats.write().await;
+    guard.total_balance = U256::ZERO;
+    guard.balances.clear();
+    guard.earnings.clear();
+    guard.earnings_syncing = false;
 }
 
 // Helper to add/update stats to be disaplyed on external LCD device
