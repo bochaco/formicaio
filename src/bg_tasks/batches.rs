@@ -61,7 +61,7 @@ pub async fn prepare_node_action_batch(
 
     let batch_id = rand::rng().random_range(0..=u16::MAX);
     let batch_info = NodesActionsBatch::new(batch_id, batch_type, interval_secs);
-    logging::log!("Creating new batch with ID {batch_id}: {batch_info:?}");
+    logging::log!("[Batches] Creating new batch with ID {batch_id}: {batch_info:?}");
 
     let len = {
         let batches = &mut app_ctx.node_action_batches.write().await.1;
@@ -102,7 +102,9 @@ async fn run_batches(app_ctx: AppContext, node_manager: NodeManager) {
                 ref node_opts,
                 count,
             } => {
-                logging::log!("Started node instances creation batch of {count} nodes ...");
+                logging::log!(
+                    "[Batches] Started node instances creation batch of {count} nodes ..."
+                );
                 let mut i = 0;
                 loop {
                     select! {
@@ -132,7 +134,7 @@ async fn run_batches(app_ctx: AppContext, node_manager: NodeManager) {
             | BatchType::Recycle(ref nodes)
             | BatchType::Remove(ref nodes) => {
                 let count = nodes.len();
-                logging::log!("Starting actions batch for {count} nodes ...");
+                logging::log!("[Batches] Starting actions batch for {count} nodes ...");
                 let mut i = 0;
                 loop {
                     select! {
@@ -201,7 +203,7 @@ async fn update_batch_status<R, E: std::fmt::Display>(
         match res {
             Err(err) => {
                 logging::error!(
-                    "[ERROR] Node action failed on node instance as part of batch {batch_id}: {err}"
+                    "[ERROR][Batches] Node action failed on node instance as part of batch {batch_id}: {err}"
                 );
                 if let BatchStatus::InProgressWithFailures(count, _) = &b.status {
                     b.status = BatchStatus::InProgressWithFailures(count + 1, err.to_string());

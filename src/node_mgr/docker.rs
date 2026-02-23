@@ -47,9 +47,9 @@ impl NodeManager {
         &self,
         version: Option<&Version>,
     ) -> Result<(), NodeManagerError> {
-        logging::log!("Pulling Formica node image from registry ...");
+        logging::log!("[NodeMgr] Pulling Formica node image from registry ...");
         if let Err(err) = self.docker_client.pull_formica_image().await {
-            logging::error!("[ERROR] Failed to pull node image: {err}");
+            logging::error!("[ERROR][NodeMgr] Failed to pull node image: {err}");
             return Err(err.into());
         }
         *self.app_ctx.latest_bin_version.write().await = version.cloned();
@@ -61,13 +61,16 @@ impl NodeManager {
         &self,
         node_opts: NodeOpts,
     ) -> Result<NodeInstanceInfo, NodeManagerError> {
-        logging::log!("Creating new node with port {} ...", node_opts.port);
+        logging::log!(
+            "[NodeMgr] Creating new node with port {} ...",
+            node_opts.port
+        );
         let auto_start = node_opts.auto_start;
         let node_id = self.docker_client.create_new_container(node_opts).await?;
-        logging::log!("New node ID: {node_id} ...");
+        logging::log!("[NodeMgr] New node ID: {node_id} ...");
 
         let mut node_info = self.docker_client.get_container_info(&node_id).await?;
-        logging::log!("New node created: {node_info:?}");
+        logging::log!("[NodeMgr] New node created: {node_info:?}");
 
         self.app_ctx
             .db_client
@@ -95,7 +98,7 @@ impl NodeManager {
             .check_node_is_not_batched(&node_id)
             .await?;
 
-        logging::log!("Starting node with ID: {node_id} ...");
+        logging::log!("[NodeMgr] Starting node with ID: {node_id} ...");
 
         self.app_ctx
             .db_client
@@ -213,7 +216,7 @@ impl NodeManager {
 
         if let Ok((ref new_version, ref ips)) = res {
             logging::log!(
-                "Node binary upgraded to v{} in node {node_id}.",
+                "[NodeMgr] Node binary upgraded to v{} in node {node_id}.",
                 new_version.as_deref().unwrap_or("[unknown]")
             );
 

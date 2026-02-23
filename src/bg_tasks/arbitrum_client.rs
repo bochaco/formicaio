@@ -154,7 +154,7 @@ impl ArbitrumClient {
         let default_from = current_block.saturating_sub(blocks_to_fetch);
 
         for address in &self.rewards_addresses {
-            logging::log!("Collecting cached earnings for address: {address}");
+            logging::log!("[Arbitrum] Collecting cached earnings for address: {address}");
             // Load cached payments
             let (cached, max_cached) = self
                 .db_client
@@ -207,7 +207,9 @@ impl ArbitrumClient {
                 break;
             }
 
-            logging::log!("Fetching earnings history from block #{from_block}-#{to_block} ...");
+            logging::log!(
+                "[Arbitrum] Fetching earnings history from block #{from_block}-#{to_block} ..."
+            );
             // Filter by topic2 (recipient) so the RPC server returns only transfers
             // to our reward addresses, staying well within the 10k-log response limit.
             let filter = Filter::new()
@@ -230,7 +232,7 @@ impl ArbitrumClient {
                 }
                 Err(err) => {
                     logging::error!(
-                        "[ERROR] Failed to fetch merged logs for range {from_block}-{to_block}: {err}"
+                        "[ERROR][Arbitrum] Failed to fetch merged logs for range {from_block}-{to_block}: {err}"
                     );
                     fully_synced = false;
                 }
@@ -294,7 +296,9 @@ impl ArbitrumClient {
                     sleep(INTER_CHUNK_DELAY).await;
                 }
                 Err(err) => {
-                    logging::error!("[ERROR] Failed to get blocks from {current} to {end}: {err}");
+                    logging::error!(
+                        "[ERROR][Arbitrum] Failed to get blocks from {current} to {end}: {err}"
+                    );
                     break;
                 }
             }
@@ -307,7 +311,7 @@ impl ArbitrumClient {
                     .await;
             }
             logging::log!(
-                "Successfully cached earnings history in DB up to block #{latest_cached_bn}"
+                "[Arbitrum] Successfully cached earnings history in DB up to block #{latest_cached_bn}"
             );
         }
 

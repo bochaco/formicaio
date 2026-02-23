@@ -71,7 +71,7 @@ fn AddNodeTabs(is_open: RwSignal<bool>, active_tab: RwSignal<u8>) -> impl IntoVi
         async move {
             if let Err(err) = add_node_instances(node_opts, count, interval).await {
                 let msg = format!("Failed to create node/s: {err}");
-                logging::error!("{msg}");
+                logging::error!("[ERROR] {msg}");
                 show_error_alert_msg(msg);
             }
         }

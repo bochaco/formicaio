@@ -85,7 +85,7 @@ pub fn AgentView() -> impl IntoView {
     spawn_local(async move {
         match list_chat_sessions().await {
             Ok(s) => sessions.set(s),
-            Err(e) => logging::warn!("Failed to load sessions: {e}"),
+            Err(e) => logging::warn!("[WARN] Failed to load sessions: {e}"),
         }
     });
 
@@ -135,7 +135,7 @@ pub fn AgentView() -> impl IntoView {
                     while let Some(item) = inner.next().await {
                         match item {
                             Err(e) => {
-                                logging::error!("[Agent] Stream error: {e}");
+                                logging::error!("[ERROR] Stream error: {e}");
                                 break;
                             }
                             Ok(bytes) => {
@@ -292,7 +292,7 @@ pub fn AgentView() -> impl IntoView {
                     last_event_ts.set(new_ts);
                 }
                 Err(e) => {
-                    logging::warn!("Failed to poll agent events: {e}")
+                    logging::warn!("[WARN] Failed to poll agent events: {e}")
                 }
                 _ => {}
             }

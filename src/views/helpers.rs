@@ -44,7 +44,7 @@ pub fn show_warning_alert_msg(msg: String) {
 fn show_alert_msg(notif: Notification) {
     let context = expect_context::<ClientGlobalState>();
     spawn_local(async move {
-        logging::log!("Alert msg. displayed: {}", notif.message);
+        logging::log!("Alert message displayed: {}", notif.message);
         let notif_id = notif.id;
         context.alerts.update(|msgs| msgs.push(notif));
         TimeoutFuture::new(ALERT_MSG_DURATION_MILLIS).await;

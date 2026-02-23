@@ -109,7 +109,7 @@ impl CachedNodeMetadata {
                 info.node_id = node_id;
             } else {
                 logging::warn!(
-                    "[WARN] Ignoring invalid node_id in cached metadata: {}",
+                    "[WARN][DB] Ignoring invalid node_id in cached metadata: {}",
                     self.node_id
                 );
             }
@@ -223,11 +223,11 @@ impl DbClient {
             .await
             .unwrap_or(false)
         {
-            logging::log!("Creating database at: {sqlite_db_url}");
+            logging::log!("[DB] Creating database at: {sqlite_db_url}");
             match Sqlite::create_database(&sqlite_db_url).await {
-                Ok(()) => logging::log!("Database created successfully!"),
+                Ok(()) => logging::log!("[DB] Database created successfully!"),
                 Err(err) => {
-                    logging::error!("[ERROR] Failed to create database: {err}");
+                    logging::error!("[ERROR][DB] Failed to create database: {err}");
                     return Err(err);
                 }
             }
@@ -236,10 +236,10 @@ impl DbClient {
         let db = SqlitePool::connect(&sqlite_db_url).await?;
 
         let migrations = current_dir()?.join("migrations");
-        logging::log!("Applying database migrations from: {migrations:?} ...");
+        logging::log!("[DB] Applying database migrations from: {migrations:?} ...");
         Migrator::new(migrations).await?.run(&db).await?;
 
-        logging::log!("Database migrations completed successfully!");
+        logging::log!("[DB] Database migrations completed successfully!");
         Ok(Self {
             db: Arc::new(Mutex::new(db)),
         })
@@ -261,14 +261,14 @@ impl DbClient {
                         retrieved_nodes.insert(node_id, node_info);
                     } else {
                         logging::warn!(
-                            "[WARN] Skipping node row with invalid node_id: {}",
+                            "[WARN][DB] Skipping node row with invalid node_id: {}",
                             node.node_id
                         );
                     }
                 }
             }
             Err(err) => {
-                logging::error!("[ERROR] Database query error while retrieving nodes: {err}")
+                logging::error!("[ERROR][DB] Database query error while retrieving nodes: {err}")
             }
         }
 
@@ -287,7 +287,7 @@ impl DbClient {
         {
             Ok(node) => node.merge_onto(info, get_status),
             Err(err) => logging::error!(
-                "[ERROR] Database query error while retrieving node metadata: {err}"
+                "[ERROR][DB] Database query error while retrieving node metadata: {err}"
             ),
         }
     }
@@ -319,7 +319,7 @@ impl DbClient {
             }
             Err(err) => {
                 logging::error!(
-                    "[ERROR] Database query error while retrieving node binary version: {err}"
+                    "[ERROR][DB] Database query error while retrieving node binary version: {err}"
                 );
                 None
             }
@@ -406,7 +406,9 @@ impl DbClient {
         {
             Ok(_) => {}
             Err(err) => {
-                logging::error!("[ERROR] Database insert error while storing node metadata: {err}")
+                logging::error!(
+                    "[ERROR][DB] Database insert error while storing node metadata: {err}"
+                )
             }
         }
     }
@@ -487,7 +489,9 @@ impl DbClient {
                 }
             }
             Err(err) => {
-                logging::error!("[ERROR] Database update error while updating node metadata: {err}")
+                logging::error!(
+                    "[ERROR][DB] Database update error while updating node metadata: {err}"
+                )
             }
         }
     }
@@ -502,7 +506,9 @@ impl DbClient {
         {
             Ok(_) => {}
             Err(err) => {
-                logging::error!("[ERROR] Database delete error while removing node metadata: {err}")
+                logging::error!(
+                    "[ERROR][DB] Database delete error while removing node metadata: {err}"
+                )
             }
         }
     }
@@ -533,7 +539,9 @@ impl DbClient {
         match query.execute(&*db_lock).await {
             Ok(_) => {}
             Err(err) => {
-                logging::error!("[ERROR] Database error while updating node record fields: {err}")
+                logging::error!(
+                    "[ERROR][DB] Database error while updating node record fields: {err}"
+                )
             }
         }
     }
@@ -573,7 +581,7 @@ impl DbClient {
             Ok(_) => {}
             Err(err) => {
                 logging::error!(
-                    "[ERROR] Database update error while unlocking all node statuses: {err}"
+                    "[ERROR][DB] Database update error while unlocking all node statuses: {err}"
                 )
             }
         }
@@ -644,7 +652,7 @@ impl DbClient {
                 });
             }
             Err(err) => {
-                logging::error!("[ERROR] Database query error while retrieving node metrics: {err}")
+                logging::error!("[ERROR][DB] Database query error while retrieving node metrics: {err}")
             }
         }
 
@@ -676,7 +684,9 @@ impl DbClient {
         match query_builder.build().execute(&*db_lock).await {
             Ok(_) => {}
             Err(err) => {
-                logging::error!("[ERROR] Database insert error while storing node metrics: {err}.")
+                logging::error!(
+                    "[ERROR][DB] Database insert error while storing node metrics: {err}."
+                )
             }
         }
     }
@@ -691,7 +701,9 @@ impl DbClient {
         {
             Ok(_) => {}
             Err(err) => {
-                logging::error!("[ERROR] Database delete error while removing node metrics: {err}")
+                logging::error!(
+                    "[ERROR][DB] Database delete error while removing node metrics: {err}"
+                )
             }
         }
     }
@@ -715,9 +727,11 @@ impl DbClient {
         .execute(&*db_lock)
         .await
         {
-            Ok(res) => logging::log!("Removed {} metrics records", res.rows_affected()),
+            Ok(res) => logging::log!("[DB] Removed {} metrics records", res.rows_affected()),
             Err(err) => {
-                logging::error!("[ERROR] Database delete error while pruning old metrics: {err}")
+                logging::error!(
+                    "[ERROR][DB] Database delete error while pruning old metrics: {err}"
+                )
             }
         }
     }
@@ -743,7 +757,7 @@ impl DbClient {
         {
             Ok(_) => {}
             Err(err) => {
-                logging::error!("[ERROR] Database insert error while storing earnings: {err}")
+                logging::error!("[ERROR][DB] Database insert error while storing earnings: {err}")
             }
         }
     }
@@ -768,7 +782,9 @@ impl DbClient {
 
         let payments = match res {
             Err(err) => {
-                logging::error!("[ERROR] Database error while retrieving cached earnings: {err}");
+                logging::error!(
+                    "[ERROR][DB] Database error while retrieving cached earnings: {err}"
+                );
                 HashSet::new()
             }
             Ok(earnings) => earnings
@@ -808,10 +824,10 @@ impl DbClient {
             .execute(&*db_lock)
             .await
         {
-            Ok(res) => logging::log!("Removed {} old earnings records", res.rows_affected()),
+            Ok(res) => logging::log!("[DB] Removed {} old earnings records", res.rows_affected()),
             Err(err) => {
                 logging::error!(
-                    "[ERROR] Database delete error while pruning old earnings records: {err}"
+                    "[ERROR][DB] Database delete error while pruning old earnings records: {err}"
                 )
             }
         }
@@ -854,12 +870,12 @@ impl DbClient {
                 autonomous_max_actions_per_cycle: s.autonomous_max_actions_per_cycle as u64,
             },
             Ok(None) => {
-                logging::log!("No settings found in DB, we'll be using defaults.");
+                logging::log!("[DB] No settings found in DB, we'll be using defaults.");
                 AppSettings::default()
             }
             Err(err) => {
                 logging::warn!(
-                    "[WARN] Database query error while retrieving settings: {err}. We'll be using defaults."
+                    "[WARN][DB] Database query error while retrieving settings: {err}. We'll be using defaults."
                 );
                 AppSettings::default()
             }
@@ -920,11 +936,11 @@ impl DbClient {
         .await
         {
             Ok(_) => {
-                logging::log!("Application settings updated successfully in database.");
+                logging::log!("[DB] Application settings updated successfully in database.");
                 Ok(())
             }
             Err(err) => {
-                logging::error!("[ERROR] Database error while updating settings: {err}");
+                logging::error!("[ERROR][DB] Database error while updating settings: {err}");
                 Err(err.into())
             }
         }
@@ -945,7 +961,7 @@ impl DbClient {
         .execute(&*db_lock)
         .await
         {
-            logging::error!("[ERROR] Database error while inserting agent event: {err}");
+            logging::error!("[ERROR][DB] Database error while inserting agent event: {err}");
         }
     }
 
@@ -971,7 +987,7 @@ impl DbClient {
                 })
                 .collect(),
             Err(err) => {
-                logging::error!("[ERROR] Database error while retrieving agent events: {err}");
+                logging::error!("[ERROR][DB] Database error while retrieving agent events: {err}");
                 vec![]
             }
         }
@@ -1001,7 +1017,7 @@ impl DbClient {
                 .collect(),
             Err(err) => {
                 logging::error!(
-                    "[ERROR] Database error while retrieving agent events since {since_timestamp}: {err}"
+                    "[ERROR][DB] Database error while retrieving agent events since {since_timestamp}: {err}"
                 );
                 vec![]
             }
@@ -1018,11 +1034,11 @@ impl DbClient {
             .await
         {
             Ok(res) => logging::log!(
-                "Removed {} old AI agent events records",
+                "[DB] Removed {} old AI agent events records",
                 res.rows_affected()
             ),
             Err(err) => {
-                logging::error!("[ERROR] Database error while pruning agent events: {err}");
+                logging::error!("[ERROR][DB] Database error while pruning agent events: {err}");
             }
         }
     }

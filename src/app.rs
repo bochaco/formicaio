@@ -204,7 +204,9 @@ fn spawn_nodes_list_polling() {
             let delay_millis = match nodes_instances(None).await {
                 Err(err) => {
                     context.is_online.set(false);
-                    logging::log!("Failed to get updated node information from server: {err}");
+                    logging::log!(
+                        "[Task] Failed to get updated node information from server: {err}"
+                    );
                     0u64
                 }
                 Ok(info) => {
@@ -281,7 +283,7 @@ fn spawn_nodes_list_polling() {
 
             let delay =
                 std::time::Duration::from_millis(NODES_LIST_POLLING_FREQ_MILLIS + delay_millis);
-            logging::log!("Polling server again in {delay:?} ...");
+            logging::log!("[Task] Polling server again in {delay:?} ...");
             sleep(delay).await;
         }
     });
@@ -339,7 +341,7 @@ fn spawn_agent_events_polling() {
                     is_first_poll = false;
                 }
                 Err(err) => {
-                    logging::log!("Failed to poll agent events: {err}");
+                    logging::log!("[Task] Failed to poll agent events: {err}");
                 }
             }
         }

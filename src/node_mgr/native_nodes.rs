@@ -113,7 +113,7 @@ impl NativeNodes {
             .to_path_buf()
         };
 
-        logging::log!("Node manager initialized with root directory: {root_dir:?}");
+        logging::log!("[NodeMgr] Node manager initialized with root directory: {root_dir:?}");
         create_dir_all(&root_dir).await?;
 
         let system = Arc::new(RwLock::new(System::new()));
@@ -241,12 +241,12 @@ impl NativeNodes {
         command.stderr(Stdio::null());
         command.current_dir(&self.root_dir);
 
-        logging::log!("Spawning new node process {node_id} with command: {command:?}");
+        logging::log!("[NodeMgr] Spawning new node process {node_id} with command: {command:?}");
         // Run the node
         match command.spawn() {
             Ok(child) => {
                 let pid = child.id();
-                logging::log!("Node process for {node_id} spawned with PID: {pid}");
+                logging::log!("[NodeMgr] Node process for {node_id} spawned with PID: {pid}");
                 self.nodes
                     .write()
                     .await
@@ -262,7 +262,7 @@ impl NativeNodes {
                     }
                     Err(err) => {
                         logging::error!(
-                            "Failed to obtain node bin version and peer id for node {node_id}: {err:?}"
+                            "[ERROR][NodeMgr] Failed to obtain node bin version and peer id for node {node_id}: {err:?}"
                         )
                     }
                 }
@@ -270,7 +270,7 @@ impl NativeNodes {
                 Ok(pid)
             }
             Err(err) => {
-                logging::error!("Failed to spawn new node {node_id}: {err:?}");
+                logging::error!("[ERROR][NodeMgr] Failed to spawn new node {node_id}: {err:?}");
                 Err(NativeNodesError::CannotSpawnNode(err.to_string()))
             }
         }
@@ -354,11 +354,13 @@ impl NativeNodes {
                         "none".to_string()
                     };
                     logging::log!(
-                        "Process with PID {pid} exited (node id: {node_id}) with status: {status}"
+                        "[NodeMgr] Process with PID {pid} exited (node id: {node_id}) with status: {status}"
                     );
                     InactiveReason::Exited(status.to_string())
                 } else {
-                    logging::warn!("Zombie process detected with pid {pid}: {process:?}");
+                    logging::warn!(
+                        "[WARN][NodeMgr] Zombie process detected with pid {pid}: {process:?}"
+                    );
                     InactiveReason::Exited("zombie".to_string())
                 };
 
@@ -386,7 +388,7 @@ impl NativeNodes {
             Some(node_process) => self.kill_node_process(node_id, node_process).await,
             None => {
                 logging::error!(
-                    "[ERROR] Failed to kill node process: Node {node_id} not found in managed processes"
+                    "[ERROR][NodeMgr] Failed to kill node process: Node {node_id} not found in managed processes"
                 );
                 None
             }
@@ -402,9 +404,11 @@ impl NativeNodes {
         match node_process {
             NodeProcess::Spawned(mut child) => {
                 if let Err(err) = child.kill() {
-                    logging::warn!("[WARN] Failed to kill process for node {node_id}: {err:?}");
+                    logging::warn!(
+                        "[WARN][NodeMgr] Failed to kill process for node {node_id}: {err:?}"
+                    );
                 } else {
-                    logging::log!("Successfully terminated node process {node_id}");
+                    logging::log!("[NodeMgr] Successfully terminated node process {node_id}");
                 }
 
                 match child.wait_with_output() {
@@ -413,12 +417,14 @@ impl NativeNodes {
                     }
                     Ok(output) => {
                         let status = output.status;
-                        logging::warn!("Killed process for node {node_id}: {status}");
+                        logging::warn!(
+                            "[WARN][NodeMgr] Killed process for node {node_id}: {status}"
+                        );
                         Some(status)
                     }
                     Err(err) => {
                         logging::warn!(
-                            "Error when checking killed process for node {node_id}: {err:?}"
+                            "[WARN][NodeMgr] Error when checking killed process for node {node_id}: {err:?}"
                         );
                         None
                     }
@@ -430,24 +436,28 @@ impl NativeNodes {
                     match process.kill_and_wait() {
                         Err(err) => {
                             logging::warn!(
-                                "[WARN] Failed to kill process for node {node_id}: {err:?}"
+                                "[WARN][NodeMgr] Failed to kill process for node {node_id}: {err:?}"
                             );
                             None
                         }
                         Ok(status) => {
-                            logging::log!("Successfully terminated node process {node_id}");
+                            logging::log!(
+                                "[NodeMgr] Successfully terminated node process {node_id}"
+                            );
                             if let Some(s) = status {
-                                logging::warn!("Killed process for node {node_id}: {s}");
+                                logging::warn!(
+                                    "[WARN][NodeMgr] Killed process for node {node_id}: {s}"
+                                );
                                 Some(s)
                             } else {
-                                logging::warn!("Killed process for node {node_id}");
+                                logging::warn!("[WARN][NodeMgr] Killed process for node {node_id}");
                                 None
                             }
                         }
                     }
                 } else {
                     logging::warn!(
-                        "[WARN] Failed to kill node process: Process with PID {pid} not found"
+                        "[WARN[[NodeMgr] Failed to kill node process: Process with PID {pid} not found"
                     );
                     None
                 }
@@ -494,7 +504,7 @@ impl NativeNodes {
                                 "none".to_string()
                             };
                             logging::log!(
-                                "Process with PID {old_pid} which restarted itself (node id: {node_id}) exited with status: {status}",
+                                "[NodeMgr] Process with PID {old_pid} which restarted itself (node id: {node_id}) exited with status: {status}",
                             );
                         }
                     }
@@ -503,7 +513,9 @@ impl NativeNodes {
                     }
                 }
 
-                logging::log!("Node {node_id} has a new PID {pid} after restarting itself");
+                logging::log!(
+                    "[NodeMgr] Node {node_id} has a new PID {pid} after restarting itself"
+                );
 
                 new_pids.push((
                     node_id.clone(),
@@ -530,7 +542,9 @@ impl NativeNodes {
     pub async fn remove_node_dir(&self, node_info: &NodeInstanceInfo) {
         let node_data_dir = self.get_node_data_dir(node_info, true);
         if let Err(err) = remove_dir_all(&node_data_dir).await {
-            logging::warn!("Failed to remove node's dir {node_data_dir:?}: {err:?}");
+            logging::warn!(
+                "[WARN][NodeMgr] Failed to remove node's dir {node_data_dir:?}: {err:?}"
+            );
         }
     }
 
@@ -586,20 +600,24 @@ impl NativeNodes {
         let version = match self.read_node_version(Some(node_info)).await {
             Ok(version) => Some(version.to_string()),
             Err(err) => {
-                logging::error!("[ERROR] Failed to retrieve binary version for node {id}: {err:?}");
+                logging::error!(
+                    "[ERROR][NodeMgr] Failed to retrieve binary version for node {id}: {err:?}"
+                );
                 None
             }
         };
-        logging::log!("Node {id} binary version: {version:?}");
+        logging::log!("[NodeMgr] Node {id} binary version: {version:?}");
 
         let peer_id = match self.helper_read_peer_id(node_info).await {
             Ok(peer_id) => Some(peer_id),
             Err(err) => {
-                logging::error!("[ERROR] Failed to retrieve Peer ID for node {id}: {err:?}");
+                logging::error!(
+                    "[ERROR][NodeMgr] Failed to retrieve Peer ID for node {id}: {err:?}"
+                );
                 None
             }
         };
-        logging::log!("Node {id} Peer ID: {peer_id:?}");
+        logging::log!("[NodeMgr] Node {id} Peer ID: {peer_id:?}");
 
         let ips = match list_afinet_netifas() {
             Ok(network_interfaces) => {
@@ -610,13 +628,13 @@ impl NativeNodes {
                     .collect::<Vec<_>>()
                     .join(", ");
                 logging::log!(
-                    "IP{} addresses in host: {ips}",
+                    "[NodeMgr] IP{} addresses in host: {ips}",
                     if only_ipv4 { "v4" } else { " v4/v6" }
                 );
                 Some(ips)
             }
             Err(err) => {
-                logging::error!("[ERROR] Failed to retrieve node IPs for {id}: {err:?}");
+                logging::error!("[ERROR][NodeMgr] Failed to retrieve node IPs for {id}: {err:?}");
                 None
             }
         };
@@ -683,7 +701,7 @@ impl NativeNodes {
         node_info: &mut NodeInstanceInfo,
     ) -> Result<NodePid, NativeNodesError> {
         logging::log!(
-            "[UPGRADE] Starting upgrade process for node {} ...",
+            "[NodeMgr] Starting UPGRADE process for node {} ...",
             node_info.node_id
         );
 
@@ -725,11 +743,15 @@ impl NativeNodes {
         if let Ok(version) = self.read_node_version(None).await
             && version == version_to_download
         {
-            logging::log!("Master node binary is already up to date (version v{version})");
+            logging::log!(
+                "[NodeMgr] Master node binary is already up to date (version v{version})"
+            );
             return Ok(version);
         }
 
-        logging::log!("Downloading node binary version v{version_to_download} from repository ...");
+        logging::log!(
+            "[NodeMgr] Downloading node binary version v{version_to_download} from repository ..."
+        );
         let platform = get_running_platform()?;
 
         let archive_path = release_repo
@@ -748,7 +770,7 @@ impl NativeNodes {
         remove_file(archive_path).await?;
 
         logging::log!(
-            "Node binary v{version_to_download} downloaded successfully and unpacked at: {bin_path:?}"
+            "[NodeMgr] Node binary v{version_to_download} downloaded successfully and unpacked at: {bin_path:?}"
         );
 
         Ok(version_to_download)
@@ -760,7 +782,7 @@ impl NativeNodes {
         node_info: &mut NodeInstanceInfo,
     ) -> Result<NodePid, NativeNodesError> {
         logging::log!(
-            "[RECYCLE] Starting recycling process for node {} by clearing its peer-id ...",
+            "[NodeMgr] Starting RECYCLING process for node {} by clearing its peer-id ...",
             node_info.node_id
         );
 
@@ -774,7 +796,7 @@ impl NativeNodes {
         let pid = self.spawn_new_node(node_info).await?;
 
         logging::log!(
-            "Finished recycling node {}, new PID: {pid}",
+            "[NodeMgr] Finished recycling node {}, new PID: {pid}",
             node_info.node_id
         );
 
@@ -787,7 +809,7 @@ impl NativeNodes {
         node_info: &NodeInstanceInfo,
     ) -> Result<impl Stream<Item = Result<Bytes, NativeNodesError>> + use<>, NativeNodesError> {
         logging::log!(
-            "[LOGS] Starting log stream for node {} ...",
+            "[NodeMgr] Starting LOG stream for node {} ...",
             node_info.node_id
         );
 
@@ -826,7 +848,9 @@ impl NativeNodes {
     fn exec_cmd(&self, cmd: &mut Command, description: &str) -> Result<Output, NativeNodesError> {
         let output = cmd.output()?;
         if !output.status.success() {
-            logging::error!("[ERROR] Command execution failed to {description}: {output:?}");
+            logging::error!(
+                "[ERROR][NodeMgr] Command execution failed to {description}: {output:?}"
+            );
         }
         Ok(output)
     }

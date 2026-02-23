@@ -132,7 +132,7 @@ pub async fn start_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
 /// Stop a node instance with given id
 #[server(name = StopNodeInstance, prefix= "/api", endpoint = "/nodes/stop")]
 pub async fn stop_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
-    logging::log!("Stopping node with Id: {node_id} ...");
+    logging::log!("[API] Stopping node with Id: {node_id} ...");
     let context = expect_context::<ServerGlobalState>();
     context.node_manager.stop_node_instance(node_id).await?;
     Ok(())
@@ -141,7 +141,7 @@ pub async fn stop_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
 /// Delete a node instance with given id
 #[server(name = DeleteNodeInstance, prefix= "/api", endpoint = "/nodes/delete")]
 pub async fn delete_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
-    logging::log!("Deleting node with Id: {node_id} ...");
+    logging::log!("[API] Deleting node with Id: {node_id} ...");
     let context = expect_context::<ServerGlobalState>();
     context.node_manager.delete_node_instance(node_id).await?;
     Ok(())
@@ -150,7 +150,7 @@ pub async fn delete_node_instance(node_id: NodeId) -> Result<(), ServerFnError> 
 /// Upgrade a node instance with given id
 #[server(name = UpgradeNodeInstance, prefix = "/api", endpoint = "/nodes/upgrade")]
 pub async fn upgrade_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
-    logging::log!("Upgrading node with ID: {node_id} ...");
+    logging::log!("[API] Upgrading node with ID: {node_id} ...");
     let context = expect_context::<ServerGlobalState>();
     context.node_manager.upgrade_node_instance(&node_id).await?;
     Ok(())
@@ -160,7 +160,7 @@ pub async fn upgrade_node_instance(node_id: NodeId) -> Result<(), ServerFnError>
 #[server(name = RecycleNodeInstance, prefix= "/api", endpoint = "/nodes/recycle")]
 pub async fn recycle_node_instance(node_id: NodeId) -> Result<(), ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
-    logging::log!("Recycling node instance with Id: {node_id} ...");
+    logging::log!("[API] Recycling node instance with Id: {node_id} ...");
     context.node_manager.recycle_node_instance(node_id).await?;
     Ok(())
 }
@@ -168,7 +168,7 @@ pub async fn recycle_node_instance(node_id: NodeId) -> Result<(), ServerFnError>
 /// Start streaming logs from a node instance with given id
 #[server(output = Streaming, name = StartNodeLogsStream, prefix = "/api", endpoint = "/nodes/logs_stream")]
 pub async fn start_node_logs_stream(node_id: NodeId) -> Result<ByteStream, ServerFnError> {
-    logging::log!("Starting logs stream from node with Id: {node_id} ...");
+    logging::log!("[API] Starting logs stream from node with Id: {node_id} ...");
     let context = expect_context::<ServerGlobalState>();
     let node_logs_stream = context.node_manager.get_node_logs_stream(&node_id).await?;
 
@@ -287,7 +287,7 @@ pub async fn nodes_actions_batch_on_match(
 #[server(name = CancelNodesActionsBatch, prefix = "/api", endpoint = "/batch/cancel")]
 pub async fn cancel_batch(batch_id: u16) -> Result<(), ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
-    logging::log!("Cancelling node action batch {batch_id} ...");
+    logging::log!("[API] Cancelling node action batch {batch_id} ...");
 
     let mut guard = context.app_ctx.node_action_batches.write().await;
     if let Some(index) = guard.1.iter().position(|b| b.id == batch_id) {

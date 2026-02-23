@@ -110,7 +110,7 @@ impl ImmutableNodeStatus {
 
 // Spawn any required background tasks
 pub fn spawn_bg_tasks(app_ctx: AppContext, node_manager: NodeManager, settings: AppSettings) {
-    logging::log!("Background tasks initialized with settings: {settings:#?}");
+    logging::log!("[BgTask] Background tasks initialized with settings: {settings:#?}");
     let mut ctx = TasksContext::from(settings);
 
     // Spawn the autonomous agent monitoring loop
@@ -158,7 +158,7 @@ pub fn spawn_bg_tasks(app_ctx: AppContext, node_manager: NodeManager, settings: 
                                 || ctx.app_settings.lcd_device != s.lcd_device
                                 || ctx.app_settings.lcd_addr != s.lcd_addr)
                             {
-                                logging::log!("Setting up LCD display with new device parameters...");
+                                logging::log!("[BgTask] Setting up LCD display with new device parameters...");
                                 // TODO: when it fails, send error back to the client,
                                 // perhaps we need websockets for errors like this one.
                                 tokio::spawn(display_stats_on_lcd(
@@ -199,7 +199,7 @@ pub fn spawn_bg_tasks(app_ctx: AppContext, node_manager: NodeManager, settings: 
                     ));
                     tokio::spawn(async move {
                         logging::log!(
-                            "Removing AI agent events older than {AGENT_EVENTS_MAX_AGE_DAYS} days from DB..."
+                            "[BgTask] Removing AI agent events older than {AGENT_EVENTS_MAX_AGE_DAYS} days from DB..."
                         );
                         db_client.prune_agent_events(AGENT_EVENTS_MAX_AGE_DAYS).await;
                     });

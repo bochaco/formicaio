@@ -116,7 +116,7 @@ pub fn start_mcp_server(addr: SocketAddr, app_ctx: AppContext, node_manager: Nod
             .server_info(None)
             .await
             .unwrap_or_else(|err| err.to_string());
-        logging::log!("{server_info}");
+        logging::log!("[MCP] {server_info}");
         if let Some(info) = server_info.find("http://") {
             *app_ctx.mcp_status.write().await = Some(server_info[info..].to_string());
         } else {
@@ -124,7 +124,7 @@ pub fn start_mcp_server(addr: SocketAddr, app_ctx: AppContext, node_manager: Nod
         }
 
         if let Err(err) = server.start().await {
-            logging::error!("Failed to start MCP server: {err:?}");
+            logging::error!("[ERROR][MCP] Failed to start MCP server: {err:?}");
             *app_ctx.mcp_status.write().await = None;
         }
     });

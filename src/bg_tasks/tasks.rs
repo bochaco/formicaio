@@ -47,19 +47,19 @@ const LCD_LABEL_NODES_DISK_USAGE: &str = "Disk usage:";
 // automatically if auto-upgrade was enabled by the user.
 pub async fn check_node_bin_version(node_manager: &NodeManager, app_ctx: &AppContext) {
     if let Some(latest_version) = latest_version_available().await {
-        logging::log!("Latest version of node binary available: {latest_version}");
+        logging::log!("[BgTask] Latest version of node binary available: {latest_version}");
 
         if let Err(err) = node_manager
             .upgrade_master_node_binary(Some(&latest_version))
             .await
         {
             logging::error!(
-                "[ERROR] Failed to download node binary version {latest_version}: {err:?}"
+                "[ERROR][BgTask] Failed to download node binary version {latest_version}: {err:?}"
             );
         }
 
         let auto_upgrade = app_ctx.db_client.get_settings().await.nodes_auto_upgrade;
-        logging::log!("Nodes auto-upgrading setting enabled?: {auto_upgrade}");
+        logging::log!("[BgTask] Nodes auto-upgrading setting enabled?: {auto_upgrade}");
 
         if auto_upgrade {
             match app_ctx
@@ -69,7 +69,7 @@ pub async fn check_node_bin_version(node_manager: &NodeManager, app_ctx: &AppCon
             {
                 Ok(nodes) if !nodes.is_empty() => {
                     logging::log!(
-                        "Creating batch of {} nodes to auto-upgrade node binary to v{latest_version} ...",
+                        "[BgTask] Creating batch of {} nodes to auto-upgrade node binary to v{latest_version} ...",
                         nodes.len()
                     );
 
@@ -87,15 +87,17 @@ pub async fn check_node_bin_version(node_manager: &NodeManager, app_ctx: &AppCon
                     .await
                     {
                         logging::log!(
-                            "Failed to schedule batch to auto-upgrade nodes binary: {err:?}."
+                            "[BgTask] Failed to schedule batch to auto-upgrade nodes binary: {err:?}."
                         );
                     }
                 }
                 Ok(_) => logging::log!(
-                    "No node instances are pending auto-upgrade to node binary version v{latest_version}."
+                    "[BgTask] No node instances are pending auto-upgrade to node binary version v{latest_version}."
                 ),
                 Err(err) => {
-                    logging::log!("Failed to retrieve list of nodes' binary versions: {err:?}")
+                    logging::error!(
+                        "[ERROR][BgTask] Failed to retrieve list of nodes' binary versions: {err:?}"
+                    )
                 }
             }
         }
@@ -161,13 +163,13 @@ pub async fn update_nodes_info(
 ) {
     let ts = Utc::now();
     let nodes = node_manager.get_nodes_list().await.unwrap_or_else(|err| {
-        logging::log!("[{ts}] Failed to get nodes list: {err}");
+        logging::warn!("[{ts}] [WARN][BgTask] Failed to get nodes list: {err}");
         vec![]
     });
 
     let num_nodes = nodes.len();
     if num_nodes > 0 {
-        logging::log!("[{ts}] Fetching status and metrics from {num_nodes} node/s ...");
+        logging::log!("[{ts}] [BgTask] Fetching status and metrics from {num_nodes} node/s ...");
     }
 
     // let's collect stats to update LCD (if enabled) and global stats records
@@ -199,7 +201,7 @@ pub async fn update_nodes_info(
                     Ok(Err(err)) => {
                         node_info.set_status_to_unknown();
                         logging::log!(
-                            "Failed to fetch metrics from node {node_short_id}: {}",
+                            "[BgTask] Failed to fetch metrics from node {node_short_id}: {}",
                             err.source().map_or_else(
                                 || err.to_string().chars().take(200).collect(),
                                 |s| s.to_string()
@@ -208,8 +210,8 @@ pub async fn update_nodes_info(
                     }
                     Err(_) => {
                         node_info.set_status_to_unknown();
-                        logging::log!(
-                            "Timeout ({NODE_METRICS_QUERY_TIMEOUT:?}) while fetching metrics from node {node_short_id}."
+                        logging::warn!(
+                            "[WARN][BgTask] Timeout ({NODE_METRICS_QUERY_TIMEOUT:?}) while fetching metrics from node {node_short_id}."
                         );
                     }
                 }
@@ -253,7 +255,7 @@ pub async fn update_nodes_info(
         ]);
         avg_net_size
     } else {
-        logging::log!("[{ts}] No active nodes to retrieve metrics from...");
+        logging::log!("[{ts}] [BgTask] No active nodes to retrieve metrics from...");
         remove_lcd_stats(
             lcd_stats,
             &[
@@ -290,7 +292,7 @@ pub async fn update_disks_usage(
 
     let num_nodes = nodes.len();
     if num_nodes > 0 {
-        logging::log!("[{ts}] Checking nodes disk usage for {num_nodes} node/s ...");
+        logging::log!("[{ts}] [BgTask] Checking nodes disk usage for {num_nodes} node/s ...");
     }
 
     let mut base_paths = HashSet::new();
@@ -337,7 +339,7 @@ pub async fn prune_metrics(node_manager: NodeManager, db_client: DbClient) {
     let nodes = match node_manager.get_nodes_list().await {
         Ok(nodes) if !nodes.is_empty() => nodes,
         Err(err) => {
-            logging::log!("Failed to get nodes list: {err}");
+            logging::log!("[BgTask] Failed to get nodes list: {err}");
             return;
         }
         _ => return,
@@ -345,7 +347,7 @@ pub async fn prune_metrics(node_manager: NodeManager, db_client: DbClient) {
 
     for node_info in nodes.into_iter() {
         logging::log!(
-            "Removing oldest metrics from DB for node {} ...",
+            "[BgTask] Removing oldest metrics from DB for node {} ...",
             node_info.short_node_id()
         );
         db_client
@@ -369,11 +371,15 @@ pub async fn balance_checker_task(
     let mut bg_tasks_cmds_rx = app_ctx.bg_tasks_cmds_tx.subscribe();
     if rewards_monitoring_enabled {
         if let Err(err) = app_ctx.bg_tasks_cmds_tx.send(BgTasksCmds::CheckAllBalances) {
-            logging::warn!("Initial check for balances couldn't be triggered: {err:?}");
+            logging::warn!(
+                "[WARN][BgTask] Initial check for balances couldn't be triggered: {err:?}"
+            );
         }
     } else {
         clear_rewards_stats(&app_ctx, &lcd_stats, &mut updated_balances).await;
-        logging::log!("Rewards monitoring is disabled in settings. Skipping automatic checks.");
+        logging::log!(
+            "[BgTask] Rewards monitoring is disabled in settings. Skipping automatic checks."
+        );
     }
 
     // helper which creates a new contract if the new configured values are valid.
@@ -381,7 +387,7 @@ pub async fn balance_checker_task(
         let addr = match contract_addr.parse::<Address>() {
             Err(err) => {
                 logging::log!(
-                    "Rewards balance check disabled. Invalid configured token contract address: {err}"
+                    "[BgTask] Rewards balance check disabled. Invalid configured token contract address: {err}"
                 );
                 None
             }
@@ -389,7 +395,9 @@ pub async fn balance_checker_task(
         };
         let url = match rpc_url.parse::<Url>() {
             Err(err) => {
-                logging::log!("Rewards balance check disabled. Invalid configured RPC URL: {err}");
+                logging::log!(
+                    "[BgTask] Rewards balance check disabled. Invalid configured RPC URL: {err}"
+                );
                 None
             }
             Ok(rpc_url) => Some(rpc_url),
@@ -437,11 +445,13 @@ pub async fn balance_checker_task(
                 }
             }
             Ok(BgTasksCmds::PruneEarningsHistory) => {
-                logging::log!("Removing old earnings history records from DB ...");
+                logging::log!("[BgTask] Removing old earnings history records from DB ...");
                 if let Err(err) =
                     ArbitrumClient::prune_history(&current_url, &app_ctx.db_client).await
                 {
-                    logging::error!("[ERROR] Failed to prune old earnings history records: {err}");
+                    logging::error!(
+                        "[ERROR][BgTask] Failed to prune old earnings history records: {err}"
+                    );
                 }
             }
             Ok(BgTasksCmds::CheckBalanceFor(node_info)) => {
@@ -513,7 +523,7 @@ pub async fn balance_checker_task(
                             total_balance = new_balance
                         }
                         Err(err) => {
-                            logging::log!("Failed to get nodes list: {err}");
+                            logging::warn!("[WARN][BgTask] Failed to get nodes list: {err}");
                             remove_lcd_stats(&lcd_stats, &[LCD_LABEL_BALANCE]).await;
                         }
                         _ => {
@@ -564,7 +574,7 @@ async fn retrieve_current_balances<P: Provider<N>, N: Network>(
                 balance.to_string()
             } else {
                 // query the balance to the ERC20 contract
-                logging::log!("Querying rewards balance for node {node_short_id} ...");
+                logging::log!("[BgTask] Querying rewards balance for node {node_short_id} ...");
                 match timeout(
                     BALANCE_QUERY_TIMEOUT,
                     token_contract.balanceOf(address).call(),
@@ -576,14 +586,14 @@ async fn retrieve_current_balances<P: Provider<N>, N: Network>(
                         balance.to_string()
                     }
                     Ok(Err(err)) => {
-                        logging::log!(
-                            "Failed to query rewards balance for node {node_short_id}: {err}"
+                        logging::error!(
+                            "[ERROR][BgTask] Failed to query rewards balance for node {node_short_id}: {err}"
                         );
                         "".to_string()
                     }
                     Err(_) => {
-                        logging::log!(
-                            "Timeout ({BALANCE_QUERY_TIMEOUT:?}) while querying rewards balance for node {node_short_id}."
+                        logging::warn!(
+                            "[WARN][BgTask] Timeout ({BALANCE_QUERY_TIMEOUT:?}) while querying rewards balance for node {node_short_id}."
                         );
                         "".to_string()
                     }
@@ -594,7 +604,7 @@ async fn retrieve_current_balances<P: Provider<N>, N: Network>(
                 .update_node_balance(&node_info.node_id, &new_balance)
                 .await;
         } else {
-            logging::log!("No valid rewards address set for node {node_short_id}.");
+            logging::log!("[BgTask] No valid rewards address set for node {node_short_id}.");
         }
     }
 }
@@ -698,7 +708,7 @@ async fn update_earnings_stats(
     ) {
         Ok(client) => client,
         Err(e) => {
-            logging::error!("[ERROR] Failed to create Arbitrum client: {e}");
+            logging::error!("[ERROR][BgTask] Failed to create Arbitrum client: {e}");
             return;
         }
     };
@@ -707,7 +717,7 @@ async fn update_earnings_stats(
     match client.fetch_incoming_payments().await {
         Ok((payments, fully_synced)) => {
             logging::log!(
-                "Successfully updated earnings stats for {} addresses (fully synced: {fully_synced}).",
+                "[BgTask] Successfully updated earnings stats for {} addresses (fully synced: {fully_synced}).",
                 payments.len()
             );
             let now = Utc::now().timestamp();
@@ -734,7 +744,7 @@ async fn update_earnings_stats(
             let mut guard = app_ctx.stats.write().await;
             guard.earnings.clear();
             guard.earnings_syncing = false;
-            logging::error!("[ERROR] Failed to fetch rewards payments: {err}");
+            logging::error!("[ERROR][BgTask] Failed to fetch rewards payments: {err}");
         }
     }
 }

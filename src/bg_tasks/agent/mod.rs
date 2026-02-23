@@ -461,7 +461,7 @@ async fn run_monitoring_cycle(app_ctx: &AppContext, node_manager: &NodeManager) 
         let stream = match llm.chat_stream(current_messages.clone(), &tool_defs).await {
             Ok(s) => s,
             Err(e) => {
-                logging::error!("[Agent] Autonomous cycle LLM error: {e}");
+                logging::error!("[ERROR][Agent] Autonomous cycle LLM error: {e}");
                 app_ctx
                     .db_client
                     .insert_agent_event(
@@ -505,7 +505,7 @@ async fn run_monitoring_cycle(app_ctx: &AppContext, node_manager: &NodeManager) 
                 }
                 Ok(StreamEvent::Done) => break,
                 Err(e) => {
-                    logging::error!("[Agent] Stream error in autonomous cycle: {e}");
+                    logging::error!("[ERROR][Agent] Stream error in autonomous cycle: {e}");
                     break;
                 }
             }

@@ -334,7 +334,7 @@ fn apply_on_selected(action: NodeAction, interval: u64, context: ClientGlobalSta
             }
             Err(err) => {
                 let msg = format!("Failed to schedule batch of {action:?}: {err:?}");
-                logging::error!("{msg}");
+                logging::error!("[ERROR] {msg}");
                 show_error_alert_msg(msg);
             }
         }

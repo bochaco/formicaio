@@ -82,10 +82,10 @@ impl NodeManager {
         match node_manager.upgrade_master_node_binary(None).await {
             Ok(()) => {}
             Err(err) => {
-                logging::error!("[ERROR] Failed to get latest node binary: {err}");
+                logging::error!("[ERROR][NodeMgr] Failed to get latest node binary: {err}");
                 let current_version = node_manager.native_nodes.read_node_version(None).await?;
                 logging::log!(
-                    "We will proceed using the locally available node binary: v{current_version}"
+                    "[NodeMgr] We will proceed using the locally available node binary: v{current_version}"
                 );
             }
         }
@@ -124,7 +124,7 @@ impl NodeManager {
             && !active_nodes.is_empty()
         {
             logging::log!(
-                "Auto-starting {} previously active nodes with {node_start_interval} second intervals",
+                "[NodeMgr] Auto-starting {} previously active nodes with {node_start_interval} second intervals",
                 active_nodes.len()
             );
             let _ = prepare_node_action_batch(
@@ -158,7 +158,7 @@ impl NodeManager {
     ) -> Result<NodeInstanceInfo, NodeManagerError> {
         let node_id = NodeId::random();
         logging::log!(
-            "Creating new node with listening IP '{}', port {}, and ID {node_id} ...",
+            "[NodeMgr] Creating new node with listening IP '{}', port {}, and ID {node_id} ...",
             node_opts.node_ip,
             node_opts.port
         );
@@ -183,7 +183,7 @@ impl NodeManager {
         };
 
         if let Err(err) = self.native_nodes.new_node(&node_info).await {
-            logging::error!("[ERROR] Failed to create new node: {err:?}");
+            logging::error!("[ERROR][NodeMgr] Failed to create new node: {err:?}");
             return Err(err.into());
         }
 
@@ -191,7 +191,7 @@ impl NodeManager {
             .db_client
             .insert_node_metadata(&node_info)
             .await;
-        logging::log!("New node created successfully with ID: {node_id}");
+        logging::log!("[NodeMgr] New node created successfully with ID: {node_id}");
 
         if node_opts.auto_start {
             self.start_node_instance(node_id.clone()).await?;
@@ -216,7 +216,7 @@ impl NodeManager {
             return Ok(());
         }
 
-        logging::log!("Starting node with ID: {node_id} ...");
+        logging::log!("[NodeMgr] Starting node with ID: {node_id} ...");
         self.app_ctx
             .node_status_locked
             .lock(node_id.clone(), Duration::from_secs(20))
@@ -356,7 +356,7 @@ impl NodeManager {
         node_info.status = match &res {
             Ok(pid) => {
                 logging::log!(
-                    "Node binary upgraded to v{} in node {node_id}, new PID: {pid}.",
+                    "[NodeMgr] Node binary upgraded to v{} in node {node_id}, new PID: {pid}.",
                     node_info.bin_version.as_deref().unwrap_or("[unknown]")
                 );
                 self.app_ctx

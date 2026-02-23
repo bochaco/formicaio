@@ -230,7 +230,7 @@ pub fn NodeChartView(
                 ]);
                 match <JsValue as JsValueSerdeExt>::from_serde(&opts_clone) {
                     Ok(opt) => chart.update_options(&opt, Some(false), Some(true), Some(true)),
-                    Err(err) => logging::log!("Failed to update chart: {err}"),
+                    Err(err) => logging::error!("[ERROR] Failed to update chart: {err}"),
                 }
             }
         });

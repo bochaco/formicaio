@@ -32,7 +32,7 @@ impl TasksContext {
     }
 
     pub fn apply_settings(&mut self, settings: AppSettings) {
-        logging::log!("Applying new settings to background tasks: {settings:#?}");
+        logging::log!("[BgTask] Applying new settings to background tasks: {settings:#?}");
 
         // helper to create a new interval only if new period differs from current
         let update_interval = |target: &mut Interval, new_period: Duration| {

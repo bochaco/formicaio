@@ -42,7 +42,10 @@ async fn start_backend(
     use leptos::{logging, prelude::*};
     use leptos_axum::{LeptosRoutes, generate_route_list};
 
-    logging::log!("Starting Formicaio v{} ...", env!("CARGO_PKG_VERSION"));
+    logging::log!(
+        "[Formicaio] Starting Formicaio v{} ...",
+        env!("CARGO_PKG_VERSION")
+    );
 
     // Setting get_configuration(None) means we'll be using cargo-leptos's env values
     // For deployment these variables are:
@@ -65,7 +68,7 @@ async fn start_backend(
         leptos_options.env = "PROD".into();
     }
 
-    logging::log!("Web service configuration: {leptos_options:?}");
+    logging::log!("[Formicaio] Web service configuration: {leptos_options:?}");
     let listen_addr = listen_addr.unwrap_or(leptos_options.site_addr);
     let routes = generate_route_list(App);
 
@@ -132,7 +135,9 @@ async fn start_backend(
     let listener = tokio::net::TcpListener::bind(&listen_addr)
         .await
         .wrap_err(format!("Failed to bind to TCP address {listen_addr}. Please check if the port is available and you have sufficient permissions."))?;
-    logging::log!("• Formicaio backend server is now listening on http://{listen_addr}");
+    logging::log!(
+        "[Formicaio] • Formicaio backend server is now listening on http://{listen_addr}"
+    );
 
     tokio::select! {
         res = axum::serve(listener, app.into_make_service()) => {
