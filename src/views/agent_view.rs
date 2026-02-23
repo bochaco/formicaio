@@ -1,6 +1,6 @@
 use super::{
-    ClientGlobalState,
-    helpers::show_error_alert_msg,
+    ClientGlobalState, format_disk_usage,
+    helpers::{show_error_alert_msg, truncated_balance_str},
     icons::{IconBot, IconCancel, IconPrompt},
 };
 use crate::{
@@ -11,9 +11,13 @@ use crate::{
     types::{AgentEvent, AgentEventType, ChatMessage, ChatRole, StreamChunk},
 };
 
+use alloy_primitives::U256;
 use chrono::{DateTime, Local, Utc};
 use gloo_timers::future::TimeoutFuture;
 use leptos::{html, logging, prelude::*, task::spawn_local};
+use serde_json::Value;
+use std::collections::BTreeMap;
+use std::str::FromStr;
 
 // ─── Session ID generation ────────────────────────────────────────────────────
 
@@ -540,8 +544,12 @@ pub fn AgentView() -> impl IntoView {
 fn MessageBubble(msg: UiMessage) -> impl IntoView {
     let is_user = msg.role == ChatRole::User;
     let is_streaming = msg.is_streaming;
-    let content = StoredValue::new(msg.content.clone());
     let tool_calls = StoredValue::new(msg.tool_calls_text.clone());
+    let content = StoredValue::new(if is_user {
+        msg.content.clone()
+    } else {
+        format_assistant_content(&msg.content, &msg.tool_calls_text)
+    });
     let tool_open = RwSignal::new(false);
 
     view! {
@@ -616,8 +624,8 @@ fn MessageBubble(msg: UiMessage) -> impl IntoView {
 #[component]
 fn ToolCallPanel(name: String, input: String, result: String) -> impl IntoView {
     let is_done = !result.is_empty();
-    let input = StoredValue::new(input);
-    let result = StoredValue::new(result);
+    let input = StoredValue::new(format_tool_payload(&input));
+    let result = StoredValue::new(format_tool_payload(&result));
 
     view! {
         <div class="bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs font-mono space-y-2">
@@ -629,18 +637,197 @@ fn ToolCallPanel(name: String, input: String, result: String) -> impl IntoView {
                 <span class="text-indigo-400 font-bold">{name}</span>
             </div>
             <Show when=move || !input.with_value(|v| v.is_empty())>
-                <div class="text-slate-500 overflow-x-auto no-scrollbar">
+                <div class="text-slate-500 overflow-auto no-scrollbar max-h-32 whitespace-pre-wrap break-words">
                     <span class="text-slate-600">{"in: "}</span>
                     {input.get_value()}
                 </div>
             </Show>
             <Show when=move || !result.with_value(|v| v.is_empty())>
-                <div class="text-slate-400 overflow-x-auto no-scrollbar max-h-32">
+                <div class="text-slate-400 overflow-auto no-scrollbar max-h-40 whitespace-pre-wrap break-words">
                     <span class="text-slate-600">{"out: "}</span>
                     {result.get_value()}
                 </div>
             </Show>
         </div>
+    }
+}
+
+fn format_tool_payload(raw: &str) -> String {
+    match serde_json::from_str::<Value>(raw) {
+        Ok(mut v) => {
+            normalize_tool_value(&mut v, None);
+            serde_json::to_string_pretty(&v).unwrap_or_else(|_| raw.to_string())
+        }
+        Err(_) => raw.to_string(),
+    }
+}
+
+fn format_assistant_content(raw: &str, tool_calls: &[(String, String, String)]) -> String {
+    let mut replacements = BTreeMap::<String, String>::new();
+    for (_, _, result) in tool_calls {
+        collect_balance_replacements_from_json(result, &mut replacements);
+    }
+
+    let mut out = raw.to_string();
+    for (from, to) in replacements {
+        if from.len() >= 6 && out.contains(&from) {
+            out = out.replace(&from, &to);
+        }
+    }
+    out
+}
+
+fn collect_balance_replacements_from_json(raw: &str, out: &mut BTreeMap<String, String>) {
+    if let Ok(v) = serde_json::from_str::<Value>(raw) {
+        collect_balance_replacements(&v, None, out);
+    }
+}
+
+fn collect_balance_replacements(v: &Value, key: Option<&str>, out: &mut BTreeMap<String, String>) {
+    match v {
+        Value::Object(map) => {
+            if let Some(k) = key
+                && is_balance_key(k)
+                && let Some(amount) = parse_u256_like(v)
+            {
+                let formatted = truncated_balance_str(amount);
+                let mut candidates = vec![];
+                collect_scalar_candidates(v, &mut candidates);
+                for candidate in candidates {
+                    if parse_u256_like(&Value::String(candidate.clone())).is_some() {
+                        out.entry(candidate).or_insert_with(|| formatted.clone());
+                    }
+                }
+            }
+            for (k, value) in map {
+                collect_balance_replacements(value, Some(k.as_str()), out);
+            }
+        }
+        Value::Array(arr) => {
+            for item in arr {
+                collect_balance_replacements(item, key, out);
+            }
+        }
+        Value::String(s) => {
+            if let Some(k) = key
+                && is_balance_key(k)
+                && let Some(amount) = parse_u256_like(v)
+            {
+                out.entry(s.clone())
+                    .or_insert_with(|| truncated_balance_str(amount));
+            }
+        }
+        Value::Number(n) => {
+            if let Some(k) = key
+                && is_balance_key(k)
+                && let Some(amount) = parse_u256_like(v)
+            {
+                out.entry(n.to_string())
+                    .or_insert_with(|| truncated_balance_str(amount));
+            }
+        }
+        _ => {}
+    }
+}
+
+fn collect_scalar_candidates(v: &Value, out: &mut Vec<String>) {
+    match v {
+        Value::Object(map) => {
+            for value in map.values() {
+                collect_scalar_candidates(value, out);
+            }
+        }
+        Value::Array(arr) => {
+            for item in arr {
+                collect_scalar_candidates(item, out);
+            }
+        }
+        Value::String(s) => out.push(s.clone()),
+        Value::Number(n) => out.push(n.to_string()),
+        _ => {}
+    }
+}
+
+fn normalize_tool_value(v: &mut Value, key: Option<&str>) {
+    match v {
+        Value::Object(map) => {
+            if let Some(k) = key
+                && is_balance_key(k)
+                && let Some(amount) = parse_u256_like(&Value::Object(map.clone()))
+            {
+                *v = Value::String(truncated_balance_str(amount));
+                return;
+            }
+            for (k, value) in map.iter_mut() {
+                normalize_tool_value(value, Some(k.as_str()));
+            }
+        }
+        Value::Array(arr) => {
+            for item in arr.iter_mut() {
+                normalize_tool_value(item, key);
+            }
+        }
+        Value::Number(num) => {
+            if let Some(k) = key {
+                let lower = k.to_ascii_lowercase();
+                if (lower.contains("disk") || lower.ends_with("_bytes"))
+                    && let Some(n) = num.as_u64()
+                {
+                    *v = Value::String(format_disk_usage(n));
+                    return;
+                }
+                if (lower.ends_with("_secs")
+                    || lower.contains("interval")
+                    || lower.contains("frequency"))
+                    && let Some(n) = num.as_u64()
+                {
+                    *v = Value::String(format!("{n} secs"));
+                }
+            }
+        }
+        Value::String(s) => {
+            if let Some(k) = key
+                && is_balance_key(k)
+                && let Some(amount) = parse_u256_like(&Value::String(s.clone()))
+            {
+                *v = Value::String(truncated_balance_str(amount));
+            }
+        }
+        _ => {}
+    }
+}
+
+fn is_balance_key(k: &str) -> bool {
+    let lower = k.to_ascii_lowercase();
+    lower.contains("balance") || lower.contains("reward") || lower.contains("earned")
+}
+
+fn parse_u256_like(v: &Value) -> Option<U256> {
+    match v {
+        Value::Number(n) => U256::from_str(&n.to_string()).ok(),
+        Value::String(s) => {
+            let s = s.trim();
+            if s.is_empty() {
+                None
+            } else {
+                U256::from_str(s).ok()
+            }
+        }
+        Value::Object(map) => {
+            for candidate_key in ["value", "amount", "raw", "hex", "0"] {
+                if let Some(inner) = map.get(candidate_key)
+                    && let Some(parsed) = parse_u256_like(inner)
+                {
+                    return Some(parsed);
+                }
+            }
+            if map.len() == 1 {
+                map.values().next().and_then(parse_u256_like)
+            } else {
+                None
+            }
+        }
+        _ => None,
     }
 }
 

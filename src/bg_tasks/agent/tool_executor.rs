@@ -198,6 +198,10 @@ fn transform_nodes_for_llm(raw: &str) -> String {
     let nodes: Vec<serde_json::Value> = map
         .iter()
         .map(|(key, v)| {
+            let balance = match v.get("balance") {
+                Some(val) if !val.is_null() => val.clone(),
+                _ => v.get("rewards").cloned().unwrap_or(serde_json::Value::Null),
+            };
             json!({
                 "node_id": key,
                 "status": node_status_string(v.get("status")),
@@ -205,7 +209,7 @@ fn transform_nodes_for_llm(raw: &str) -> String {
                 "port": v.get("port"),
                 "connected_peers": v.get("connected_peers"),
                 "records": v.get("records"),
-                "balance": v.get("balance"),
+                "balance": balance,
                 "bin_version": v.get("bin_version"),
             })
         })
