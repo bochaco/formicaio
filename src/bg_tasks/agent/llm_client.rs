@@ -28,6 +28,15 @@ pub struct LlmMessage {
 }
 
 impl LlmMessage {
+    pub fn system(content: impl Into<String>) -> Self {
+        Self {
+            role: "system".to_string(),
+            content: content.into(),
+            tool_calls: None,
+            tool_call_id: None,
+        }
+    }
+
     pub fn user(content: impl Into<String>) -> Self {
         Self {
             role: "user".to_string(),

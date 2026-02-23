@@ -227,7 +227,11 @@ impl ToolExecutor {
                 r#type: "function".to_string(),
                 function: FunctionDefinition {
                     name: "create_node_instance".to_string(),
-                    description: "Create and optionally start a new node instance.".to_string(),
+                    description: "Create and optionally start a new node instance. \
+Before calling this, use nodes_instances to inspect an existing node and copy its \
+IP address, rewards address, and settings. Choose port and metrics_port values \
+not already in use by any other node."
+                        .to_string(),
                     parameters: json!({
                         "type": "object",
                         "properties": {

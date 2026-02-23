@@ -928,14 +928,10 @@ impl DbClient {
 
     // ─── Agent events ────────────────────────────────────────────────────────────
 
-    pub async fn insert_agent_event(
-        &self,
-        event_type: &AgentEventType,
-        description: &str,
-    ) -> Result<i64, DbError> {
+    pub async fn insert_agent_event(&self, event_type: &AgentEventType, description: &str) {
         let timestamp = chrono::Utc::now().timestamp();
         let db_lock = self.db.lock().await;
-        let result = sqlx::query(
+        if let Err(err) = sqlx::query(
             "INSERT INTO agent_events (event_type, description, timestamp) \
              VALUES (?, ?, ?)",
         )
@@ -944,11 +940,9 @@ impl DbClient {
         .bind(timestamp)
         .execute(&*db_lock)
         .await
-        .map_err(|e| {
-            logging::error!("[ERROR] Database error while inserting agent event: {e}");
-            DbError::SqlxError(e)
-        })?;
-        Ok(result.last_insert_rowid())
+        {
+            logging::error!("[ERROR] Database error while inserting agent event: {err}");
+        }
     }
 
     pub async fn get_agent_events(&self, limit: u32) -> Vec<AgentEvent> {
