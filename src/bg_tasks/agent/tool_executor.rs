@@ -2,7 +2,23 @@ use super::llm_client::{FunctionDefinition, LlmToolCall, ToolDefinition};
 use crate::{app_context::AppContext, bg_tasks::mcp_tools::*, node_mgr::NodeManager};
 
 use leptos::logging;
+use rust_mcp_sdk::schema::Tool as McpTool;
 use serde_json::{Value, json};
+
+impl From<McpTool> for ToolDefinition {
+    fn from(tool: McpTool) -> Self {
+        let parameters = serde_json::to_value(&tool.input_schema)
+            .unwrap_or_else(|_| json!({"type": "object", "properties": {}, "required": []}));
+        Self {
+            r#type: "function".to_string(),
+            function: FunctionDefinition {
+                name: tool.name,
+                description: tool.description.unwrap_or_default(),
+                parameters,
+            },
+        }
+    }
+}
 
 /// Dispatches LLM tool calls directly to the existing `mcp_tools` functions,
 /// avoiding any HTTP round-trip through the external MCP server.
@@ -117,139 +133,13 @@ impl ToolExecutor {
     }
 
     /// Returns the OpenAI-format tool definitions to pass in each chat request.
+    /// Derived automatically from the MCP tool structs — descriptions and parameter
+    /// schemas are the single source of truth in `mcp_tools.rs`.
     pub fn tool_definitions() -> Vec<ToolDefinition> {
-        vec![
-            ToolDefinition {
-                r#type: "function".to_string(),
-                function: FunctionDefinition {
-                    name: "fetch_stats".to_string(),
-                    description: "Return up-to-date aggregated statistics for all Formicaio nodes \
-                         (total nodes, active nodes, total balance, stored records, \
-                          estimated network size, connected peers, disk usage)."
-                        .to_string(),
-                    parameters: json!({
-                        "type": "object",
-                        "properties": {},
-                        "required": []
-                    }),
-                },
-            },
-            ToolDefinition {
-                r#type: "function".to_string(),
-                function: FunctionDefinition {
-                    name: "nodes_instances".to_string(),
-                    description: "Retrieve the list of all node instances and their current state \
-                         (status, peers, records, balance, version, IP/port, disk usage)."
-                        .to_string(),
-                    parameters: json!({
-                        "type": "object",
-                        "properties": {},
-                        "required": []
-                    }),
-                },
-            },
-            ToolDefinition {
-                r#type: "function".to_string(),
-                function: FunctionDefinition {
-                    name: "start_node_instance".to_string(),
-                    description: "Start a stopped node instance by its ID.".to_string(),
-                    parameters: json!({
-                        "type": "object",
-                        "properties": {
-                            "node_id": { "type": "string", "description": "The node ID to start" }
-                        },
-                        "required": ["node_id"]
-                    }),
-                },
-            },
-            ToolDefinition {
-                r#type: "function".to_string(),
-                function: FunctionDefinition {
-                    name: "stop_node_instance".to_string(),
-                    description: "Stop a running node instance by its ID.".to_string(),
-                    parameters: json!({
-                        "type": "object",
-                        "properties": {
-                            "node_id": { "type": "string", "description": "The node ID to stop" }
-                        },
-                        "required": ["node_id"]
-                    }),
-                },
-            },
-            ToolDefinition {
-                r#type: "function".to_string(),
-                function: FunctionDefinition {
-                    name: "recycle_node_instance".to_string(),
-                    description: "Recycle a node instance (restart with a new peer ID). \
-                         Useful to recover shunned or poorly-connected nodes."
-                        .to_string(),
-                    parameters: json!({
-                        "type": "object",
-                        "properties": {
-                            "node_id": { "type": "string", "description": "The node ID to recycle" }
-                        },
-                        "required": ["node_id"]
-                    }),
-                },
-            },
-            ToolDefinition {
-                r#type: "function".to_string(),
-                function: FunctionDefinition {
-                    name: "upgrade_node_instance".to_string(),
-                    description: "Upgrade a node instance to the latest available binary version."
-                        .to_string(),
-                    parameters: json!({
-                        "type": "object",
-                        "properties": {
-                            "node_id": { "type": "string", "description": "The node ID to upgrade" }
-                        },
-                        "required": ["node_id"]
-                    }),
-                },
-            },
-            ToolDefinition {
-                r#type: "function".to_string(),
-                function: FunctionDefinition {
-                    name: "delete_node_instance".to_string(),
-                    description: "Permanently delete a node instance and remove all its data. \
-                         This action is irreversible."
-                        .to_string(),
-                    parameters: json!({
-                        "type": "object",
-                        "properties": {
-                            "node_id": { "type": "string", "description": "The node ID to delete" }
-                        },
-                        "required": ["node_id"]
-                    }),
-                },
-            },
-            ToolDefinition {
-                r#type: "function".to_string(),
-                function: FunctionDefinition {
-                    name: "create_node_instance".to_string(),
-                    description: "Create and optionally start a new node instance. \
-Before calling this, use nodes_instances to inspect an existing node and copy its \
-IP address, rewards address, and settings. Choose port and metrics_port values \
-not already in use by any other node."
-                        .to_string(),
-                    parameters: json!({
-                        "type": "object",
-                        "properties": {
-                            "node_ip": { "type": "string", "description": "Listening IP address (e.g. '0.0.0.0')" },
-                            "port": { "type": "integer", "description": "Main TCP port" },
-                            "metrics_port": { "type": "integer", "description": "Metrics TCP port" },
-                            "rewards_addr": { "type": "string", "description": "Hex-encoded rewards address" },
-                            "upnp": { "type": "boolean", "description": "Enable UPnP" },
-                            "reachability_check": { "type": "boolean", "description": "Enable reachability check" },
-                            "node_logs": { "type": "boolean", "description": "Enable node logs" },
-                            "auto_start": { "type": "boolean", "description": "Auto-start after creation" },
-                            "data_dir_path": { "type": "string", "description": "Custom data directory path" }
-                        },
-                        "required": ["node_ip", "port", "metrics_port", "rewards_addr", "upnp", "reachability_check", "node_logs", "auto_start", "data_dir_path"]
-                    }),
-                },
-            },
-        ]
+        FormicaioTools::tools()
+            .into_iter()
+            .map(ToolDefinition::from)
+            .collect()
     }
 
     /// Restricted tool set for the autonomous monitoring loop.

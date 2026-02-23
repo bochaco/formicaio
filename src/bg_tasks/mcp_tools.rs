@@ -28,7 +28,9 @@ fn parse_node_id(node_id: &str) -> Result<NodeId, CallToolError> {
 
 #[mcp_tool(
     name = "fetch_stats",
-    description = "Return up to date aggregated nodes stats."
+    description = "Return up-to-date aggregated statistics for all Formicaio nodes \
+(total nodes, active nodes, total balance, stored records, estimated network size, \
+connected peers, disk usage)."
 )]
 #[derive(Debug, ::serde::Deserialize, ::serde::Serialize, JsonSchema)]
 pub struct FetchStats {}
@@ -41,7 +43,8 @@ impl FetchStats {
 
 #[mcp_tool(
     name = "nodes_instances",
-    description = "Retrieve the list of node instances and their configured options."
+    description = "Retrieve the list of all node instances and their current state \
+(status, peers, records, balance, version, IP/port, disk usage)."
 )]
 #[derive(Debug, ::serde::Deserialize, ::serde::Serialize, JsonSchema)]
 pub struct NodeInstances {}
@@ -63,7 +66,10 @@ impl NodeInstances {
 
 #[mcp_tool(
     name = "create_node_instance",
-    description = "Create a new node instance."
+    description = "Create and optionally start a new node instance. \
+Before calling this, use nodes_instances to inspect an existing node and copy its \
+IP address, rewards address, and settings. Choose port and metrics_port values \
+not already in use by any other node."
 )]
 #[derive(Debug, ::serde::Deserialize, ::serde::Serialize, JsonSchema)]
 pub struct CreateNodeInstance {
@@ -118,10 +124,11 @@ impl CreateNodeInstance {
 
 #[mcp_tool(
     name = "start_node_instance",
-    description = "Start node instance with given Id."
+    description = "Start a stopped node instance by its ID."
 )]
 #[derive(Debug, ::serde::Deserialize, ::serde::Serialize, JsonSchema)]
 pub struct StartNodeInstance {
+    /// The ID of the node to start
     node_id: String,
 }
 impl StartNodeInstance {
@@ -139,10 +146,11 @@ impl StartNodeInstance {
 
 #[mcp_tool(
     name = "stop_node_instance",
-    description = "Stop node instance with given Id."
+    description = "Stop a running node instance by its ID."
 )]
 #[derive(Debug, ::serde::Deserialize, ::serde::Serialize, JsonSchema)]
 pub struct StopNodeInstance {
+    /// The ID of the node to stop
     node_id: String,
 }
 impl StopNodeInstance {
@@ -160,10 +168,11 @@ impl StopNodeInstance {
 
 #[mcp_tool(
     name = "delete_node_instance",
-    description = "Delete node instance with given Id."
+    description = "Permanently delete a node instance and remove all its data. This action is irreversible."
 )]
 #[derive(Debug, ::serde::Deserialize, ::serde::Serialize, JsonSchema)]
 pub struct DeleteNodeInstance {
+    /// The ID of the node to delete
     node_id: String,
 }
 impl DeleteNodeInstance {
@@ -181,10 +190,11 @@ impl DeleteNodeInstance {
 
 #[mcp_tool(
     name = "upgrade_node_instance",
-    description = "Upgrade node instance with given Id."
+    description = "Upgrade a node instance to the latest available binary version."
 )]
 #[derive(Debug, ::serde::Deserialize, ::serde::Serialize, JsonSchema)]
 pub struct UpgradeNodeInstance {
+    /// The ID of the node to upgrade
     node_id: String,
 }
 impl UpgradeNodeInstance {
@@ -202,10 +212,12 @@ impl UpgradeNodeInstance {
 
 #[mcp_tool(
     name = "recycle_node_instance",
-    description = "Recycle node instance with given Id."
+    description = "Recycle a node instance (restart with a new peer ID). \
+Useful to recover shunned or poorly-connected nodes."
 )]
 #[derive(Debug, ::serde::Deserialize, ::serde::Serialize, JsonSchema)]
 pub struct RecycleNodeInstance {
+    /// The ID of the node to recycle
     node_id: String,
 }
 impl RecycleNodeInstance {
