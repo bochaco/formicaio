@@ -118,68 +118,47 @@ impl FormContent {
     }
 
     pub fn get_valid_changes(&self) -> Option<AppSettings> {
-        let values = (
-            self.auto_upgrade_delay.get(),
-            self.bin_version_polling_freq.get(),
-            self.balances_retrieval_freq.get(),
-            self.metrics_polling_freq.get(),
-            self.disks_usage_check_freq.get(),
-            self.l2_network_rpc_url.get(),
-            self.token_contract_address.get(),
-            self.lcd_device.get(),
-            self.lcd_addr.get(),
-            self.node_list_page_size.get(),
-            self.llm_base_url.get(),
-            self.llm_model.get(),
-            self.max_context_messages.get(),
-            self.autonomous_check_interval.get(),
-            self.autonomous_max_actions.get(),
-        );
-        if let (
-            Ok(v1),
-            Ok(v2),
-            Ok(v3),
-            Ok(v4),
-            Ok(v5),
-            Ok(v6),
-            Ok(v7),
-            Ok(v8),
-            Ok(v9),
-            Ok(v10),
-            Ok(v11),
-            Ok(v12),
-            Ok(v13),
-            Ok(v14),
-            Ok(v15),
-        ) = values
-        {
-            Some(AppSettings {
-                nodes_auto_upgrade: self.auto_upgrade.get(),
-                nodes_auto_upgrade_delay: Duration::from_secs(v1),
-                node_bin_version_polling_freq: Duration::from_secs(v2),
-                rewards_balances_retrieval_freq: Duration::from_secs(v3),
-                rewards_monitoring_enabled: self.rewards_monitoring_enabled.get(),
-                nodes_metrics_polling_freq: Duration::from_secs(v4),
-                disks_usage_check_freq: Duration::from_secs(v5),
-                l2_network_rpc_url: v6,
-                token_contract_address: v7,
-                lcd_display_enabled: self.lcd_enabled.get(),
-                lcd_device: v8,
-                lcd_addr: v9,
-                node_list_page_size: v10,
-                node_list_mode: self.node_list_mode.get(),
-                llm_base_url: v11,
-                llm_model: v12,
-                llm_api_key: self.llm_api_key.get(),
-                system_prompt: self.system_prompt.get(),
-                max_context_messages: v13,
-                autonomous_enabled: self.autonomous_enabled.get(),
-                autonomous_check_interval_secs: v14,
-                autonomous_max_actions_per_cycle: v15,
-            })
-        } else {
-            None
-        }
+        // collect each converted value using `ok()?` to short-circuit on failure
+        let v1 = self.auto_upgrade_delay.get().ok()?;
+        let v2 = self.bin_version_polling_freq.get().ok()?;
+        let v3 = self.balances_retrieval_freq.get().ok()?;
+        let v4 = self.metrics_polling_freq.get().ok()?;
+        let v5 = self.disks_usage_check_freq.get().ok()?;
+        let v6 = self.l2_network_rpc_url.get().ok()?;
+        let v7 = self.token_contract_address.get().ok()?;
+        let v8 = self.lcd_device.get().ok()?;
+        let v9 = self.lcd_addr.get().ok()?;
+        let v10 = self.node_list_page_size.get().ok()?;
+        let v11 = self.llm_base_url.get().ok()?;
+        let v12 = self.llm_model.get().ok()?;
+        let v13 = self.max_context_messages.get().ok()?;
+        let v14 = self.autonomous_check_interval.get().ok()?;
+        let v15 = self.autonomous_max_actions.get().ok()?;
+
+        Some(AppSettings {
+            nodes_auto_upgrade: self.auto_upgrade.get(),
+            nodes_auto_upgrade_delay: Duration::from_secs(v1),
+            node_bin_version_polling_freq: Duration::from_secs(v2),
+            rewards_balances_retrieval_freq: Duration::from_secs(v3),
+            rewards_monitoring_enabled: self.rewards_monitoring_enabled.get(),
+            nodes_metrics_polling_freq: Duration::from_secs(v4),
+            disks_usage_check_freq: Duration::from_secs(v5),
+            l2_network_rpc_url: v6,
+            token_contract_address: v7,
+            lcd_display_enabled: self.lcd_enabled.get(),
+            lcd_device: v8,
+            lcd_addr: v9,
+            node_list_page_size: v10,
+            node_list_mode: self.node_list_mode.get(),
+            llm_base_url: v11,
+            llm_model: v12,
+            llm_api_key: self.llm_api_key.get(),
+            system_prompt: self.system_prompt.get(),
+            max_context_messages: v13,
+            autonomous_enabled: self.autonomous_enabled.get(),
+            autonomous_check_interval_secs: v14,
+            autonomous_max_actions_per_cycle: v15,
+        })
     }
 
     pub fn discard_changes(&mut self) {
