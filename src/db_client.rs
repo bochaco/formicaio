@@ -235,7 +235,7 @@ impl DbClient {
 
         let migrations = current_dir()?.join("migrations");
         logging::log!("[DB] Applying database migrations from: {migrations:?} ...");
-        Migrator::new(migrations).await?.run(&db).await?;
+        Migrator::new(migrations).await?.set_ignore_missing(true).run(&db).await?;
 
         logging::log!("[DB] Database migrations completed successfully!");
         Ok(Self {
