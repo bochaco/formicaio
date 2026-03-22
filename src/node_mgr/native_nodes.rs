@@ -266,6 +266,7 @@ impl NativeNodes {
             metrics_port.to_string(),
             "--root-dir".to_string(),
             node_data_dir.display().to_string(),
+            "--auto-upgrade".to_string(),
         ];
 
         if node_info.node_logs {
@@ -277,7 +278,13 @@ impl NativeNodes {
         args.push(bootstrap_cache_dir.display().to_string());
 
         args.push("--rewards-address".to_string());
-        args.push(rewards_address.to_string());
+        let rewards_address_str = rewards_address.to_string();
+        let rewards_address_str = if rewards_address_str.starts_with("0x") {
+            rewards_address_str
+        } else {
+            format!("0x{rewards_address_str}")
+        };
+        args.push(rewards_address_str);
 
         args.push("--evm-network".to_string());
         args.push(DEFAULT_EVM_NETWORK.to_string());
@@ -904,14 +911,12 @@ impl NativeNodes {
 
         let node_data_dir = self.get_node_data_dir(node_info, true);
         let logs_dir = node_data_dir.join(DEFAULT_LOGS_FOLDER);
-        let log_file_path = Self::find_latest_log_file(&logs_dir)
-            .await
-            .ok_or_else(|| {
-                NativeNodesError::StdIoError(std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    format!("No log file found in {logs_dir:?}"),
-                ))
-            })?;
+        let log_file_path = Self::find_latest_log_file(&logs_dir).await.ok_or_else(|| {
+            NativeNodesError::StdIoError(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("No log file found in {logs_dir:?}"),
+            ))
+        })?;
 
         let mut file = File::open(log_file_path).await?;
         let file_length = file.metadata().await?.len();
