@@ -6,7 +6,7 @@ use alloy_primitives::U256;
 use chrono::Utc;
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::{fmt, net::IpAddr, path::PathBuf};
+use std::{fmt, path::PathBuf};
 
 // Length of nodes PeerIds' prefix and suffix to be displayed
 const PEER_ID_PREFIX_SUFFIX_LEN: usize = 12;
@@ -28,6 +28,45 @@ pub fn shortened_address(addr: &String) -> String {
         &str[..REWARDS_ADDR_PREFIX_SUFFIX_LEN],
         &str[str.len() - REWARDS_ADDR_PREFIX_SUFFIX_LEN..]
     )
+}
+
+/// IP version to use for the node's network connections
+#[derive(Clone, Default, Debug, Deserialize, PartialEq, Serialize)]
+pub enum IpVersion {
+    /// Dual-stack IPv4 and IPv6
+    #[default]
+    Dual,
+    /// IPv4 only
+    Ipv4,
+    /// IPv6 only
+    Ipv6,
+}
+
+impl IpVersion {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Dual => "dual",
+            Self::Ipv4 => "ipv4",
+            Self::Ipv6 => "ipv6",
+        }
+    }
+}
+
+impl fmt::Display for IpVersion {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl std::str::FromStr for IpVersion {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "ipv4" => Ok(Self::Ipv4),
+            "ipv6" => Ok(Self::Ipv6),
+            _ => Ok(Self::Dual),
+        }
+    }
 }
 
 #[derive(Clone, Default, Debug, Deserialize, PartialEq, Serialize)]
@@ -82,16 +121,12 @@ pub struct NodeInstanceInfo {
     pub port: Option<u16>,
     /// TCP port used by the node for metrics reporting
     pub metrics_port: Option<u16>,
-    /// Listening IP address set by the user for the node (IPv4 or IPv6, including special values like `0.0.0.0` or `::`)
-    pub node_ip: Option<IpAddr>,
+    /// IP version used for the node's network connections
+    pub ip_version: IpVersion,
     /// Current balance of the node (if known)
     pub balance: Option<U256>,
     /// Hex-encoded rewards address for the node
     pub rewards_addr: Option<String>,
-    /// Whether UPnP is enabled for this node
-    pub upnp: bool,
-    /// Whether reachability check is enabled for this node
-    pub reachability_check: bool,
     /// Whether node logs are enabled for this node
     pub node_logs: bool,
     /// Current rewards earned by the node

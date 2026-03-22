@@ -158,8 +158,8 @@ impl NodeManager {
     ) -> Result<NodeInstanceInfo, NodeManagerError> {
         let node_id = NodeId::random();
         logging::log!(
-            "[NodeMgr] Creating new node with listening IP '{}', port {}, and ID {node_id} ...",
-            node_opts.node_ip,
+            "[NodeMgr] Creating new node with IP version '{}', port {}, and ID {node_id} ...",
+            node_opts.ip_version,
             node_opts.port
         );
 
@@ -171,12 +171,10 @@ impl NodeManager {
             created: Utc::now().timestamp() as u64,
             status: NodeStatus::Inactive(InactiveReason::Created),
             status_changed: Utc::now().timestamp() as u64,
-            node_ip: Some(node_opts.node_ip),
+            ip_version: node_opts.ip_version,
             port: Some(node_opts.port),
             metrics_port: Some(node_opts.metrics_port),
             rewards_addr: Some(node_opts.rewards_addr),
-            upnp: node_opts.upnp,
-            reachability_check: node_opts.reachability_check,
             node_logs: node_opts.node_logs,
             data_dir_path: Some(node_opts.data_dir_path.clone()),
             ..Default::default()

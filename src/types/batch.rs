@@ -1,11 +1,7 @@
-use super::{NodeFilter, NodeId};
+use super::{IpVersion, NodeFilter, NodeId};
 
 use serde::{Deserialize, Serialize};
-use std::{
-    fmt,
-    net::{IpAddr, Ipv4Addr},
-    path::PathBuf,
-};
+use std::{fmt, path::PathBuf};
 
 /// Represents the current status of a batch operation on nodes.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -149,18 +145,14 @@ impl BatchOnMatch {
 /// Options when creating a new node instance.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct NodeOpts {
-    /// Listening IP address set by the user for the node (IPv4 or IPv6, including special values like `0.0.0.0` or `::`)
-    pub node_ip: IpAddr,
+    /// IP version to use for the node's network connections
+    pub ip_version: IpVersion,
     /// TCP port used by the node for main operations
     pub port: u16,
     /// TCP port used by the node for metrics reporting
     pub metrics_port: u16,
     /// Hex-encoded rewards address for the node
     pub rewards_addr: String,
-    /// Whether UPnP is enabled for this node
-    pub upnp: bool,
-    /// Whether reachability check is enabled for this node
-    pub reachability_check: bool,
     /// Whether node logs are enabled for this node
     pub node_logs: bool,
     /// Whether to automatically start the node after creation
@@ -172,12 +164,10 @@ pub struct NodeOpts {
 impl Default for NodeOpts {
     fn default() -> Self {
         NodeOpts {
-            node_ip: IpAddr::V4(Ipv4Addr::UNSPECIFIED),
+            ip_version: IpVersion::default(),
             port: u16::default(),
             metrics_port: u16::default(),
             rewards_addr: String::default(),
-            upnp: bool::default(),
-            reachability_check: bool::default(),
             node_logs: bool::default(),
             auto_start: bool::default(),
             data_dir_path: PathBuf::default(),

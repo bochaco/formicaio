@@ -1,20 +1,16 @@
-use crate::types::NodeOpts;
+use crate::types::{IpVersion, NodeOpts};
 
 use super::{
     form_inputs::{
-        CheckboxInput, IpAddrInput, NumberInput, PortNumberInput, RewardsAddrInput, TextInput,
+        CheckboxInput, IpVersionSelect, NumberInput, PortNumberInput, RewardsAddrInput, TextInput,
     },
     helpers::{add_node_instances, show_error_alert_msg},
     icons::IconCancel,
 };
 
 use leptos::{logging, prelude::*};
-use std::{
-    net::{IpAddr, Ipv4Addr},
-    path::PathBuf,
-};
+use std::path::PathBuf;
 
-const DEFAULT_NODE_IP: IpAddr = IpAddr::V4(Ipv4Addr::UNSPECIFIED);
 const DEFAULT_NODE_PORT: u16 = 12000;
 const DEFAULT_METRICS_PORT: u16 = 14000;
 
@@ -50,7 +46,7 @@ pub fn AddNodesForm(is_open: RwSignal<bool>) -> impl IntoView {
 
 #[component]
 fn AddNodeTabs(is_open: RwSignal<bool>, active_tab: RwSignal<u8>) -> impl IntoView {
-    let node_ip = RwSignal::new(Ok(DEFAULT_NODE_IP));
+    let ip_version = RwSignal::new(IpVersion::Dual);
     let port = RwSignal::new(Ok(DEFAULT_NODE_PORT));
     let metrics_port = RwSignal::new(Ok(DEFAULT_METRICS_PORT));
     let count = RwSignal::new(Ok(1));
@@ -58,8 +54,6 @@ fn AddNodeTabs(is_open: RwSignal<bool>, active_tab: RwSignal<u8>) -> impl IntoVi
         "0x".to_string(),
         "Enter a rewards address".to_string(),
     )));
-    let upnp = RwSignal::new(true);
-    let reachability_check = RwSignal::new(true);
     let auto_start = RwSignal::new(false);
     let interval = RwSignal::new(Ok(60));
     let data_dir_path = RwSignal::new(PathBuf::default());
@@ -121,22 +115,16 @@ fn AddNodeTabs(is_open: RwSignal<bool>, active_tab: RwSignal<u8>) -> impl IntoVi
                             help_msg="Automatically starts nodes upon creation."
                             help_align="left-0"
                         />
-                        <CheckboxInput
-                            signal=upnp
-                            id="upnp"
-                            label="Try UPnP"
-                            help_msg="Try to use UPnP to open a port in the home router and allow incoming connections. If your router does not support UPnP, your node/s may struggle to connect to any peers. In this situation, create new node/s with UPnP disabled."
-                        />
                     </div>
                 </div>
             </span>
 
             <span hidden=move || active_tab.read() != 1>
                 <div class="space-y-4 animate-in fade-in duration-300">
-                    <IpAddrInput
-                        signal=node_ip
-                        label="Node IP listening address:"
-                        help_msg="Specify the IP to listen on. The special value `0.0.0.0` binds to all IPv4 network interfaces available, while `::` binds to all IP v4 and v6 network interfaces available."
+                    <IpVersionSelect
+                        signal=ip_version
+                        label="IP version:"
+                        help_msg="Select the IP version for the node to use. 'Dual' uses both IPv4 and IPv6."
                     />
                     <TextInput
                         signal=data_dir_path
@@ -154,8 +142,7 @@ fn AddNodeTabs(is_open: RwSignal<bool>, active_tab: RwSignal<u8>) -> impl IntoVi
                         || rewards_addr.read().is_err() || interval.read().is_err()
                 }
                 on:click=move |_| {
-                    if let (Ok(ip), Ok(p), Ok(m), Ok(c), Ok(addr), Ok(i)) = (
-                        node_ip.get(),
+                    if let (Ok(p), Ok(m), Ok(c), Ok(addr), Ok(i)) = (
                         port.get(),
                         metrics_port.get(),
                         count.get(),
@@ -164,12 +151,10 @@ fn AddNodeTabs(is_open: RwSignal<bool>, active_tab: RwSignal<u8>) -> impl IntoVi
                     ) {
                         is_open.set(false);
                         let node_opts = NodeOpts {
-                            node_ip: ip,
+                            ip_version: ip_version.get(),
                             port: p,
                             metrics_port: m,
                             rewards_addr: addr.strip_prefix("0x").unwrap_or(&addr).to_string(),
-                            upnp: upnp.get(),
-                            reachability_check: reachability_check.get(),
                             node_logs: true,
                             auto_start: auto_start.get(),
                             data_dir_path: data_dir_path.get(),
