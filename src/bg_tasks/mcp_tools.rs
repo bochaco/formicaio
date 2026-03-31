@@ -10,7 +10,7 @@ use rust_mcp_sdk::{
     schema::{CallToolResult, TextContent, schema_utils::CallToolError},
     tool_box,
 };
-use std::{net::IpAddr, path::PathBuf, str::FromStr};
+use std::{path::PathBuf, str::FromStr};
 
 // Serialise object and return a result ready to return as the tool response
 fn serialise_to_tool_response<T: serde::Serialize>(
@@ -73,18 +73,14 @@ not already in use by any other node."
 )]
 #[derive(Debug, ::serde::Deserialize, ::serde::Serialize, JsonSchema)]
 pub struct CreateNodeInstance {
-    /// Listening IP address set by the user for the node (IPv4 or IPv6, including special values like `0.0.0.0` or `::`)
-    pub node_ip: String,
+    /// Force IPv4-only mode (disable dual-stack). Use on hosts without working IPv6 to avoid advertising unreachable addresses to the DHT.
+    pub ipv4_only: bool,
     /// TCP port used by the node for main operations
     pub port: u16,
     /// TCP port used by the node for metrics reporting
     pub metrics_port: u16,
     /// Hex-encoded rewards address for the node
     pub rewards_addr: String,
-    /// Whether UPnP is enabled for this node
-    pub upnp: bool,
-    /// Whether reachability check is enabled for this node
-    pub reachability_check: bool,
     /// Whether node logs are enabled for this node
     pub node_logs: bool,
     /// Whether to automatically start the node after creation
@@ -103,13 +99,10 @@ impl CreateNodeInstance {
         }
 
         let node_opts = NodeOpts {
-            node_ip: IpAddr::from_str(&self.node_ip)
-                .map_err(|err| CallToolError::from_message(err.to_string()))?,
+            ipv4_only: self.ipv4_only,
             port: self.port,
             metrics_port: self.metrics_port,
             rewards_addr: self.rewards_addr.clone(),
-            upnp: self.upnp,
-            reachability_check: self.reachability_check,
             node_logs: self.node_logs,
             auto_start: self.auto_start,
             data_dir_path: PathBuf::from(&self.data_dir_path),

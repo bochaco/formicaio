@@ -6,7 +6,7 @@ use alloy_primitives::U256;
 use chrono::Utc;
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::{fmt, net::IpAddr, path::PathBuf};
+use std::{fmt, path::PathBuf};
 
 // Length of nodes PeerIds' prefix and suffix to be displayed
 const PEER_ID_PREFIX_SUFFIX_LEN: usize = 12;
@@ -29,6 +29,7 @@ pub fn shortened_address(addr: &String) -> String {
         &str[str.len() - REWARDS_ADDR_PREFIX_SUFFIX_LEN..]
     )
 }
+
 
 #[derive(Clone, Default, Debug, Deserialize, PartialEq, Serialize)]
 pub enum ReachabilityCheckStatus {
@@ -82,16 +83,12 @@ pub struct NodeInstanceInfo {
     pub port: Option<u16>,
     /// TCP port used by the node for metrics reporting
     pub metrics_port: Option<u16>,
-    /// Listening IP address set by the user for the node (IPv4 or IPv6, including special values like `0.0.0.0` or `::`)
-    pub node_ip: Option<IpAddr>,
+    /// Whether to force IPv4-only mode (disable dual-stack)
+    pub ipv4_only: bool,
     /// Current balance of the node (if known)
     pub balance: Option<U256>,
     /// Hex-encoded rewards address for the node
     pub rewards_addr: Option<String>,
-    /// Whether UPnP is enabled for this node
-    pub upnp: bool,
-    /// Whether reachability check is enabled for this node
-    pub reachability_check: bool,
     /// Whether node logs are enabled for this node
     pub node_logs: bool,
     /// Current rewards earned by the node

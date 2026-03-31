@@ -267,18 +267,13 @@ fn build_create_node_instance(args: &Value) -> Result<CreateNodeInstance, String
     let metrics_port = parse_u16_arg(args, "metrics_port")?;
 
     Ok(CreateNodeInstance {
-        node_ip: args["node_ip"]
-            .as_str()
-            .ok_or("missing node_ip")?
-            .to_string(),
+        ipv4_only: args["ipv4_only"].as_bool().unwrap_or(false),
         port,
         metrics_port,
         rewards_addr: args["rewards_addr"]
             .as_str()
             .ok_or("missing rewards_addr")?
             .to_string(),
-        upnp: args["upnp"].as_bool().unwrap_or(false),
-        reachability_check: args["reachability_check"].as_bool().unwrap_or(true),
         node_logs: args["node_logs"].as_bool().unwrap_or(false),
         auto_start: args["auto_start"].as_bool().unwrap_or(true),
         data_dir_path: args["data_dir_path"].as_str().unwrap_or("").to_string(),
