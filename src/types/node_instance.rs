@@ -188,7 +188,7 @@ impl NodeInstanceInfo {
     }
 
     pub fn set_status_to_unknown(&mut self) {
-        self.set_status_changed_now();
+        //self.set_status_changed_now();
         self.is_status_unknown = true;
         self.mem_used = None;
         self.cpu_usage = None;

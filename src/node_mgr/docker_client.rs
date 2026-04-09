@@ -342,9 +342,9 @@ impl DockerClient {
             ));
         }
         if node_opts.ipv4_only {
-            env_vars.push("IP_VERSION_ARG=--ipv4-only".to_string());
+            env_vars.push("IPV4_ONLY_ARG=--ipv4-only".to_string());
         } else {
-            env_vars.push("IP_VERSION_ARG=".to_string());
+            env_vars.push("IPV4_ONLY_ARG=".to_string());
         }
         if !node_opts.node_logs {
             env_vars.push("NODE_LOGS_ARG=".to_string());

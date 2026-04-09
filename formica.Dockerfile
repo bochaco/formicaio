@@ -7,19 +7,23 @@ WORKDIR /app
 
 # Install node binary
 RUN apk add curl bash
-RUN curl -sSL https://raw.githubusercontent.com/maidsafe/antup/main/install.sh | bash
-RUN cp /usr/local/bin/antup /app/
-RUN /app/antup node -n -p /app
+RUN ARCH=$(uname -m); \
+    if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then \
+      URL="https://github.com/WithAutonomi/ant-node/releases/download/v0.9.0/ant-node-cli-linux-arm64.tar.gz"; \
+    else \
+      URL="https://github.com/WithAutonomi/ant-node/releases/download/v0.9.0/ant-node-cli-linux-x64.tar.gz"; \
+    fi; \
+    curl -L "$URL" | tar xz -C ./
+RUN /app/ant-node --version
 
 FROM alpine AS runtime
 # Make an /app dir, which everything will eventually live in
 WORKDIR /app
 
-# Copy antup binary to the /app directory
-COPY --from=builder /app/antup /app/
-
 # Copy the node binary to the /app directory
-COPY --from=builder /app/antnode /app/
+COPY --from=builder /app/ant-node /app/
+# Copy the bootstrap peers list to the /app directory
+COPY --from=builder /app/bootstrap_peers.toml /app/
 
 # Set any required env variables
 # Set default port numbers for node and its metrics service
@@ -30,32 +34,28 @@ ENV METRICS_PORT=14000
 # that will receive the rewards for the node: --rewards-address <REWARDS_ADDRESS>
 ENV REWARDS_ADDR_ARG=''
 
-ENV UPNP_ARG=''
-ENV IP_ARG=''
-ENV REACHABILITY_CHECK_ARG=''
+ENV IPV4_ONLY_ARG=''
 
 # Define whether to enable node logs.
-ENV NODE_LOGS_ARG='--log-output-dest /app/node_data/logs'
+ENV NODE_LOGS_ARG='--log-dir /app/node_data/logs'
 
 # Run the node
 CMD ["sh", "-c", "while true; \
   do \
-  CURRENT_VERSION=$(/app/antnode --version); \
+  CURRENT_VERSION=$(/app/ant-node --version); \
   if [ -e '/app/node_data/secret-key-recycle' ]; then rm -f /app/node_data/secret-key*; fi \
-  && /app/antnode \
+  && /app/ant-node \
   --stop-on-upgrade \
-  ${UPNP_ARG} \
-  ${REACHABILITY_CHECK_ARG} \
-  ${IP_ARG} \
+  ${IPV4_ONLY_ARG} \
   --port ${NODE_PORT} \
-  --metrics-server-port ${METRICS_PORT} \
+  --metrics-port ${METRICS_PORT} \
   --root-dir /app/node_data \
   ${NODE_LOGS_ARG} \
   --bootstrap-cache-dir /app/node_data \
   ${REWARDS_ADDR_ARG} \
-  evm-arbitrum-one; \
+  --evm-network arbitrum-one; \
   EXIT_CODE=$?; \
-  NEW_VERSION=$(/app/antnode --version); \
+  NEW_VERSION=$(/app/ant-node --version); \
   if [ \"${NEW_VERSION}\" != \"${CURRENT_VERSION}\" ]; then \
     echo \"Version changed from ${CURRENT_VERSION} to ${NEW_VERSION}, restarting...\"; \
   else \
