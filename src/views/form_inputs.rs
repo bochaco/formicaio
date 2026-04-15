@@ -3,7 +3,7 @@ use crate::{app::get_addr_from_metamask, server_api::parse_and_validate_addr};
 use super::icons::*;
 
 use leptos::{prelude::*, task::spawn_local};
-use std::{net::IpAddr, num::ParseIntError, path::PathBuf};
+use std::{num::ParseIntError, path::PathBuf};
 
 #[component]
 fn FormField(
@@ -64,37 +64,27 @@ pub fn PortNumberInput(
 }
 
 #[component]
-pub fn IpAddrInput(
-    signal: RwSignal<Result<IpAddr, (String, String)>>,
+pub fn Ipv4OnlySelect(
+    signal: RwSignal<bool>,
     label: &'static str,
     help_msg: &'static str,
 ) -> impl IntoView {
-    let validate_and_set = move |input_str: String| {
-        let res = match input_str.parse() {
-            Ok(addr) => Ok(addr),
-            Err::<IpAddr, std::net::AddrParseError>(err) => Err((input_str, err.to_string())),
-        };
-        signal.set(res);
-    };
-
     view! {
-        <FormField
-            label
-            help_msg
-            error=Signal::derive(move || signal.read().clone().map_err(|(_, err)| err).err())
-        >
-            <input
-                type="text"
-                name="node_ip"
-                id="node_ip"
-                on:input=move |ev| validate_and_set(event_target_value(&ev))
-                required
-                prop:value=move || match signal.get() {
-                    Ok(s) => s.to_string(),
-                    Err((s, _)) => s,
+        <FormField label help_msg>
+            <select
+                id="ipv4_only"
+                on:change=move |ev| {
+                    signal.set(event_target_value(&ev) == "true");
                 }
-                class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-sm focus:ring-1 focus:ring-indigo-500 focus:outline-none font-mono"
-            />
+                class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-sm focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+            >
+                <option value="false" selected=move || !signal.get()>
+                    "Dual-stack (IPv4 + IPv6)"
+                </option>
+                <option value="true" selected=move || signal.get()>
+                    "IPv4 only"
+                </option>
+            </select>
         </FormField>
     }
 }

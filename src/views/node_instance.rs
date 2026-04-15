@@ -65,14 +65,8 @@ pub(super) fn NodeInstanceView(
 
     // warn the user when there is no connected peers for more than 2 minutes
     let innactivity_started = RwSignal::new(0i64);
-    let reachability_check_running = move || {
-        info.get()
-            .reachability
-            .map(|r| r.in_progress())
-            .unwrap_or(false)
-    };
     let warn_conn_peers = move || {
-        if info.read().status.is_active() && !reachability_check_running() {
+        if info.read().status.is_active() {
             if matches!(info.read().connected_peers, Some(0)) {
                 if innactivity_started.get_untracked() == 0 {
                     innactivity_started.set(Utc::now().timestamp());
@@ -428,13 +422,6 @@ fn ExpandedNodeDetails(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
         }
     };
 
-    let reachability_check_running = move || {
-        info.get()
-            .reachability
-            .map(|r| r.in_progress())
-            .unwrap_or(false)
-    };
-
     view! {
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0">
             <DetailItemView label="Peer ID" full_width=true>
@@ -484,43 +471,14 @@ fn ExpandedNodeDetails(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                 {move || value_or_dash(info.read().relevant_records)}
             </DetailItemView>
 
-            <div class="col-span-full">
-                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    "Listen IPs"
-                </span>
-                <div class="text-sm font-mono mt-0.5 text-slate-300 relative flex overflow-x-hidden">
-                    <div class=move || {
-                        if info.read().node_ip.is_none_or(|ip| ip.to_string().len() < 15) {
-                            ""
-                        } else {
-                            "flex whitespace-nowrap animate-slide"
-                        }
-                    }>{move || value_or_dash(info.get().node_ip)}</div>
-                </div>
-            </div>
-
+            <DetailItemView label="IPv4 only">
+                {move || info.read().ipv4_only.to_string()}
+            </DetailItemView>
             <DetailItemView label="Port">
                 {value_or_dash(info.read_untracked().port)}
             </DetailItemView>
             <DetailItemView label="Metrics Port">
                 {value_or_dash(info.read_untracked().metrics_port)}
-            </DetailItemView>
-            <DetailItemView label="UPnP">
-                {if info.read_untracked().upnp { "On" } else { "Off" }}
-            </DetailItemView>
-            <DetailItemView label="Reachability Check">
-                <Show
-                    when=move || { info.read().reachability.is_some() }
-                    fallback=move || {
-                        view! {
-                            {move || { if info.read().reachability_check { "On" } else { "Off" } }}
-                        }
-                    }
-                >
-                    <span class=move || {
-                        if reachability_check_running() { "node-info-item-info" } else { "" }
-                    }>{move || { value_or_dash(info.read().reachability.clone()) }}</span>
-                </Show>
             </DetailItemView>
 
             <div class="col-span-full">

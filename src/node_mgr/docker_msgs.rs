@@ -3,18 +3,13 @@ use crate::types::{InactiveReason, NodeId, NodeInstanceInfo};
 #[cfg(feature = "ssr")]
 use super::docker_client::{
     LABEL_KEY_METRICS_PORT, LABEL_KEY_NODE_LOGS_DISABLED, LABEL_KEY_NODE_PORT,
-    LABEL_KEY_REACHABILITY_CHECK_DISABLED, LABEL_KEY_REWARDS_ADDR, LABEL_KEY_UPNP_DISABLED,
+    LABEL_KEY_REWARDS_ADDR,
 };
 #[cfg(feature = "ssr")]
 use crate::types::NodeStatus;
 
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::HashMap,
-    net::{IpAddr, Ipv4Addr},
-};
-
-const DEFAULT_NODE_IP: IpAddr = IpAddr::V4(Ipv4Addr::UNSPECIFIED);
+use std::collections::HashMap;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[allow(non_snake_case)]
@@ -40,15 +35,6 @@ impl Container {
             .get(LABEL_KEY_METRICS_PORT)
             .map(|v| v.parse::<u16>().unwrap_or_default())
     }
-    pub fn node_ip(&self) -> Option<String> {
-        self.NetworkSettings.Networks.get("bridge").and_then(|n| {
-            if n.IPAddress.is_empty() {
-                None
-            } else {
-                Some(n.IPAddress.clone())
-            }
-        })
-    }
 }
 
 impl From<Container> for NodeInstanceInfo {
@@ -64,15 +50,7 @@ impl From<Container> for NodeInstanceInfo {
             },
             port: val.port(),
             metrics_port: val.metrics_port(),
-            node_ip: Some(
-                val.node_ip()
-                    .map_or(DEFAULT_NODE_IP, |v| v.parse().unwrap_or(DEFAULT_NODE_IP)),
-            ),
             rewards_addr: val.Labels.get(LABEL_KEY_REWARDS_ADDR).cloned(),
-            upnp: !val.Labels.contains_key(LABEL_KEY_UPNP_DISABLED),
-            reachability_check: !val
-                .Labels
-                .contains_key(LABEL_KEY_REACHABILITY_CHECK_DISABLED),
             node_logs: !val.Labels.contains_key(LABEL_KEY_NODE_LOGS_DISABLED),
             ..Default::default()
         }

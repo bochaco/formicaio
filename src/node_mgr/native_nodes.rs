@@ -3,15 +3,14 @@ use crate::{
     types::{InactiveReason, NodeId, NodeInstanceInfo, NodePid},
 };
 
-use ant_releases::{
-    AntReleaseRepoActions, AntReleaseRepository, ArchiveType, ReleaseType, get_running_platform,
-};
 use bytes::Bytes;
+use flate2::read::GzDecoder;
 use futures_util::Stream;
 use leptos::logging;
-use libp2p_identity::{Keypair, PeerId};
 use local_ip_address::list_afinet_netifas;
+use saorsa_core::identity::NodeIdentity;
 use semver::Version;
+use serde_json;
 use std::{
     collections::{HashMap, hash_map::Entry},
     env,
@@ -32,19 +31,21 @@ use walkdir::WalkDir;
 
 // Name of the node binary used to launch new nodes processes
 #[cfg(windows)]
-const NODE_BIN_NAME: &str = "antnode.exe";
+const NODE_BIN_NAME: &str = "ant-node.exe";
 #[cfg(not(windows))]
-const NODE_BIN_NAME: &str = "antnode";
+const NODE_BIN_NAME: &str = "ant-node";
 
-const DEFAULT_EVM_NETWORK: &str = "evm-arbitrum-one";
+const DEFAULT_EVM_NETWORK: &str = "arbitrum-one";
 const NODE_MGR_ROOT_DIR: &str = "NODE_MGR_ROOT_DIR";
 const DEFAULT_ROOT_FOLDER: &str = "formicaio_data";
 const DEFAULT_NODE_DATA_FOLDER: &str = "node_data";
 const DEFAULT_LOGS_FOLDER: &str = "logs";
 const DEFAULT_BOOTSTRAP_CACHE_FOLDER: &str = "bootstrap_cache";
+const NODE_IDENTITY_KEY_FILE: &str = "node_identity.key";
+const NODE_LOG_FILENAME_PREFIX: &str = "ant-node.";
 
-// Consts used to download node binary
-const ANTNODE_S3_BASE_URL: &str = "https://antnode.s3.eu-west-2.amazonaws.com";
+// Consts used to download node binary from GitHub releases
+const ANT_NODE_GITHUB_REPO: &str = "WithAutonomi/ant-node";
 const GITHUB_API_URL: &str = "https://api.github.com";
 
 #[derive(Debug, Error)]
@@ -59,12 +60,16 @@ pub enum NativeNodesError {
     SpawnNodeMissingParam(String),
     #[error(transparent)]
     StdIoError(#[from] std::io::Error),
-    #[error(transparent)]
-    PeerIdError(#[from] libp2p_identity::DecodingError),
-    #[error(transparent)]
-    NodeBinInstallError(#[from] ant_releases::Error),
+    #[error("Failed to load node identity: {0}")]
+    NodeIdentityError(String),
+    #[error("Failed to download node binary: {0}")]
+    NodeBinDownloadError(String),
+    #[error("No supported platform found for current architecture")]
+    UnsupportedPlatform,
     #[error(transparent)]
     NodeBinVersionError(#[from] semver::Error),
+    #[error(transparent)]
+    ReqwestError(#[from] reqwest::Error),
 }
 
 #[derive(Debug)]
@@ -79,6 +84,65 @@ impl NodeProcess {
             NodeProcess::Spawned(child) => child.id(),
             NodeProcess::ProcessFound(pid) => pid.as_u32(),
         }
+    }
+}
+
+// Determine the platform-specific archive name for downloading ant-node
+fn get_platform_archive_name() -> Result<String, NativeNodesError> {
+    let arch = std::env::consts::ARCH;
+    let os = std::env::consts::OS;
+
+    let name = match (os, arch) {
+        ("linux", "x86_64") => "ant-node-cli-linux-x64.tar.gz",
+        ("linux", "aarch64") => "ant-node-cli-linux-arm64.tar.gz",
+        ("macos", "x86_64") => "ant-node-cli-macos-x64.tar.gz",
+        ("macos", "aarch64") => "ant-node-cli-macos-arm64.tar.gz",
+        ("windows", "x86_64") => "ant-node-cli-windows-x64.zip",
+        _ => return Err(NativeNodesError::UnsupportedPlatform),
+    };
+    Ok(name.to_string())
+}
+
+// Extract NODE_BIN_NAME from a .tar.gz or .zip archive to the destination path
+fn extract_binary_from_archive(
+    archive_path: &Path,
+    bin_name: &str,
+    dest_path: &Path,
+) -> Result<(), NativeNodesError> {
+    let archive_str = archive_path.to_string_lossy();
+    if archive_str.ends_with(".tar.gz") {
+        let file = std::fs::File::open(archive_path)?;
+        let gz = GzDecoder::new(file);
+        let mut archive = tar::Archive::new(gz);
+        for entry in archive.entries()? {
+            let mut entry = entry?;
+            let path = entry.path()?;
+            if path.file_name().map_or(false, |n| n == bin_name) {
+                entry.unpack(dest_path)?;
+                return Ok(());
+            }
+        }
+        Err(NativeNodesError::NodeBinDownloadError(format!(
+            "Binary '{bin_name}' not found in archive"
+        )))
+    } else {
+        // .zip (Windows)
+        let file = std::fs::File::open(archive_path)?;
+        let mut zip = zip::ZipArchive::new(file)
+            .map_err(|e| NativeNodesError::NodeBinDownloadError(e.to_string()))?;
+        for i in 0..zip.len() {
+            let mut entry = zip
+                .by_index(i)
+                .map_err(|e| NativeNodesError::NodeBinDownloadError(e.to_string()))?;
+            if entry.name().ends_with(bin_name) {
+                let mut out = std::fs::File::create(dest_path)?;
+                std::io::copy(&mut entry, &mut out)?;
+                return Ok(());
+            }
+        }
+        Err(NativeNodesError::NodeBinDownloadError(format!(
+            "Binary '{bin_name}' not found in zip archive"
+        )))
     }
 }
 
@@ -193,45 +257,37 @@ impl NativeNodes {
             }
         }
 
-        let mut args = if !node_info.upnp {
-            vec!["--no-upnp".to_string()]
-        } else {
-            vec![]
-        };
+        let mut args = vec![
+            "--port".to_string(),
+            port.to_string(),
+            "--metrics-port".to_string(),
+            metrics_port.to_string(),
+            "--root-dir".to_string(),
+            node_data_dir.display().to_string(),
+        ];
 
-        if !node_info.reachability_check {
-            args.push("--skip-reachability-check".to_string());
+        if node_info.ipv4_only {
+            args.push("--ipv4-only".to_string());
         }
 
-        args.push("--port".to_string());
-        args.push(port.to_string());
-
-        if let Some(ip) = node_info.node_ip {
-            args.push("--ip".to_string());
-            args.push(ip.to_string());
-        }
-
-        args.push("--metrics-server-port".to_string());
-        args.push(metrics_port.to_string());
-
-        args.push("--root-dir".to_string());
-        args.push(node_data_dir.display().to_string());
-
-        args.push("--log-output-dest".to_string());
         if node_info.node_logs {
+            args.push("--log-dir".to_string());
             args.push(log_output_dir.display().to_string());
-        } else {
-            // untill the node binary supports this feature,
-            // we just send it to stdout, which we in turn send it to 'null'
-            args.push("stdout".to_string());
         }
 
         args.push("--bootstrap-cache-dir".to_string());
         args.push(bootstrap_cache_dir.display().to_string());
 
         args.push("--rewards-address".to_string());
-        args.push(rewards_address.to_string());
+        let rewards_address_str = rewards_address.to_string();
+        let rewards_address_str = if rewards_address_str.starts_with("0x") {
+            rewards_address_str
+        } else {
+            format!("0x{rewards_address_str}")
+        };
+        args.push(rewards_address_str);
 
+        args.push("--evm-network".to_string());
         args.push(DEFAULT_EVM_NETWORK.to_string());
 
         let mut command = Command::new(node_bin_path);
@@ -595,7 +651,7 @@ impl NativeNodes {
         node_info: &NodeInstanceInfo,
     ) -> Result<(Option<String>, Option<String>, Option<String>), NativeNodesError> {
         let id = &node_info.node_id;
-        let only_ipv4 = node_info.node_ip.is_none_or(|ip| ip.is_ipv4());
+        let only_ipv4 = node_info.ipv4_only;
 
         let version = match self.read_node_version(Some(node_info)).await {
             Ok(version) => Some(version.to_string()),
@@ -671,7 +727,7 @@ impl NativeNodes {
         if let Some(line) = lines.first() {
             let version_str = String::from_utf8_lossy(line)
                 .to_string()
-                .strip_prefix("Autonomi Node v")
+                .strip_prefix("ant-node ")
                 .unwrap_or_default()
                 .to_string();
 
@@ -686,13 +742,11 @@ impl NativeNodes {
         node_info: &NodeInstanceInfo,
     ) -> Result<String, NativeNodesError> {
         let node_data_dir = self.get_node_data_dir(node_info, true);
-        let sk_file_path = node_data_dir.join("secret-key");
-        let mut file = File::open(sk_file_path).await?;
-        let mut key_str = Vec::new();
-        file.read_to_end(&mut key_str).await?;
-
-        let keypair = Keypair::ed25519_from_bytes(key_str)?;
-        Ok(PeerId::from(keypair.public()).to_string())
+        let key_file_path = node_data_dir.join(NODE_IDENTITY_KEY_FILE);
+        let identity = NodeIdentity::load_from_file(&key_file_path)
+            .await
+            .map_err(|e| NativeNodesError::NodeIdentityError(e.to_string()))?;
+        Ok(identity.peer_id().to_string())
     }
 
     // Upgrade the binary of given node
@@ -723,20 +777,23 @@ impl NativeNodes {
         &self,
         version: Option<&Version>,
     ) -> Result<Version, NativeNodesError> {
-        let release_repo = AntReleaseRepository {
-            github_api_base_url: GITHUB_API_URL.to_string(),
-            nat_detection_base_url: "".to_string(),
-            node_launchpad_base_url: "".to_string(),
-            ant_base_url: "".to_string(),
-            antnode_base_url: ANTNODE_S3_BASE_URL.to_string(),
-            antctl_base_url: "".to_string(),
-            antnode_rpc_client_base_url: "".to_string(),
-        };
-        let release_type = ReleaseType::AntNode;
+        let client = reqwest::Client::builder().user_agent("formicaio").build()?;
 
         let version_to_download = match version {
             Some(v) => v.clone(),
-            None => release_repo.get_latest_version(&release_type).await?,
+            None => {
+                let url = format!("{GITHUB_API_URL}/repos/{ANT_NODE_GITHUB_REPO}/releases/latest");
+                let resp: serde_json::Value = client.get(&url).send().await?.json().await?;
+                let tag = resp["tag_name"]
+                    .as_str()
+                    .ok_or_else(|| {
+                        NativeNodesError::NodeBinDownloadError(
+                            "Missing tag_name in GitHub release response".to_string(),
+                        )
+                    })?
+                    .trim_start_matches('v');
+                tag.parse()?
+            }
         };
 
         // we upgrade only if existing node binary is not the latest version
@@ -752,25 +809,42 @@ impl NativeNodes {
         logging::log!(
             "[NodeMgr] Downloading node binary version v{version_to_download} from repository ..."
         );
-        let platform = get_running_platform()?;
 
-        let archive_path = release_repo
-            .download_release_from_s3(
-                &release_type,
-                &version_to_download,
-                &platform,
-                &ArchiveType::TarGz,
-                &self.root_dir,
-                &|_, _| {},
-            )
-            .await?;
+        let archive_name = get_platform_archive_name()?;
+        let download_url = format!(
+            "https://github.com/{ANT_NODE_GITHUB_REPO}/releases/download/v{version_to_download}/{archive_name}"
+        );
 
-        let bin_path = release_repo.extract_release_archive(&archive_path, &self.root_dir)?;
+        logging::log!("[NodeMgr] Downloading from: {download_url}");
+
+        let response = client.get(&download_url).send().await?;
+        if !response.status().is_success() {
+            return Err(NativeNodesError::NodeBinDownloadError(format!(
+                "HTTP {} when downloading {download_url}",
+                response.status()
+            )));
+        }
+
+        let archive_bytes = response.bytes().await?;
+        let archive_path = self.root_dir.join(&archive_name);
+        tokio::fs::write(&archive_path, &archive_bytes).await?;
+
+        // Extract the binary from the archive
+        let bin_path = self.root_dir.join(NODE_BIN_NAME);
+        extract_binary_from_archive(&archive_path, NODE_BIN_NAME, &bin_path)?;
 
         remove_file(archive_path).await?;
 
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut permissions = tokio::fs::metadata(&bin_path).await?.permissions();
+            permissions.set_mode(0o755);
+            tokio::fs::set_permissions(&bin_path, permissions).await?;
+        }
+
         logging::log!(
-            "[NodeMgr] Node binary v{version_to_download} downloaded successfully and unpacked at: {bin_path:?}"
+            "[NodeMgr] Node binary v{version_to_download} downloaded successfully at: {bin_path:?}"
         );
 
         Ok(version_to_download)
@@ -786,9 +860,9 @@ impl NativeNodes {
             node_info.node_id
         );
 
-        // we remove 'secret-key' file so the node will re-generate it when restarted.
+        // we remove 'node_identity.key' file so the node will re-generate it when restarted.
         let node_data_dir = self.get_node_data_dir(node_info, true);
-        let file_path = node_data_dir.join("secret-key");
+        let file_path = node_data_dir.join(NODE_IDENTITY_KEY_FILE);
         remove_file(file_path).await?;
 
         // restart node to obtain a new peer-id
@@ -803,6 +877,28 @@ impl NativeNodes {
         Ok(pid)
     }
 
+    // Find the most recent log file in the given logs directory.
+    // Log files are named {NODE_LOG_FILENAME_PREFIX}.YYYY-MM-DD.log and rotate daily.
+    async fn find_latest_log_file(logs_dir: &Path) -> Option<PathBuf> {
+        let mut read_dir = tokio::fs::read_dir(logs_dir).await.ok()?;
+        let mut latest: Option<(String, PathBuf)> = None;
+        while let Ok(Some(entry)) = read_dir.next_entry().await {
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy();
+            if name_str.starts_with(NODE_LOG_FILENAME_PREFIX) && name_str.ends_with(".log") {
+                let date_part = &name_str[NODE_LOG_FILENAME_PREFIX.len()..name_str.len() - 4];
+                match &latest {
+                    None => latest = Some((date_part.to_string(), entry.path())),
+                    Some((cur_date, _)) if date_part > cur_date.as_str() => {
+                        latest = Some((date_part.to_string(), entry.path()))
+                    }
+                    _ => {}
+                }
+            }
+        }
+        latest.map(|(_, path)| path)
+    }
+
     // Return a node logs stream.
     pub async fn get_node_logs_stream(
         &self,
@@ -814,7 +910,13 @@ impl NativeNodes {
         );
 
         let node_data_dir = self.get_node_data_dir(node_info, true);
-        let log_file_path = node_data_dir.join(DEFAULT_LOGS_FOLDER).join("antnode.log");
+        let logs_dir = node_data_dir.join(DEFAULT_LOGS_FOLDER);
+        let log_file_path = Self::find_latest_log_file(&logs_dir).await.ok_or_else(|| {
+            NativeNodesError::StdIoError(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("No log file found in {logs_dir:?}"),
+            ))
+        })?;
 
         let mut file = File::open(log_file_path).await?;
         let file_length = file.metadata().await?.len();
