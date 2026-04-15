@@ -83,14 +83,12 @@ struct CachedNodeMetadata {
     is_status_unknown: bool,
     peer_id: String,
     bin_version: String,
-    ip_addr: String,
+    ipv4_only: bool,
     port: u16,
     metrics_port: u16,
     rewards: String,
     balance: String,
     rewards_addr: String,
-    upnp: bool,
-    reachability_check: bool,
     node_logs: bool,
     records: String,
     connected_peers: String,
@@ -134,9 +132,7 @@ impl CachedNodeMetadata {
         if !self.bin_version.is_empty() {
             info.bin_version = Some(self.bin_version.clone());
         }
-        if let Ok(v) = self.ip_addr.parse() {
-            info.node_ip = Some(v);
-        }
+        info.ipv4_only = self.ipv4_only;
         if self.port > 0 {
             info.port = Some(self.port);
         }
@@ -148,8 +144,6 @@ impl CachedNodeMetadata {
         {
             info.rewards = Some(v);
         }
-        info.upnp = self.upnp;
-        info.reachability_check = self.reachability_check;
         info.node_logs = self.node_logs;
         if !self.balance.is_empty()
             && let Ok(v) = U256::from_str(&self.balance)
@@ -237,7 +231,11 @@ impl DbClient {
 
         let migrations = current_dir()?.join("migrations");
         logging::log!("[DB] Applying database migrations from: {migrations:?} ...");
-        Migrator::new(migrations).await?.run(&db).await?;
+        Migrator::new(migrations)
+            .await?
+            .set_ignore_missing(true)
+            .run(&db)
+            .await?;
 
         logging::log!("[DB] Database migrations completed successfully!");
         Ok(Self {
@@ -365,11 +363,11 @@ impl DbClient {
         let query_str = "INSERT OR REPLACE INTO nodes (\
                 node_id, created, status_changed, status, \
                 is_status_locked, is_status_unknown, \
-                ip_addr, port, metrics_port, rewards_addr, \
-                upnp, reachability_check, node_logs, \
+                ipv4_only, port, metrics_port, rewards_addr, \
+                node_logs, \
                 records, connected_peers, kbuckets_peers, \
                 data_dir_path \
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             .to_string();
 
         let db_lock = self.db.lock().await;
@@ -380,12 +378,10 @@ impl DbClient {
             .bind(json!(info.status).to_string())
             .bind(info.is_status_locked)
             .bind(info.is_status_unknown)
-            .bind(info.node_ip.map_or("".to_string(), |v| v.to_string()))
+            .bind(info.ipv4_only)
             .bind(info.port)
             .bind(info.metrics_port)
             .bind(info.rewards_addr.clone())
-            .bind(info.upnp)
-            .bind(info.reachability_check)
             .bind(info.node_logs)
             .bind(info.records.map_or("".to_string(), |v| v.to_string()))
             .bind(

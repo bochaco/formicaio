@@ -37,12 +37,8 @@ pub const LABEL_KEY_NODE_PORT: &str = "node_port";
 pub const LABEL_KEY_METRICS_PORT: &str = "metrics_port";
 // Label's key to cache the rewards address set for the node
 pub const LABEL_KEY_REWARDS_ADDR: &str = "rewards_addr";
-// Label's key to cache the flag value set --no-upnp for the node
-pub const LABEL_KEY_UPNP_DISABLED: &str = "upnp_disabled";
 // Label's key to cache the value set to node logs for the node
 pub const LABEL_KEY_NODE_LOGS_DISABLED: &str = "node_logs_disabled";
-// Label's key to cache the value to whether set --skip-reachability-check for the node
-pub const LABEL_KEY_REACHABILITY_CHECK_DISABLED: &str = "reachability_check_disabled";
 
 // Docker API base paths
 const DOCKER_CONTAINERS_API: &str = "/containers";
@@ -345,17 +341,10 @@ impl DockerClient {
                 node_opts.rewards_addr.clone(),
             ));
         }
-        env_vars.push(format!("IP_ARG=--ip {}", node_opts.node_ip));
-        if !node_opts.upnp {
-            labels.push((LABEL_KEY_UPNP_DISABLED.to_string(), "true".to_string()));
-            env_vars.push("UPNP_ARG=--no-upnp".to_string());
-        }
-        if !node_opts.reachability_check {
-            labels.push((
-                LABEL_KEY_REACHABILITY_CHECK_DISABLED.to_string(),
-                "true".to_string(),
-            ));
-            env_vars.push("REACHABILITY_CHECK_ARG=--skip-reachability-check".to_string());
+        if node_opts.ipv4_only {
+            env_vars.push("IP_VERSION_ARG=--ipv4-only".to_string());
+        } else {
+            env_vars.push("IP_VERSION_ARG=".to_string());
         }
         if !node_opts.node_logs {
             env_vars.push("NODE_LOGS_ARG=".to_string());

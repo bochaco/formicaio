@@ -20,11 +20,7 @@ use chrono::{DateTime, Local, Utc};
 use eyre::eyre;
 use leptos::prelude::ServerFnError;
 use prettytable::{Table, format, row};
-use std::{
-    io::Write,
-    net::{IpAddr, Ipv4Addr, SocketAddr},
-    path::PathBuf,
-};
+use std::{io::Write, net::SocketAddr, path::PathBuf};
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
@@ -179,9 +175,9 @@ pub enum NodesSubcommands {
 
 #[derive(Debug, PartialEq, StructOpt)]
 pub struct NodeOptsCmd {
-    /// Specify the IP for the node to listen on. The special value `0.0.0.0` binds to all IPv4 network interfaces available, while `::` binds to all IP v4 and v6 network interfaces available.
+    /// Force IPv4-only mode (disable dual-stack). Use on hosts without working IPv6 to avoid advertising unreachable addresses to the DHT.
     #[structopt(long)]
-    ip_addr: Option<IpAddr>,
+    ipv4_only: bool,
     /// Node port number (range start when creating multiple nodes)
     #[structopt(long)]
     port: u16,
@@ -191,14 +187,6 @@ pub struct NodeOptsCmd {
     /// Rewards address
     #[structopt(long, parse(try_from_str = parse_and_validate_addr))]
     rewards_addr: Address,
-    /// Try to use UPnP to open a port in the home router and allow incoming connections.
-    /// If your router does not support UPnP, your node/s may struggle to connect to any peers. In this situation, create new node/s with UPnP disabled.
-    #[structopt(long)]
-    upnp: bool,
-    /// Run reachability checks before starting the node. Reachability check determines the network connectivity and auto configures the node for you.
-    /// You don't need to enable this check if you are sure about the network configuration.
-    #[structopt(long)]
-    reachability_check: bool,
     /// Automatically starts nodes upon creation.
     #[structopt(long)]
     auto_start: bool,
@@ -283,14 +271,10 @@ impl CliCommands {
             }
             CliCommands::Nodes(NodesSubcommands::Create(node_opts_cmd)) => {
                 let node_opts = NodeOpts {
-                    node_ip: node_opts_cmd
-                        .ip_addr
-                        .unwrap_or(IpAddr::V4(Ipv4Addr::UNSPECIFIED)),
+                    ipv4_only: node_opts_cmd.ipv4_only,
                     port: node_opts_cmd.port,
                     metrics_port: node_opts_cmd.metrics_port,
                     rewards_addr: node_opts_cmd.rewards_addr.to_string(),
-                    upnp: node_opts_cmd.upnp,
-                    reachability_check: node_opts_cmd.reachability_check,
                     node_logs: true,
                     auto_start: node_opts_cmd.auto_start,
                     data_dir_path: node_opts_cmd.data_dir_path.clone(),
@@ -478,18 +462,16 @@ impl CliCommands {
                     })
             }
             CliCommands::Nodes(NodesSubcommands::Create(opts)) => {
-                let node_ip = opts.ip_addr.unwrap_or(IpAddr::V4(Ipv4Addr::UNSPECIFIED));
+                let ipv4_only = opts.ipv4_only;
 
                 if opts.count > 1 {
                     // TODO: use some crate which performs this serialisation
                     let body = format!(
-                        "batch_type[Create][node_opts][node_ip]={}&batch_type[Create][node_opts][port]={}&batch_type[Create][node_opts][metrics_port]={}&batch_type[Create][node_opts][rewards_addr]={}&batch_type[Create][node_opts][upnp]={}&batch_type[Create][node_opts][reachability_check]={}&batch_type[Create][node_opts][node_logs]={}&batch_type[Create][node_opts][auto_start]={}&batch_type[Create][node_opts][data_dir_path]={}&batch_type[Create][count]={}&interval_secs={}",
-                        node_ip,
+                        "batch_type[Create][node_opts][ipv4_only]={}&batch_type[Create][node_opts][port]={}&batch_type[Create][node_opts][metrics_port]={}&batch_type[Create][node_opts][rewards_addr]={}&batch_type[Create][node_opts][node_logs]={}&batch_type[Create][node_opts][auto_start]={}&batch_type[Create][node_opts][data_dir_path]={}&batch_type[Create][count]={}&interval_secs={}",
+                        ipv4_only,
                         opts.port,
                         opts.metrics_port,
                         opts.rewards_addr,
-                        opts.upnp,
-                        opts.reachability_check,
                         true,
                         opts.auto_start,
                         form_urlencoded::byte_serialize(
@@ -506,13 +488,11 @@ impl CliCommands {
                 } else {
                     // TODO: use some crate which performs this serialisation
                     let body = format!(
-                        "node_opts[node_ip]={}&node_opts[port]={}&node_opts[metrics_port]={}&node_opts[rewards_addr]={}&node_opts[upnp]={}&node_opts[reachability_check]={}&node_opts[node_logs]={}&node_opts[auto_start]={}&node_opts[data_dir_path]={}",
-                        node_ip,
+                        "node_opts[ipv4_only]={}&node_opts[port]={}&node_opts[metrics_port]={}&node_opts[rewards_addr]={}&node_opts[node_logs]={}&node_opts[auto_start]={}&node_opts[data_dir_path]={}",
+                        ipv4_only,
                         opts.port,
                         opts.metrics_port,
                         opts.rewards_addr,
-                        opts.upnp,
-                        opts.reachability_check,
                         true,
                         opts.auto_start,
                         form_urlencoded::byte_serialize(
@@ -676,7 +656,7 @@ impl CliCmdResponse {
                         ]);
                         table.add_row(row!["PID", value_or_dash(info.pid)]);
                         table.add_row(row!["Version", value_or_dash(info.bin_version.clone())]);
-                        table.add_row(row!["Listen IP", value_or_dash(info.node_ip)]);
+                        table.add_row(row!["IPv4 only", info.ipv4_only]);
                         table.add_row(row![
                             "Data dir",
                             value_or_dash(
@@ -721,11 +701,6 @@ impl CliCmdResponse {
                         ]);
                         table.add_row(row!["Port", value_or_dash(info.port)]);
                         table.add_row(row!["Metrics port", value_or_dash(info.metrics_port)]);
-                        table.add_row(row!["UPnP", if info.upnp { "On" } else { "Off" }]);
-                        table.add_row(row![
-                            "Reachability check",
-                            if info.reachability_check { "On" } else { "Off" }
-                        ]);
                         table.add_row(row![
                             "Rewards address",
                             value_or_dash(info.rewards_addr.clone())
