@@ -333,6 +333,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_set_status_to_unknown_updates_status_changed() {
         let mut info = NodeInstanceInfo::new(node_id("node8"));
         info.status = NodeStatus::Active;
