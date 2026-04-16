@@ -1,8 +1,8 @@
 use crate::{
     server_api::*,
     types::{
-        AppSettings, BatchOnMatch, BatchType, NodeFilter, NodeId, NodeInstanceInfo, NodeOpts,
-        NodeSortField, NodeStatusFilter, NodesActionsBatch, NodesSortStrategy, Stats,
+        AppSettings, BatchOnMatch, BatchType, LogLevel, NodeFilter, NodeId, NodeInstanceInfo,
+        NodeOpts, NodeSortField, NodeStatusFilter, NodesActionsBatch, NodesSortStrategy, Stats,
     },
     views::{format_disk_usage, truncated_balance_str},
 };
@@ -276,6 +276,7 @@ impl CliCommands {
                     metrics_port: node_opts_cmd.metrics_port,
                     rewards_addr: node_opts_cmd.rewards_addr.to_string(),
                     node_logs: true,
+                    log_level: LogLevel::default(),
                     auto_start: node_opts_cmd.auto_start,
                     data_dir_path: node_opts_cmd.data_dir_path.clone(),
                 };
@@ -467,7 +468,7 @@ impl CliCommands {
                 if opts.count > 1 {
                     // TODO: use some crate which performs this serialisation
                     let body = format!(
-                        "batch_type[Create][node_opts][ipv4_only]={}&batch_type[Create][node_opts][port]={}&batch_type[Create][node_opts][metrics_port]={}&batch_type[Create][node_opts][rewards_addr]={}&batch_type[Create][node_opts][node_logs]={}&batch_type[Create][node_opts][auto_start]={}&batch_type[Create][node_opts][data_dir_path]={}&batch_type[Create][count]={}&interval_secs={}",
+                        "batch_type[Create][node_opts][ipv4_only]={}&batch_type[Create][node_opts][port]={}&batch_type[Create][node_opts][metrics_port]={}&batch_type[Create][node_opts][rewards_addr]={}&batch_type[Create][node_opts][node_logs]={}&batch_type[Create][node_opts][log_level]=info&batch_type[Create][node_opts][auto_start]={}&batch_type[Create][node_opts][data_dir_path]={}&batch_type[Create][count]={}&interval_secs={}",
                         ipv4_only,
                         opts.port,
                         opts.metrics_port,
@@ -488,7 +489,7 @@ impl CliCommands {
                 } else {
                     // TODO: use some crate which performs this serialisation
                     let body = format!(
-                        "node_opts[ipv4_only]={}&node_opts[port]={}&node_opts[metrics_port]={}&node_opts[rewards_addr]={}&node_opts[node_logs]={}&node_opts[auto_start]={}&node_opts[data_dir_path]={}",
+                        "node_opts[ipv4_only]={}&node_opts[port]={}&node_opts[metrics_port]={}&node_opts[rewards_addr]={}&node_opts[node_logs]={}&node_opts[log_level]=info&node_opts[auto_start]={}&node_opts[data_dir_path]={}",
                         ipv4_only,
                         opts.port,
                         opts.metrics_port,

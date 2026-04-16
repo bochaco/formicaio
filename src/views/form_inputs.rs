@@ -1,4 +1,4 @@
-use crate::{app::get_addr_from_metamask, server_api::parse_and_validate_addr};
+use crate::{app::get_addr_from_metamask, server_api::parse_and_validate_addr, types::LogLevel};
 
 use super::icons::*;
 
@@ -83,6 +83,48 @@ pub fn Ipv4OnlySelect(
                 </option>
                 <option value="true" selected=move || signal.get()>
                     "IPv4 only"
+                </option>
+            </select>
+        </FormField>
+    }
+}
+
+#[component]
+pub fn LogLevelSelect(
+    logs_enabled: RwSignal<bool>,
+    signal: RwSignal<LogLevel>,
+    label: &'static str,
+    help_msg: &'static str,
+) -> impl IntoView {
+    view! {
+        <FormField label help_msg>
+            <select
+                id="log_level"
+                prop:disabled=move || !logs_enabled.get()
+                on:change=move |ev| {
+                    signal.set(event_target_value(&ev).parse().unwrap_or_default());
+                }
+                class=move || {
+                    format!(
+                        "w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-sm focus:ring-1 focus:ring-indigo-500 focus:outline-none {}",
+                        if logs_enabled.get() { "" } else { "opacity-40 cursor-not-allowed" },
+                    )
+                }
+            >
+                <option value="error" selected=move || signal.get() == LogLevel::Error>
+                    "Error — error messages only"
+                </option>
+                <option value="warn" selected=move || signal.get() == LogLevel::Warn>
+                    "Warn — warnings and errors"
+                </option>
+                <option value="info" selected=move || signal.get() == LogLevel::Info>
+                    "Info — informational messages (default)"
+                </option>
+                <option value="debug" selected=move || signal.get() == LogLevel::Debug>
+                    "Debug — debug messages"
+                </option>
+                <option value="trace" selected=move || signal.get() == LogLevel::Trace>
+                    "Trace — trace messages (verbose)"
                 </option>
             </select>
         </FormField>

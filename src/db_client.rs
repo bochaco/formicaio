@@ -90,6 +90,7 @@ struct CachedNodeMetadata {
     balance: String,
     rewards_addr: String,
     node_logs: bool,
+    log_level: String,
     records: String,
     connected_peers: String,
     kbuckets_peers: String,
@@ -145,6 +146,7 @@ impl CachedNodeMetadata {
             info.rewards = Some(v);
         }
         info.node_logs = self.node_logs;
+        info.log_level = self.log_level.parse().unwrap_or_default();
         if !self.balance.is_empty()
             && let Ok(v) = U256::from_str(&self.balance)
         {
@@ -364,10 +366,10 @@ impl DbClient {
                 node_id, created, status_changed, status, \
                 is_status_locked, is_status_unknown, \
                 ipv4_only, port, metrics_port, rewards_addr, \
-                node_logs, \
+                node_logs, log_level, \
                 records, connected_peers, kbuckets_peers, \
                 data_dir_path \
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             .to_string();
 
         let db_lock = self.db.lock().await;
@@ -383,6 +385,7 @@ impl DbClient {
             .bind(info.metrics_port)
             .bind(info.rewards_addr.clone())
             .bind(info.node_logs)
+            .bind(info.log_level.to_string())
             .bind(info.records.map_or("".to_string(), |v| v.to_string()))
             .bind(
                 info.connected_peers

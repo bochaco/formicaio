@@ -2,11 +2,11 @@ use crate::types::{InactiveReason, NodeId, NodeInstanceInfo};
 
 #[cfg(feature = "ssr")]
 use super::docker_client::{
-    LABEL_KEY_METRICS_PORT, LABEL_KEY_NODE_LOGS_DISABLED, LABEL_KEY_NODE_PORT,
+    LABEL_KEY_LOG_LEVEL, LABEL_KEY_METRICS_PORT, LABEL_KEY_NODE_LOGS_DISABLED, LABEL_KEY_NODE_PORT,
     LABEL_KEY_REWARDS_ADDR,
 };
 #[cfg(feature = "ssr")]
-use crate::types::NodeStatus;
+use crate::types::{LogLevel, NodeStatus};
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -52,6 +52,11 @@ impl From<Container> for NodeInstanceInfo {
             metrics_port: val.metrics_port(),
             rewards_addr: val.Labels.get(LABEL_KEY_REWARDS_ADDR).cloned(),
             node_logs: !val.Labels.contains_key(LABEL_KEY_NODE_LOGS_DISABLED),
+            log_level: val
+                .Labels
+                .get(LABEL_KEY_LOG_LEVEL)
+                .and_then(|s| s.parse().ok())
+                .unwrap_or_default(),
             ..Default::default()
         }
     }

@@ -1,4 +1,4 @@
-use super::{NodeFilter, NodeId};
+use super::{LogLevel, NodeFilter, NodeId};
 
 use serde::{Deserialize, Serialize};
 use std::{fmt, path::PathBuf};
@@ -155,6 +155,8 @@ pub struct NodeOpts {
     pub rewards_addr: String,
     /// Whether node logs are enabled for this node
     pub node_logs: bool,
+    /// Log level for node logging output (only relevant when node_logs is true)
+    pub log_level: LogLevel,
     /// Whether to automatically start the node after creation
     pub auto_start: bool,
     /// Custom data directory path for this node instance
@@ -169,6 +171,7 @@ impl Default for NodeOpts {
             metrics_port: u16::default(),
             rewards_addr: String::default(),
             node_logs: bool::default(),
+            log_level: LogLevel::default(),
             auto_start: bool::default(),
             data_dir_path: PathBuf::default(),
         }

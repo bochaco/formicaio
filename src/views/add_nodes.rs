@@ -1,8 +1,9 @@
-use crate::types::NodeOpts;
+use crate::types::{LogLevel, NodeOpts};
 
 use super::{
     form_inputs::{
-        CheckboxInput, Ipv4OnlySelect, NumberInput, PortNumberInput, RewardsAddrInput, TextInput,
+        CheckboxInput, Ipv4OnlySelect, LogLevelSelect, NumberInput, PortNumberInput,
+        RewardsAddrInput, TextInput,
     },
     helpers::{add_node_instances, show_error_alert_msg},
     icons::IconCancel,
@@ -47,6 +48,8 @@ pub fn AddNodesForm(is_open: RwSignal<bool>) -> impl IntoView {
 #[component]
 fn AddNodeTabs(is_open: RwSignal<bool>, active_tab: RwSignal<u8>) -> impl IntoView {
     let ipv4_only = RwSignal::new(false);
+    let node_logs = RwSignal::new(true);
+    let log_level = RwSignal::new(LogLevel::Info);
     let port = RwSignal::new(Ok(DEFAULT_NODE_PORT));
     let metrics_port = RwSignal::new(Ok(DEFAULT_METRICS_PORT));
     let count = RwSignal::new(Ok(1));
@@ -126,6 +129,21 @@ fn AddNodeTabs(is_open: RwSignal<bool>, active_tab: RwSignal<u8>) -> impl IntoVi
                         label="IP version:"
                         help_msg="Select the IP version for the node to use. 'Dual-stack' uses both IPv4 and IPv6 (default). 'IPv4 only' disables dual-stack, use on hosts without working IPv6."
                     />
+                    <div class="flex items-center justify-between pt-2">
+                        <CheckboxInput
+                            signal=node_logs
+                            id="node_logs"
+                            label="Enable logging"
+                            help_msg="Enable logging output for this node. When disabled, no log records are emitted."
+                            help_align="right-0"
+                        />
+                    </div>
+                    <LogLevelSelect
+                        logs_enabled=node_logs
+                        signal=log_level
+                        label="Log level:"
+                        help_msg="Select the log verbosity level. Only applies when logging is enabled."
+                    />
                     <TextInput
                         signal=data_dir_path
                         label="Data directory path (optional):"
@@ -155,7 +173,8 @@ fn AddNodeTabs(is_open: RwSignal<bool>, active_tab: RwSignal<u8>) -> impl IntoVi
                             port: p,
                             metrics_port: m,
                             rewards_addr: addr.strip_prefix("0x").unwrap_or(&addr).to_string(),
-                            node_logs: true,
+                            node_logs: node_logs.get(),
+                            log_level: log_level.get(),
                             auto_start: auto_start.get(),
                             data_dir_path: data_dir_path.get(),
                         };

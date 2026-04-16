@@ -474,6 +474,15 @@ fn ExpandedNodeDetails(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
             <DetailItemView label="IPv4 only">
                 {move || info.read().ipv4_only.to_string()}
             </DetailItemView>
+            <DetailItemView label="Logs">
+                {move || {
+                    if info.read().node_logs {
+                        info.read().log_level.to_string()
+                    } else {
+                        "off".to_string()
+                    }
+                }}
+            </DetailItemView>
             <DetailItemView label="Port">
                 {value_or_dash(info.read_untracked().port)}
             </DetailItemView>

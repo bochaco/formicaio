@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS nodes (
     balance TEXT,
     rewards_addr TEXT,
     node_logs INTEGER,
+    log_level TEXT,
     records TEXT,
     connected_peers TEXT,
     kbuckets_peers TEXT,

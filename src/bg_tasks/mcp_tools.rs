@@ -83,6 +83,8 @@ pub struct CreateNodeInstance {
     pub rewards_addr: String,
     /// Whether node logs are enabled for this node
     pub node_logs: bool,
+    /// Log level for node logging output: "error", "warn", "info" (default), "debug", or "trace"
+    pub log_level: String,
     /// Whether to automatically start the node after creation
     pub auto_start: bool,
     /// Custom data directory path for this node instance
@@ -104,6 +106,7 @@ impl CreateNodeInstance {
             metrics_port: self.metrics_port,
             rewards_addr: self.rewards_addr.clone(),
             node_logs: self.node_logs,
+            log_level: self.log_level.parse().unwrap_or_default(),
             auto_start: self.auto_start,
             data_dir_path: PathBuf::from(&self.data_dir_path),
         };

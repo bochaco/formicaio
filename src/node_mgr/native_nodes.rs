@@ -264,7 +264,6 @@ impl NativeNodes {
             metrics_port.to_string(),
             "--root-dir".to_string(),
             node_data_dir.display().to_string(),
-            "--enable-logging".to_string(),
         ];
 
         if node_info.ipv4_only {
@@ -272,6 +271,9 @@ impl NativeNodes {
         }
 
         if node_info.node_logs {
+            args.push("--enable-logging".to_string());
+            args.push("--log-level".to_string());
+            args.push(node_info.log_level.to_string());
             args.push("--log-dir".to_string());
             args.push(log_output_dir.display().to_string());
         }

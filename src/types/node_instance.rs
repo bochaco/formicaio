@@ -6,10 +6,46 @@ use alloy_primitives::U256;
 use chrono::Utc;
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::{fmt, path::PathBuf};
+use std::{fmt, path::PathBuf, str::FromStr};
 
 // Length of nodes PeerIds' prefix and suffix to be displayed
 const PEER_ID_PREFIX_SUFFIX_LEN: usize = 12;
+
+/// Log level for node logging output.
+#[derive(Clone, Default, Debug, Deserialize, PartialEq, Serialize)]
+pub enum LogLevel {
+    Error,
+    Warn,
+    #[default]
+    Info,
+    Debug,
+    Trace,
+}
+
+impl fmt::Display for LogLevel {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Error => write!(f, "error"),
+            Self::Warn => write!(f, "warn"),
+            Self::Info => write!(f, "info"),
+            Self::Debug => write!(f, "debug"),
+            Self::Trace => write!(f, "trace"),
+        }
+    }
+}
+
+impl FromStr for LogLevel {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "error" => Ok(Self::Error),
+            "warn" => Ok(Self::Warn),
+            "debug" => Ok(Self::Debug),
+            "trace" => Ok(Self::Trace),
+            _ => Ok(Self::Info),
+        }
+    }
+}
 // Length of nodes rewards address' prefix and suffix to be displayed
 const REWARDS_ADDR_PREFIX_SUFFIX_LEN: usize = 8;
 
@@ -90,6 +126,8 @@ pub struct NodeInstanceInfo {
     pub rewards_addr: Option<String>,
     /// Whether node logs are enabled for this node
     pub node_logs: bool,
+    /// Log level for node logging output (only relevant when node_logs is true)
+    pub log_level: LogLevel,
     /// Current rewards earned by the node
     pub rewards: Option<U256>,
     /// Total number of records stored by the node

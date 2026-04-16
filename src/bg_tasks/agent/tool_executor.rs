@@ -275,6 +275,7 @@ fn build_create_node_instance(args: &Value) -> Result<CreateNodeInstance, String
             .ok_or("missing rewards_addr")?
             .to_string(),
         node_logs: args["node_logs"].as_bool().unwrap_or(false),
+        log_level: args["log_level"].as_str().unwrap_or("info").to_string(),
         auto_start: args["auto_start"].as_bool().unwrap_or(true),
         data_dir_path: args["data_dir_path"].as_str().unwrap_or("").to_string(),
     })

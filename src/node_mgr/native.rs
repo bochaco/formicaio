@@ -176,6 +176,7 @@ impl NodeManager {
             metrics_port: Some(node_opts.metrics_port),
             rewards_addr: Some(node_opts.rewards_addr),
             node_logs: node_opts.node_logs,
+            log_level: node_opts.log_level.clone(),
             data_dir_path: Some(node_opts.data_dir_path.clone()),
             ..Default::default()
         };

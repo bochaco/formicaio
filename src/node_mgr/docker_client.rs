@@ -39,6 +39,8 @@ pub const LABEL_KEY_METRICS_PORT: &str = "metrics_port";
 pub const LABEL_KEY_REWARDS_ADDR: &str = "rewards_addr";
 // Label's key to cache the value set to node logs for the node
 pub const LABEL_KEY_NODE_LOGS_DISABLED: &str = "node_logs_disabled";
+// Label's key to cache the log level for the node
+pub const LABEL_KEY_LOG_LEVEL: &str = "log_level";
 
 // Docker API base paths
 const DOCKER_CONTAINERS_API: &str = "/containers";
@@ -346,8 +348,15 @@ impl DockerClient {
         } else {
             env_vars.push("IPV4_ONLY_ARG=".to_string());
         }
-        if !node_opts.node_logs {
+        if node_opts.node_logs {
+            env_vars.push(format!("LOG_LEVEL_ARG=--log-level {}", node_opts.log_level));
+            labels.push((
+                LABEL_KEY_LOG_LEVEL.to_string(),
+                node_opts.log_level.to_string(),
+            ));
+        } else {
             env_vars.push("NODE_LOGS_ARG=".to_string());
+            env_vars.push("LOG_LEVEL_ARG=".to_string());
             labels.push((LABEL_KEY_NODE_LOGS_DISABLED.to_string(), "true".to_string()));
         }
 
