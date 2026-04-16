@@ -50,6 +50,7 @@ CMD ["sh", "-c", "while true; \
   --port ${NODE_PORT} \
   --metrics-port ${METRICS_PORT} \
   --root-dir /app/node_data \
+  --enable-logging \
   ${NODE_LOGS_ARG} \
   --bootstrap-cache-dir /app/node_data \
   ${REWARDS_ADDR_ARG} \

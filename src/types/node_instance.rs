@@ -30,7 +30,6 @@ pub fn shortened_address(addr: &String) -> String {
     )
 }
 
-
 #[derive(Clone, Default, Debug, Deserialize, PartialEq, Serialize)]
 pub enum ReachabilityCheckStatus {
     #[default]
