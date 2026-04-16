@@ -7,11 +7,11 @@ edition = "2024"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-alloy = { version = "1.6", default-features = false, features = ["reqwest-rustls-tls","provider-http","contract","sol-types","json","rpc-types-eth"], optional = true }
+alloy = { version = "2.0", default-features = false, features = ["reqwest-rustls-tls","provider-http","contract","sol-types","json","rpc-types-eth"], optional = true }
 alloy-primitives = { version = "1", features = ["serde"] }
 flate2 = { version = "1.1", optional = true }
 tar = { version = "0.4", optional = true }
-zip = { version = "2", optional = true, default-features = false, features = ["deflate"] }
+zip = { version = "8", optional = true, default-features = false, features = ["deflate"] }
 apexcharts-rs = { version = "0.1", default-features = false, features = ["leptos"] }
 async-stream = { version = "0.3", optional = true }
 axum = { version = "0.8", optional = true, features = ["macros","http2"] }
@@ -22,12 +22,12 @@ console_error_panic_hook = "0.1"
 eyre = { version = "0.6" }
 futures-util = "0.3"
 getrandom = { version = "0.3", features = ["wasm_js"] }
-gloo-timers = { version = "0.3", default-features = false, features = ["futures"] }
-gloo-utils = { version = "0.2", default-features = false, features = ["serde"] }
+gloo-timers = { version = "0.4", default-features = false, features = ["futures"] }
+gloo-utils = { version = "0.3", default-features = false, features = ["serde"] }
 hex = "0.4"
 http = "1"
 http-body-util = { version = "0.1", optional = true }
-hyper = { version = "1.5", features = ["client","http1"], optional = true }
+hyper = { version = "1.9", features = ["client","http1"], optional = true }
 hyper-util = { version = "0.1", optional = true }
 i2cdev = { version = "0.6", optional = true }
 lcd = { version = "0.4", optional = true }
@@ -41,9 +41,9 @@ nom-openmetrics = { version = "0.2.0", optional = true }
 prettytable = "0.10.0"
 rand = "0.9"
 reqwest = { version = "0.13", default-features = false, features = ["rustls","json","stream"], optional = true }
-rust-mcp-sdk = { version = "0.8.2", optional = true, default-features = false, features = ["server","macros","streamable-http","hyper-server"] }
-saorsa-core = { version = "0.18.1", optional = true }
-async-openai = { version = "0.33", optional = true, default-features = false, features = ["rustls", "chat-completion", "model"] }
+rust-mcp-sdk = { version = "0.9", optional = true, default-features = false, features = ["server","macros","streamable-http","hyper-server"] }
+saorsa-core = { version = "0.23", optional = true }
+async-openai = { version = "0.34", optional = true, default-features = false, features = ["rustls", "chat-completion", "model"] }
 async-trait = { version = "0.1.89", optional = true }
 semver = { version = "1.0", optional = true }
 serde = "1.0"
@@ -58,7 +58,7 @@ tower = { version = "0.5", features = ["util"], optional = true }
 tower-http = { version = "0.6", default-features = false, features = ["fs"], optional = true }
 url = "2"
 walkdir = { version = "2.5.0", optional = true }
-wasm-bindgen = "=0.2.108"
+wasm-bindgen = "=0.2.118"
 wasm-bindgen-futures = "0.4"
 
 [features]
