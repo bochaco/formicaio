@@ -426,7 +426,7 @@ impl DockerClient {
             Cmd: Some(vec![
                 "sh".to_string(),
                 "-c".to_string(),
-                "tail -s 7 -f /app/node_data/logs/antnode.log".to_string(),
+                "tail -s 7 -f /app/node_data/logs/ant-node.log".to_string(),
             ]),
             Tty: Some(false),
         };
@@ -501,12 +501,11 @@ impl DockerClient {
         id: &NodeId,
         get_ips: bool,
     ) -> Result<(Option<String>, Option<String>, Option<String>), DockerClientError> {
-        let cmd = "/app/antnode --version | grep -oE 'Autonomi Node v[0-9]+\\.[0-9]+\\.[0-9]+.*$'"
-            .to_string();
+        let cmd = "/app/ant-node --version".to_string();
         let (_, resp_str) = self.exec_in_container(id, cmd, None).await?;
 
         let version = resp_str
-            .strip_prefix("Autonomi Node v")
+            .strip_prefix("ant-node ")
             .map(|v| v.replace(['\n', '\r'], ""));
         //logging::log!("Node binary version in container {id}: {version:?}");
 

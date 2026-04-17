@@ -9,9 +9,9 @@ WORKDIR /app
 RUN apk add curl bash
 RUN ARCH=$(uname -m); \
     if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then \
-      URL="https://github.com/WithAutonomi/ant-node/releases/download/v0.9.0/ant-node-cli-linux-arm64.tar.gz"; \
+      URL="https://github.com/WithAutonomi/ant-node/releases/download/v0.10.0/ant-node-cli-linux-arm64.tar.gz"; \
     else \
-      URL="https://github.com/WithAutonomi/ant-node/releases/download/v0.9.0/ant-node-cli-linux-x64.tar.gz"; \
+      URL="https://github.com/WithAutonomi/ant-node/releases/download/v0.10.0/ant-node-cli-linux-x64.tar.gz"; \
     fi; \
     curl -L "$URL" | tar xz -C ./
 RUN /app/ant-node --version
