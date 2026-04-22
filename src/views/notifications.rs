@@ -3,7 +3,7 @@ use crate::app::ClientGlobalState;
 
 use chrono::{DateTime, Local, Utc};
 use leptos::prelude::*;
-use rand::Rng;
+use rand::RngExt;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq)]

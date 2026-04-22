@@ -6,7 +6,7 @@ use crate::{
 };
 
 use leptos::logging;
-use rand::Rng;
+use rand::RngExt;
 use std::time::Duration;
 use thiserror::Error;
 use tokio::{select, time::sleep};

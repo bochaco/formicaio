@@ -6,7 +6,7 @@ use super::docker_client::{
     LABEL_KEY_REWARDS_ADDR,
 };
 #[cfg(feature = "ssr")]
-use crate::types::{LogLevel, NodeStatus};
+use crate::types::NodeStatus;
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

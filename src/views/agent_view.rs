@@ -22,7 +22,7 @@ use std::str::FromStr;
 // ─── Session ID generation ────────────────────────────────────────────────────
 
 fn new_session_id() -> String {
-    use rand::Rng;
+    use rand::RngExt;
     let id: u64 = rand::rng().random();
     format!("s{:x}", id)
 }
