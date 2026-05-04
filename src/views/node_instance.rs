@@ -626,6 +626,7 @@ fn NodeChartShow(
 
     // action to trigger the update of nodes metrics charts
     let start_metrics_update = move |id: NodeId| {
+        set_chart_data.set((vec![], vec![]));
         set_render_chart.set(true);
         context.metrics_update_on_for.set(Some(info));
         leptos::task::spawn_local(async move {

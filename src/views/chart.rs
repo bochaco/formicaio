@@ -215,7 +215,21 @@ pub fn NodeChartView(
         });
     });
 
-    view! { <div id=chart_id style="width: 100%; height: 380px;"></div> }
+    let no_data = move || {
+        let (mem, cpu) = chart_data.get();
+        mem.is_empty() && cpu.is_empty()
+    };
+
+    view! {
+        <div class="relative" style="width: 100%; height: 380px;">
+            <div id=chart_id style="width: 100%; height: 380px;" />
+            <Show when=no_data>
+                <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <p class="text-slate-400 text-sm">"No metrics data available yet"</p>
+                </div>
+            </Show>
+        </div>
+    }
 }
 
 // Fetch metrics data for a given node to render the charts
