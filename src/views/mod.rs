@@ -175,7 +175,14 @@ pub fn HomeScreenView() -> impl IntoView {
                     }
                 }>
                     {move || match active_view.get() {
-                        ViewType::Dashboard => view! { <DashboardView /> }.into_any(),
+                        ViewType::Dashboard => {
+                            view! {
+                                <DashboardView on_nodes_click=Callback::new(move |_| {
+                                    active_view.set(ViewType::Nodes)
+                                }) />
+                            }
+                                .into_any()
+                        }
                         ViewType::Nodes => {
                             view! { <NodesListView set_logs set_render_chart set_chart_data /> }
                                 .into_any()

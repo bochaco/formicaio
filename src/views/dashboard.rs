@@ -17,7 +17,7 @@ use leptos::prelude::*;
 const NUMBER_OF_TOP_NODES: usize = 10;
 
 #[component]
-pub fn DashboardView() -> impl IntoView {
+pub fn DashboardView(on_nodes_click: Callback<()>) -> impl IntoView {
     let context = expect_context::<ClientGlobalState>();
     let rewards_monitoring_enabled = move || context.app_settings.read().rewards_monitoring_enabled;
 
@@ -38,18 +38,24 @@ pub fn DashboardView() -> impl IntoView {
         <div class="p-4 lg:p-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             // Stats Grid
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                <StatCard
-                    title="Total Nodes"
-                    value=Signal::derive(move || context.stats.read().total_nodes.to_string())
-                    sub_value=Signal::derive(move || {
-                        context
-                            .stats
-                            .with(|s| {
-                                format!("{} Active | {} Inactive", s.active_nodes, s.inactive_nodes)
-                            })
-                    })
-                    icon=view! { <IconServer class="text-indigo-400 w-8 h-8" /> }.into_any()
-                />
+                <div class="cursor-pointer" on:click=move |_| on_nodes_click.run(())>
+                    <StatCard
+                        title="Total Nodes"
+                        value=Signal::derive(move || context.stats.read().total_nodes.to_string())
+                        sub_value=Signal::derive(move || {
+                            context
+                                .stats
+                                .with(|s| {
+                                    format!(
+                                        "{} Active | {} Inactive",
+                                        s.active_nodes,
+                                        s.inactive_nodes,
+                                    )
+                                })
+                        })
+                        icon=view! { <IconServer class="text-indigo-400 w-8 h-8" /> }.into_any()
+                    />
+                </div>
                 <Show
                     when=move || rewards_monitoring_enabled()
                     fallback=move || {
