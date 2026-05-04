@@ -154,6 +154,7 @@ pub fn App() -> impl IntoView {
         <Router>
             <main>
                 <Stylesheet id="leptos" href="/pkg/formicaio.css" />
+                <Script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js" />
                 <Script src="https://cdn.jsdelivr.net/npm/flowbite@3.1.2/dist/flowbite.min.js" />
                 <link
                     href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap"

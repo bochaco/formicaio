@@ -6,18 +6,104 @@ use crate::{
 
 use super::icons::IconCancel;
 
-use apexcharts_rs::prelude::ApexChart;
-use chrono::Local;
+use charming::{
+    Chart,
+    component::Axis,
+    datatype::{CompositeValue, DataPoint},
+    element::{
+        AxisLabel, AxisLine, AxisType, Formatter, ItemStyle, JsFunction, SplitLine, TextStyle,
+        Tooltip, Trigger,
+    },
+    series::Line,
+};
 use gloo_timers::future::TimeoutFuture;
-use gloo_utils::format::JsValueSerdeExt;
 use leptos::{logging, prelude::*};
-use std::rc::Rc;
-use wasm_bindgen::JsValue;
 
 pub type ChartSeriesData = (Vec<(i64, f64)>, Vec<(i64, f64)>);
 
 const CHART_MEM_SERIES_NAME: &str = "Memory (MB)";
 const CHART_CPU_SERIES_NAME: &str = "CPU (%)";
+const CHART_MEM_COLOR: &str = "#F98080";
+const CHART_CPU_COLOR: &str = "#3F83F8";
+
+fn build_metrics_chart(mem: &[(i64, f64)], cpu: &[(i64, f64)]) -> Chart {
+    let to_dataframe = |pts: &[(i64, f64)]| -> Vec<DataPoint> {
+        pts.iter()
+            .map(|(ts, v)| {
+                DataPoint::from(CompositeValue::from(vec![
+                    CompositeValue::from(*ts),
+                    CompositeValue::from(*v),
+                ]))
+            })
+            .collect()
+    };
+
+    Chart::new()
+        .tooltip(
+            Tooltip::new().trigger(Trigger::Axis).formatter(Formatter::Function(
+                JsFunction::new_with_args(
+                    "params",
+                    "var d = new Date(params[0].axisValue);
+                     var pad = function(n) { return n < 10 ? '0' + n : '' + n; };
+                     var date = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+                     var time = pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+                     var out = '<b>' + date + ' ' + time + '</b><br/>';
+                     params.forEach(function(p) {
+                         out += p.marker + ' ' + p.seriesName + ': <b>' + p.value[1].toFixed(4) + '</b><br/>';
+                     });
+                     return out;",
+                ),
+            )),
+        )
+        .x_axis(
+            Axis::new()
+                .type_(AxisType::Time)
+                .axis_line(AxisLine::new().show(false))
+                .split_line(SplitLine::new().show(false))
+                .axis_label(
+                    AxisLabel::new()
+                        .color("#9CA3AF")
+                        .formatter(Formatter::String("{HH}:{mm}:{ss}".to_string())),
+                ),
+        )
+        .y_axis(
+            Axis::new()
+                .type_(AxisType::Value)
+                .name(CHART_MEM_SERIES_NAME)
+                .name_text_style(TextStyle::new().color(CHART_MEM_COLOR))
+                .axis_label(AxisLabel::new().color(CHART_MEM_COLOR))
+                .axis_line(AxisLine::new().show(false))
+                .split_line(SplitLine::new().show(false)),
+        )
+        .y_axis(
+            Axis::new()
+                .type_(AxisType::Value)
+                .name(CHART_CPU_SERIES_NAME)
+                .name_text_style(TextStyle::new().color(CHART_CPU_COLOR))
+                .axis_label(AxisLabel::new().color(CHART_CPU_COLOR))
+                .axis_line(AxisLine::new().show(false))
+                .split_line(SplitLine::new().show(false))
+                .position("right"),
+        )
+        .series(
+            Line::new()
+                .name(CHART_MEM_SERIES_NAME)
+                .data(to_dataframe(mem))
+                .y_axis_index(0)
+                .smooth(true)
+                .show_symbol(false)
+                .item_style(ItemStyle::new().color(CHART_MEM_COLOR)),
+        )
+        .series(
+            Line::new()
+                .name(CHART_CPU_SERIES_NAME)
+                .data(to_dataframe(cpu))
+                .y_axis_index(1)
+                .smooth(true)
+                .show_symbol(false)
+                .item_style(ItemStyle::new().color(CHART_CPU_COLOR)),
+        )
+}
 
 #[component]
 pub fn MetricsViewerModal(
@@ -101,142 +187,35 @@ pub fn NodeChartView(
     is_render_chart: Signal<bool>,
     chart_data: ReadSignal<ChartSeriesData>,
 ) -> impl IntoView {
-    let chart_id = "metrics_chart".to_string();
+    let chart_id = "metrics_chart";
 
-    let metrics_chart_options = serde_json::json!(
-        {
-          "series": [],
-          "noData": {
-            "text": "Loading..."
-          },
-          "chart": {
-            "id": chart_id,
-            "width": "100%",
-            "height": 380,
-            "type": "line",
-            "animations": {
-              "enabled": true,
-              "easing": "linear",
-              "dynamicAnimation": {
-                "speed": 1000
-              }
-            },
-            "toolbar": {
-              "show": false
-            },
-            "zoom": {
-              "enabled": false
-            }
-          },
-          "dataLabels": {
-            "enabled": false
-          },
-          "colors": ["#F98080", "#3F83F8"],
-          "stroke": {
-            "curve": "smooth",
-            "width": [3, 3]
-          },
-          "markers": {
-            "size": 0
-          },
-          "xaxis": {
-            "type": "datetime",
-            "position": "bottom",
-            "labels": {
-              "show": true,
-              "rotate": -30,
-              "rotateAlways": false,
-              "format": "HH:mm:ss",
-              "style": {
-                "colors": "#9CA3AF"
-              }
-            }
-          },
-          "yaxis": [
-            {
-              "labels": {
-                "style": {
-                  "colors": "#F98080"
-                }
-              },
-              "title": {
-                "text": CHART_MEM_SERIES_NAME,
-                "style": {
-                  "color": "#F98080"
-                }
-              }
-            },
-            {
-              "opposite": true,
-              "labels": {
-                "style": {
-                  "colors": "#3F83F8"
-                }
-              },
-              "title": {
-                "text": CHART_CPU_SERIES_NAME,
-                "style": {
-                  "color": "#3F83F8"
-                }
-              }
-            }
-          ],
-          "legend": {
-            "show": false
-          },
-          "tooltip": {
-            "theme": "dark",
-            "onDatasetHover": {
-                "highlightDataSeries": true,
-            }
-          }
-        }
-    );
+    use charming::WasmRenderer;
 
-    let chart = RwSignal::new_local(None);
+    let echarts = RwSignal::new_local(None::<charming::renderer::wasm_renderer::Echarts>);
 
-    let opts_clone = metrics_chart_options.clone();
-    let chart_id_clone = chart_id.clone();
     Effect::new(move |_| {
         if !*is_render_chart.read() {
             return;
         }
-
-        let opt = serde_json::to_string(&opts_clone).unwrap_or("".to_string());
-        let c = ApexChart::new(&JsValue::from_str(&opt));
-        c.render(&chart_id_clone);
-        chart.update(|chart| *chart = Some(Rc::new(c)));
+        match WasmRenderer::new_opt(None, None).render(chart_id, &build_metrics_chart(&[], &[])) {
+            Ok(e) => echarts.update(|h| *h = Some(e)),
+            Err(err) => logging::error!("[ERROR] Failed to render chart: {err}"),
+        }
     });
 
-    let opts_clone = metrics_chart_options.clone();
     Effect::new(move |_| {
         if !*is_render_chart.read() {
             return;
         }
-
-        let mut opts_clone = opts_clone.clone();
-        chart.with(|c| {
-            if let Some(chart) = c {
-                let (mem_data, cpu_data) = chart_data.get();
-                opts_clone["series"] = serde_json::json!([
-                    {
-                      "name": CHART_MEM_SERIES_NAME,
-                      "data": mem_data
-                    },
-                    {
-                      "name": CHART_CPU_SERIES_NAME,
-                      "data": cpu_data
-                    }
-                ]);
-                match <JsValue as JsValueSerdeExt>::from_serde(&opts_clone) {
-                    Ok(opt) => chart.update_options(&opt, Some(false), Some(true), Some(true)),
-                    Err(err) => logging::error!("[ERROR] Failed to update chart: {err}"),
-                }
+        echarts.with(|h| {
+            if let Some(e) = h {
+                let (mem, cpu) = chart_data.get();
+                WasmRenderer::update(e, &build_metrics_chart(&mem, &cpu));
             }
         });
     });
 
-    view! { <div id=chart_id.clone()></div> }
+    view! { <div id=chart_id style="width: 100%; height: 380px;"></div> }
 }
 
 // Fetch metrics data for a given node to render the charts
@@ -248,9 +227,6 @@ pub async fn node_metrics_update(
 
     let polling_freq_millis =
         get_settings().await?.nodes_metrics_polling_freq.as_secs() as u32 * 2000;
-
-    // hack to show timestamps with local timezone since apexcharts doesn't expose a way to do it
-    let millis_offset = Local::now().offset().utc_minus_local() as i64 * 1_000;
 
     // use context to check if we should stop retrieving the metrics
     let context = expect_context::<ClientGlobalState>();
@@ -271,18 +247,14 @@ pub async fn node_metrics_update(
             (Some(mem), Some(cpu)) if !mem.is_empty() && !cpu.is_empty() => {
                 since = mem.last().map(|m| m.timestamp);
                 set_chart_data.update(|(m, c)| {
-                    m.extend(mem.iter().map(|v| {
-                        (
-                            v.timestamp - millis_offset,
-                            v.value.parse::<f64>().unwrap_or_default(),
-                        )
-                    }));
-                    c.extend(cpu.iter().map(|v| {
-                        (
-                            v.timestamp - millis_offset,
-                            v.value.parse::<f64>().unwrap_or_default(),
-                        )
-                    }));
+                    m.extend(
+                        mem.iter()
+                            .map(|v| (v.timestamp, v.value.parse::<f64>().unwrap_or_default())),
+                    );
+                    c.extend(
+                        cpu.iter()
+                            .map(|v| (v.timestamp, v.value.parse::<f64>().unwrap_or_default())),
+                    );
 
                     // remove items if they exceed the max size
                     if let Some(delta) = m.len().checked_sub(METRICS_MAX_SIZE_PER_NODE) {
