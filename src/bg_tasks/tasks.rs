@@ -244,8 +244,7 @@ pub async fn update_nodes_info(
         format!("{num_active_nodes}/{num_nodes}"),
     )];
 
-    let estimated_net_size = if num_active_nodes > 0 {
-        let avg_net_size = net_size / num_active_nodes;
+    let estimated_net_size = if let Some(avg_net_size) = net_size.checked_div(num_active_nodes) {
         let bin_versions = bin_version.into_iter().collect::<Vec<_>>().join(", ");
 
         updated_vals.extend([

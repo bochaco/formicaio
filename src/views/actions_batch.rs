@@ -41,13 +41,7 @@ fn ActionBatchViewNew(batch_info: RwSignal<NodesActionsBatch>) -> impl IntoView 
         BatchStatus::InProgressWithFailures(c, _) => *c + batch_info.read().complete,
         BatchStatus::Failed(_) => count,
     };
-    let progress = move || {
-        if count > 0 {
-            (finished() * 100) / count
-        } else {
-            0
-        }
-    };
+    let progress = move || (finished() * 100).checked_div(count).unwrap_or_default();
     let time_remaining = move || {
         if count > 0 {
             let remaining = (count - finished()) as u64

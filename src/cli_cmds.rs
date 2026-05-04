@@ -790,11 +790,9 @@ impl CliCmdResponse {
                         ),
                         other => (other.ids().len() as u16, "".to_string()),
                     };
-                    let progress = if count > 0 {
-                        (batch.complete * 100) / count
-                    } else {
-                        0
-                    };
+                    let progress = (batch.complete * 100)
+                        .checked_div(count)
+                        .unwrap_or_default();
 
                     table.add_row(row![
                         batch.id,

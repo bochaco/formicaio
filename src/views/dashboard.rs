@@ -29,7 +29,7 @@ pub fn DashboardView(on_nodes_click: Callback<()>) -> impl IntoView {
             .into_iter()
             .filter(|(_, n)| n.read().status.is_active())
             .collect::<Vec<_>>();
-        sorted.sort_by(|a, b| b.1.read().connected_peers.cmp(&a.1.read().connected_peers));
+        sorted.sort_by_key(|b| std::cmp::Reverse(b.1.read().connected_peers));
         sorted.truncate(NUMBER_OF_TOP_NODES);
         sorted
     });

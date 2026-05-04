@@ -117,7 +117,7 @@ fn extract_binary_from_archive(
         for entry in archive.entries()? {
             let mut entry = entry?;
             let path = entry.path()?;
-            if path.file_name().map_or(false, |n| n == bin_name) {
+            if path.file_name().is_some_and(|n| n == bin_name) {
                 entry.unpack(dest_path)?;
                 return Ok(());
             }

@@ -143,7 +143,7 @@ impl BatchOnMatch {
 }
 
 /// Options when creating a new node instance.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct NodeOpts {
     /// Whether to force IPv4-only mode (disable dual-stack)
     pub ipv4_only: bool,
@@ -161,19 +161,4 @@ pub struct NodeOpts {
     pub auto_start: bool,
     /// Custom data directory path for this node instance
     pub data_dir_path: PathBuf,
-}
-
-impl Default for NodeOpts {
-    fn default() -> Self {
-        NodeOpts {
-            ipv4_only: bool::default(),
-            port: u16::default(),
-            metrics_port: u16::default(),
-            rewards_addr: String::default(),
-            node_logs: bool::default(),
-            log_level: LogLevel::default(),
-            auto_start: bool::default(),
-            data_dir_path: PathBuf::default(),
-        }
-    }
 }
