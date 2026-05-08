@@ -26,3 +26,21 @@ $ docker build --cache-from=type=registry,ref=bochaco/formicaio-gh:buildcache-na
 ```
 $ docker build --cache-from=type=registry,ref=bochaco/formicaio-gh:buildcache-native-v0.6.2-arm64 --cache-from=type=registry,ref=bochaco/formicaio-gh:buildcache-native-v0.6.2-amd64 -t bochaco/formicaio:0.6.2-native --output=type=image --platform linux/arm64,linux/amd64 --push .
 ```
+
+### Build and run Formicaio container locally with 'native' mode nodes
+
+#### Build container
+```
+docker build --build-arg BUILD_ARGS="--features native" -t formicaio:native-test .
+```
+
+#### Run it locally
+```
+docker run --rm \
+   --privileged \
+   --network host \
+   -e DB_PATH=/data \
+   -e NODE_MGR_ROOT_DIR=/data \
+   -v $(pwd)/data:/data \
+   formicaio:native-test
+```

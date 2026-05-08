@@ -44,11 +44,11 @@ RUN cargo leptos build --release $BUILD_ARGS -vv
 
 # Finally use an Alpine image to build the final runtime image
 # which contains only the built app and required resource files.
-FROM alpine AS runtime
+FROM debian:bookworm-slim AS runtime
 WORKDIR /app
 
-RUN apk update \
-  && apk cache purge \
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates libgcc-s1 liblzma5 \
   && rm -rf /var/lib/apt/lists/*
 
 # Copy the server binary to the /app directory
