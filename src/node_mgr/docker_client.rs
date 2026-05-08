@@ -334,13 +334,19 @@ impl DockerClient {
             format!("METRICS_PORT={}", node_opts.metrics_port),
         ];
         if !node_opts.rewards_addr.is_empty() {
+            let rewards_address_str = if node_opts.rewards_addr.starts_with("0x") {
+                node_opts.rewards_addr
+            } else {
+                format!("0x{}", node_opts.rewards_addr)
+            };
+
             env_vars.push(format!(
                 "REWARDS_ADDR_ARG=--rewards-address {}",
-                node_opts.rewards_addr
+                rewards_address_str
             ));
             labels.push((
                 LABEL_KEY_REWARDS_ADDR.to_string(),
-                node_opts.rewards_addr.clone(),
+                rewards_address_str.clone(),
             ));
         }
         if node_opts.ipv4_only {
@@ -426,7 +432,8 @@ impl DockerClient {
             Cmd: Some(vec![
                 "sh".to_string(),
                 "-c".to_string(),
-                "tail -s 7 -f /app/node_data/logs/ant-node.log".to_string(),
+                "tail -s 7 -f $(ls -1t /app/node_data/logs/ant-node.*.log 2>/dev/null | head -1)"
+                    .to_string(),
             ]),
             Tty: Some(false),
         };

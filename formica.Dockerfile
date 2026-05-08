@@ -1,24 +1,30 @@
 # Dockerfile for running a node
 
-FROM rust:1-alpine AS builder
+FROM debian:bookworm-slim AS builder
 
 RUN mkdir -p /app
 WORKDIR /app
 
 # Install node binary
-RUN apk add curl bash
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates curl libgcc-s1 liblzma5 \
+  && rm -rf /var/lib/apt/lists/*
 RUN ARCH=$(uname -m); \
     if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then \
-      URL="https://github.com/WithAutonomi/ant-node/releases/download/v0.10.0/ant-node-cli-linux-arm64.tar.gz"; \
+      URL="https://github.com/WithAutonomi/ant-node/releases/latest/download/ant-node-cli-linux-arm64.tar.gz"; \
     else \
-      URL="https://github.com/WithAutonomi/ant-node/releases/download/v0.10.0/ant-node-cli-linux-x64.tar.gz"; \
+      URL="https://github.com/WithAutonomi/ant-node/releases/latest/download/ant-node-cli-linux-x64.tar.gz"; \
     fi; \
     curl -L "$URL" | tar xz -C ./
 RUN /app/ant-node --version
 
-FROM alpine AS runtime
+FROM debian:bookworm-slim AS runtime
 # Make an /app dir, which everything will eventually live in
 WORKDIR /app
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates libgcc-s1 liblzma5 \
+  && rm -rf /var/lib/apt/lists/*
 
 # Copy the node binary to the /app directory
 COPY --from=builder /app/ant-node /app/
