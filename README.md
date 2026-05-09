@@ -89,6 +89,8 @@ A comprehensive settings panel allows you to customize monitoring tasks and node
 - **Version check frequency** for the node binary
 - **Token balance query frequency**
 - **Metrics retrieval frequency**
+- **Disk usage check frequency** for monitoring storage consumption
+- **Rewards monitoring** enable/disable automatic balance checks and earnings analytics
 - **ERC20 token contract configuration** (address and RPC URL)
 - **LCD display configuration** for external monitoring
 
@@ -97,13 +99,23 @@ A comprehensive settings panel allows you to customize monitoring tasks and node
 <img src="img/screenshot_04_c.png" width="400" height="212" />
 <img src="img/screenshot_04_d.png" width="400" height="212" />
 
-### 🌐 Network Connectivity Options
+### 🌐 Node Creation Options
 
-When setting up nodes, you can define their connection type and custom data directory:
+When creating nodes, a **Basic** and an **Advanced** tab let you configure each node:
 
-- **UPnP support**: Attempts to use UPnP to open a port on your home router for incoming connections. If your router doesn't support UPnP, create nodes with UPnP disabled to ensure connectivity.
-- **Listening IP address**: This address determines which network interface the node will bind to for incoming connections. The application supports both IPv4 (e.g., `0.0.0.0`, `127.0.0.1`) and IPv6 (e.g., `::`, `fe80::1`) addresses, allowing users to control whether the node is accessible on all interfaces, only locally, or on a specific network. This flexibility is useful for running nodes in different environments, such as local development, private networks, or public-facing deployments.
-- **Custom data directory**: This directory is where the node will store its persistent data, such as chunks, logs, and configuration files. By assigning a unique data directory to each node, or batch of nodes, users can run multiple nodes on the same machine without data conflicts. This option is especially valuable for advanced setups or when running nodes with different hard disks or mounting points.
+**Basic tab:**
+- **Port number**: TCP port (or range start when creating multiple nodes) for the node's main operations
+- **Metrics port number**: TCP port (or range start) used for metrics reporting
+- **Rewards address**: The ERC-20 address that receives earned ANT tokens
+- **Number of nodes**: Create one or a batch of nodes in a single operation
+- **Delay between creates**: Seconds to wait between spawning each node in a batch
+- **Auto start**: Automatically start nodes immediately after creation
+
+**Advanced tab:**
+- **IP version**: Choose between *Dual-stack* (IPv4 + IPv6, default) and *IPv4 only* (for hosts without working IPv6)
+- **Enable logging**: Toggle log output on or off for this node
+- **Log level**: Set the verbosity of node logs (only applies when logging is enabled)
+- **Custom data directory**: Path where the node stores its persistent data (chunks, logs, config). Unique directories let you run multiple nodes without data conflicts, and point each node to a different disk or mount point. If the path is not absolute it is created as a subdirectory of the default data directory.
 
 <img src="img/screenshot_02.png" width="300" height="373" />
 <img src="img/screenshot_02_b.png" width="300" height="248" />
