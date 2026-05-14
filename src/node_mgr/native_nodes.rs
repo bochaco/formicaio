@@ -146,6 +146,20 @@ fn extract_binary_from_archive(
     }
 }
 
+// Opens an LMDB environment at the given path in read-only mode.
+// SAFETY: Callers must ensure at most one Env is open per path at a time.
+// NativeNodes upholds this via lmdb_envs: the env is inserted once on first
+// successful open and removed in kill_node() before any directory deletion.
+fn open_lmdb_env_readonly(path: &Path) -> Option<heed::Env> {
+    unsafe {
+        heed::EnvOpenOptions::new()
+            .max_dbs(1)
+            .flags(heed::EnvFlags::READ_ONLY)
+            .open(path)
+            .ok()
+    }
+}
+
 // Execution and management of nodes as native OS processes
 #[derive(Clone, Debug)]
 pub struct NativeNodes {
@@ -153,6 +167,7 @@ pub struct NativeNodes {
     system: Arc<RwLock<System>>,
     nodes: Arc<RwLock<HashMap<NodeId, NodeProcess>>>,
     node_status_locked: ImmutableNodeStatus,
+    lmdb_envs: Arc<RwLock<HashMap<NodeId, heed::Env>>>,
 }
 
 impl NativeNodes {
@@ -190,6 +205,7 @@ impl NativeNodes {
             system,
             nodes: Arc::new(RwLock::new(nodes)),
             node_status_locked,
+            lmdb_envs: Arc::new(RwLock::new(HashMap::new())),
         })
     }
 
@@ -394,6 +410,30 @@ impl NativeNodes {
                     node_info.set_status_active();
                     node_info.mem_used = Some(process.memory() as f64 / 1_048_576.0);
                     node_info.cpu_usage = Some(process.cpu_usage() as f64 / num_cpus);
+
+                    let chunks_path = self.get_node_data_dir(&node_info, true).join("chunks.mdb");
+                    let count_from = |env: &heed::Env| -> Option<usize> {
+                        let rtxn = env.read_txn().ok()?;
+                        let db: heed::Database<heed::types::Bytes, heed::types::Bytes> =
+                            env.open_database(&rtxn, None).ok()??;
+                        db.len(&rtxn).ok().map(|n| n as usize)
+                    };
+                    {
+                        let envs = self.lmdb_envs.read().await;
+                        if let Some(env) = envs.get(&node_info.node_id) {
+                            node_info.records = count_from(env);
+                        }
+                    }
+                    if node_info.records.is_none() {
+                        if let Some(env) = open_lmdb_env_readonly(&chunks_path) {
+                            node_info.records = count_from(&env);
+                            self.lmdb_envs
+                                .write()
+                                .await
+                                .insert(node_info.node_id.clone(), env);
+                        }
+                    }
+
                     nodes_list.push(node_info);
                     continue;
                 }
@@ -448,6 +488,7 @@ impl NativeNodes {
 
     // Kill node's process
     pub async fn kill_node(&self, node_id: &NodeId) -> Option<ExitStatus> {
+        self.lmdb_envs.write().await.remove(node_id);
         let process = self.nodes.write().await.remove(node_id);
         match process {
             Some(node_process) => self.kill_node_process(node_id, node_process).await,

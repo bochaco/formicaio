@@ -24,6 +24,7 @@ futures-util = "0.3"
 getrandom = { version = "0.4", features = ["wasm_js"] }
 gloo-timers = { version = "0.4", default-features = false, features = ["futures"] }
 gloo-utils = { version = "0.3", default-features = false, features = ["serde"] }
+heed = { version = "0.22", default-features = false, optional = true }
 hex = "0.4"
 http = "1"
 http-body-util = { version = "0.1", optional = true }
@@ -69,6 +70,7 @@ lcd-disabled = []
 hydrate = ["leptos/hydrate"]
 ssr = [
     "dep:flate2",
+    "dep:heed",
     "dep:tar",
     "dep:zip",
     "dep:alloy",

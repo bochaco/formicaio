@@ -4,7 +4,7 @@ use crate::{
     node_mgr::NodeManager,
     types::{
         AppSettings, BatchType, MetricsMode, NodeInstanceInfo, NodeStatus,
-        metrics::{METRIC_KEY_CPU_USAGE, METRIC_KEY_MEM_USED_MB, NodeMetric},
+        metrics::{METRIC_KEY_CPU_USAGE, METRIC_KEY_MEM_USED_MB, METRIC_KEY_RECORDS, NodeMetric},
     },
     views::truncated_balance_str,
 };
@@ -222,6 +222,23 @@ pub async fn update_nodes_info(
                             timestamp,
                         });
                     }
+                    // records was populated by get_nodes_list()
+                    if let Some(count) = node_info.records {
+                        metrics.push(NodeMetric {
+                            key: METRIC_KEY_RECORDS.to_string(),
+                            value: count.to_string(),
+                            timestamp,
+                        });
+                    }
+                    let node_short_id = node_info.short_node_id();
+                    logging::log!(
+                        "[BgTask] System stats for node {node_short_id}: mem={:.1}MB cpu={:.2}% records={}",
+                        node_info.mem_used.unwrap_or(0.0),
+                        node_info.cpu_usage.unwrap_or(0.0),
+                        node_info
+                            .records
+                            .map_or_else(|| "n/a".to_string(), |c| c.to_string()),
+                    );
                     if metrics.is_empty() {
                         node_info.set_status_to_unknown();
                     } else {
