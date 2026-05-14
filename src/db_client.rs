@@ -1,6 +1,6 @@
 use super::types::{
-    AgentEvent, AgentEventType, AppSettings, Metrics, NodeId, NodeInstanceInfo, NodeMetric,
-    NodePid, NodeStatus,
+    AgentEvent, AgentEventType, AppSettings, Metrics, MetricsMode, NodeId, NodeInstanceInfo,
+    NodeMetric, NodePid, NodeStatus,
 };
 use crate::bg_tasks::PaymentRecord;
 
@@ -69,6 +69,7 @@ struct CachedSettings {
     autonomous_enabled: bool,
     autonomous_check_interval_secs: i64,
     autonomous_max_actions_per_cycle: i64,
+    metrics_mode: i64,
 }
 
 // Struct stored on the DB caching nodes metadata.
@@ -867,6 +868,7 @@ impl DbClient {
                 autonomous_enabled: s.autonomous_enabled,
                 autonomous_check_interval_secs: s.autonomous_check_interval_secs as u64,
                 autonomous_max_actions_per_cycle: s.autonomous_max_actions_per_cycle as u64,
+                metrics_mode: MetricsMode::from_db(s.metrics_mode),
             },
             Ok(None) => {
                 logging::log!("[DB] No settings found in DB, we'll be using defaults.");
@@ -907,7 +909,8 @@ impl DbClient {
             max_context_messages = ?, \
             autonomous_enabled = ?, \
             autonomous_check_interval_secs = ?, \
-            autonomous_max_actions_per_cycle = ?",
+            autonomous_max_actions_per_cycle = ?, \
+            metrics_mode = ?",
         )
         .bind(settings.nodes_auto_upgrade)
         .bind(settings.nodes_auto_upgrade_delay.as_secs() as i64)
@@ -931,6 +934,7 @@ impl DbClient {
         .bind(settings.autonomous_enabled)
         .bind(settings.autonomous_check_interval_secs as i64)
         .bind(settings.autonomous_max_actions_per_cycle as i64)
+        .bind(settings.metrics_mode.to_db())
         .execute(&*db_lock)
         .await
         {

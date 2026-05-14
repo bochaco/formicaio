@@ -1,6 +1,6 @@
 use crate::{
     server_api::{get_settings, test_llm_connection, update_settings},
-    types::AppSettings,
+    types::{AppSettings, MetricsMode},
 };
 
 use super::{
@@ -48,6 +48,7 @@ struct FormContent {
     autonomous_enabled: RwSignal<bool>,
     autonomous_check_interval: RwSignal<Result<u64, (String, String)>>,
     autonomous_max_actions: RwSignal<Result<u64, (String, String)>>,
+    metrics_mode: RwSignal<MetricsMode>,
 }
 
 impl FormContent {
@@ -80,6 +81,7 @@ impl FormContent {
             autonomous_enabled: RwSignal::new(settings.autonomous_enabled),
             autonomous_check_interval: RwSignal::new(Ok(settings.autonomous_check_interval_secs)),
             autonomous_max_actions: RwSignal::new(Ok(settings.autonomous_max_actions_per_cycle)),
+            metrics_mode: RwSignal::new(settings.metrics_mode),
         }
     }
 
@@ -115,6 +117,7 @@ impl FormContent {
                 != Ok(saved_settings.autonomous_check_interval_secs)
             || self.autonomous_max_actions.get()
                 != Ok(saved_settings.autonomous_max_actions_per_cycle)
+            || self.metrics_mode.get() != saved_settings.metrics_mode
     }
 
     pub fn get_valid_changes(&self) -> Option<AppSettings> {
@@ -158,6 +161,7 @@ impl FormContent {
             autonomous_enabled: self.autonomous_enabled.get(),
             autonomous_check_interval_secs: v14,
             autonomous_max_actions_per_cycle: v15,
+            metrics_mode: self.metrics_mode.get(),
         })
     }
 
@@ -199,6 +203,7 @@ impl FormContent {
             .set(Ok(saved_settings.autonomous_check_interval_secs));
         self.autonomous_max_actions
             .set(Ok(saved_settings.autonomous_max_actions_per_cycle));
+        self.metrics_mode.set(saved_settings.metrics_mode);
     }
 }
 
@@ -259,6 +264,12 @@ fn SettingsForm(form: RwSignal<FormContent>, active_tab: RwSignal<u8>) -> impl I
                         signal=form.read_untracked().metrics_polling_freq
                         min=5
                     />
+                </SettingRow>
+                <SettingRow
+                    label="Metrics Source"
+                    description="Choose where CPU and memory metrics are read from: the node's HTTP endpoint, the OS/Docker stats, or disabled entirely."
+                >
+                    <MetricsModeSelect signal=form.read_untracked().metrics_mode />
                 </SettingRow>
                 <SettingRow
                     label="Disks Usage Check Frequency"
@@ -871,6 +882,42 @@ fn ToggleSwitch(name: &'static str, checked: RwSignal<bool>) -> impl IntoView {
                 <div class="w-11 h-6 bg-slate-700 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
             </div>
         </label>
+    }
+}
+
+#[component]
+fn MetricsModeSelect(signal: RwSignal<MetricsMode>) -> impl IntoView {
+    let options = [
+        (MetricsMode::Http, "HTTP endpoint"),
+        (MetricsMode::System, "OS / Docker stats"),
+        (MetricsMode::Disabled, "Disabled"),
+    ];
+    view! {
+        <div class="flex items-center bg-slate-800 border border-slate-700 rounded-lg p-1 w-full md:w-auto">
+            {options
+                .into_iter()
+                .map(|(mode, label)| {
+                    view! {
+                        <button
+                            type="button"
+                            on:click=move |_| signal.set(mode)
+                            class=move || {
+                                format!(
+                                    "flex-1 px-4 py-1.5 rounded-md text-sm font-bold transition-all duration-200 {}",
+                                    if signal.get() == mode {
+                                        "bg-indigo-600 text-white shadow-md"
+                                    } else {
+                                        "text-slate-400 hover:bg-slate-700"
+                                    },
+                                )
+                            }
+                        >
+                            {label}
+                        </button>
+                    }
+                })
+                .collect_view()}
+        </div>
     }
 }
 

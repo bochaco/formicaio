@@ -206,6 +206,7 @@ pub fn spawn_bg_tasks(app_ctx: AppContext, node_manager: NodeManager, settings: 
                 },
                 _ = ctx.nodes_metrics_polling.tick() => {
                     let query_bin_version = ctx.app_settings.lcd_display_enabled;
+                    let metrics_mode = ctx.app_settings.metrics_mode;
 
                     // we don't spawn a task for this one just in case it's taking
                     // too long to complete and we may start overwhelming the backend
@@ -214,6 +215,7 @@ pub fn spawn_bg_tasks(app_ctx: AppContext, node_manager: NodeManager, settings: 
                         &node_manager,
                         app_ctx.clone(),
                         query_bin_version,
+                        metrics_mode,
                         &lcd_stats
                     ).await;
                     // reset interval to start next period from this instant,

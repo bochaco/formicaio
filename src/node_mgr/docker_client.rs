@@ -256,6 +256,15 @@ impl DockerClient {
         let containers: Vec<Container> = serde_json::from_slice(&resp_bytes)?;
         let mut nodes: Vec<NodeInstanceInfo> = containers.into_iter().map(|c| c.into()).collect();
 
+        for node in nodes.iter_mut() {
+            if node.status.is_active() {
+                if let Ok((mem_mb, cpu_pct)) = self.get_container_stats(&node.node_id).await {
+                    node.mem_used = Some(mem_mb);
+                    node.cpu_usage = Some(cpu_pct);
+                }
+            }
+        }
+
         let now = Utc::now().timestamp() as u64;
         if *self.last_check_ts.read().await + BIN_VERSION_CHECK_MAX_FREQ_SECS < now {
             *self.last_check_ts.write().await = now;
@@ -579,6 +588,37 @@ impl DockerClient {
         }
 
         Ok(usage)
+    }
+
+    // Return CPU usage (%) and memory usage (MB) for the given container.
+    pub async fn get_container_stats(&self, id: &NodeId) -> Result<(f64, f64), DockerClientError> {
+        let url = format!("{DOCKER_CONTAINERS_API}/{id}/stats");
+        let resp_bytes = self
+            .send_request(ReqMethod::Get, &url, &[("stream", "false")])
+            .await?;
+        let stats: ContainerStats = serde_json::from_slice(&resp_bytes)?;
+
+        let mem_mb = stats.memory_stats.usage as f64 / 1_048_576.0;
+
+        let cpu_delta = stats
+            .cpu_stats
+            .cpu_usage
+            .total_usage
+            .saturating_sub(stats.precpu_stats.cpu_usage.total_usage);
+        let system_delta = stats
+            .cpu_stats
+            .system_cpu_usage
+            .unwrap_or(0)
+            .saturating_sub(stats.precpu_stats.system_cpu_usage.unwrap_or(0));
+        let num_cpus = stats.cpu_stats.online_cpus.unwrap_or(1) as f64;
+
+        let cpu_pct = if system_delta > 0 && cpu_delta > 0 {
+            (cpu_delta as f64 / system_delta as f64) * num_cpus * 100.0
+        } else {
+            0.0
+        };
+
+        Ok((mem_mb, cpu_pct))
     }
 
     // Clears the node's PeerId within the containver and restarts it

@@ -346,11 +346,15 @@ impl NativeNodes {
             sys.refresh_processes_specifics(
                 ProcessesToUpdate::All,
                 true,
-                ProcessRefreshKind::nothing().with_exe(UpdateKind::OnlyIfNotSet),
+                ProcessRefreshKind::nothing()
+                    .with_exe(UpdateKind::OnlyIfNotSet)
+                    .with_cpu()
+                    .with_memory(),
             );
             sys
         };
 
+        let num_cpus = sys.cpus().len().max(1) as f64;
         let mut nodes_list = vec![];
         let mut new_pids = vec![];
 
@@ -388,6 +392,8 @@ impl NativeNodes {
                 nodes_info.remove(node_id);
                 if process.status() != ProcessStatus::Zombie {
                     node_info.set_status_active();
+                    node_info.mem_used = Some(process.memory() as f64 / 1_048_576.0);
+                    node_info.cpu_usage = Some(process.cpu_usage() as f64 / num_cpus);
                     nodes_list.push(node_info);
                     continue;
                 }

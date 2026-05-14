@@ -18,7 +18,7 @@ pub use node_instance::{
     LogLevel, NodeInstanceInfo, NodePid, ReachabilityCheckStatus, shortened_address,
 };
 pub use node_status::{InactiveReason, NodeStatus};
-pub use settings::AppSettings;
+pub use settings::{AppSettings, MetricsMode};
 pub use sort_nodes::{NodeSortField, NodesSortStrategy};
 pub use stats::{EarningsStats, PeriodStats, Stats, WidgetFourStats, WidgetStat};
 

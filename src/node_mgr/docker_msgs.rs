@@ -188,3 +188,33 @@ pub struct RestartPolicy {
 pub struct ServerErrorMessage {
     pub message: String,
 }
+
+// Structs to deserialize the Docker container stats API response.
+// The stats endpoint uses snake_case field names.
+#[derive(Deserialize, Debug, Default)]
+pub struct ContainerStats {
+    pub memory_stats: MemoryStats,
+    pub cpu_stats: CpuStats,
+    pub precpu_stats: CpuStats,
+}
+
+#[derive(Deserialize, Debug, Default)]
+pub struct MemoryStats {
+    #[serde(default)]
+    pub usage: u64,
+}
+
+#[derive(Deserialize, Debug, Default)]
+pub struct CpuStats {
+    pub cpu_usage: CpuUsage,
+    #[serde(default)]
+    pub system_cpu_usage: Option<u64>,
+    #[serde(default)]
+    pub online_cpus: Option<u32>,
+}
+
+#[derive(Deserialize, Debug, Default)]
+pub struct CpuUsage {
+    #[serde(default)]
+    pub total_usage: u64,
+}

@@ -158,6 +158,11 @@ impl NodesMetrics {
         let _ = self.data.insert(node_id.clone(), metrics.clone());
     }
 
+    // Clear only the in-memory cache for the given node, leaving DB history intact.
+    pub fn clear_node_cache(&mut self, node_id: &NodeId) {
+        self.data.remove(node_id);
+    }
+
     // Remove all the metrics for the specified node id
     pub async fn remove_node_metrics(&mut self, node_id: &NodeId) {
         self.db_client.delete_node_metrics(node_id).await;

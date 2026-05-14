@@ -2,7 +2,10 @@ use crate::{
     app::{AppContext, METRICS_MAX_SIZE_PER_NODE},
     db_client::DbClient,
     node_mgr::NodeManager,
-    types::{AppSettings, BatchType, NodeInstanceInfo, NodeStatus},
+    types::{
+        AppSettings, BatchType, MetricsMode, NodeInstanceInfo, NodeStatus,
+        metrics::{METRIC_KEY_CPU_USAGE, METRIC_KEY_MEM_USED_MB, NodeMetric},
+    },
     views::truncated_balance_str,
 };
 
@@ -159,6 +162,7 @@ pub async fn update_nodes_info(
     node_manager: &NodeManager,
     app_ctx: AppContext,
     query_bin_version: bool,
+    metrics_mode: MetricsMode,
     lcd_stats: &Arc<RwLock<HashMap<String, String>>>,
 ) {
     let ts = Utc::now();
@@ -169,7 +173,12 @@ pub async fn update_nodes_info(
 
     let num_nodes = nodes.len();
     if num_nodes > 0 {
-        logging::log!("[{ts}] [BgTask] Fetching status and metrics from {num_nodes} node/s ...");
+        let metrics_label = match metrics_mode {
+            MetricsMode::Http => " and metrics (HTTP)",
+            MetricsMode::System => " and metrics (system)",
+            MetricsMode::Disabled => "",
+        };
+        logging::log!("[{ts}] [BgTask] Fetching status{metrics_label} from {num_nodes} node/s ...");
     }
 
     // let's collect stats to update LCD (if enabled) and global stats records
@@ -186,41 +195,83 @@ pub async fn update_nodes_info(
         if node_info.status.is_active() {
             num_active_nodes += 1;
 
-            if let Some(metrics_port) = node_info.metrics_port {
-                // let's now collect metrics from the node
-                let metrics_client = NodeMetricsClient::new(metrics_port);
-                let node_short_id = node_info.short_node_id();
+            // Clear cached values from the previous iteration so that a failed read
+            // leaves the node showing no metrics rather than stale ones.
+            app_ctx
+                .nodes_metrics
+                .write()
+                .await
+                .clear_node_cache(&node_info.node_id);
 
-                match timeout(NODE_METRICS_QUERY_TIMEOUT, metrics_client.fetch_metrics()).await {
-                    Ok(Ok(metrics)) => {
+            match metrics_mode {
+                MetricsMode::System => {
+                    // CPU/memory were populated by get_nodes_list(); just store them to the cache.
+                    let timestamp = Utc::now().timestamp_millis();
+                    let mut metrics = vec![];
+                    if let Some(mem) = node_info.mem_used {
+                        metrics.push(NodeMetric {
+                            key: METRIC_KEY_MEM_USED_MB.to_string(),
+                            value: mem.to_string(),
+                            timestamp,
+                        });
+                    }
+                    if let Some(cpu) = node_info.cpu_usage {
+                        metrics.push(NodeMetric {
+                            key: METRIC_KEY_CPU_USAGE.to_string(),
+                            value: cpu.to_string(),
+                            timestamp,
+                        });
+                    }
+                    if metrics.is_empty() {
+                        node_info.set_status_to_unknown();
+                    } else {
                         let mut node_metrics = app_ctx.nodes_metrics.write().await;
                         node_metrics.store(&node_info.node_id, &metrics).await;
                         node_metrics.update_node_info(&mut node_info);
                         node_info.status = NodeStatus::Active;
                     }
-                    Ok(Err(err)) => {
-                        node_info.set_status_to_unknown();
-                        logging::log!(
-                            "[BgTask] Failed to fetch metrics from node {node_short_id}: {}",
-                            err.source().map_or_else(
-                                || err.to_string().chars().take(200).collect(),
-                                |s| s.to_string()
-                            )
-                        );
-                    }
-                    Err(_) => {
-                        node_info.set_status_to_unknown();
-                        logging::warn!(
-                            "[WARN][BgTask] Timeout ({NODE_METRICS_QUERY_TIMEOUT:?}) while fetching metrics from node {node_short_id}."
-                        );
+                }
+                MetricsMode::Http => {
+                    if let Some(metrics_port) = node_info.metrics_port {
+                        // Fetch all metrics from the node's HTTP metrics endpoint.
+                        let metrics_client = NodeMetricsClient::new(metrics_port);
+                        let node_short_id = node_info.short_node_id();
+
+                        match timeout(NODE_METRICS_QUERY_TIMEOUT, metrics_client.fetch_metrics())
+                            .await
+                        {
+                            Ok(Ok(metrics)) => {
+                                let mut node_metrics = app_ctx.nodes_metrics.write().await;
+                                node_metrics.store(&node_info.node_id, &metrics).await;
+                                node_metrics.update_node_info(&mut node_info);
+                                node_info.status = NodeStatus::Active;
+                            }
+                            Ok(Err(err)) => {
+                                node_info.set_status_to_unknown();
+                                logging::log!(
+                                    "[BgTask] Failed to fetch metrics from node {node_short_id}: {}",
+                                    err.source().map_or_else(
+                                        || err.to_string().chars().take(200).collect(),
+                                        |s| s.to_string()
+                                    )
+                                );
+                            }
+                            Err(_) => {
+                                node_info.set_status_to_unknown();
+                                logging::warn!(
+                                    "[WARN][BgTask] Timeout ({NODE_METRICS_QUERY_TIMEOUT:?}) while fetching metrics from node {node_short_id}."
+                                );
+                            }
+                        }
+
+                        net_size += node_info.net_size.unwrap_or_default();
+                        records += node_info.records.unwrap_or_default();
+                        relevant_records += node_info.relevant_records.unwrap_or_default();
+                        connected_peers += node_info.connected_peers.unwrap_or_default();
+                        shunned_count += node_info.shunned_count.unwrap_or_default();
                     }
                 }
-
-                net_size += node_info.net_size.unwrap_or_default();
-                records += node_info.records.unwrap_or_default();
-                relevant_records += node_info.relevant_records.unwrap_or_default();
-                connected_peers += node_info.connected_peers.unwrap_or_default();
-                shunned_count += node_info.shunned_count.unwrap_or_default();
+                MetricsMode::Disabled => {}
             }
         } else if node_info.status.is_inactive() {
             num_inactive_nodes += 1;

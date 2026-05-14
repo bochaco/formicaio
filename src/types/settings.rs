@@ -1,6 +1,53 @@
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
+pub enum MetricsMode {
+    #[default]
+    Http, // 0 — use the node's HTTP metrics endpoint (default)
+    System,   // 1 — read CPU/memory from OS/Docker stats
+    Disabled, // 2 — skip metrics entirely
+}
+
+impl MetricsMode {
+    pub fn from_db(v: i64) -> Self {
+        match v {
+            1 => Self::System,
+            2 => Self::Disabled,
+            _ => Self::Http,
+        }
+    }
+
+    pub fn to_db(self) -> i64 {
+        match self {
+            Self::Http => 0,
+            Self::System => 1,
+            Self::Disabled => 2,
+        }
+    }
+}
+
+impl std::fmt::Display for MetricsMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::Http => write!(f, "http"),
+            Self::System => write!(f, "system"),
+            Self::Disabled => write!(f, "disabled"),
+        }
+    }
+}
+
+impl std::str::FromStr for MetricsMode {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, ()> {
+        match s {
+            "system" => Ok(Self::System),
+            "disabled" => Ok(Self::Disabled),
+            _ => Ok(Self::Http),
+        }
+    }
+}
+
 /// Application settings values.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct AppSettings {
@@ -35,6 +82,8 @@ pub struct AppSettings {
     pub autonomous_check_interval_secs: u64,
     /// Maximum number of tool-based actions the agent may take per monitoring cycle.
     pub autonomous_max_actions_per_cycle: u64,
+    /// Controls how CPU and memory metrics are collected for each node.
+    pub metrics_mode: MetricsMode,
 }
 
 impl Default for AppSettings {
@@ -84,6 +133,8 @@ impl Default for AppSettings {
             autonomous_check_interval_secs: 60,
             // Allow at most 3 corrective actions per monitoring cycle to avoid runaway behaviour.
             autonomous_max_actions_per_cycle: 3,
+            // Use the node's HTTP metrics endpoint by default.
+            metrics_mode: MetricsMode::Http,
         }
     }
 }
