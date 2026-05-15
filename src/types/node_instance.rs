@@ -320,9 +320,9 @@ mod tests {
         assert_eq!(info.mem_used, None);
         assert_eq!(info.cpu_usage, None);
         assert_eq!(info.disk_usage, None);
-        assert_eq!(info.records, Some(0));
-        assert_eq!(info.connected_peers, Some(0));
-        assert_eq!(info.kbuckets_peers, Some(0));
+        assert_eq!(info.records, None);
+        assert_eq!(info.connected_peers, None);
+        assert_eq!(info.kbuckets_peers, None);
     }
 
     #[test]
