@@ -4,8 +4,8 @@ use crate::{
     db_client::DbError,
     server_api::parse_and_validate_addr,
     types::{
-        BatchType, InactiveReason, NodeFilter, NodeId, NodeInstanceInfo, NodeList, NodeOpts,
-        NodeStatus,
+        BatchType, InactiveReason, MetricsMode, NodeFilter, NodeId, NodeInstanceInfo, NodeList,
+        NodeOpts, NodeStatus,
     },
 };
 
@@ -91,7 +91,9 @@ impl NodeManager {
         }
 
         // to update pids and versions in db for nodes which were active before restart
-        let nodes_list = node_manager.update_nodes_status(nodes_in_db).await?;
+        let nodes_list = node_manager
+            .update_nodes_status(nodes_in_db, MetricsMode::Disabled)
+            .await?;
 
         // let's create a batch to start nodes which were Active and were found inactive now
         let mut active_nodes = vec![];
@@ -428,9 +430,12 @@ impl NodeManager {
     }
 
     // Obtain a non-filtered list of existing nodes.
-    pub async fn get_nodes_list(&self) -> Result<Vec<NodeInstanceInfo>, NodeManagerError> {
+    pub async fn get_nodes_list(
+        &self,
+        metrics_mode: MetricsMode,
+    ) -> Result<Vec<NodeInstanceInfo>, NodeManagerError> {
         let nodes_in_db = self.app_ctx.db_client.get_nodes_list().await;
-        self.update_nodes_status(nodes_in_db).await
+        self.update_nodes_status(nodes_in_db, metrics_mode).await
     }
 
     // Private helper to retrieve an up to date list of nodes by checking its
@@ -438,8 +443,10 @@ impl NodeManager {
     async fn update_nodes_status(
         &self,
         nodes: HashMap<NodeId, NodeInstanceInfo>,
+        metrics_mode: MetricsMode,
     ) -> Result<Vec<NodeInstanceInfo>, NodeManagerError> {
-        let (nodes, updated_pids) = self.native_nodes.get_nodes_list(nodes).await?;
+        let read_lmdb = matches!(metrics_mode, MetricsMode::System);
+        let (nodes, updated_pids) = self.native_nodes.get_nodes_list(nodes, read_lmdb).await?;
 
         for (node_id, pid, bin_version, peer_id) in updated_pids {
             self.app_ctx

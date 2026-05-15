@@ -1,7 +1,7 @@
 use super::{
     chart::{ChartSeriesData, node_metrics_update},
     format_disk_usage,
-    helpers::{node_logs_stream, show_error_alert_msg, truncated_balance_str},
+    helpers::{node_logs_stream, show_error_alert_msg, truncated_balance_str, value_or_dash},
     icons::{
         IconChevronDown, IconRecycle, IconRemove, IconShowChart, IconShowLogs, IconStartNode,
         IconStopNode, IconUpgradeNode,
@@ -19,11 +19,6 @@ use leptos::{logging, prelude::*, task::spawn_local};
 
 // Number of elapsed seconds to warn the user of an active node with 0 connected peers
 const WARN_ZERO_CONN_PEERS_SECS: i64 = 120;
-
-// Helper which converts a value to string or a dash sign if it's None
-fn value_or_dash<T: ToString>(val: Option<T>) -> String {
-    val.map_or("-".to_string(), |v| v.to_string())
-}
 
 #[component]
 pub(super) fn NodeInstanceView(

@@ -229,10 +229,10 @@ impl NodeInstanceInfo {
         self.mem_used = None;
         self.cpu_usage = None;
         self.disk_usage = None;
-        self.records = Some(0);
+        self.records = None;
         self.relevant_records = None;
-        self.connected_peers = Some(0);
-        self.kbuckets_peers = Some(0);
+        self.connected_peers = None;
+        self.kbuckets_peers = None;
         self.shunned_count = None;
         self.net_size = None;
     }

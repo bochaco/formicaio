@@ -2,7 +2,10 @@ use crate::{
     app::AppContext,
     bg_tasks::{BgTasksCmds, NodesMetrics},
     db_client::DbError,
-    types::{InactiveReason, NodeFilter, NodeId, NodeInstanceInfo, NodeList, NodeOpts, NodeStatus},
+    types::{
+        InactiveReason, MetricsMode, NodeFilter, NodeId, NodeInstanceInfo, NodeList, NodeOpts,
+        NodeStatus,
+    },
 };
 
 use super::{
@@ -285,8 +288,15 @@ impl NodeManager {
     }
 
     // Obtain a non-filtered list of existing nodes.
-    pub async fn get_nodes_list(&self) -> Result<Vec<NodeInstanceInfo>, NodeManagerError> {
-        let nodes = self.docker_client.get_containers_list().await?;
+    pub async fn get_nodes_list(
+        &self,
+        metrics_mode: MetricsMode,
+    ) -> Result<Vec<NodeInstanceInfo>, NodeManagerError> {
+        let read_system_metrics = matches!(metrics_mode, MetricsMode::System);
+        let nodes = self
+            .docker_client
+            .get_containers_list(read_system_metrics)
+            .await?;
         Ok(nodes)
     }
 
@@ -296,7 +306,7 @@ impl NodeManager {
         filter: Option<NodeFilter>,
         nodes_metrics: Arc<RwLock<NodesMetrics>>,
     ) -> Result<NodeList, NodeManagerError> {
-        let nodes_list = self.docker_client.get_containers_list().await?;
+        let nodes_list = self.docker_client.get_containers_list(false).await?;
         let mut nodes = HashMap::new();
         for mut node_info in nodes_list.into_iter() {
             // we first read node metadata cached in the database

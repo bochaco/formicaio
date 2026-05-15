@@ -225,7 +225,7 @@ impl DockerClient {
     ) -> Result<NodeInstanceInfo, DockerClientError> {
         let mut filters = HashMap::default();
         filters.insert("id".to_string(), vec![id.to_string()]);
-        let containers = self.list_containers(&filters, true).await?;
+        let containers = self.list_containers(&filters, true, false).await?;
         containers
             .into_iter()
             .next()
@@ -234,10 +234,14 @@ impl DockerClient {
 
     // Query the Docker server to return the list of ALL existing containers,
     // unless 'all' argument is set to false in which case only running containers are returned.
-    pub async fn get_containers_list(&self) -> Result<Vec<NodeInstanceInfo>, DockerClientError> {
+    pub async fn get_containers_list(
+        &self,
+        read_system_metrics: bool,
+    ) -> Result<Vec<NodeInstanceInfo>, DockerClientError> {
         let mut filters = HashMap::default();
         filters.insert("label".to_string(), vec![LABEL_KEY_VERSION.to_string()]);
-        self.list_containers(&filters, true).await
+        self.list_containers(&filters, true, read_system_metrics)
+            .await
     }
 
     // Query the Docker server to return a LIST of existing containers using the given filter.
@@ -245,6 +249,7 @@ impl DockerClient {
         &self,
         filters: &HashMap<String, Vec<String>>,
         all: bool,
+        read_system_metrics: bool,
     ) -> Result<Vec<NodeInstanceInfo>, DockerClientError> {
         let url = format!("{DOCKER_CONTAINERS_API}/json");
         let all_str = all.to_string();
@@ -256,11 +261,13 @@ impl DockerClient {
         let containers: Vec<Container> = serde_json::from_slice(&resp_bytes)?;
         let mut nodes: Vec<NodeInstanceInfo> = containers.into_iter().map(|c| c.into()).collect();
 
-        for node in nodes.iter_mut() {
-            if node.status.is_active() {
-                if let Ok((mem_mb, cpu_pct)) = self.get_container_stats(&node.node_id).await {
-                    node.mem_used = Some(mem_mb);
-                    node.cpu_usage = Some(cpu_pct);
+        if read_system_metrics {
+            for node in nodes.iter_mut() {
+                if node.status.is_active() {
+                    if let Ok((mem_mb, cpu_pct)) = self.get_container_stats(&node.node_id).await {
+                        node.mem_used = Some(mem_mb);
+                        node.cpu_usage = Some(cpu_pct);
+                    }
                 }
             }
         }

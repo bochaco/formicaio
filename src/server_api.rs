@@ -19,7 +19,7 @@ mod ssr_imports_and_defs {
             agent::{LlmClient, OpenAiCompatClient, process_chat_turn},
             prepare_node_action_batch,
         },
-        types::WidgetStat,
+        types::{MetricsMode, WidgetStat},
         views::truncated_balance_str,
     };
     pub use bytes::Bytes;
@@ -255,7 +255,10 @@ pub async fn nodes_actions_batch_on_match(
     interval_secs: u64,
 ) -> Result<u16, ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
-    let nodes_list = context.node_manager.get_nodes_list().await?;
+    let nodes_list = context
+        .node_manager
+        .get_nodes_list(MetricsMode::Disabled)
+        .await?;
 
     let matching_nodes = move |filter: NodeFilter| {
         nodes_list

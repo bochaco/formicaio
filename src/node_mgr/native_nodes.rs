@@ -355,6 +355,7 @@ impl NativeNodes {
     pub async fn get_nodes_list(
         &self,
         mut nodes_info: HashMap<NodeId, NodeInstanceInfo>,
+        read_lmdb: bool,
     ) -> Result<(Vec<NodeInstanceInfo>, Vec<(NodeId, u32, String, String)>), NativeNodesError> {
         // first update processes information of our `System` struct
         let sys = {
@@ -411,26 +412,29 @@ impl NativeNodes {
                     node_info.mem_used = Some(process.memory() as f64 / 1_048_576.0);
                     node_info.cpu_usage = Some(process.cpu_usage() as f64 / num_cpus);
 
-                    let chunks_path = self.get_node_data_dir(&node_info, true).join("chunks.mdb");
-                    let count_from = |env: &heed::Env| -> Option<usize> {
-                        let rtxn = env.read_txn().ok()?;
-                        let db: heed::Database<heed::types::Bytes, heed::types::Bytes> =
-                            env.open_database(&rtxn, None).ok()??;
-                        db.len(&rtxn).ok().map(|n| n as usize)
-                    };
-                    {
-                        let envs = self.lmdb_envs.read().await;
-                        if let Some(env) = envs.get(&node_info.node_id) {
-                            node_info.records = count_from(env);
+                    if read_lmdb {
+                        let chunks_path =
+                            self.get_node_data_dir(&node_info, true).join("chunks.mdb");
+                        let count_from = |env: &heed::Env| -> Option<usize> {
+                            let rtxn = env.read_txn().ok()?;
+                            let db: heed::Database<heed::types::Bytes, heed::types::Bytes> =
+                                env.open_database(&rtxn, None).ok()??;
+                            db.len(&rtxn).ok().map(|n| n as usize)
+                        };
+                        {
+                            let envs = self.lmdb_envs.read().await;
+                            if let Some(env) = envs.get(&node_info.node_id) {
+                                node_info.records = count_from(env);
+                            }
                         }
-                    }
-                    if node_info.records.is_none() {
-                        if let Some(env) = open_lmdb_env_readonly(&chunks_path) {
-                            node_info.records = count_from(&env);
-                            self.lmdb_envs
-                                .write()
-                                .await
-                                .insert(node_info.node_id.clone(), env);
+                        if node_info.records.is_none() {
+                            if let Some(env) = open_lmdb_env_readonly(&chunks_path) {
+                                node_info.records = count_from(&env);
+                                self.lmdb_envs
+                                    .write()
+                                    .await
+                                    .insert(node_info.node_id.clone(), env);
+                            }
                         }
                     }
 

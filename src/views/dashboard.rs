@@ -4,7 +4,7 @@ use super::{
     GB_CONVERTION,
     earnings::RewardsEarningsCard,
     format_disk_usage,
-    helpers::truncated_balance_str,
+    helpers::{truncated_balance_str, value_or_dash},
     icons::{
         IconActivity, IconArrowUpRight, IconDisk, IconFile, IconPeers, IconServer, IconWallet,
     },
@@ -188,13 +188,13 @@ pub fn DashboardView(on_nodes_click: Callback<()>) -> impl IntoView {
                                         }>{move || child.1.read().status_summary()}</span>
                                     </td>
                                     <td class="px-6 py-4 text-center font-mono text-cyan-400">
-                                        {move || child.1.read().records}
+                                        {move || value_or_dash(child.1.read().records)}
                                     </td>
                                     <td class="px-6 py-4 text-center font-mono text-cyan-400">
-                                        {move || child.1.read().net_size}
+                                        {move || value_or_dash(child.1.read().net_size)}
                                     </td>
                                     <td class="px-6 py-4 text-center font-mono text-cyan-400">
-                                        {move || child.1.read().connected_peers}
+                                        {move || value_or_dash(child.1.read().connected_peers)}
                                     </td>
                                 </tr>
                             </For>

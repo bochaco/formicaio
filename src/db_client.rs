@@ -92,7 +92,7 @@ struct CachedNodeMetadata {
     rewards_addr: String,
     node_logs: bool,
     log_level: String,
-    records: String,
+    records: Option<String>,
     connected_peers: String,
     kbuckets_peers: String,
     ips: String,
@@ -156,7 +156,7 @@ impl CachedNodeMetadata {
         if !self.rewards_addr.is_empty() {
             info.rewards_addr = Some(self.rewards_addr.clone());
         }
-        if let Ok(v) = self.records.parse::<usize>() {
+        if let Some(Ok(v)) = self.records.as_deref().map(str::parse::<usize>) {
             info.records = Some(v);
         }
         if let Ok(v) = self.connected_peers.parse::<usize>() {
@@ -387,7 +387,7 @@ impl DbClient {
             .bind(info.rewards_addr.clone())
             .bind(info.node_logs)
             .bind(info.log_level.to_string())
-            .bind(info.records.map_or("".to_string(), |v| v.to_string()))
+            .bind(info.records.map(|v| v.to_string()))
             .bind(
                 info.connected_peers
                     .map_or("".to_string(), |v| v.to_string()),
@@ -416,52 +416,50 @@ impl DbClient {
     // Update node metadata
     pub async fn update_node_metadata(&self, info: &NodeInstanceInfo, update_status: bool) {
         let mut updates = Vec::new();
-        let mut params = Vec::new();
+        let mut params: Vec<Option<String>> = Vec::new();
 
         if update_status {
             updates.push("status=?");
-            params.push(json!(info.status).to_string());
+            params.push(Some(json!(info.status).to_string()));
         }
 
         if info.status_changed > 0 {
             updates.push("status_changed=?");
-            params.push(info.status_changed.to_string());
+            params.push(Some(info.status_changed.to_string()));
         }
         if let Some(peer_id) = &info.peer_id {
             updates.push("peer_id=?");
-            params.push(peer_id.clone());
+            params.push(Some(peer_id.clone()));
         }
         if let Some(bin_version) = &info.bin_version {
             updates.push("bin_version=?");
-            params.push(bin_version.clone());
+            params.push(Some(bin_version.clone()));
         }
         if let Some(rewards) = &info.rewards {
             updates.push("rewards=?");
-            params.push(rewards.to_string());
+            params.push(Some(rewards.to_string()));
         }
         if let Some(balance) = &info.balance {
             updates.push("balance=?");
-            params.push(balance.to_string());
+            params.push(Some(balance.to_string()));
         }
-        if let Some(records) = &info.records {
-            updates.push("records=?");
-            params.push(records.to_string());
-        }
+        updates.push("records=?");
+        params.push(info.records.map(|v| v.to_string()));
         if let Some(connected_peers) = &info.connected_peers {
             updates.push("connected_peers=?");
-            params.push(connected_peers.to_string());
+            params.push(Some(connected_peers.to_string()));
         }
         if let Some(kbuckets_peers) = &info.kbuckets_peers {
             updates.push("kbuckets_peers=?");
-            params.push(kbuckets_peers.to_string());
+            params.push(Some(kbuckets_peers.to_string()));
         }
         if let Some(ips) = &info.ips {
             updates.push("ips=?");
-            params.push(ips.clone());
+            params.push(Some(ips.clone()));
         }
         if let Some(data_dir_path) = &info.data_dir_path {
             updates.push("data_dir_path=?");
-            params.push(data_dir_path.clone().display().to_string());
+            params.push(Some(data_dir_path.clone().display().to_string()));
         }
 
         if updates.is_empty() {
@@ -472,7 +470,7 @@ impl DbClient {
             "UPDATE nodes SET {} WHERE node_id LIKE ? || '%'",
             updates.join(", ")
         );
-        params.push(info.node_id.to_string());
+        params.push(Some(info.node_id.to_string()));
 
         let mut query = sqlx::query(&query_str);
         for p in params {

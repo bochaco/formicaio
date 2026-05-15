@@ -166,10 +166,13 @@ pub async fn update_nodes_info(
     lcd_stats: &Arc<RwLock<HashMap<String, String>>>,
 ) {
     let ts = Utc::now();
-    let nodes = node_manager.get_nodes_list().await.unwrap_or_else(|err| {
-        logging::warn!("[{ts}] [WARN][BgTask] Failed to get nodes list: {err}");
-        vec![]
-    });
+    let nodes = node_manager
+        .get_nodes_list(metrics_mode.clone())
+        .await
+        .unwrap_or_else(|err| {
+            logging::warn!("[{ts}] [WARN][BgTask] Failed to get nodes list: {err}");
+            vec![]
+        });
 
     let num_nodes = nodes.len();
     if num_nodes > 0 {
@@ -280,16 +283,16 @@ pub async fn update_nodes_info(
                                 );
                             }
                         }
-
-                        net_size += node_info.net_size.unwrap_or_default();
-                        records += node_info.records.unwrap_or_default();
-                        relevant_records += node_info.relevant_records.unwrap_or_default();
-                        connected_peers += node_info.connected_peers.unwrap_or_default();
-                        shunned_count += node_info.shunned_count.unwrap_or_default();
                     }
                 }
                 MetricsMode::Disabled => {}
             }
+
+            net_size += node_info.net_size.unwrap_or_default();
+            records += node_info.records.unwrap_or_default();
+            relevant_records += node_info.relevant_records.unwrap_or_default();
+            connected_peers += node_info.connected_peers.unwrap_or_default();
+            shunned_count += node_info.shunned_count.unwrap_or_default();
         } else if node_info.status.is_inactive() {
             num_inactive_nodes += 1;
         }
@@ -403,7 +406,7 @@ pub async fn update_disks_usage(
 
 // Prune metrics records from the cache DB to always keep the number of records within a limit.
 pub async fn prune_metrics(node_manager: NodeManager, db_client: DbClient) {
-    let nodes = match node_manager.get_nodes_list().await {
+    let nodes = match node_manager.get_nodes_list(MetricsMode::Disabled).await {
         Ok(nodes) if !nodes.is_empty() => nodes,
         Err(err) => {
             logging::log!("[BgTask] Failed to get nodes list: {err}");
@@ -575,7 +578,7 @@ pub async fn balance_checker_task(
                 updated_balances.clear();
                 let mut total_balance = U256::from(0u64);
                 if let Some(ref token_contract) = token_contract {
-                    match node_manager.get_nodes_list().await {
+                    match node_manager.get_nodes_list(MetricsMode::Disabled).await {
                         Ok(nodes) if !nodes.is_empty() => {
                             retrieve_current_balances(
                                 nodes,

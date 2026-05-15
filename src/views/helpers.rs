@@ -15,6 +15,10 @@ use leptos::{logging, prelude::*, task::spawn_local};
 // Duration of each alert message shows in the UI
 const ALERT_MSG_DURATION_MILLIS: u32 = 9_000;
 
+pub fn value_or_dash<T: ToString>(val: Option<T>) -> String {
+    val.map_or("-".to_string(), |v| v.to_string())
+}
+
 // Format a U256 value truncating it to only 4 decimals if it's too large in attos.
 pub fn truncated_balance_str(v: U256) -> String {
     if v > U256::from(1_000_000u128) {
