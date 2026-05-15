@@ -67,7 +67,7 @@ pub fn NodesListView(
                                     <div class="col-span-5">Status</div>
                                     <div class="col-span-1 text-center">CPU</div>
                                     <div class="col-span-2 text-center">Memory</div>
-                                    <div class="col-span-1 text-center">Records</div>
+                                    <div class="col-span-1 text-center">Chunks</div>
                                     <div class="col-span-2 text-center">Disk Usage</div>
                                     <div class="col-span-1 text-center">Peers</div>
                                     <div class="col-span-3 text-center">Actions</div>

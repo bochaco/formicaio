@@ -888,12 +888,12 @@ fn ToggleSwitch(name: &'static str, checked: RwSignal<bool>) -> impl IntoView {
 #[component]
 fn MetricsModeSelect(signal: RwSignal<MetricsMode>) -> impl IntoView {
     let options = [
-        (MetricsMode::Http, "HTTP endpoint"),
+        (MetricsMode::Http, "Node's HTTP endpoint"),
         (MetricsMode::System, "OS / Docker stats"),
         (MetricsMode::Disabled, "Disabled"),
     ];
     view! {
-        <div class="flex items-center bg-slate-800 border border-slate-700 rounded-lg p-1 w-full md:w-auto">
+        <div class="flex items-stretch bg-slate-800 border border-slate-700 rounded-lg p-1 w-full md:w-auto">
             {options
                 .into_iter()
                 .map(|(mode, label)| {
@@ -903,7 +903,7 @@ fn MetricsModeSelect(signal: RwSignal<MetricsMode>) -> impl IntoView {
                             on:click=move |_| signal.set(mode)
                             class=move || {
                                 format!(
-                                    "flex-1 px-4 py-1.5 rounded-md text-sm font-bold transition-all duration-200 {}",
+                                    "flex-1 flex items-center justify-center px-4 py-1.5 rounded-md text-sm font-bold transition-all duration-200 {}",
                                     if signal.get() == mode {
                                         "bg-indigo-600 text-white shadow-md"
                                     } else {

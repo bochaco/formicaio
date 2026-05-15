@@ -180,7 +180,7 @@ pub(super) fn NodeInstanceView(
                             </div>
                             <div class="md:col-span-1 flex items-center justify-between md:justify-center gap-4">
                                 <span class="md:hidden text-xs font-bold text-slate-500 uppercase w-20">
-                                    Records
+                                    Chunks
                                 </span>
                                 <span class="font-mono text-white">
                                     {move || value_or_dash(info.read().records)}
@@ -320,7 +320,7 @@ pub(super) fn NodeInstanceView(
                     <DetailItemView label="Memory Used">
                         {move || value_or_dash(info.read().mem_used.map(|v| format!("{v:.2} MB")))}
                     </DetailItemView>
-                    <DetailItemView label="Records">
+                    <DetailItemView label="Chunks">
                         {move || value_or_dash(info.read().records)}
                     </DetailItemView>
                     <DetailItemView label="Disk Usage">
@@ -467,7 +467,7 @@ fn ExpandedNodeDetails(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
             <DetailItemView label="Shunned By" children_class=Signal::stored("text-amber-400")>
                 {move || value_or_dash(info.read().shunned_count)}
             </DetailItemView>
-            <DetailItemView label="Relevant Records">
+            <DetailItemView label="Relevant Chunks">
                 {move || value_or_dash(info.read().relevant_records)}
             </DetailItemView>
 

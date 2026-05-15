@@ -93,7 +93,7 @@ pub fn DashboardView(on_nodes_click: Callback<()>) -> impl IntoView {
                     icon=view! { <IconActivity class="text-rose-400 w-7 h-7" /> }.into_any()
                 />
                 <StatCard
-                    title="Stored Records"
+                    title="Stored Chunks"
                     value=Signal::derive(move || context.stats.read().stored_records.to_string())
                     sub_value=Signal::derive(move || {
                         format!("{} Relevant", context.stats.read().relevant_records)
@@ -147,7 +147,7 @@ pub fn DashboardView(on_nodes_click: Callback<()>) -> impl IntoView {
                             <tr class="bg-slate-800/50 text-slate-400 text-xs uppercase tracking-wider">
                                 <th class="px-6 py-4 font-semibold">Node Id</th>
                                 <th class="px-6 py-4 font-semibold">Status</th>
-                                <th class="px-6 py-4 text-center font-semibold">Stored Records</th>
+                                <th class="px-6 py-4 text-center font-semibold">Stored Chunks</th>
                                 <th class="px-6 py-4 text-center font-semibold">
                                     Estimated Network Size
                                 </th>
