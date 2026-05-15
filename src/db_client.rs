@@ -201,6 +201,126 @@ pub struct DbClient {
     db: Arc<Mutex<SqlitePool>>,
 }
 
+// Bridges the schema gap for databases created at v0.6.2 that skip the v0.7.x migration
+// series (which was squashed into 20260322000000_init.sql at v0.8.0). The consolidated init
+// uses CREATE TABLE IF NOT EXISTS, so existing tables are left intact and the new columns are
+// never added for those users. This function is idempotent: it checks pragma_table_info first
+// and only runs ALTER TABLE when a column is actually absent.
+async fn apply_pre_v080_schema_compat(db: &SqlitePool) -> Result<(), sqlx::Error> {
+    let settings_cols: Vec<String> =
+        sqlx::query_scalar("SELECT name FROM pragma_table_info('settings')")
+            .fetch_all(db)
+            .await
+            .unwrap_or_default();
+
+    if !settings_cols.is_empty() {
+        // Nullable columns: also run UPDATE to seed defaults for the existing row.
+        let nullable: &[(&str, &str, &str)] = &[
+            (
+                "node_list_page_size",
+                "ALTER TABLE settings ADD COLUMN node_list_page_size INTEGER",
+                "UPDATE settings SET node_list_page_size=30 WHERE node_list_page_size IS NULL",
+            ),
+            (
+                "node_list_mode",
+                "ALTER TABLE settings ADD COLUMN node_list_mode INTEGER",
+                "UPDATE settings SET node_list_mode=0 WHERE node_list_mode IS NULL",
+            ),
+            (
+                "disks_usage_check_freq",
+                "ALTER TABLE settings ADD COLUMN disks_usage_check_freq INTEGER",
+                "UPDATE settings SET disks_usage_check_freq=60 WHERE disks_usage_check_freq IS NULL",
+            ),
+        ];
+        // NOT NULL columns with a DEFAULT: the DEFAULT clause populates the existing row.
+        let not_null: &[(&str, &str)] = &[
+            (
+                "llm_base_url",
+                "ALTER TABLE settings ADD COLUMN llm_base_url TEXT NOT NULL DEFAULT 'http://localhost:11434'",
+            ),
+            (
+                "llm_model",
+                "ALTER TABLE settings ADD COLUMN llm_model TEXT NOT NULL DEFAULT 'llama3.2:3b'",
+            ),
+            (
+                "llm_api_key",
+                "ALTER TABLE settings ADD COLUMN llm_api_key TEXT NOT NULL DEFAULT ''",
+            ),
+            (
+                "system_prompt",
+                "ALTER TABLE settings ADD COLUMN system_prompt TEXT NOT NULL DEFAULT ''",
+            ),
+            (
+                "max_context_messages",
+                "ALTER TABLE settings ADD COLUMN max_context_messages INTEGER NOT NULL DEFAULT 20",
+            ),
+            (
+                "autonomous_enabled",
+                "ALTER TABLE settings ADD COLUMN autonomous_enabled INTEGER NOT NULL DEFAULT 0",
+            ),
+            (
+                "autonomous_check_interval_secs",
+                "ALTER TABLE settings ADD COLUMN autonomous_check_interval_secs INTEGER NOT NULL DEFAULT 60",
+            ),
+            (
+                "autonomous_max_actions_per_cycle",
+                "ALTER TABLE settings ADD COLUMN autonomous_max_actions_per_cycle INTEGER NOT NULL DEFAULT 3",
+            ),
+            (
+                "rewards_monitoring_enabled",
+                "ALTER TABLE settings ADD COLUMN rewards_monitoring_enabled INTEGER NOT NULL DEFAULT 1",
+            ),
+        ];
+
+        for (col, alter, update) in nullable {
+            if !settings_cols.contains(&(*col).to_string()) {
+                logging::log!("[DB] Adding missing column '{col}' to settings (pre-v0.8.0 compat)");
+                sqlx::query(alter).execute(db).await?;
+                sqlx::query(update).execute(db).await?;
+            }
+        }
+        for (col, alter) in not_null {
+            if !settings_cols.contains(&(*col).to_string()) {
+                logging::log!("[DB] Adding missing column '{col}' to settings (pre-v0.8.0 compat)");
+                sqlx::query(alter).execute(db).await?;
+            }
+        }
+    }
+
+    let nodes_cols: Vec<String> = sqlx::query_scalar("SELECT name FROM pragma_table_info('nodes')")
+        .fetch_all(db)
+        .await
+        .unwrap_or_default();
+
+    if !nodes_cols.is_empty() {
+        // disk_usage: added in migration 20260118202106 (v0.7.x, after v0.6.2)
+        // ipv4_only: added directly to consolidated init at squash time, never had own migration
+        // log_level: added directly to consolidated init after squash, never had own migration
+        let nodes_missing: &[(&str, &str)] = &[
+            (
+                "disk_usage",
+                "ALTER TABLE nodes ADD COLUMN disk_usage INTEGER",
+            ),
+            (
+                "ipv4_only",
+                "ALTER TABLE nodes ADD COLUMN ipv4_only INTEGER",
+            ),
+            (
+                "log_level",
+                "ALTER TABLE nodes ADD COLUMN log_level TEXT NOT NULL DEFAULT ''",
+            ),
+        ];
+        for (col, alter) in nodes_missing {
+            if !nodes_cols.contains(&(*col).to_string()) {
+                logging::log!("[DB] Adding missing column '{col}' to nodes (pre-v0.8.0 compat)");
+                sqlx::query(alter).execute(db).await?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
 impl DbClient {
     // Create a connection to local Sqlite DB where nodes metadata is cached.
     pub async fn connect(data_dir_path: Option<PathBuf>) -> Result<Self, sqlx::Error> {
@@ -232,6 +352,11 @@ impl DbClient {
 
         let db = SqlitePool::connect(&sqlite_db_url).await?;
 
+        // Must run before Migrator::run(): the consolidated init (20260322000000) INSERT
+        // references node_list_page_size and other v0.7.x columns by name — SQLite validates
+        // column existence at parse time even when WHERE NOT EXISTS would skip the insert.
+        apply_pre_v080_schema_compat(&db).await?;
+
         let migrations = current_dir()?.join("migrations");
         logging::log!("[DB] Applying database migrations from: {migrations:?} ...");
         Migrator::new(migrations)
@@ -241,6 +366,7 @@ impl DbClient {
             .await?;
 
         logging::log!("[DB] Database migrations completed successfully!");
+
         Ok(Self {
             db: Arc::new(Mutex::new(db)),
         })
