@@ -207,6 +207,10 @@ pub async fn get_settings() -> Result<super::types::AppSettings, ServerFnError> 
 #[server(name = UpdateSettings, prefix = "/api", endpoint = "/settings/set")]
 pub async fn update_settings(settings: super::types::AppSettings) -> Result<(), ServerFnError> {
     let context = expect_context::<ServerGlobalState>();
+    let old_settings = context.app_ctx.db_client.get_settings().await;
+    if old_settings.node_bin_download_url != settings.node_bin_download_url {
+        context.node_manager.delete_master_bin().await;
+    }
     context.app_ctx.db_client.update_settings(&settings).await?;
     context
         .app_ctx

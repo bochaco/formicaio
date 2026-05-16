@@ -70,6 +70,7 @@ struct CachedSettings {
     autonomous_check_interval_secs: i64,
     autonomous_max_actions_per_cycle: i64,
     metrics_mode: i64,
+    node_bin_download_url: Option<String>,
 }
 
 // Struct stored on the DB caching nodes metadata.
@@ -993,6 +994,7 @@ impl DbClient {
                 autonomous_check_interval_secs: s.autonomous_check_interval_secs as u64,
                 autonomous_max_actions_per_cycle: s.autonomous_max_actions_per_cycle as u64,
                 metrics_mode: MetricsMode::from_db(s.metrics_mode),
+                node_bin_download_url: s.node_bin_download_url,
             },
             Ok(None) => {
                 logging::log!("[DB] No settings found in DB, we'll be using defaults.");
@@ -1034,7 +1036,8 @@ impl DbClient {
             autonomous_enabled = ?, \
             autonomous_check_interval_secs = ?, \
             autonomous_max_actions_per_cycle = ?, \
-            metrics_mode = ?",
+            metrics_mode = ?, \
+            node_bin_download_url = ?",
         )
         .bind(settings.nodes_auto_upgrade)
         .bind(settings.nodes_auto_upgrade_delay.as_secs() as i64)
@@ -1059,6 +1062,7 @@ impl DbClient {
         .bind(settings.autonomous_check_interval_secs as i64)
         .bind(settings.autonomous_max_actions_per_cycle as i64)
         .bind(settings.metrics_mode.to_db())
+        .bind(settings.node_bin_download_url.clone())
         .execute(&*db_lock)
         .await
         {

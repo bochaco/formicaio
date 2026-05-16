@@ -84,6 +84,9 @@ pub struct AppSettings {
     pub autonomous_max_actions_per_cycle: u64,
     /// Controls how CPU and memory metrics are collected for each node.
     pub metrics_mode: MetricsMode,
+    /// Optional custom base URL for downloading node binaries.
+    /// When None, falls back to the default GitHub releases URL.
+    pub node_bin_download_url: Option<String>,
 }
 
 impl Default for AppSettings {
@@ -135,6 +138,7 @@ impl Default for AppSettings {
             autonomous_max_actions_per_cycle: 3,
             // Use the node's HTTP metrics endpoint by default.
             metrics_mode: MetricsMode::Http,
+            node_bin_download_url: None,
         }
     }
 }

@@ -83,10 +83,15 @@ impl NodeManager {
             Ok(()) => {}
             Err(err) => {
                 logging::error!("[ERROR][NodeMgr] Failed to get latest node binary: {err}");
-                let current_version = node_manager.native_nodes.read_node_version(None).await?;
-                logging::log!(
-                    "[NodeMgr] We will proceed using the locally available node binary: v{current_version}"
-                );
+                match node_manager.native_nodes.read_node_version(None).await {
+                    Ok(current_version) => logging::log!(
+                        "[NodeMgr] We will proceed using the locally available node binary: v{current_version}"
+                    ),
+                    Err(err) => logging::error!(
+                        "[ERROR][NodeMgr] No node binary available locally either: {err}. \
+                         A download will be attempted when the first node is created."
+                    ),
+                }
             }
         }
 
@@ -141,13 +146,18 @@ impl NodeManager {
         Ok(node_manager)
     }
 
+    pub async fn delete_master_bin(&self) {
+        self.native_nodes.delete_master_bin().await;
+    }
+
     pub async fn upgrade_master_node_binary(
         &self,
         version: Option<&Version>,
     ) -> Result<(), NodeManagerError> {
+        let settings = self.app_ctx.db_client.get_settings().await;
         let v = self
             .native_nodes
-            .upgrade_master_node_binary(version)
+            .upgrade_master_node_binary(version, settings.node_bin_download_url.as_deref())
             .await?;
         *self.app_ctx.latest_bin_version.write().await = Some(v);
         Ok(())
@@ -182,6 +192,26 @@ impl NodeManager {
             data_dir_path: Some(node_opts.data_dir_path.clone()),
             ..Default::default()
         };
+
+        if !self.native_nodes.has_master_bin() {
+            logging::log!(
+                "[NodeMgr] Master binary not found, attempting download before creating node..."
+            );
+            let settings = self.app_ctx.db_client.get_settings().await;
+            if let Err(err) = self.upgrade_master_node_binary(None).await {
+                let url_hint = if settings.node_bin_download_url.is_some() {
+                    " Please also verify the binary download URL configured in settings."
+                } else {
+                    ""
+                };
+                return Err(NodeManagerError::NativeNodeFailure(
+                    NativeNodesError::NodeBinDownloadError(format!(
+                        "Node binary unavailable and download failed: {err}. \
+                         Please check your internet connection and try again.{url_hint}"
+                    )),
+                ));
+            }
+        }
 
         if let Err(err) = self.native_nodes.new_node(&node_info).await {
             logging::error!("[ERROR][NodeMgr] Failed to create new node: {err:?}");

@@ -47,6 +47,7 @@ const NODE_LOG_FILENAME_PREFIX: &str = "ant-node.";
 // Consts used to download node binary from GitHub releases
 const ANT_NODE_GITHUB_REPO: &str = "WithAutonomi/ant-node";
 const GITHUB_API_URL: &str = "https://api.github.com";
+const DEFAULT_BIN_DOWNLOAD_BASE_URL: &str = "https://github.com/WithAutonomi/ant-node";
 
 #[derive(Debug, Error)]
 pub enum NativeNodesError {
@@ -226,6 +227,23 @@ impl NativeNodes {
             node_status_locked,
             lmdb_envs: Arc::new(RwLock::new(lmdb_envs)),
         })
+    }
+
+    pub fn has_master_bin(&self) -> bool {
+        self.root_dir.join(NODE_BIN_NAME).exists()
+    }
+
+    pub async fn delete_master_bin(&self) {
+        let path = self.root_dir.join(NODE_BIN_NAME);
+        if path.exists() {
+            if let Err(err) = remove_file(&path).await {
+                logging::error!(
+                    "[ERROR][NodeMgr] Failed to delete master binary at {path:?}: {err}"
+                );
+            } else {
+                logging::log!("[NodeMgr] Master binary deleted: {path:?}");
+            }
+        }
     }
 
     // Create directory to hold node's data and cloned node binary
@@ -847,12 +865,51 @@ impl NativeNodes {
 
     // Download/upgrade the master node binary which is used for new nodes to be spawned.
     // If no version is provided, it will upgrade only if existing node binary is not the latest version.
+    // If bin_download_url is provided, it is used as the complete URL to the archive file;
+    // GitHub is not contacted and the version is discovered by running the downloaded binary.
     pub async fn upgrade_master_node_binary(
         &self,
         version: Option<&Version>,
+        bin_download_url: Option<&str>,
     ) -> Result<Version, NativeNodesError> {
         let client = reqwest::Client::builder().user_agent("formicaio").build()?;
 
+        // When a custom full URL is provided, download directly without any GitHub interaction.
+        if let Some(full_url) = bin_download_url {
+            logging::log!("[NodeMgr] Downloading node binary from custom URL: {full_url}");
+            let response = client.get(full_url).send().await?;
+            if !response.status().is_success() {
+                return Err(NativeNodesError::NodeBinDownloadError(format!(
+                    "HTTP {} when downloading {full_url}",
+                    response.status()
+                )));
+            }
+            let archive_bytes = response.bytes().await?;
+            let archive_name = if full_url.ends_with(".zip") {
+                "node_binary.zip"
+            } else {
+                "node_binary.tar.gz"
+            };
+            let archive_path = self.root_dir.join(archive_name);
+            tokio::fs::write(&archive_path, &archive_bytes).await?;
+            let bin_path = self.root_dir.join(NODE_BIN_NAME);
+            extract_binary_from_archive(&archive_path, NODE_BIN_NAME, &bin_path)?;
+            remove_file(archive_path).await?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let mut permissions = tokio::fs::metadata(&bin_path).await?.permissions();
+                permissions.set_mode(0o755);
+                tokio::fs::set_permissions(&bin_path, permissions).await?;
+            }
+            let downloaded_version = self.read_node_version(None).await?;
+            logging::log!(
+                "[NodeMgr] Node binary v{downloaded_version} downloaded from custom URL at: {bin_path:?}"
+            );
+            return Ok(downloaded_version);
+        }
+
+        // Default: fetch latest version from GitHub and download from there.
         let version_to_download = match version {
             Some(v) => v.clone(),
             None => {
@@ -886,7 +943,7 @@ impl NativeNodes {
 
         let archive_name = get_platform_archive_name()?;
         let download_url = format!(
-            "https://github.com/{ANT_NODE_GITHUB_REPO}/releases/download/v{version_to_download}/{archive_name}"
+            "{DEFAULT_BIN_DOWNLOAD_BASE_URL}/releases/download/v{version_to_download}/{archive_name}"
         );
 
         logging::log!("[NodeMgr] Downloading from: {download_url}");

@@ -49,6 +49,7 @@ struct FormContent {
     autonomous_check_interval: RwSignal<Result<u64, (String, String)>>,
     autonomous_max_actions: RwSignal<Result<u64, (String, String)>>,
     metrics_mode: RwSignal<MetricsMode>,
+    node_bin_download_url: RwSignal<Result<String, (String, String)>>,
 }
 
 impl FormContent {
@@ -82,6 +83,10 @@ impl FormContent {
             autonomous_check_interval: RwSignal::new(Ok(settings.autonomous_check_interval_secs)),
             autonomous_max_actions: RwSignal::new(Ok(settings.autonomous_max_actions_per_cycle)),
             metrics_mode: RwSignal::new(settings.metrics_mode),
+            node_bin_download_url: RwSignal::new(Ok(settings
+                .node_bin_download_url
+                .clone()
+                .unwrap_or_default())),
         }
     }
 
@@ -118,6 +123,11 @@ impl FormContent {
             || self.autonomous_max_actions.get()
                 != Ok(saved_settings.autonomous_max_actions_per_cycle)
             || self.metrics_mode.get() != saved_settings.metrics_mode
+            || self.node_bin_download_url.get()
+                != Ok(saved_settings
+                    .node_bin_download_url
+                    .clone()
+                    .unwrap_or_default())
     }
 
     pub fn get_valid_changes(&self) -> Option<AppSettings> {
@@ -137,6 +147,7 @@ impl FormContent {
         let v13 = self.max_context_messages.get().ok()?;
         let v14 = self.autonomous_check_interval.get().ok()?;
         let v15 = self.autonomous_max_actions.get().ok()?;
+        let v16 = self.node_bin_download_url.get().ok()?;
 
         Some(AppSettings {
             nodes_auto_upgrade: self.auto_upgrade.get(),
@@ -162,6 +173,7 @@ impl FormContent {
             autonomous_check_interval_secs: v14,
             autonomous_max_actions_per_cycle: v15,
             metrics_mode: self.metrics_mode.get(),
+            node_bin_download_url: (!v16.is_empty()).then_some(v16),
         })
     }
 
@@ -204,6 +216,10 @@ impl FormContent {
         self.autonomous_max_actions
             .set(Ok(saved_settings.autonomous_max_actions_per_cycle));
         self.metrics_mode.set(saved_settings.metrics_mode);
+        self.node_bin_download_url.set(Ok(saved_settings
+            .node_bin_download_url
+            .clone()
+            .unwrap_or_default()));
     }
 }
 
@@ -282,6 +298,26 @@ fn SettingsForm(form: RwSignal<FormContent>, active_tab: RwSignal<u8>) -> impl I
                         name="metricsFreq"
                         signal=form.read_untracked().disks_usage_check_freq
                         min=10
+                    />
+                </SettingRow>
+                <SettingRow
+                    label="Binary Download URL"
+                    description="Full URL of the node binary archive to download. Leave empty to use the default GitHub releases URL."
+                    full_width=true
+                    error=Signal::derive(move || {
+                        form.read().node_bin_download_url.read().clone().err()
+                    })
+                >
+                    <TextInputNew
+                        name="nodeBinDownloadUrl"
+                        signal=form.read_untracked().node_bin_download_url
+                        validator=|v| {
+                            if v.is_empty() {
+                                Ok(v)
+                            } else {
+                                v.parse::<url::Url>().map_err(|e| e.to_string()).map(|_| v)
+                            }
+                        }
                     />
                 </SettingRow>
             </SettingsCard>
