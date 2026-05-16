@@ -10,7 +10,10 @@ use crate::{
 
 use super::{
     UPGRADE_NODE_BIN_TIMEOUT_SECS,
-    docker_client::{DockerClient, DockerClientError},
+    docker_client::{
+        DEFAULT_NODE_CONTAINER_IMAGE_NAME, DEFAULT_NODE_CONTAINER_IMAGE_TAG, DockerClient,
+        DockerClientError,
+    },
 };
 
 use bytes::Bytes;
@@ -32,6 +35,13 @@ pub enum NodeManagerError {
     BgTasks(String),
 }
 
+fn parse_image(s: &str) -> (&str, &str) {
+    match s.rfind(':') {
+        Some(i) => (&s[..i], &s[i + 1..]),
+        None => (s, "latest"),
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct NodeManager {
     app_ctx: AppContext,
@@ -46,10 +56,23 @@ impl NodeManager {
         })
     }
 
+    pub async fn delete_master_bin(&self) {
+        // no-op in Docker mode — there is no master binary on the host filesystem
+    }
+
     pub async fn upgrade_master_node_binary(
         &self,
         version: Option<&Version>,
     ) -> Result<(), NodeManagerError> {
+        let settings = self.app_ctx.db_client.get_settings().await;
+        let (name, tag) = match settings.node_bin_download_url.as_deref() {
+            Some(custom) => parse_image(custom),
+            None => (
+                DEFAULT_NODE_CONTAINER_IMAGE_NAME,
+                DEFAULT_NODE_CONTAINER_IMAGE_TAG,
+            ),
+        };
+        self.docker_client.set_image(name, tag).await;
         logging::log!("[NodeMgr] Pulling Formica node image from registry ...");
         if let Err(err) = self.docker_client.pull_formica_image().await {
             logging::error!("[ERROR][NodeMgr] Failed to pull node image: {err}");
@@ -69,6 +92,15 @@ impl NodeManager {
             node_opts.port
         );
         let auto_start = node_opts.auto_start;
+        let settings = self.app_ctx.db_client.get_settings().await;
+        let (name, tag) = match settings.node_bin_download_url.as_deref() {
+            Some(custom) => parse_image(custom),
+            None => (
+                DEFAULT_NODE_CONTAINER_IMAGE_NAME,
+                DEFAULT_NODE_CONTAINER_IMAGE_TAG,
+            ),
+        };
+        self.docker_client.set_image(name, tag).await;
         let node_id = self.docker_client.create_new_container(node_opts).await?;
         logging::log!("[NodeMgr] New node ID: {node_id} ...");
 

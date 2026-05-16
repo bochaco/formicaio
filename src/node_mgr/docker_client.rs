@@ -53,8 +53,8 @@ const DOCKER_SOCKET_PATH: &str = "DOCKER_SOCKET_PATH";
 const DEFAULT_DOCKER_SOCKET_PATH: &str = "/var/run/docker.sock";
 
 // Name and tag of the Docker image to use by default for each node instance
-const DEFAULT_NODE_CONTAINER_IMAGE_NAME: &str = "bochaco/formica";
-const DEFAULT_NODE_CONTAINER_IMAGE_TAG: &str = "latest";
+pub const DEFAULT_NODE_CONTAINER_IMAGE_NAME: &str = "bochaco/formica";
+pub const DEFAULT_NODE_CONTAINER_IMAGE_TAG: &str = "latest";
 // Env var names to set the name and tag of the Docker image to use for each node instance
 const NODE_CONTAINER_IMAGE_NAME: &str = "NODE_CONTAINER_IMAGE_NAME";
 const NODE_CONTAINER_IMAGE_TAG: &str = "NODE_CONTAINER_IMAGE_TAG";
@@ -186,8 +186,7 @@ impl ReqMethod {
 #[derive(Clone, Debug)]
 pub struct DockerClient {
     socket_path: PathBuf,
-    node_image_name: String,
-    node_image_tag: String,
+    node_image: Arc<RwLock<(String, String)>>, // (name, tag)
     last_check_ts: Arc<RwLock<u64>>,
 }
 
@@ -212,10 +211,14 @@ impl DockerClient {
 
         Ok(Self {
             socket_path,
-            node_image_tag,
-            node_image_name,
+            node_image: Arc::new(RwLock::new((node_image_name, node_image_tag))),
             last_check_ts: Arc::new(RwLock::new(0)),
         })
+    }
+
+    pub async fn set_image(&self, name: &str, tag: &str) {
+        *self.node_image.write().await = (name.to_string(), tag.to_string());
+        logging::log!("[DockerClient] Formica node image set to: {name}:{tag}");
     }
 
     // Query the Docker server to return the info of the container matching the given id
@@ -334,11 +337,15 @@ impl DockerClient {
         &self,
         node_opts: NodeOpts,
     ) -> Result<NodeId, DockerClientError> {
+        let (image_name, image_tag) = {
+            let img = self.node_image.read().await;
+            (img.0.clone(), img.1.clone())
+        };
         let url = format!("{DOCKER_CONTAINERS_API}/create");
         let mapped_ports = [(node_opts.port, "udp"), (node_opts.metrics_port, "tcp")];
 
         let mut labels = vec![
-            (LABEL_KEY_VERSION.to_string(), self.node_image_tag.clone()),
+            (LABEL_KEY_VERSION.to_string(), image_tag.clone()),
             (LABEL_KEY_NODE_PORT.to_string(), node_opts.port.to_string()),
             (
                 LABEL_KEY_METRICS_PORT.to_string(),
@@ -383,7 +390,7 @@ impl DockerClient {
         }
 
         let container_create_req = ContainerCreate {
-            Image: format!("{}:{}", self.node_image_name, self.node_image_tag),
+            Image: format!("{image_name}:{image_tag}"),
             // we use a label so we can then filter them when fetching a list of containers
             Labels: Some(labels.into_iter().collect()),
             Env: Some(env_vars),
@@ -716,13 +723,18 @@ impl DockerClient {
     ) -> Result<Vec<u8>, DockerClientError> {
         let resp = match method.try_send_request(url, query, &self.socket_path).await {
             Err(DockerClientError::ImageNotFound) => {
-                logging::log!(
-                    "We need to pull the Formica image: {}:{} ...",
-                    self.node_image_name,
-                    self.node_image_tag
-                );
+                let (image_name, image_tag) = {
+                    let img = self.node_image.read().await;
+                    (img.0.clone(), img.1.clone())
+                };
+                logging::log!("We need to pull the Formica image: {image_name}:{image_tag} ...");
                 // let's pull the image before retrying
-                self.pull_formica_image().await?;
+                if let Err(err) = self.pull_formica_image().await {
+                    logging::error!(
+                        "[ERROR][DockerClient] Failed to pull Formica image {image_name}:{image_tag}: {err}"
+                    );
+                    return Err(err);
+                }
                 method.try_send_request(url, query, &self.socket_path).await
             }
             other => other,
@@ -742,13 +754,18 @@ impl DockerClient {
     {
         let resp = match method.try_send_request(url, query, &self.socket_path).await {
             Err(DockerClientError::ImageNotFound) => {
-                logging::log!(
-                    "We need to pull the Formica image: {}:{} ...",
-                    self.node_image_name,
-                    self.node_image_tag
-                );
+                let (image_name, image_tag) = {
+                    let img = self.node_image.read().await;
+                    (img.0.clone(), img.1.clone())
+                };
+                logging::log!("We need to pull the Formica image: {image_name}:{image_tag} ...");
                 // let's pull the image before retrying
-                self.pull_formica_image().await?;
+                if let Err(err) = self.pull_formica_image().await {
+                    logging::error!(
+                        "[ERROR][DockerClient] Failed to pull Formica image {image_name}:{image_tag}: {err}"
+                    );
+                    return Err(err);
+                }
                 method.try_send_request(url, query, &self.socket_path).await
             }
             other => other,
@@ -759,15 +776,17 @@ impl DockerClient {
 
     // Pull the formica image.
     pub async fn pull_formica_image(&self) -> Result<(), DockerClientError> {
+        let (image_name, image_tag) = {
+            let img = self.node_image.read().await;
+            (img.0.clone(), img.1.clone())
+        };
         let url = format!("{DOCKER_IMAGES_API}/create");
         logging::log!(
-            "[PULL] Sending Docker request to pull Formica image: {}:{} ...",
-            self.node_image_name,
-            self.node_image_tag
+            "[PULL] Sending Docker request to pull Formica image: {image_name}:{image_tag} ..."
         );
         let query = &[
-            ("fromImage", self.node_image_name.as_str()),
-            ("tag", self.node_image_tag.as_str()),
+            ("fromImage", image_name.as_str()),
+            ("tag", image_tag.as_str()),
         ];
         let resp = ReqMethod::post_empty_body()
             .try_send_request(&url, query, &self.socket_path)
@@ -777,11 +796,7 @@ impl DockerClient {
         get_response_bytes(resp).await?;
 
         // TODO: check if it succeeded and report error if it failed
-        logging::log!(
-            "Formica image {}:{} was successfully pulled!",
-            self.node_image_name,
-            self.node_image_tag
-        );
+        logging::log!("Formica image {image_name}:{image_tag} was successfully pulled!");
 
         Ok(())
     }

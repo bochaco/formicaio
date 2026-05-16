@@ -301,8 +301,20 @@ fn SettingsForm(form: RwSignal<FormContent>, active_tab: RwSignal<u8>) -> impl I
                     />
                 </SettingRow>
                 <SettingRow
-                    label="Binary Download URL"
-                    description="Full URL of the node binary archive to download. Leave empty to use the default GitHub releases URL."
+                    label={
+                        #[cfg(feature = "native")] { "Binary Download URL" }
+                        #[cfg(not(feature = "native"))] { "Docker Image" }
+                    }
+                    description={
+                        #[cfg(feature = "native")]
+                        {
+                            "Full URL of the node binary archive to download. Leave empty to use the default GitHub releases URL."
+                        }
+                        #[cfg(not(feature = "native"))]
+                        {
+                            "Docker image name and tag to pull (e.g. myrepo/formica:v1.2.3). Leave empty to use the default (bochaco/formica:latest)."
+                        }
+                    }
                     full_width=true
                     error=Signal::derive(move || {
                         form.read().node_bin_download_url.read().clone().err()
@@ -311,12 +323,19 @@ fn SettingsForm(form: RwSignal<FormContent>, active_tab: RwSignal<u8>) -> impl I
                     <TextInputNew
                         name="nodeBinDownloadUrl"
                         signal=form.read_untracked().node_bin_download_url
-                        validator=|v| {
-                            if v.is_empty() {
-                                Ok(v)
-                            } else {
-                                v.parse::<url::Url>().map_err(|e| e.to_string()).map(|_| v)
+                        validator={
+                            #[cfg(feature = "native")]
+                            {
+                                (|v: String| {
+                                    if v.is_empty() {
+                                        Ok(v)
+                                    } else {
+                                        v.parse::<url::Url>().map_err(|e| e.to_string()).map(|_| v)
+                                    }
+                                }) as fn(String) -> Result<String, String>
                             }
+                            #[cfg(not(feature = "native"))]
+                            { (|v: String| Ok(v)) as fn(String) -> Result<String, String> }
                         }
                     />
                 </SettingRow>

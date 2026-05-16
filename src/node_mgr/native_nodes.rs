@@ -877,12 +877,22 @@ impl NativeNodes {
         // When a custom full URL is provided, download directly without any GitHub interaction.
         if let Some(full_url) = bin_download_url {
             logging::log!("[NodeMgr] Downloading node binary from custom URL: {full_url}");
-            let response = client.get(full_url).send().await?;
+            let response = match client.get(full_url).send().await {
+                Ok(r) => r,
+                Err(err) => {
+                    logging::error!(
+                        "[ERROR][NodeMgr] Failed to reach custom binary URL {full_url}: {err}"
+                    );
+                    return Err(err.into());
+                }
+            };
             if !response.status().is_success() {
-                return Err(NativeNodesError::NodeBinDownloadError(format!(
+                let err = NativeNodesError::NodeBinDownloadError(format!(
                     "HTTP {} when downloading {full_url}",
                     response.status()
-                )));
+                ));
+                logging::error!("[ERROR][NodeMgr] {err}");
+                return Err(err);
             }
             let archive_bytes = response.bytes().await?;
             let archive_name = if full_url.ends_with(".zip") {
@@ -893,7 +903,12 @@ impl NativeNodes {
             let archive_path = self.root_dir.join(archive_name);
             tokio::fs::write(&archive_path, &archive_bytes).await?;
             let bin_path = self.root_dir.join(NODE_BIN_NAME);
-            extract_binary_from_archive(&archive_path, NODE_BIN_NAME, &bin_path)?;
+            if let Err(err) = extract_binary_from_archive(&archive_path, NODE_BIN_NAME, &bin_path) {
+                logging::error!(
+                    "[ERROR][NodeMgr] Failed to extract node binary from archive: {err}"
+                );
+                return Err(err);
+            }
             remove_file(archive_path).await?;
             #[cfg(unix)]
             {
@@ -948,12 +963,22 @@ impl NativeNodes {
 
         logging::log!("[NodeMgr] Downloading from: {download_url}");
 
-        let response = client.get(&download_url).send().await?;
+        let response = match client.get(&download_url).send().await {
+            Ok(r) => r,
+            Err(err) => {
+                logging::error!(
+                    "[ERROR][NodeMgr] Failed to reach download URL {download_url}: {err}"
+                );
+                return Err(err.into());
+            }
+        };
         if !response.status().is_success() {
-            return Err(NativeNodesError::NodeBinDownloadError(format!(
+            let err = NativeNodesError::NodeBinDownloadError(format!(
                 "HTTP {} when downloading {download_url}",
                 response.status()
-            )));
+            ));
+            logging::error!("[ERROR][NodeMgr] {err}");
+            return Err(err);
         }
 
         let archive_bytes = response.bytes().await?;
@@ -962,7 +987,10 @@ impl NativeNodes {
 
         // Extract the binary from the archive
         let bin_path = self.root_dir.join(NODE_BIN_NAME);
-        extract_binary_from_archive(&archive_path, NODE_BIN_NAME, &bin_path)?;
+        if let Err(err) = extract_binary_from_archive(&archive_path, NODE_BIN_NAME, &bin_path) {
+            logging::error!("[ERROR][NodeMgr] Failed to extract node binary from archive: {err}");
+            return Err(err);
+        }
 
         remove_file(archive_path).await?;
 
