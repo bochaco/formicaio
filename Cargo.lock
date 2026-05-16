@@ -2800,7 +2800,7 @@ dependencies = [
 
 [[package]]
 name = "formicaio"
-version = "0.8.3"
+version = "0.8.4"
 dependencies = [
  "alloy",
  "alloy-primitives",
