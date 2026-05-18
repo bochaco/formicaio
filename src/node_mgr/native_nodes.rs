@@ -151,17 +151,35 @@ fn extract_binary_from_archive(
 // SAFETY: Callers must ensure at most one Env is open per path at a time.
 // NativeNodes upholds this via lmdb_envs: the env is inserted once on first
 // successful open and removed in kill_node() before any directory deletion.
+// Read mm_mapsize from data.mdb header (offset 32): MDB_meta starts at PAGEHDRSZ=16 into
+// the file, and mm_mapsize is at +16 within MDB_meta (after mm_magic u32 + mm_version u32
+// + mm_address *void = 16 bytes). This is the exact map_size ant-node committed.
+fn read_lmdb_mapsize(env_dir: &Path) -> Option<usize> {
+    use std::io::{Read, Seek, SeekFrom};
+    let mut f = std::fs::File::open(env_dir.join("data.mdb")).ok()?;
+    let mut buf = [0u8; 8];
+    f.seek(SeekFrom::Start(32)).ok()?;
+    f.read_exact(&mut buf).ok()?;
+    let size = usize::from_le_bytes(buf);
+    if size > 0 { Some(size) } else { None }
+}
+
 fn open_lmdb_env_readonly(node_dir: &Path) -> Option<heed::Env> {
-    // ant-node sets map_size to at least 256 MiB (scaled to available disk space);
-    // 1 TiB here ensures we can always open any environment it creates.
-    // This is virtual-address-space reservation only — no physical RAM consumed.
-    const MAP_SIZE: usize = 1 << 40; // 1 TiB
     let path = node_dir.join("chunks.mdb");
+    // Use the map_size ant-node stored in the file header rather than a fixed constant.
+    // A hardcoded large value (e.g. 1 TiB) triggers ENOMEM under Docker on Raspberry Pi 4
+    // where overcommit limits prevent reserving virtual space far exceeding available disk.
+    // If the header can't be read the env doesn't exist yet; skip silently.
+    let map_size = read_lmdb_mapsize(&path)?;
     match unsafe {
         heed::EnvOpenOptions::new()
             .max_dbs(1)
-            .map_size(MAP_SIZE)
-            .flags(heed::EnvFlags::READ_ONLY)
+            .map_size(map_size)
+            // NO_LOCK skips the lock.mdb format check, which encodes sizeof(pthread_mutex_t).
+            // glibc ARM64 uses 48-byte mutexes; musl (our Alpine build) uses 40-byte mutexes,
+            // producing different format numbers and MDB_VERSION_MISMATCH on ARM64 otherwise.
+            // Safe because formicaio is strictly read-only and never uses the reader-lock table.
+            .flags(heed::EnvFlags::READ_ONLY | heed::EnvFlags::NO_LOCK)
             .open(&path)
     } {
         Ok(env) => Some(env),
