@@ -276,14 +276,14 @@ async fn apply_pre_v080_schema_compat(db: &SqlitePool) -> Result<(), sqlx::Error
         for (col, alter, update) in nullable {
             if !settings_cols.contains(&(*col).to_string()) {
                 logging::log!("[DB] Adding missing column '{col}' to settings (pre-v0.8.0 compat)");
-                sqlx::query(alter).execute(db).await?;
-                sqlx::query(update).execute(db).await?;
+                sqlx::query(*alter).execute(db).await?;
+                sqlx::query(*update).execute(db).await?;
             }
         }
         for (col, alter) in not_null {
             if !settings_cols.contains(&(*col).to_string()) {
                 logging::log!("[DB] Adding missing column '{col}' to settings (pre-v0.8.0 compat)");
-                sqlx::query(alter).execute(db).await?;
+                sqlx::query(*alter).execute(db).await?;
             }
         }
     }
@@ -314,7 +314,7 @@ async fn apply_pre_v080_schema_compat(db: &SqlitePool) -> Result<(), sqlx::Error
         for (col, alter) in nodes_missing {
             if !nodes_cols.contains(&(*col).to_string()) {
                 logging::log!("[DB] Adding missing column '{col}' to nodes (pre-v0.8.0 compat)");
-                sqlx::query(alter).execute(db).await?;
+                sqlx::query(*alter).execute(db).await?;
             }
         }
     }
@@ -497,11 +497,10 @@ impl DbClient {
                 node_logs, log_level, \
                 records, connected_peers, kbuckets_peers, \
                 data_dir_path \
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-            .to_string();
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         let db_lock = self.db.lock().await;
-        match sqlx::query(&query_str)
+        match sqlx::query(query_str)
             .bind(info.node_id.to_string())
             .bind(info.created.to_string())
             .bind(info.status_changed.to_string())
@@ -599,7 +598,7 @@ impl DbClient {
         );
         params.push(Some(info.node_id.to_string()));
 
-        let mut query = sqlx::query(&query_str);
+        let mut query = sqlx::query(sqlx::AssertSqlSafe(query_str));
         for p in params {
             query = query.bind(p);
         }
@@ -655,7 +654,7 @@ impl DbClient {
             updates.join(", ")
         );
 
-        let mut query = sqlx::query(&query_str);
+        let mut query = sqlx::query(sqlx::AssertSqlSafe(query_str));
         for p in params {
             query = query.bind(p);
         }
