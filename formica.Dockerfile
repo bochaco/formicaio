@@ -58,7 +58,6 @@ CMD ["sh", "-c", "while true; \
   --root-dir /app/node_data \
   --enable-logging \
   ${NODE_LOGS_ARG} \
-  --bootstrap-cache-dir /app/node_data \
   ${REWARDS_ADDR_ARG} \
   --evm-network arbitrum-one; \
   EXIT_CODE=$?; \

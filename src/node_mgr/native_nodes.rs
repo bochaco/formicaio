@@ -40,7 +40,6 @@ const NODE_MGR_ROOT_DIR: &str = "NODE_MGR_ROOT_DIR";
 const DEFAULT_ROOT_FOLDER: &str = "formicaio_data";
 const DEFAULT_NODE_DATA_FOLDER: &str = "node_data";
 const DEFAULT_LOGS_FOLDER: &str = "logs";
-const DEFAULT_BOOTSTRAP_CACHE_FOLDER: &str = "bootstrap_cache";
 const NODE_IDENTITY_KEY_FILE: &str = "node_identity.key";
 const NODE_LOG_FILENAME_PREFIX: &str = "ant-node.";
 
@@ -316,7 +315,6 @@ impl NativeNodes {
 
         let node_data_dir = self.get_node_data_dir(node_info, true);
         let node_bin_path = node_data_dir.join(NODE_BIN_NAME);
-        let bootstrap_cache_dir = self.root_dir.join(DEFAULT_BOOTSTRAP_CACHE_FOLDER);
         let log_output_dir = node_data_dir.join(DEFAULT_LOGS_FOLDER);
 
         // if node dir and binary don't exist we create them
@@ -348,9 +346,6 @@ impl NativeNodes {
             args.push("--log-dir".to_string());
             args.push(log_output_dir.display().to_string());
         }
-
-        args.push("--bootstrap-cache-dir".to_string());
-        args.push(bootstrap_cache_dir.display().to_string());
 
         args.push("--rewards-address".to_string());
         let rewards_address_str = rewards_address.to_string();
