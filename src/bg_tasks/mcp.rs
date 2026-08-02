@@ -3,11 +3,12 @@ use crate::{app_context::AppContext, node_mgr::NodeManager};
 
 use async_trait::async_trait;
 use leptos::logging;
+use rust_mcp_axum::{AxumServerOptions, create_axum_server};
 use rust_mcp_sdk::{
     McpServer, ToMcpServerHandler,
     event_store::InMemoryEventStore,
     mcp_icon,
-    mcp_server::{HyperServerOptions, ServerHandler, hyper_server},
+    mcp_server::ServerHandler,
     schema::{
         CallToolRequestParams, CallToolResult, Implementation, InitializeResult,
         LATEST_PROTOCOL_VERSION, ListToolsResult, PaginatedRequestParams, RpcError,
@@ -96,11 +97,11 @@ pub fn start_mcp_server(addr: SocketAddr, app_ctx: AppContext, node_manager: Nod
         node_manager,
     };
 
-    // instantiate HyperServer, providing `server_details`, `handler` and HyperServerOptions
-    let server = hyper_server::create_server(
+    // instantiate the Axum-based MCP server, providing `server_details`, `handler` and AxumServerOptions
+    let server = create_axum_server(
         server_details,
         handler.to_mcp_server_handler(),
-        HyperServerOptions {
+        AxumServerOptions {
             host: addr.ip().to_string(),
             port: addr.port(),
             sse_support: false,
