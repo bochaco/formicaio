@@ -1,13 +1,13 @@
 {
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.3.0",
-    "daisyui": "^5.5.19",
-    "flowbite": "^4.0.2",
-    "postcss": "^8.5.14",
-    "tailwindcss": "^4.3.0"
+    "@tailwindcss/postcss": "^4.3.3",
+    "daisyui": "^5.7",
+    "flowbite": "^4.0",
+    "postcss": "^8.5",
+    "tailwindcss": "^4.3.3"
   },
   "dependencies": {
-    "@serialport/list": "^13.0.0",
-    "puppeteer": "^24.43.1"
+    "@serialport/list": "^13.0",
+    "puppeteer": "^25"
   }
 }
