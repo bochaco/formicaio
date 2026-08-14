@@ -39,7 +39,7 @@ The name "Formicaio" is derived from the Italian word for "anthill", symbolizing
 
 ### What is Autonomi?
 
-Autonomi is a decentralized storage and bandwidth sharing network where users can earn ANT tokens by contributing their resources. The network operates on Arbitrum One, providing fast and cost-effective transactions. See also the [Formicaio forum thread](https://forum.autonomi.community/t/formicaio).
+Autonomi is a decentralized storage and bandwidth sharing network where users can earn ANT tokens by contributing their resources. The network operates on Arbitrum One, providing fast and cost-effective transactions.
 
 ## Features
 
