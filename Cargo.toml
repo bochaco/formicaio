@@ -7,7 +7,7 @@ edition = "2024"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-alloy = { version = "2.0", default-features = false, features = ["reqwest-rustls-tls","provider-http","contract","sol-types","json","rpc-types-eth"], optional = true }
+alloy = { version = "2.4", default-features = false, features = ["reqwest-rustls-tls","provider-http","contract","sol-types","json","rpc-types-eth"], optional = true }
 alloy-primitives = { version = "1", features = ["serde"] }
 flate2 = { version = "1.1", optional = true }
 tar = { version = "0.4", optional = true }
@@ -44,9 +44,9 @@ rand = "0.10"
 reqwest = { version = "0.13", default-features = false, features = ["rustls","json","stream"], optional = true }
 rust-mcp-sdk = { version = "1", optional = true, default-features = false, features = ["server","macros","streamable-http"] }
 rust-mcp-axum = { version = "1", optional = true }
-saorsa-core = { version = "0.26", optional = true }
+saorsa-core = { version = "0.27", optional = true }
 async-openai = { version = "0.41", optional = true, default-features = false, features = ["rustls", "chat-completion", "model"] }
-async-trait = { version = "0.1.89", optional = true }
+async-trait = { version = "0.1.92", optional = true }
 semver = { version = "1.0", optional = true }
 serde = "1.0"
 serde_json = "1.0"
@@ -60,7 +60,7 @@ tower = { version = "0.5", features = ["util"], optional = true }
 tower-http = { version = "0.7", default-features = false, features = ["fs"], optional = true }
 url = "2"
 walkdir = { version = "2.5.0", optional = true }
-wasm-bindgen = "=0.2.126"
+wasm-bindgen = "=0.2.127"
 wasm-bindgen-futures = "0.4"
 
 [features]
