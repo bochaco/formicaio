@@ -5,14 +5,12 @@ use async_trait::async_trait;
 use leptos::logging;
 use rust_mcp_axum::{AxumServerOptions, create_axum_server};
 use rust_mcp_sdk::{
-    McpServer, ToMcpServerHandler,
-    event_store::InMemoryEventStore,
-    mcp_icon,
+    McpServer, RequestContext, ServerDetails, ToMcpServerHandler, mcp_icon,
     mcp_server::ServerHandler,
     schema::{
-        CallToolRequestParams, CallToolResult, Implementation, InitializeResult,
-        LATEST_PROTOCOL_VERSION, ListToolsResult, PaginatedRequestParams, RpcError,
-        ServerCapabilities, ServerCapabilitiesTools, schema_utils::CallToolError,
+        CallToolRequestParams, CallToolResult, Implementation, ListToolsResult,
+        ListToolsResultCacheScope, PaginatedRequestParams, RpcError, ServerCapabilities,
+        ServerCapabilitiesTools, ServerResult, schema_utils::CallToolError,
     },
 };
 use std::{net::SocketAddr, sync::Arc, time::Duration};
@@ -28,9 +26,13 @@ impl ServerHandler for McpServerHandler {
     async fn handle_list_tools_request(
         &self,
         _params: Option<PaginatedRequestParams>,
+        _context: &RequestContext,
         _runtime: Arc<dyn McpServer>,
     ) -> std::result::Result<ListToolsResult, RpcError> {
         Ok(ListToolsResult {
+            cache_scope: ListToolsResultCacheScope::Private,
+            result_type: "complete".to_string(),
+            ttl_ms: 0,
             meta: None,
             next_cursor: None,
             tools: FormicaioTools::tools(),
@@ -41,14 +43,15 @@ impl ServerHandler for McpServerHandler {
     async fn handle_call_tool_request(
         &self,
         params: CallToolRequestParams,
+        _context: &RequestContext,
         _runtime: Arc<dyn McpServer>,
-    ) -> std::result::Result<CallToolResult, CallToolError> {
+    ) -> std::result::Result<ServerResult, CallToolError> {
         // Attempt to convert request parameters into FormicaioTools enum
         let tool_params: FormicaioTools =
             FormicaioTools::try_from(params).map_err(CallToolError::new)?;
 
         // Match the tool variant and execute its corresponding logic
-        match tool_params {
+        let result: std::result::Result<CallToolResult, CallToolError> = match tool_params {
             FormicaioTools::FetchStats(tool) => tool.call_tool(&self.app_ctx).await,
             FormicaioTools::NodeInstances(tool) => {
                 tool.call_tool(&self.app_ctx, &self.node_manager).await
@@ -59,14 +62,15 @@ impl ServerHandler for McpServerHandler {
             FormicaioTools::DeleteNodeInstance(tool) => tool.call_tool(&self.node_manager).await,
             FormicaioTools::UpgradeNodeInstance(tool) => tool.call_tool(&self.node_manager).await,
             FormicaioTools::RecycleNodeInstance(tool) => tool.call_tool(&self.node_manager).await,
-        }
+        };
+        result.map(Into::into)
     }
 }
 
 // Kick off the MCP server to listen on the given address and port.
 pub fn start_mcp_server(addr: SocketAddr, app_ctx: AppContext, node_manager: NodeManager) {
     // Define server details and capabilities
-    let server_details = InitializeResult {
+    let server_details = ServerDetails {
         // server name and version
         server_info: Implementation {
             name: "Formicaio MCP Server SSE".to_string(),
@@ -88,7 +92,6 @@ pub fn start_mcp_server(addr: SocketAddr, app_ctx: AppContext, node_manager: Nod
         },
         meta: None,
         instructions: Some("Formicaio MCP Server - Use 'ListTools' to discover available node management tools. Connect via HTTP SSE or standard MCP protocols.".to_string()),
-        protocol_version: LATEST_PROTOCOL_VERSION.to_string(),
     };
 
     // instantiate our custom handler for handling MCP messages
@@ -106,7 +109,6 @@ pub fn start_mcp_server(addr: SocketAddr, app_ctx: AppContext, node_manager: Nod
             port: addr.port(),
             sse_support: false,
             ping_interval: Duration::from_secs(5),
-            event_store: Some(Arc::new(InMemoryEventStore::default())), // enable resumability
             ..Default::default()
         },
     );
