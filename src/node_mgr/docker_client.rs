@@ -266,11 +266,11 @@ impl DockerClient {
 
         if read_system_metrics {
             for node in nodes.iter_mut() {
-                if node.status.is_active() {
-                    if let Ok((mem_mb, cpu_pct)) = self.get_container_stats(&node.node_id).await {
-                        node.mem_used = Some(mem_mb);
-                        node.cpu_usage = Some(cpu_pct);
-                    }
+                if node.status.is_active()
+                    && let Ok((mem_mb, cpu_pct)) = self.get_container_stats(&node.node_id).await
+                {
+                    node.mem_used = Some(mem_mb);
+                    node.cpu_usage = Some(cpu_pct);
                 }
             }
         }
@@ -587,17 +587,14 @@ impl DockerClient {
         let (_, resp_str) = self.exec_in_container(id, cmd, None).await?;
         let reader = Cursor::new(resp_str).lines();
         let mut usage = vec![];
-        for line in reader {
-            if let Ok(content) = line {
-                let parts: Vec<String> =
-                    content.split_whitespace().map(|s| s.to_string()).collect();
-                if parts.len() == 3 {
-                    usage.push((
-                        parts[0].parse::<u64>()?,
-                        parts[1].parse::<u64>()?,
-                        PathBuf::from(parts[2].clone()),
-                    ));
-                }
+        for content in reader.map_while(Result::ok) {
+            let parts: Vec<String> = content.split_whitespace().map(|s| s.to_string()).collect();
+            if parts.len() == 3 {
+                usage.push((
+                    parts[0].parse::<u64>()?,
+                    parts[1].parse::<u64>()?,
+                    PathBuf::from(parts[2].clone()),
+                ));
             }
         }
 

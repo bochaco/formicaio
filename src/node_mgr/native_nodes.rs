@@ -39,6 +39,10 @@ const DEFAULT_EVM_NETWORK: &str = "arbitrum-one";
 const NODE_MGR_ROOT_DIR: &str = "NODE_MGR_ROOT_DIR";
 const DEFAULT_ROOT_FOLDER: &str = "formicaio_data";
 const DEFAULT_NODE_DATA_FOLDER: &str = "node_data";
+// Directory name used by ant-node's newer file-based chunk store (one file per
+// chunk, sharded into subdirectories keyed by the last byte of the chunk address),
+// which replaces the older `chunks.mdb` LMDB store.
+const CHUNKS_DIR_NAME: &str = "chunks";
 const DEFAULT_LOGS_FOLDER: &str = "logs";
 const NODE_IDENTITY_KEY_FILE: &str = "node_identity.key";
 const NODE_LOG_FILENAME_PREFIX: &str = "ant-node.";
@@ -161,6 +165,43 @@ fn read_lmdb_mapsize(env_dir: &Path) -> Option<usize> {
     f.read_exact(&mut buf).ok()?;
     let size = usize::from_le_bytes(buf);
     if size > 0 { Some(size) } else { None }
+}
+
+// A chunk file in ant-node's file-based store is named after its full address:
+// exactly 64 lowercase hex characters. This excludes the store's own bookkeeping
+// entries (`layout.json`, `.lock`, and in-flight `.tmp.<pid>.<n>` writes).
+fn is_chunk_filename(name: &str) -> bool {
+    name.len() == 64
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+}
+
+// Counts chunk files stored under `<node_dir>/chunks/<shard>/`, ant-node's newer
+// file-based chunk store. Only file names are inspected (no per-entry stat), matching
+// how ant-node itself rebuilds its in-memory index cheaply. Returns None if the
+// `chunks` directory doesn't exist (e.g. the node is still solely LMDB-backed).
+fn count_file_store_chunks(node_dir: &Path) -> Option<usize> {
+    let chunks_dir = node_dir.join(CHUNKS_DIR_NAME);
+    let shard_dirs = std::fs::read_dir(&chunks_dir).ok()?;
+
+    let mut count = 0;
+    for shard_entry in shard_dirs.flatten() {
+        let Ok(file_type) = shard_entry.file_type() else {
+            continue;
+        };
+        if !file_type.is_dir() {
+            continue;
+        }
+        let Ok(chunk_entries) = std::fs::read_dir(shard_entry.path()) else {
+            continue;
+        };
+        count += chunk_entries
+            .flatten()
+            .filter(|e| e.file_name().to_str().is_some_and(is_chunk_filename))
+            .count();
+    }
+    Some(count)
 }
 
 fn open_lmdb_env_readonly(node_dir: &Path) -> Option<heed::Env> {
@@ -472,8 +513,25 @@ impl NativeNodes {
                                 env.open_database(&rtxn, None).ok()??;
                             db.len(&rtxn).ok().map(|n| n as usize)
                         };
-                        if let Some(env) = self.lmdb_envs.read().await.get(&node_info.node_id) {
-                            node_info.records = count_from(env);
+                        let lmdb_count = self
+                            .lmdb_envs
+                            .read()
+                            .await
+                            .get(&node_info.node_id)
+                            .and_then(count_from);
+
+                        if let Some(count) = lmdb_count {
+                            node_info.records = Some(count);
+                        } else {
+                            // No cached LMDB env, or it failed to read (e.g. `chunks.mdb`
+                            // was retired by ant-node while formicaio was running): drop
+                            // any stale entry and fall back to counting chunks in
+                            // ant-node's newer file-based chunk store instead.
+                            self.lmdb_envs.write().await.remove(&node_info.node_id);
+                            let node_dir = self.get_node_data_dir(&node_info, true);
+                            if let Some(count) = count_file_store_chunks(&node_dir) {
+                                node_info.records = Some(count);
+                            }
                         }
                     }
 
@@ -1127,5 +1185,61 @@ impl NativeNodes {
             );
         }
         Ok(output)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    fn unique_temp_dir(name: &str) -> PathBuf {
+        let dir = env::temp_dir().join(format!("formicaio-test-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn test_is_chunk_filename() {
+        let valid = "a".repeat(64);
+        assert!(is_chunk_filename(&valid));
+        assert!(!is_chunk_filename(&"A".repeat(64))); // uppercase hex rejected
+        assert!(!is_chunk_filename(&"a".repeat(63))); // wrong length
+        assert!(!is_chunk_filename(&"g".repeat(64))); // non-hex char
+        assert!(!is_chunk_filename("layout.json"));
+        assert!(!is_chunk_filename(".lock"));
+        assert!(!is_chunk_filename(".tmp.1234.0"));
+    }
+
+    #[test]
+    fn test_count_file_store_chunks_missing_dir() {
+        let node_dir = unique_temp_dir("missing");
+        assert_eq!(count_file_store_chunks(&node_dir), None);
+        std::fs::remove_dir_all(&node_dir).unwrap();
+    }
+
+    #[test]
+    fn test_count_file_store_chunks() {
+        let node_dir = unique_temp_dir("counting");
+        let chunks_dir = node_dir.join(CHUNKS_DIR_NAME);
+
+        let shard_00 = chunks_dir.join("00");
+        let shard_ff = chunks_dir.join("ff");
+        std::fs::create_dir_all(&shard_00).unwrap();
+        std::fs::create_dir_all(&shard_ff).unwrap();
+
+        // genuine chunk files, spread across shards
+        std::fs::write(shard_00.join("a".repeat(64)), b"chunk-a").unwrap();
+        std::fs::write(shard_00.join("b".repeat(64)), b"chunk-b").unwrap();
+        std::fs::write(shard_ff.join("c".repeat(64)), b"chunk-c").unwrap();
+
+        // store bookkeeping entries that must be excluded from the count
+        std::fs::write(chunks_dir.join("layout.json"), b"{}").unwrap();
+        std::fs::write(chunks_dir.join(".lock"), b"").unwrap();
+        std::fs::write(shard_00.join(".tmp.1234.0"), b"in-flight").unwrap();
+
+        assert_eq!(count_file_store_chunks(&node_dir), Some(3));
+
+        std::fs::remove_dir_all(&node_dir).unwrap();
     }
 }

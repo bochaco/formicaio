@@ -167,7 +167,7 @@ pub async fn update_nodes_info(
 ) {
     let ts = Utc::now();
     let nodes = node_manager
-        .get_nodes_list(metrics_mode.clone())
+        .get_nodes_list(metrics_mode)
         .await
         .unwrap_or_else(|err| {
             logging::warn!("[{ts}] [WARN][BgTask] Failed to get nodes list: {err}");

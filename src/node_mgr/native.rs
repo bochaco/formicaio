@@ -500,7 +500,7 @@ impl NodeManager {
             nodes.retain(|_, info| filter.passes(info));
         }
 
-        for (_, node_info) in nodes.iter_mut() {
+        for node_info in nodes.values_mut() {
             helper_gen_status_info(node_info);
             if node_info.status.is_active() {
                 // let's get up to date metrics info
