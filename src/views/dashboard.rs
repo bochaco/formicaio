@@ -5,9 +5,7 @@ use super::{
     earnings::RewardsEarningsCard,
     format_disk_usage,
     helpers::{truncated_balance_str, value_or_dash},
-    icons::{
-        IconActivity, IconArrowUpRight, IconDisk, IconFile, IconPeers, IconServer, IconWallet,
-    },
+    icons::{IconActivity, IconArrowUpRight, IconDisk, IconFile, IconServer, IconWallet},
 };
 
 use alloy_primitives::{U256, utils::format_units};
@@ -29,7 +27,7 @@ pub fn DashboardView(on_nodes_click: Callback<()>) -> impl IntoView {
             .into_iter()
             .filter(|(_, n)| n.read().status.is_active())
             .collect::<Vec<_>>();
-        sorted.sort_by_key(|b| std::cmp::Reverse(b.1.read().connected_peers));
+        sorted.sort_by_key(|b| std::cmp::Reverse(b.1.read().records));
         sorted.truncate(NUMBER_OF_TOP_NODES);
         sorted
     });
@@ -37,7 +35,7 @@ pub fn DashboardView(on_nodes_click: Callback<()>) -> impl IntoView {
     view! {
         <div class="p-4 lg:p-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             // Stats Grid
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div class="cursor-pointer" on:click=move |_| on_nodes_click.run(())>
                     <StatCard
                         title="Total Nodes"
@@ -85,28 +83,11 @@ pub fn DashboardView(on_nodes_click: Callback<()>) -> impl IntoView {
                         balances=Signal::derive(move || context.stats.read().balances.clone())
                     />
                 </Show>
-                <StatCard
-                    title="Estimated Network Size"
-                    value=Signal::derive(move || {
-                        context.stats.read().estimated_net_size.to_string()
-                    })
-                    icon=view! { <IconActivity class="text-rose-400 w-7 h-7" /> }.into_any()
-                />
+                // Hidden until antnode's metrics endpoint returns — see types/metrics.rs
                 <StatCard
                     title="Stored Chunks"
                     value=Signal::derive(move || context.stats.read().stored_records.to_string())
-                    sub_value=Signal::derive(move || {
-                        format!("{} Relevant", context.stats.read().relevant_records)
-                    })
                     icon=view! { <IconFile class="text-amber-400 w-8 h-8" /> }.into_any()
-                />
-                <StatCard
-                    title="Total Connected Peers"
-                    value=Signal::derive(move || context.stats.read().connected_peers.to_string())
-                    sub_value=Signal::derive(move || {
-                        format!("Shunned by {}", context.stats.read().shunned_count)
-                    })
-                    icon=view! { <IconPeers class="text-cyan-400 w-8 h-8" /> }.into_any()
                 />
                 <DiskUsageCard
                     available=Signal::derive(move || context.stats.read().available_disk_space)
@@ -138,7 +119,7 @@ pub fn DashboardView(on_nodes_click: Callback<()>) -> impl IntoView {
             <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
                 <div class="p-6 border-b border-slate-800 flex items-center justify-between">
                     <h3 class="text-lg font-bold">
-                        "Top " {NUMBER_OF_TOP_NODES} " Most Connected Nodes"
+                        "Top " {NUMBER_OF_TOP_NODES} " Nodes by Stored Chunks"
                     </h3>
                 </div>
                 <div class="overflow-x-auto">
@@ -148,10 +129,6 @@ pub fn DashboardView(on_nodes_click: Callback<()>) -> impl IntoView {
                                 <th class="px-6 py-4 font-semibold">Node Id</th>
                                 <th class="px-6 py-4 font-semibold">Status</th>
                                 <th class="px-6 py-4 text-center font-semibold">Stored Chunks</th>
-                                <th class="px-6 py-4 text-center font-semibold">
-                                    Estimated Network Size
-                                </th>
-                                <th class="px-6 py-4 font-semibold text-center">Peers</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-800">
@@ -189,12 +166,6 @@ pub fn DashboardView(on_nodes_click: Callback<()>) -> impl IntoView {
                                     </td>
                                     <td class="px-6 py-4 text-center font-mono text-cyan-400">
                                         {move || value_or_dash(child.1.read().records)}
-                                    </td>
-                                    <td class="px-6 py-4 text-center font-mono text-cyan-400">
-                                        {move || value_or_dash(child.1.read().net_size)}
-                                    </td>
-                                    <td class="px-6 py-4 text-center font-mono text-cyan-400">
-                                        {move || value_or_dash(child.1.read().connected_peers)}
                                     </td>
                                 </tr>
                             </For>

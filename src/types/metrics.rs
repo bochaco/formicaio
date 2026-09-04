@@ -22,6 +22,16 @@ pub const METRIC_KEY_MEM_USED_MB: &str = "ant_networking_process_memory_used_mb"
 pub const METRIC_KEY_CPU_USAGE: &str = "ant_networking_process_cpu_usage_percentage";
 // The number of records stored locally.
 pub const METRIC_KEY_RECORDS: &str = "ant_networking_records_stored";
+// As of ant-node v0.18.1 (WithAutonomi/ant-node, the binary formicaio downloads for both
+// native and Docker nodes), the node's OpenMetrics/Prometheus HTTP endpoint isn't implemented:
+// --metrics-port is parsed into config but never used to bind a listener, in that repo or its
+// saorsa-core dependency. So these 5 keys are never actually returned by a running node, and
+// the GUI fields that used to show them (Connected Peers, kBuckets Peers, Network size, Shunned
+// By, Relevant Chunks) are intentionally hidden in dashboard.rs/node_instance.rs/nodes_list.rs
+// until that's restored upstream — possibly under different metric names, given a Grafana
+// dashboard template already checked into that repo references an unimplemented `ant_dht_*`/
+// `ant_security_*`/`ant_trust_*` namespace instead of this `ant_networking_*` one.
+//
 // The number of records that we're responsible for. This is used to calculate the store cost.
 pub const METRIC_KEY_RELEVANT_RECORDS: &str = "ant_networking_relevant_records";
 // The number of peers that we are currently connected to.

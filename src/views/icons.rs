@@ -858,33 +858,6 @@ pub fn IconActivity(#[prop(default = "w-6 h-6")] class: &'static str) -> impl In
 }
 
 #[component]
-pub fn IconPeers(#[prop(default = "w-6 h-6")] class: &'static str) -> impl IntoView {
-    view! {
-        <svg
-            class=class.to_string()
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-        >
-            <line x1="12" y1="12" x2="7" y2="6"></line>
-            <line x1="12" y1="12" x2="17" y2="4"></line>
-            <line x1="12" y1="12" x2="14" y2="20"></line>
-            <line x1="12" y1="12" x2="5" y2="14"></line>
-
-            <circle cx="12" cy="12" r="1.5" fill="currentColor"></circle>
-            <circle cx="7" cy="6" r="1" fill="currentColor"></circle>
-            <circle cx="17" cy="4" r="1" fill="currentColor"></circle>
-            <circle cx="14" cy="20" r="1" fill="currentColor"></circle>
-            <circle cx="5" cy="14" r="1.0" fill="currentColor"></circle>
-        </svg>
-    }
-}
-
-#[component]
 pub fn IconLayoutTile() -> impl IntoView {
     view! {
         <svg

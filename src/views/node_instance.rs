@@ -17,9 +17,6 @@ use alloy_primitives::utils::format_units;
 use chrono::{DateTime, Local, Utc};
 use leptos::{logging, prelude::*, task::spawn_local};
 
-// Number of elapsed seconds to warn the user of an active node with 0 connected peers
-const WARN_ZERO_CONN_PEERS_SECS: i64 = 120;
-
 #[component]
 pub(super) fn NodeInstanceView(
     info: RwSignal<NodeInstanceInfo>,
@@ -58,26 +55,6 @@ pub(super) fn NodeInstanceView(
             .contains(&info.read_untracked().node_id)
     };
 
-    // warn the user when there is no connected peers for more than 2 minutes
-    let innactivity_started = RwSignal::new(0i64);
-    let warn_conn_peers = move || {
-        if info.read().status.is_active() {
-            if matches!(info.read().connected_peers, Some(0)) {
-                if innactivity_started.get_untracked() == 0 {
-                    innactivity_started.set(Utc::now().timestamp());
-                } else {
-                    let elapsed_secs = Utc::now().timestamp() - innactivity_started.get_untracked();
-                    if elapsed_secs > WARN_ZERO_CONN_PEERS_SECS {
-                        return true;
-                    }
-                }
-            } else {
-                innactivity_started.set(0i64);
-            }
-        }
-
-        false
-    };
     let status_color = move || {
         if info.read().is_status_unknown {
             "text-rose-400"
@@ -191,20 +168,9 @@ pub(super) fn NodeInstanceView(
                                     )}
                                 </span>
                             </div>
-                            <div class="md:col-span-1 flex items-center justify-between md:justify-center gap-4">
-                                <span class="md:hidden text-xs font-bold text-slate-500 uppercase w-20">
-                                    Peers
-                                </span>
-                                <span class=move || {
-                                    if warn_conn_peers() {
-                                        "text-rose-500"
-                                    } else {
-                                        "font-mono text-cyan-400"
-                                    }
-                                }>{move || value_or_dash(info.read().connected_peers)}</span>
-                            </div>
+                            // Hidden until antnode's metrics endpoint returns — see types/metrics.rs
                             <div
-                                class="md:col-span-3 flex flex-wrap items-center justify-center gap-1 text-slate-400"
+                                class="md:col-span-4 flex flex-wrap items-center justify-center gap-1 text-slate-400"
                                 on:click=move |e| e.stop_propagation()
                             >
                                 <NodeLogs info set_logs />
@@ -321,21 +287,7 @@ pub(super) fn NodeInstanceView(
                     <DetailItemView label="Disk Usage">
                         {move || value_or_dash(info.read().disk_usage.map(format_disk_usage))}
                     </DetailItemView>
-                    <DetailItemView
-                        label="Connected Peers"
-                        children_class=Signal::derive(move || {
-                            if warn_conn_peers() { "text-rose-500" } else { "text-cyan-400" }
-                        })
-                    >
-                        {move || value_or_dash(info.read().connected_peers)}
-                    </DetailItemView>
-                    <DetailItemView
-                        label="Network size"
-                        children_class=Signal::stored("text-cyan-400")
-                    >
-                        {move || { value_or_dash(info.read().net_size) }}
-                    </DetailItemView>
-
+                    // Hidden until antnode's metrics endpoint returns — see types/metrics.rs
                 </div>
 
                 // Expanded Details
@@ -456,15 +408,7 @@ fn ExpandedNodeDetails(info: RwSignal<NodeInstanceInfo>) -> impl IntoView {
                     </div>
                 </div>
             </DetailItemView>
-            <DetailItemView label="kBuckets Peers">
-                {move || value_or_dash(info.read().kbuckets_peers)}
-            </DetailItemView>
-            <DetailItemView label="Shunned By" children_class=Signal::stored("text-amber-400")>
-                {move || value_or_dash(info.read().shunned_count)}
-            </DetailItemView>
-            <DetailItemView label="Relevant Chunks">
-                {move || value_or_dash(info.read().relevant_records)}
-            </DetailItemView>
+            // Hidden until antnode's metrics endpoint returns — see types/metrics.rs
 
             <DetailItemView label="IPv4 only">
                 {move || info.read().ipv4_only.to_string()}

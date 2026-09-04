@@ -69,8 +69,8 @@ pub fn NodesListView(
                                     <div class="col-span-2 text-center">Memory</div>
                                     <div class="col-span-1 text-center">Chunks</div>
                                     <div class="col-span-2 text-center">Disk Usage</div>
-                                    <div class="col-span-1 text-center">Peers</div>
-                                    <div class="col-span-3 text-center">Actions</div>
+                                    // Hidden until antnode's metrics endpoint returns — see types/metrics.rs
+                                    <div class="col-span-4 text-center">Actions</div>
                                 </div>
 
                                 <Show when=move || !context.scheduled_batches.read().is_empty()>

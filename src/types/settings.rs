@@ -1,10 +1,13 @@
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
+// System is the default rather than Http because the currently shipped antnode binary
+// doesn't serve a metrics endpoint at all (see types/metrics.rs) — Http would just poll
+// a port nothing is listening on. Revert this once that's restored upstream.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub enum MetricsMode {
+    Http, // 0 — use the node's HTTP metrics endpoint
     #[default]
-    Http, // 0 — use the node's HTTP metrics endpoint (default)
     System,   // 1 — read CPU/memory from OS/Docker stats
     Disabled, // 2 — skip metrics entirely
 }
@@ -136,8 +139,8 @@ impl Default for AppSettings {
             autonomous_check_interval_secs: 60,
             // Allow at most 3 corrective actions per monitoring cycle to avoid runaway behaviour.
             autonomous_max_actions_per_cycle: 3,
-            // Use the node's HTTP metrics endpoint by default.
-            metrics_mode: MetricsMode::Http,
+            // See the comment on MetricsMode for why System, not Http, is the default.
+            metrics_mode: MetricsMode::System,
             node_bin_download_url: None,
         }
     }
