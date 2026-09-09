@@ -31,14 +31,19 @@ jobs:
   build:
 
     if: "startsWith(github.event.head_commit.message, 'chore: set version to v')"
-    timeout-minutes: 600
-    runs-on: ubuntu-latest
     needs: extract_version  # Ensure this job runs after the version extraction
+    strategy:
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+            suffix: amd64
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+            suffix: arm64
+    runs-on: ${{ matrix.runner }}
 
     steps:
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -48,35 +53,34 @@ jobs:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build for amd64 (LCD disabled) and cache it
+      - name: Build and push single-platform image (LCD disabled)
         uses: docker/build-push-action@v6
         with:
-          platforms: linux/amd64
-          load: true
-          cache-from: type=registry,ref=bochaco/formicaio-gh:buildcache-native-lcd-disabled-v${{ needs.extract_version.outputs.version }}-amd64
-          cache-to: type=registry,ref=bochaco/formicaio-gh:buildcache-native-lcd-disabled-v${{ needs.extract_version.outputs.version }}-amd64
-          build-args: |
-            BUILD_ARGS=--features native,lcd-disabled
-
-      - name: Build for arm64 (LCD disabled) and cache it
-        uses: docker/build-push-action@v6
-        with:
-          platforms: linux/arm64
-          load: true
-          cache-from: type=registry,ref=bochaco/formicaio-gh:buildcache-native-lcd-disabled-v${{ needs.extract_version.outputs.version }}-arm64
-          cache-to: type=registry,ref=bochaco/formicaio-gh:buildcache-native-lcd-disabled-v${{ needs.extract_version.outputs.version }}-arm64
-          build-args: |
-            BUILD_ARGS=--features native,lcd-disabled
-
-      - name: Build multiplatform (LCD disabled) from cache and push
-        uses: docker/build-push-action@v6
-        with:
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ matrix.platform }}
           push: true
-          cache-from: |
-            type=registry,ref=bochaco/formicaio-gh:buildcache-native-lcd-disabled-v${{ needs.extract_version.outputs.version }}-arm64
-            type=registry,ref=bochaco/formicaio-gh:buildcache-native-lcd-disabled-v${{ needs.extract_version.outputs.version }}-amd64
-          tags: ${{ vars.DOCKERHUB_USERNAME }}/formicaio:${{ needs.extract_version.outputs.version }}-native-lcd-disabled
+          provenance: false
+          tags: bochaco/formicaio-gh:build-native-lcd-disabled-${{ matrix.suffix }}-${{ github.run_id }}
+          cache-from: type=gha,scope=native-lcd-disabled-${{ matrix.suffix }}
+          cache-to: type=gha,mode=max,scope=native-lcd-disabled-${{ matrix.suffix }}
           build-args: |
             BUILD_ARGS=--features native,lcd-disabled
-          output: type=image
+
+  publish:
+
+    if: "startsWith(github.event.head_commit.message, 'chore: set version to v')"
+    runs-on: ubuntu-latest
+    needs: [extract_version, build]
+
+    steps:
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Merge per-arch images into multi-platform tag
+        run: |
+          docker buildx imagetools create \
+            -t ${{ vars.DOCKERHUB_USERNAME }}/formicaio:${{ needs.extract_version.outputs.version }}-native-lcd-disabled \
+            bochaco/formicaio-gh:build-native-lcd-disabled-amd64-${{ github.run_id }} \
+            bochaco/formicaio-gh:build-native-lcd-disabled-arm64-${{ github.run_id }}
