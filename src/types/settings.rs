@@ -15,9 +15,9 @@ pub enum MetricsMode {
 impl MetricsMode {
     pub fn from_db(v: i64) -> Self {
         match v {
-            1 => Self::System,
+            0 => Self::Http,
             2 => Self::Disabled,
-            _ => Self::Http,
+            _ => Self::System,
         }
     }
 
@@ -44,9 +44,9 @@ impl std::str::FromStr for MetricsMode {
     type Err = ();
     fn from_str(s: &str) -> Result<Self, ()> {
         match s {
-            "system" => Ok(Self::System),
+            "http" => Ok(Self::Http),
             "disabled" => Ok(Self::Disabled),
-            _ => Ok(Self::Http),
+            _ => Ok(Self::System),
         }
     }
 }
