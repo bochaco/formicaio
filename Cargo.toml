@@ -1,6 +1,6 @@
 [package]
 name = "formicaio"
-version = "0.8.8"
+version = "0.8.9"
 edition = "2024"
 
 [lib]
@@ -44,7 +44,7 @@ rand = "0.10"
 reqwest = { version = "0.13", default-features = false, features = ["rustls","json","stream"], optional = true }
 rust-mcp-sdk = { version = "2", optional = true, default-features = false, features = ["server","macros","streamable-http"] }
 rust-mcp-axum = { version = "2", optional = true }
-saorsa-core = { version = "0.27", optional = true }
+saorsa-core = { version = "0.28", optional = true }
 async-openai = { version = "0.42", optional = true, default-features = false, features = ["rustls", "chat-completion", "model"] }
 async-trait = { version = "0.1.92", optional = true }
 semver = { version = "1.0", optional = true }
@@ -60,7 +60,7 @@ tower = { version = "0.5", features = ["util"], optional = true }
 tower-http = { version = "0.7", default-features = false, features = ["fs"], optional = true }
 url = "2"
 walkdir = { version = "2.5.0", optional = true }
-wasm-bindgen = "=0.2.128"
+wasm-bindgen = "=0.2.129"
 wasm-bindgen-futures = "0.4"
 
 [features]
