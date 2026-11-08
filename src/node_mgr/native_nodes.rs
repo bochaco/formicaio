@@ -138,7 +138,10 @@ fn extract_binary_from_archive(
             let mut entry = zip
                 .by_index(i)
                 .map_err(|e| NativeNodesError::NodeBinDownloadError(e.to_string()))?;
-            if entry.name().ends_with(bin_name) {
+            let name = entry
+                .name()
+                .map_err(|e| NativeNodesError::NodeBinDownloadError(e.to_string()))?;
+            if name.ends_with(bin_name) {
                 let mut out = std::fs::File::create(dest_path)?;
                 std::io::copy(&mut entry, &mut out)?;
                 return Ok(());
