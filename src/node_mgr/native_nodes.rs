@@ -74,6 +74,8 @@ pub enum NativeNodesError {
     NodeBinVersionError(#[from] semver::Error),
     #[error(transparent)]
     ReqwestError(#[from] reqwest::Error),
+    #[error(transparent)]
+    SysInfoError(#[from] sysinfo::Error),
 }
 
 #[derive(Debug)]
@@ -249,11 +251,13 @@ impl NativeNodes {
         data_dir_path: Option<PathBuf>,
         initial_pids: impl Iterator<Item = (NodeId, u32)>,
     ) -> Result<Self, NativeNodesError> {
-        if !sysinfo::IS_SUPPORTED_SYSTEM {
-            panic!(
+        let system = match System::new() {
+            Ok(system) => Arc::new(RwLock::new(system)),
+            Err(sysinfo::Error::Unsupported) => panic!(
                 "Unsupported operating system: The 'sysinfo' dependency required for native process management is not supported on this platform. Please use Docker mode instead."
-            );
-        }
+            ),
+            Err(err) => return Err(err.into()),
+        };
 
         let root_dir = if let Some(path) = data_dir_path {
             path
@@ -268,7 +272,6 @@ impl NativeNodes {
         logging::log!("[NodeMgr] Node manager initialized with root directory: {root_dir:?}");
         create_dir_all(&root_dir).await?;
 
-        let system = Arc::new(RwLock::new(System::new()));
         let mut nodes = HashMap::new();
         let mut lmdb_envs = HashMap::new();
         for (node_id, pid) in initial_pids {
@@ -512,8 +515,14 @@ impl NativeNodes {
                     if read_lmdb {
                         let count_from = |env: &heed::Env| -> Option<usize> {
                             let rtxn = env.read_txn().ok()?;
-                            let db: heed::Database<heed::types::Bytes, heed::types::Bytes> =
-                                env.open_database(&rtxn, None).ok()??;
+                            let db: heed::Database<'_, heed::types::Bytes, heed::types::Bytes> =
+                                env.open_databases_and_commit(rtxn, |dbo, rtxn| {
+                                    dbo.open_database(rtxn, None)
+                                        .map(heed::CommitOrAbort::<_, ()>::Commit)
+                                })
+                                .ok()?
+                                .unwrap_commit()?;
+                            let rtxn = env.read_txn().ok()?;
                             db.len(&rtxn).ok().map(|n| n as usize)
                         };
                         let lmdb_count = self

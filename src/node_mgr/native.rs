@@ -75,7 +75,7 @@ impl NodeManager {
         let node_manager = Self {
             app_ctx,
             native_nodes,
-            disks: Arc::new(RwLock::new(Disks::new())),
+            disks: Arc::new(RwLock::new(Disks::new().map_err(NativeNodesError::from)?)),
         };
 
         // let's make sure we have node binary installed before continuing
@@ -541,7 +541,6 @@ impl NodeManager {
 
         disks.refresh_specifics(true, DiskRefreshKind::nothing().with_storage());
         Ok(disks
-            .list()
             .iter()
             .filter_map(|d| {
                 if d.total_space() > 0 {
